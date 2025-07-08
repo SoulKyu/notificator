@@ -46,15 +46,6 @@ jobs:
         
         # Build for Linux (amd64)
         GOOS=linux GOARCH=amd64 go build -o notificator-linux-amd64 .
-        
-        # Build for Windows (amd64)
-        GOOS=windows GOARCH=amd64 go build -o notificator-windows-amd64.exe .
-        
-        # Build for macOS (amd64)
-        GOOS=darwin GOARCH=amd64 go build -o notificator-darwin-amd64 .
-        
-        # Build for macOS (arm64 - Apple Silicon)
-        GOOS=darwin GOARCH=arm64 go build -o notificator-darwin-arm64 .
     
     - name: Create and push tag
       run: |
@@ -81,13 +72,7 @@ jobs:
           ## Binaries
           Multiple platform binaries are attached to this release:
           - `notificator-linux-amd64` - Linux x86_64
-          - `notificator-windows-amd64.exe` - Windows x86_64
-          - `notificator-darwin-amd64` - macOS Intel
-          - `notificator-darwin-arm64` - macOS Apple Silicon
         draft: false
         prerelease: false
         files: |
           notificator-linux-amd64
-          notificator-windows-amd64.exe
-          notificator-darwin-amd64
-          notificator-darwin-arm64
