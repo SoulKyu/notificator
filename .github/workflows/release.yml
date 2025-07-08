@@ -1,0 +1,93 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for proper tagging
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+    
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-dev xorg-dev
+    
+    - name: Generate version tag
+      id: version
+      run: |
+        # Generate version based on timestamp and short commit hash
+        VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+    
+    - name: Build binaries for multiple platforms
+      run: |
+        go mod download
+        
+        # Build for Linux (amd64)
+        GOOS=linux GOARCH=amd64 go build -o notificator-linux-amd64 .
+        
+        # Build for Windows (amd64)
+        GOOS=windows GOARCH=amd64 go build -o notificator-windows-amd64.exe .
+        
+        # Build for macOS (amd64)
+        GOOS=darwin GOARCH=amd64 go build -o notificator-darwin-amd64 .
+        
+        # Build for macOS (arm64 - Apple Silicon)
+        GOOS=darwin GOARCH=arm64 go build -o notificator-darwin-arm64 .
+    
+    - name: Create and push tag
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag ${{ steps.version.outputs.version }}
+        git push origin ${{ steps.version.outputs.version }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
+        body: |
+          ## Changes
+          - Built from commit: ${{ github.sha }}
+          - Automatic release triggered by push to master
+          
+          ## Binaries
+          Multiple platform binaries are attached to this release:
+          - `notificator-linux-amd64` - Linux x86_64
+          - `notificator-windows-amd64.exe` - Windows x86_64
+          - `notificator-darwin-amd64` - macOS Intel
+          - `notificator-darwin-arm64` - macOS Apple Silicon
+        draft: false
+        prerelease: false
+        files: |
+          notificator-linux-amd64
+          notificator-windows-amd64.exe
+          notificator-darwin-amd64
+          notificator-darwin-arm64
