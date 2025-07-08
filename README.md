@@ -2,6 +2,8 @@
 
 A GUI application for Alertmanager with sound and notification alerts on your laptop.
 
+![alt text](img/preview.png "Preview")
+
 ## Purpose
 
 Notificator provides a desktop interface for monitoring Prometheus Alertmanager alerts with:
