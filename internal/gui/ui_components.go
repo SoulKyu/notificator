@@ -103,11 +103,22 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 		pollingStatusLabel,
 		connectionIndicator,
 	)
+	// Background mode toggle button
+	backgroundModeBtn := widget.NewButtonWithIcon("Background", theme.VisibilityOffIcon(), func() {
+		aw.ToggleBackgroundMode()
+	})
+	backgroundModeBtn.Importance = widget.MediumImportance
 
+	// Update button state based on current mode
+	if aw.IsBackgroundMode() {
+		backgroundModeBtn.SetText("Show")
+	}
 	return container.NewHBox(
 		refreshSection,
 		widget.NewSeparator(),
 		aw.themeBtn,
+		widget.NewSeparator(),
+		backgroundModeBtn,
 		widget.NewSeparator(),
 		aw.groupToggleBtn,
 		widget.NewSeparator(),

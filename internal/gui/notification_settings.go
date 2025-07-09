@@ -225,6 +225,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 
 	content.Add(widget.NewSeparator())
 
+	// NEW: Respect filters option
 	respectFiltersCheck := widget.NewCheck("Only notify for filtered alerts", func(checked bool) {
 		aw.notificationConfig.RespectFilters = checked
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)

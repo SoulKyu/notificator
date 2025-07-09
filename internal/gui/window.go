@@ -15,7 +15,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"notificator/config"
@@ -161,6 +160,11 @@ type AlertsWindow struct {
 
 	// UI initialization flag
 	uiReady bool
+
+	// Background mode components
+	trayManager        *TrayManager
+	backgroundNotifier *BackgroundNotifier
+	isBackgroundMode   bool
 }
 
 // StatusBarMetrics holds references to status bar metric labels
@@ -359,7 +363,8 @@ func (ms *MultiSelectWidget) CreateRenderer() fyne.WidgetRenderer {
 // NewAlertsWindow creates a new alerts window with enhanced features
 func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConfig interface{}) *AlertsWindow {
 	myApp := app.NewWithID("com.notificator.alerts")
-	myApp.SetIcon(theme.InfoIcon())
+
+	// The app icon will be set automatically from FyneApp.toml metadata
 
 	window := myApp.NewWindow("Notificator - Alert Dashboard")
 	window.Resize(fyne.NewSize(1400, 800))
@@ -436,6 +441,39 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 	aw.notifier = notifier.NewNotifier(notifConfig, myApp)
 
 	aw.setupUI()
+	if aw.originalConfig != nil && aw.originalConfig.GUI.StartMinimized {
+		go func() {
+			time.Sleep(2 * time.Second) // Give UI time to initialize
+			aw.scheduleUpdate(func() {
+				if aw.trayManager != nil {
+					aw.trayManager.HideToBackground()
+				}
+			})
+		}()
+	}
+	aw.isBackgroundMode = false
+	if aw.originalConfig != nil {
+		aw.isBackgroundMode = aw.originalConfig.GUI.BackgroundMode
+	}
+
+	// Create tray manager
+	aw.trayManager = NewTrayManager(myApp, window, aw)
+
+	// Create background notifier with callback to show window
+	aw.backgroundNotifier = NewBackgroundNotifier(notifConfig, myApp, func() {
+		if aw.trayManager != nil {
+			aw.trayManager.ShowWindow()
+		}
+	})
+
+	// Handle window close event
+	window.SetCloseIntercept(func() {
+		if aw.originalConfig != nil && aw.originalConfig.GUI.MinimizeToTray {
+			aw.trayManager.HideToBackground()
+		} else {
+			aw.app.Quit()
+		}
+	})
 	aw.setupKeyboardShortcuts()
 	aw.startUpdateHandler()
 	aw.startConnectionHealthMonitoring()
@@ -448,6 +486,7 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 	aw.startSmartAutoRefresh()
 
 	aw.updateNotificationFilters()
+
 	return aw
 }
 
@@ -460,7 +499,11 @@ type ConfigStruct struct {
 
 // GUIConfigStruct contains GUI-specific settings
 type GUIConfigStruct struct {
-	FilterState FilterStateConfigStruct `json:"filter_state"`
+	FilterState    FilterStateConfigStruct `json:"filter_state"`
+	MinimizeToTray bool                    `json:"minimize_to_tray"`
+	StartMinimized bool                    `json:"start_minimized"`
+	ShowTrayIcon   bool                    `json:"show_tray_icon"`
+	BackgroundMode bool                    `json:"background_mode"`
 }
 
 // FilterStateConfigStruct contains the state of filters
@@ -542,6 +585,7 @@ func (aw *AlertsWindow) alertsChanged(oldAlerts, newAlerts []models.Alert) bool 
 }
 
 func (aw *AlertsWindow) updateNotificationFilters() {
+	// Update regular notifier
 	if aw.notifier == nil {
 		return
 	}
@@ -572,7 +616,7 @@ func (aw *AlertsWindow) updateNotificationFilters() {
 		selectedTeams = map[string]bool{"All": true}
 	}
 
-	// Create filter state and update notifier
+	// Create filter state and update both notifiers
 	filterState := notifier.FilterState{
 		SearchText:         searchText,
 		SelectedSeverities: selectedSeverities,
@@ -582,6 +626,11 @@ func (aw *AlertsWindow) updateNotificationFilters() {
 	}
 
 	aw.notifier.UpdateFilters(filterState)
+
+	// Also update background notifier
+	if aw.backgroundNotifier != nil {
+		aw.backgroundNotifier.UpdateFilters(filterState)
+	}
 }
 
 // loadAlertsWithCaching loads alerts with smart caching
@@ -653,6 +702,9 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 			}
 		})
 	}()
+	if aw.trayManager != nil {
+		aw.trayManager.UpdateAlertCounts()
+	}
 }
 
 // loadAlertsInBackground performs background refresh with minimal UI disruption
@@ -673,7 +725,11 @@ func (aw *AlertsWindow) loadAlertsInBackground() {
 			aw.connectionHealth.IsHealthy = true
 
 			if aw.alertsChanged(aw.alerts, alerts) {
-				aw.notifier.ProcessAlerts(alerts, aw.previousAlerts)
+				if aw.IsBackgroundMode() && aw.backgroundNotifier != nil {
+					aw.backgroundNotifier.ProcessAlerts(alerts, aw.previousAlerts)
+				} else {
+					aw.notifier.ProcessAlerts(alerts, aw.previousAlerts)
+				}
 				aw.previousAlerts = aw.alerts
 				aw.alerts = alerts
 				aw.updateTeamFilter()
@@ -1028,11 +1084,9 @@ func (aw *AlertsWindow) toggleGroupedMode() {
 
 	if aw.groupedMode {
 		aw.groupToggleBtn.SetText("Flat View")
-		aw.groupToggleBtn.SetIcon(theme.ViewFullScreenIcon())
 		aw.refreshGroupedTable()
 	} else {
 		aw.groupToggleBtn.SetText("Group View")
-		aw.groupToggleBtn.SetIcon(theme.ListIcon())
 		// Clear selections when switching to flat mode
 		aw.selectedAlerts = make(map[int]bool)
 		aw.updateSelectionLabel()
@@ -1308,6 +1362,19 @@ func (aw *AlertsWindow) setupKeyboardShortcuts() {
 		if key.Name == fyne.KeyC && aw.groupedMode {
 			aw.collapseAllGroups()
 		}
+
+		// Toggle background mode with Ctrl+B
+		if key.Name == fyne.KeyB {
+			aw.ToggleBackgroundMode()
+		}
+
+		// Hide to background with Ctrl+H
+		if key.Name == fyne.KeyH {
+			if aw.trayManager != nil {
+				aw.trayManager.HideToBackground()
+			}
+		}
+
 	})
 }
 
@@ -1325,7 +1392,6 @@ func (aw *AlertsWindow) handleColumnSort(column int) {
 		// Same column, toggle sort direction
 		aw.sortAscending = !aw.sortAscending
 	} else {
-		// New column, default to ascending
 		aw.sortColumn = adjustedColumn
 		aw.sortAscending = true
 	}
@@ -1477,19 +1543,15 @@ func (aw *AlertsWindow) toggleShowHidden() {
 
 	if aw.showHiddenAlerts {
 		aw.showHiddenBtn.SetText("Show Normal Alerts")
-		aw.showHiddenBtn.SetIcon(theme.VisibilityIcon())
 
 		if aw.hideSelectedBtn != nil {
 			aw.hideSelectedBtn.SetText("Unhide Selected")
-			aw.hideSelectedBtn.SetIcon(theme.VisibilityIcon())
 		}
 	} else {
 		aw.showHiddenBtn.SetText("Show Hidden Alerts")
-		aw.showHiddenBtn.SetIcon(theme.VisibilityOffIcon())
 
 		if aw.hideSelectedBtn != nil {
 			aw.hideSelectedBtn.SetText("Hide Selected")
-			aw.hideSelectedBtn.SetIcon(theme.VisibilityOffIcon())
 		}
 	}
 
@@ -1793,4 +1855,43 @@ func (aw *AlertsWindow) loadFilterState() {
 		}
 		aw.teamMultiSelect.updateButton()
 	}
+}
+
+// ToggleBackgroundMode toggles between normal and background mode
+func (aw *AlertsWindow) ToggleBackgroundMode() {
+	if aw.trayManager != nil {
+		aw.trayManager.ToggleBackgroundMode()
+		aw.isBackgroundMode = aw.trayManager.IsBackgroundMode()
+
+		// Save state to config
+		if aw.originalConfig != nil {
+			aw.originalConfig.GUI.BackgroundMode = aw.isBackgroundMode
+			aw.saveConfig()
+		}
+	}
+}
+
+// Update notification processing to use background notifier when in background mode
+func (aw *AlertsWindow) processNotifications(newAlerts []models.Alert, previousAlerts []models.Alert) {
+	if aw.isBackgroundMode && aw.backgroundNotifier != nil {
+		// Use background notifier when in background mode
+		aw.backgroundNotifier.ProcessAlerts(newAlerts, previousAlerts)
+	} else {
+		// Use regular notifier when window is visible
+		aw.notifier.ProcessAlerts(newAlerts, previousAlerts)
+	}
+}
+func (aw *AlertsWindow) saveConfig() {
+	if aw.originalConfig != nil && aw.configPath != "" {
+		err := aw.originalConfig.SaveToFile(aw.configPath)
+		if err != nil {
+			log.Printf("Failed to save config: %v", err)
+		}
+	}
+}
+func (aw *AlertsWindow) IsBackgroundMode() bool {
+	if aw.trayManager != nil {
+		return aw.trayManager.IsBackgroundMode()
+	}
+	return aw.isBackgroundMode
 }

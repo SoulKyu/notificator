@@ -9,6 +9,11 @@ import (
 	"notificator/config"
 	"notificator/internal/alertmanager"
 	"notificator/internal/gui"
+
+	// Import image format decoders for Fyne
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 )
 
 func main() {

@@ -1,0 +1,14 @@
+Website = "https://github.com/SoulKyu/notificator"
+
+[Details]
+  Icon = "img/notificator_background.png"
+  Name = "Notificator"
+  ID = "com.soulkyu.notificator"
+  Version = "1.0.0"
+  Build = 8
+
+[LinuxAndBSD]
+  GenericName = "Alert Manager Dashboard"
+  Categories = ["Network", "System", "Monitor"]
+  Comment = "Monitor and manage Alertmanager alerts with desktop notifications"
+  Keywords = ["alertmanager", "prometheus", "monitoring", "alerts", "notifications"]

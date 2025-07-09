@@ -35,12 +35,10 @@ func (aw *AlertsWindow) toggleTheme() {
 		aw.app.Settings().SetTheme(theme.DarkTheme())
 		aw.themeVariant = "dark"
 		aw.themeBtn.SetText("Light")
-		aw.themeBtn.SetIcon(theme.VisibilityOffIcon())
 	} else {
 		aw.app.Settings().SetTheme(theme.LightTheme())
 		aw.themeVariant = "light"
 		aw.themeBtn.SetText("Dark")
-		aw.themeBtn.SetIcon(theme.VisibilityIcon())
 	}
 
 	// Save theme preference

@@ -45,10 +45,14 @@ type OAuthConfig struct {
 
 // GUIConfig contains GUI-specific settings
 type GUIConfig struct {
-	Width       int               `json:"width"`
-	Height      int               `json:"height"`
-	Title       string            `json:"title"`
-	FilterState FilterStateConfig `json:"filter_state"`
+	Width          int               `json:"width"`
+	Height         int               `json:"height"`
+	Title          string            `json:"title"`
+	FilterState    FilterStateConfig `json:"filter_state"`
+	MinimizeToTray bool              `json:"minimize_to_tray"`
+	StartMinimized bool              `json:"start_minimized"`
+	ShowTrayIcon   bool              `json:"show_tray_icon"`
+	BackgroundMode bool              `json:"background_mode"`
 }
 
 // FilterStateConfig contains the state of filters
@@ -92,9 +96,13 @@ func DefaultConfig() *Config {
 			OAuth:   oauthConfig,
 		},
 		GUI: GUIConfig{
-			Width:  1200,
-			Height: 800,
-			Title:  "Notificator - Alert Dashboard",
+			Width:          1920,
+			Height:         1080,
+			Title:          "Notificator - Alert Dashboard",
+			MinimizeToTray: true,
+			StartMinimized: false,
+			ShowTrayIcon:   true,
+			BackgroundMode: false,
 			FilterState: FilterStateConfig{
 				SearchText:         "",
 				SelectedSeverities: map[string]bool{"All": true},
