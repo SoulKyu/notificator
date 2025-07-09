@@ -3,6 +3,8 @@ package gui
 import (
 	"fmt"
 	"log"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -70,6 +72,10 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 		endTimeInfo = fmt.Sprintf("\n**Ended:** %s", alert.EndsAt.Format("2006-01-02 15:04:05"))
 	}
 
+	// Create the main content container
+	mainContent := container.NewVBox()
+
+	// Add the markdown content without the Generator URL
 	content := widget.NewRichTextFromMarkdown(fmt.Sprintf(`
 # 🚨 %s
 
@@ -84,9 +90,6 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 
 ## 📝 Summary
 %s
-
-## 🔗 Generator URL
-%s
 `,
 		alert.GetAlertName(),
 		aw.getSeverityIcon(alert.GetSeverity()), alert.GetSeverity(),
@@ -99,11 +102,44 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 		silenceInfo,
 		inhibitInfo,
 		alert.GetSummary(),
-		alert.GeneratorURL,
 	))
 
 	content.Wrapping = fyne.TextWrapWord
-	scroll := container.NewScroll(content)
+	mainContent.Add(content)
+
+	// Add Generator URL section with clickable hyperlink
+	if alert.GeneratorURL != "" {
+		generatorSection := container.NewVBox()
+
+		// Add section header
+		generatorHeader := widget.NewRichTextFromMarkdown("## 🔗 Generator URL")
+		generatorSection.Add(generatorHeader)
+
+		// Create clickable button to open URL
+		openURLBtn := widget.NewButtonWithIcon("Open Generator URL", theme.ComputerIcon(), func() {
+			// Use execute_command to open URL in default browser
+			go func() {
+				aw.scheduleUpdate(func() {
+					// Try to open URL using system command
+					if err := aw.openURLInBrowser(alert.GeneratorURL); err != nil {
+						dialog.ShowError(fmt.Errorf("Failed to open URL: %v", err), aw.window)
+					}
+				})
+			}()
+		})
+		openURLBtn.Importance = widget.MediumImportance
+		generatorSection.Add(openURLBtn)
+
+		// Also show the URL as text for reference
+		urlLabel := widget.NewLabel(alert.GeneratorURL)
+		urlLabel.TextStyle = fyne.TextStyle{Monospace: true}
+		urlLabel.Wrapping = fyne.TextWrapWord
+		generatorSection.Add(urlLabel)
+
+		mainContent.Add(generatorSection)
+	}
+
+	scroll := container.NewScroll(mainContent)
 	return scroll
 }
 
@@ -156,39 +192,42 @@ func (aw *AlertsWindow) createLabelsTab(alert models.Alert) fyne.CanvasObject {
 		return content
 	}
 
-	// Create a table for labels
-	labelData := make([][]string, 0, len(alert.Labels))
-	for key, value := range alert.Labels {
-		labelData = append(labelData, []string{key, value})
+	// Sort labels by key for consistent display
+	keys := make([]string, 0, len(alert.Labels))
+	for key := range alert.Labels {
+		keys = append(keys, key)
 	}
 
-	table := widget.NewTable(
-		func() (int, int) { return len(labelData), 2 },
-		func() fyne.CanvasObject { return widget.NewLabel("") },
-		func(i widget.TableCellID, o fyne.CanvasObject) {
-			label := o.(*widget.Label)
-			if i.Col == 0 {
-				label.SetText(labelData[i.Row][0])
-				label.TextStyle = fyne.TextStyle{Bold: true}
-			} else {
-				label.SetText(labelData[i.Row][1])
-				label.TextStyle = fyne.TextStyle{}
+	// Simple sort implementation
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[i] > keys[j] {
+				keys[i], keys[j] = keys[j], keys[i]
 			}
-		},
-	)
+		}
+	}
 
-	table.SetColumnWidth(0, 200)
-	table.SetColumnWidth(1, 400)
+	// Create cards for each label for better readability
+	for _, key := range keys {
+		value := alert.Labels[key]
 
-	// Add headers
-	headerContainer := container.NewHBox(
-		widget.NewLabelWithStyle("Key", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewSeparator(),
-		widget.NewLabelWithStyle("Value", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-	)
+		// Create a card for each label
+		labelContent := container.NewVBox()
 
-	content.Add(headerContainer)
-	content.Add(table)
+		// Key with bold styling
+		keyLabel := widget.NewLabelWithStyle(key, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		labelContent.Add(keyLabel)
+
+		// Value with monospace font for better readability
+		valueLabel := widget.NewLabel(value)
+		valueLabel.TextStyle = fyne.TextStyle{Monospace: true}
+		valueLabel.Wrapping = fyne.TextWrapWord
+		labelContent.Add(valueLabel)
+
+		// Create card with key as title
+		card := widget.NewCard("", "", labelContent)
+		content.Add(card)
+	}
 
 	return container.NewScroll(content)
 }
@@ -816,4 +855,24 @@ func (aw *AlertsWindow) addSilenceDetails(statusInfo *fyne.Container, silenceID 
 
 	// Add a small separator after each silence
 	statusInfo.Add(widget.NewLabel(""))
+}
+
+// openURLInBrowser opens a URL in the default browser using system commands
+func (aw *AlertsWindow) openURLInBrowser(url string) error {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "rundll32"
+		args = []string{"url.dll,FileProtocolHandler", url}
+	case "darwin":
+		cmd = "open"
+		args = []string{url}
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xdg-open"
+		args = []string{url}
+	}
+
+	return exec.Command(cmd, args...).Start()
 }
