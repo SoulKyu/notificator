@@ -12,19 +12,21 @@ import (
 
 	"fyne.io/fyne/v2"
 
+	"notificator/internal/audio"
 	"notificator/internal/models"
 )
 
 // NotificationConfig holds notification settings
 type NotificationConfig struct {
-	Enabled          bool            `json:"enabled"`
-	SoundEnabled     bool            `json:"sound_enabled"`
-	SoundPath        string          `json:"sound_path"`
-	ShowSystem       bool            `json:"show_system"`
-	CriticalOnly     bool            `json:"critical_only"`
-	MaxNotifications int             `json:"max_notifications"`
-	CooldownSeconds  int             `json:"cooldown_seconds"`
-	SeverityRules    map[string]bool `json:"severity_rules"`
+	Enabled           bool            `json:"enabled"`
+	SoundEnabled      bool            `json:"sound_enabled"`
+	SoundPath         string          `json:"sound_path"`
+	AudioOutputDevice string          `json:"audio_output_device"`
+	ShowSystem        bool            `json:"show_system"`
+	CriticalOnly      bool            `json:"critical_only"`
+	MaxNotifications  int             `json:"max_notifications"`
+	CooldownSeconds   int             `json:"cooldown_seconds"`
+	SeverityRules     map[string]bool `json:"severity_rules"`
 
 	RespectFilters bool `json:"respect_filters"` // Whether to apply UI filters to notifications
 }
@@ -76,12 +78,25 @@ func NewNotifier(config NotificationConfig, app fyne.App) *Notifier {
 			"unknown":  false,
 		}
 	}
+	if config.AudioOutputDevice == "" {
+		config.AudioOutputDevice = "default"
+	}
+
+	// Choose sound player based on configuration
+	var soundPlayer SoundPlayer
+	if config.AudioOutputDevice != "" && config.AudioOutputDevice != "default" {
+		// Use device-aware sound player for specific devices
+		soundPlayer = audio.NewDeviceSoundPlayer(config.AudioOutputDevice)
+	} else {
+		// Use default sound player
+		soundPlayer = &DefaultSoundPlayer{}
+	}
 
 	return &Notifier{
 		config:            config,
 		app:               app,
 		lastNotifications: make(map[string]time.Time),
-		soundPlayer:       &DefaultSoundPlayer{},
+		soundPlayer:       soundPlayer,
 		currentFilters:    &FilterState{}, // Initialize with empty filters
 	}
 }
@@ -470,13 +485,14 @@ func GetDefaultSoundPath() string {
 // CreateDefaultNotificationConfig returns a default notification configuration
 func CreateDefaultNotificationConfig() NotificationConfig {
 	return NotificationConfig{
-		Enabled:          true,
-		SoundEnabled:     true,
-		SoundPath:        GetDefaultSoundPath(),
-		ShowSystem:       true,
-		CriticalOnly:     false,
-		MaxNotifications: 5,
-		CooldownSeconds:  300, // 5 minutes
+		Enabled:           true,
+		SoundEnabled:      true,
+		SoundPath:         GetDefaultSoundPath(),
+		AudioOutputDevice: "default",
+		ShowSystem:        true,
+		CriticalOnly:      false,
+		MaxNotifications:  5,
+		CooldownSeconds:   300, // 5 minutes
 		SeverityRules: map[string]bool{
 			"critical": true,
 			"warning":  true,

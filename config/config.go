@@ -65,15 +65,16 @@ type FilterStateConfig struct {
 
 // NotificationConfig contains notification settings
 type NotificationConfig struct {
-	Enabled          bool            `json:"enabled"`
-	SoundEnabled     bool            `json:"sound_enabled"`
-	SoundPath        string          `json:"sound_path"`
-	ShowSystem       bool            `json:"show_system"`
-	CriticalOnly     bool            `json:"critical_only"`
-	MaxNotifications int             `json:"max_notifications"`
-	CooldownSeconds  int             `json:"cooldown_seconds"`
-	SeverityRules    map[string]bool `json:"severity_rules"`
-	RespectFilters   bool            `json:"respect_filters"`
+	Enabled           bool            `json:"enabled"`
+	SoundEnabled      bool            `json:"sound_enabled"`
+	SoundPath         string          `json:"sound_path"`
+	AudioOutputDevice string          `json:"audio_output_device"`
+	ShowSystem        bool            `json:"show_system"`
+	CriticalOnly      bool            `json:"critical_only"`
+	MaxNotifications  int             `json:"max_notifications"`
+	CooldownSeconds   int             `json:"cooldown_seconds"`
+	SeverityRules     map[string]bool `json:"severity_rules"`
+	RespectFilters    bool            `json:"respect_filters"`
 }
 
 // PollingConfig contains polling settings
@@ -111,13 +112,14 @@ func DefaultConfig() *Config {
 			},
 		},
 		Notifications: NotificationConfig{
-			Enabled:          true,
-			SoundEnabled:     true,
-			SoundPath:        getDefaultSoundPath(),
-			ShowSystem:       true,
-			CriticalOnly:     false,
-			MaxNotifications: 5,
-			CooldownSeconds:  300, // 5 minutes
+			Enabled:           true,
+			SoundEnabled:      true,
+			SoundPath:         getDefaultSoundPath(),
+			AudioOutputDevice: "default",
+			ShowSystem:        true,
+			CriticalOnly:      false,
+			MaxNotifications:  5,
+			CooldownSeconds:   300, // 5 minutes
 			SeverityRules: map[string]bool{
 				"critical": true,
 				"warning":  true,

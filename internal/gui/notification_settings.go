@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -9,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
+	"notificator/internal/audio"
 	"notificator/internal/models"
 	"notificator/internal/notifier"
 )
@@ -225,7 +227,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 
 	content.Add(widget.NewSeparator())
 
-	// NEW: Respect filters option
+	// Respect filters option
 	respectFiltersCheck := widget.NewCheck("Only notify for filtered alerts", func(checked bool) {
 		aw.notificationConfig.RespectFilters = checked
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
@@ -381,6 +383,12 @@ This helps reduce notification noise by focusing only on what you're currently m
 		container.NewHBox(browseBtn, testSoundBtn),
 	)
 	content.Add(soundContainer)
+
+	content.Add(widget.NewSeparator())
+
+	// Audio output device selection
+	audioDeviceContainer := aw.createAudioDeviceSelection()
+	content.Add(audioDeviceContainer)
 
 	// Action buttons
 	actionContainer := container.NewHBox(
@@ -580,6 +588,140 @@ func (aw *AlertsWindow) confirmClearAllHiddenAlerts(statusLabel *widget.Label) {
 	}, aw.window)
 
 	dialog.Show()
+}
+
+// createAudioDeviceSelection creates the audio output device selection UI
+func (aw *AlertsWindow) createAudioDeviceSelection() *fyne.Container {
+	content := container.NewVBox()
+
+	// Audio device selection title
+	deviceTitle := widget.NewLabelWithStyle("Audio Output Device:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	content.Add(deviceTitle)
+
+	// Create audio device manager
+	deviceManager := audio.NewAudioDeviceManager()
+
+	// Get available devices
+	devices, err := deviceManager.GetAvailableDevices()
+	if err != nil {
+		log.Printf("Failed to get audio devices: %v", err)
+		// Fallback to default device only
+		devices = []audio.AudioDevice{
+			{ID: "default", Name: "System Default", Description: "Default system audio device", IsDefault: true},
+		}
+	}
+
+	// Create device options for the select widget
+	deviceOptions := make([]string, len(devices))
+	deviceMap := make(map[string]audio.AudioDevice)
+
+	for i, device := range devices {
+		displayName := device.Name
+		if device.IsDefault {
+			displayName += " (Default)"
+		}
+		deviceOptions[i] = displayName
+		deviceMap[displayName] = device
+	}
+
+	// Current device selection
+	currentDeviceLabel := widget.NewLabel(fmt.Sprintf("Current: %s", aw.notificationConfig.AudioOutputDevice))
+	content.Add(currentDeviceLabel)
+
+	// Device selection dropdown
+	deviceSelect := widget.NewSelect(deviceOptions, func(selected string) {
+		if device, exists := deviceMap[selected]; exists {
+			aw.notificationConfig.AudioOutputDevice = device.ID
+			currentDeviceLabel.SetText(fmt.Sprintf("Current: %s", device.ID))
+
+			// Update the notifier with device-aware sound player
+			aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+			aw.updateNotificationFilters()
+			aw.saveNotificationConfig()
+		}
+	})
+
+	// Set current selection
+	currentSelection := "System Default (Default)"
+	for displayName, device := range deviceMap {
+		if device.ID == aw.notificationConfig.AudioOutputDevice {
+			currentSelection = displayName
+			break
+		}
+	}
+	deviceSelect.SetSelected(currentSelection)
+
+	content.Add(widget.NewLabel("Select audio output device:"))
+	content.Add(deviceSelect)
+
+	// Refresh devices button
+	refreshBtn := widget.NewButton("Refresh Devices", func() {
+		// Re-enumerate devices
+		newDevices, err := deviceManager.GetAvailableDevices()
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("Failed to refresh audio devices: %v", err), aw.window)
+			return
+		}
+
+		// Update device options
+		newDeviceOptions := make([]string, len(newDevices))
+		newDeviceMap := make(map[string]audio.AudioDevice)
+
+		for i, device := range newDevices {
+			displayName := device.Name
+			if device.IsDefault {
+				displayName += " (Default)"
+			}
+			newDeviceOptions[i] = displayName
+			newDeviceMap[displayName] = device
+		}
+
+		deviceSelect.Options = newDeviceOptions
+		deviceSelect.Refresh()
+
+		// Update the map reference
+		deviceMap = newDeviceMap
+
+		dialog.ShowInformation("Refreshed", fmt.Sprintf("Found %d audio devices", len(newDevices)), aw.window)
+	})
+
+	// Test device button
+	testDeviceBtn := widget.NewButton("Test Selected Device", func() {
+		// Create a test alert to play sound on the selected device
+		testAlert := models.Alert{
+			Labels: map[string]string{
+				"alertname": "Audio Device Test",
+				"severity":  "info",
+			},
+			Annotations: map[string]string{
+				"summary": "Testing audio output device",
+			},
+			Status: models.AlertStatus{
+				State: "active",
+			},
+		}
+
+		go func() {
+			aw.notifier.ProcessAlerts([]models.Alert{testAlert}, []models.Alert{})
+		}()
+	})
+
+	buttonContainer := container.NewHBox(refreshBtn, testDeviceBtn)
+	content.Add(buttonContainer)
+
+	// Device information
+	deviceInfo := widget.NewRichTextFromMarkdown(`**Audio Device Selection:**
+
+Choose which audio output device to use for notification sounds:
+
+• **System Default** - Uses the system's default audio device
+• **Specific Devices** - Target a particular audio output (speakers, headphones, etc.)
+
+**Note:** Device availability depends on your system configuration. If a selected device becomes unavailable, the system will fall back to the default device.`)
+	deviceInfo.Wrapping = fyne.TextWrapWord
+	content.Add(deviceInfo)
+
+	return content
 }
 
 // cleanupOldHiddenAlerts removes hidden alerts older than 30 days
