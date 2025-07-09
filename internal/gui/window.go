@@ -18,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"notificator/config"
 	"notificator/internal/alertmanager"
 	"notificator/internal/models"
 	"notificator/internal/notifier"
@@ -127,8 +128,10 @@ type AlertsWindow struct {
 	notificationConfig notifier.NotificationConfig
 
 	// Configuration saving
-	configPath string
-	fullConfig interface{}
+	configPath     string
+	fullConfig     interface{}
+	config         *ConfigStruct
+	originalConfig *config.Config
 
 	// Visual enhancements
 	dashboardCards *fyne.Container
@@ -405,6 +408,25 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 		groupedMode:        false, // Start in flat mode
 	}
 
+	// Store config reference - handle both config types
+	if cfg, ok := initialConfig.(*config.Config); ok {
+		// Convert to our internal structure for compatibility
+		aw.config = &ConfigStruct{
+			GUI: GUIConfigStruct{
+				FilterState: FilterStateConfigStruct{
+					SearchText:         cfg.GUI.FilterState.SearchText,
+					SelectedSeverities: cfg.GUI.FilterState.SelectedSeverities,
+					SelectedStatuses:   cfg.GUI.FilterState.SelectedStatuses,
+					SelectedTeams:      cfg.GUI.FilterState.SelectedTeams,
+				},
+			},
+		}
+		// Store the original config for saving
+		aw.originalConfig = cfg
+	} else if cfg, ok := initialConfig.(*ConfigStruct); ok {
+		aw.config = cfg
+	}
+
 	// Initialize hidden alerts cache
 	aw.hiddenAlertsCache = NewHiddenAlertsCache(configPath)
 
@@ -431,6 +453,20 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 type ConfigStruct struct {
 	Notifications NotificationConfigStruct `json:"notifications"`
 	ColumnWidths  map[string]float32       `json:"column_widths"`
+	GUI           GUIConfigStruct          `json:"gui"`
+}
+
+// GUIConfigStruct contains GUI-specific settings
+type GUIConfigStruct struct {
+	FilterState FilterStateConfigStruct `json:"filter_state"`
+}
+
+// FilterStateConfigStruct contains the state of filters
+type FilterStateConfigStruct struct {
+	SearchText         string          `json:"search_text"`
+	SelectedSeverities map[string]bool `json:"selected_severities"`
+	SelectedStatuses   map[string]bool `json:"selected_statuses"`
+	SelectedTeams      map[string]bool `json:"selected_teams"`
 }
 
 type NotificationConfigStruct struct {
@@ -886,7 +922,31 @@ func (aw *AlertsWindow) updateTeamFilter() {
 	}
 	sort.Strings(teamOptions[1:]) // Sort all except "All"
 
-	aw.teamMultiSelect.SetOptions(teamOptions)
+	// Preserve current selection when updating options
+	currentSelection := aw.teamMultiSelect.GetSelected()
+	aw.teamMultiSelect.options = teamOptions
+
+	// Restore selection, but only keep valid options
+	validSelection := make(map[string]bool)
+	for option, selected := range currentSelection {
+		if selected {
+			// Check if this option still exists in the new options
+			for _, validOption := range teamOptions {
+				if option == validOption {
+					validSelection[option] = true
+					break
+				}
+			}
+		}
+	}
+
+	// If no valid selections remain, default to "All"
+	if len(validSelection) == 0 {
+		validSelection["All"] = true
+	}
+
+	aw.teamMultiSelect.selected = validSelection
+	aw.teamMultiSelect.updateButton()
 }
 
 // clearFilters resets all filters to default state
@@ -911,6 +971,7 @@ func (aw *AlertsWindow) clearFilters() {
 
 	aw.focusSearchEntry()
 	aw.safeApplyFilters()
+	aw.saveFilterState()
 }
 
 // toggleGroupedMode toggles between grouped and flat table view
@@ -1593,5 +1654,92 @@ func formatCooldownTime(seconds int) string {
 		return fmt.Sprintf("%dm", seconds/60)
 	} else {
 		return fmt.Sprintf("%dh", seconds/3600)
+	}
+}
+
+// Filter state persistence methods
+
+// saveFilterState saves the current filter state to configuration
+func (aw *AlertsWindow) saveFilterState() {
+	if aw.originalConfig == nil || aw.configPath == "" {
+		return
+	}
+
+	// Get current filter state
+	var searchText string
+	var selectedSeverities, selectedStatuses, selectedTeams map[string]bool
+
+	if aw.searchEntry != nil {
+		searchText = aw.searchEntry.Text
+	}
+
+	if aw.severityMultiSelect != nil {
+		selectedSeverities = aw.severityMultiSelect.GetSelected()
+	} else {
+		selectedSeverities = map[string]bool{"All": true}
+	}
+
+	if aw.statusMultiSelect != nil {
+		selectedStatuses = aw.statusMultiSelect.GetSelected()
+	} else {
+		selectedStatuses = map[string]bool{"All": true}
+	}
+
+	if aw.teamMultiSelect != nil {
+		selectedTeams = aw.teamMultiSelect.GetSelected()
+	} else {
+		selectedTeams = map[string]bool{"All": true}
+	}
+
+	// Update the original config structure
+	aw.originalConfig.GUI.FilterState.SearchText = searchText
+	aw.originalConfig.GUI.FilterState.SelectedSeverities = selectedSeverities
+	aw.originalConfig.GUI.FilterState.SelectedStatuses = selectedStatuses
+	aw.originalConfig.GUI.FilterState.SelectedTeams = selectedTeams
+
+	// Save the original config to file
+	if err := aw.originalConfig.SaveToFile(aw.configPath); err != nil {
+		log.Printf("Failed to save filter state: %v", err)
+	}
+}
+
+// loadFilterState loads the filter state from configuration
+func (aw *AlertsWindow) loadFilterState() {
+	if aw.config == nil {
+		return
+	}
+
+	filterState := aw.config.GUI.FilterState
+
+	// Restore search text
+	if aw.searchEntry != nil && filterState.SearchText != "" {
+		aw.searchEntry.SetText(filterState.SearchText)
+	}
+
+	// Restore severity filter
+	if aw.severityMultiSelect != nil && filterState.SelectedSeverities != nil {
+		aw.severityMultiSelect.selected = make(map[string]bool)
+		for k, v := range filterState.SelectedSeverities {
+			aw.severityMultiSelect.selected[k] = v
+		}
+		aw.severityMultiSelect.updateButton()
+	}
+
+	// Restore status filter
+	if aw.statusMultiSelect != nil && filterState.SelectedStatuses != nil {
+		aw.statusMultiSelect.selected = make(map[string]bool)
+		for k, v := range filterState.SelectedStatuses {
+			aw.statusMultiSelect.selected[k] = v
+		}
+		aw.statusMultiSelect.updateButton()
+	}
+
+	// Restore team filter
+	if aw.teamMultiSelect != nil && filterState.SelectedTeams != nil {
+		aw.teamMultiSelect.selected = make(map[string]bool)
+		for k, v := range filterState.SelectedTeams {
+			aw.teamMultiSelect.selected[k] = v
+		}
+		aw.teamMultiSelect.updateButton()
 	}
 }

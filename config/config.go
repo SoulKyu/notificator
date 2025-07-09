@@ -45,9 +45,18 @@ type OAuthConfig struct {
 
 // GUIConfig contains GUI-specific settings
 type GUIConfig struct {
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Title  string `json:"title"`
+	Width       int               `json:"width"`
+	Height      int               `json:"height"`
+	Title       string            `json:"title"`
+	FilterState FilterStateConfig `json:"filter_state"`
+}
+
+// FilterStateConfig contains the state of filters
+type FilterStateConfig struct {
+	SearchText         string          `json:"search_text"`
+	SelectedSeverities map[string]bool `json:"selected_severities"`
+	SelectedStatuses   map[string]bool `json:"selected_statuses"`
+	SelectedTeams      map[string]bool `json:"selected_teams"`
 }
 
 // NotificationConfig contains notification settings
@@ -85,6 +94,12 @@ func DefaultConfig() *Config {
 			Width:  1200,
 			Height: 800,
 			Title:  "Notificator - Alert Dashboard",
+			FilterState: FilterStateConfig{
+				SearchText:         "",
+				SelectedSeverities: map[string]bool{"All": true},
+				SelectedStatuses:   map[string]bool{"All": true},
+				SelectedTeams:      map[string]bool{"All": true},
+			},
 		},
 		Notifications: NotificationConfig{
 			Enabled:          true,
@@ -140,6 +155,17 @@ func LoadConfig(configPath string) (*Config, error) {
 			"info":     false,
 			"unknown":  false,
 		}
+	}
+
+	// Initialize filter state if missing (backward compatibility)
+	if config.GUI.FilterState.SelectedSeverities == nil {
+		config.GUI.FilterState.SelectedSeverities = map[string]bool{"All": true}
+	}
+	if config.GUI.FilterState.SelectedStatuses == nil {
+		config.GUI.FilterState.SelectedStatuses = map[string]bool{"All": true}
+	}
+	if config.GUI.FilterState.SelectedTeams == nil {
+		config.GUI.FilterState.SelectedTeams = map[string]bool{"All": true}
 	}
 
 	return &config, nil

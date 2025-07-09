@@ -23,6 +23,9 @@ func (aw *AlertsWindow) setupUI() {
 	// Create enhanced filters with multi-select
 	filters := aw.createFilters()
 
+	// Load saved filter state after creating filters
+	aw.loadFilterState()
+
 	// Create bulk actions toolbar
 	bulkActions := aw.createBulkActionsToolbar()
 
@@ -250,6 +253,7 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 	aw.searchEntry.OnChanged = func(text string) {
 		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
+		aw.saveFilterState()
 	}
 
 	// Make the search entry larger
@@ -260,18 +264,21 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 	aw.severityMultiSelect = NewMultiSelectWidget("Severity", severityOptions, aw.window, func(selected map[string]bool) {
 		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
+		aw.saveFilterState()
 	})
 
 	statusOptions := []string{"All", "firing", "resolved", "suppressed"}
 	aw.statusMultiSelect = NewMultiSelectWidget("Status", statusOptions, aw.window, func(selected map[string]bool) {
 		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
+		aw.saveFilterState()
 	})
 
 	teamOptions := []string{"All"}
 	aw.teamMultiSelect = NewMultiSelectWidget("Team", teamOptions, aw.window, func(selected map[string]bool) {
 		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
+		aw.saveFilterState()
 	})
 
 	clearBtn := widget.NewButtonWithIcon("Clear All Filters", theme.ContentClearIcon(), aw.clearFilters)
