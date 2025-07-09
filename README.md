@@ -2,7 +2,7 @@
 
 A GUI application for Alertmanager with sound and notification alerts on your laptop.
 
-![alt text](img/preview.png "Preview")
+![alt text](img/preview.gif "Preview")
 
 ## Purpose
 
