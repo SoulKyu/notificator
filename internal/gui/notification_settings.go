@@ -484,7 +484,7 @@ func (aw *AlertsWindow) createHiddenAlertCard(hiddenAlert HiddenAlertInfo) *widg
 				if err := aw.hiddenAlertsCache.UnhideAlert(alert); err != nil {
 					dialog.ShowError(fmt.Errorf("Failed to unhide alert: %v", err), aw.window)
 				} else {
-					aw.applyFilters()
+					aw.safeApplyFilters()
 					aw.updateHiddenCountDisplay()
 					dialog.ShowInformation("Success", fmt.Sprintf("Alert '%s' has been unhidden", hiddenAlert.AlertName), aw.window)
 				}
@@ -534,7 +534,7 @@ func (aw *AlertsWindow) confirmClearAllHiddenAlerts(statusLabel *widget.Label) {
 			} else {
 				statusLabel.SetText("Currently hiding 0 alert(s)")
 				aw.updateHiddenCountDisplay()
-				aw.applyFilters()
+				aw.safeApplyFilters()
 				dialog.ShowInformation("Success", "All hidden alerts have been cleared.", aw.window)
 			}
 		}

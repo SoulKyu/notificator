@@ -1,3 +1,4 @@
+// internal/gui/window.go
 package gui
 
 import (
@@ -37,26 +38,75 @@ type ConnectionHealth struct {
 	IsHealthy      bool
 }
 
-// AlertsWindow represents the main GUI window
+// AlertGroup represents a group of alerts with the same alertname
+type AlertGroup struct {
+	AlertName     string
+	Alerts        []models.Alert
+	IsExpanded    bool
+	CriticalCount int
+	WarningCount  int
+	InfoCount     int
+	ActiveCount   int
+	TotalCount    int
+}
+
+// TableRow represents a row in the grouped table (either group header or individual alert)
+type TableRow struct {
+	Type       string        // "group" or "alert"
+	Group      *AlertGroup   // For group rows
+	Alert      *models.Alert // For alert rows
+	GroupIndex int           // Index of the group this row belongs to
+	AlertIndex int           // Index within the group (for alert rows)
+	RowIndex   int           // Global row index for selection tracking
+}
+
+// MultiSelectWidget represents a multi-select filter widget
+type MultiSelectWidget struct {
+	widget.BaseWidget
+	label     string
+	options   []string
+	selected  map[string]bool
+	button    *widget.Button
+	popup     *widget.PopUp
+	window    fyne.Window
+	onChange  func(selected map[string]bool)
+	container *fyne.Container
+}
+
+// AlertsWindow represents the main GUI window with enhanced features
 type AlertsWindow struct {
 	app            fyne.App
 	window         fyne.Window
 	client         *alertmanager.Client
 	alerts         []models.Alert
-	previousAlerts []models.Alert // Track previous alerts for notification comparison
+	previousAlerts []models.Alert
 	table          *widget.Table
 	data           binding.UntypedList
 	filteredData   []models.Alert
 
-	// UI components
+	// UI components - Enhanced with multi-select filters
 	refreshBtn        *widget.Button
 	searchEntry       *widget.Entry
 	autocompleteEntry *AutocompleteEntry
-	severitySelect    *widget.Select
-	statusSelect      *widget.Select
-	teamSelect        *widget.Select
-	statusLabel       *widget.Label
-	lastUpdate        *widget.Label
+
+	// Multi-select filter widgets (replacing single selects)
+	severityMultiSelect *MultiSelectWidget
+	statusMultiSelect   *MultiSelectWidget
+	teamMultiSelect     *MultiSelectWidget
+
+	// Legacy single selects (kept for compatibility)
+	severitySelect *widget.Select
+	statusSelect   *widget.Select
+	teamSelect     *widget.Select
+
+	statusLabel *widget.Label
+	lastUpdate  *widget.Label
+
+	// Grouped display components
+	alertGroups    []AlertGroup
+	tableRows      []TableRow
+	groupedMode    bool
+	groupToggleBtn *widget.Button
 
 	// Enhanced Auto-refresh with adaptive polling
 	autoRefresh      bool
@@ -78,11 +128,11 @@ type AlertsWindow struct {
 
 	// Configuration saving
 	configPath string
-	fullConfig interface{} // Store reference to full config for saving
+	fullConfig interface{}
 
 	// Visual enhancements
 	dashboardCards *fyne.Container
-	themeVariant   string // "light" or "dark"
+	themeVariant   string
 	themeBtn       *widget.Button
 
 	// Sorting
@@ -102,9 +152,9 @@ type AlertsWindow struct {
 	hiddenCountLabel  *widget.Label
 
 	// Selection for bulk operations
-	selectedAlerts  map[int]bool   // Track selected rows
-	hideSelectedBtn *widget.Button // Reference to hide/unhide button
-	selectionLabel  *widget.Label  // Reference to selection count label
+	selectedAlerts  map[int]bool
+	hideSelectedBtn *widget.Button
+	selectionLabel  *widget.Label
 
 	// UI initialization flag
 	uiReady bool
@@ -122,7 +172,7 @@ type StatusBarMetrics struct {
 // getDefaultColumns returns the default column configuration
 func getDefaultColumns() []ColumnConfig {
 	return []ColumnConfig{
-		{Name: "✓", Width: 40, MinWidth: 30, MaxWidth: 50}, // Checkbox column
+		{Name: "✓", Width: 40, MinWidth: 30, MaxWidth: 50},
 		{Name: "Alert", Width: 200, MinWidth: 100, MaxWidth: 400},
 		{Name: "Severity", Width: 120, MinWidth: 100, MaxWidth: 150},
 		{Name: "Status", Width: 120, MinWidth: 100, MaxWidth: 150},
@@ -133,7 +183,177 @@ func getDefaultColumns() []ColumnConfig {
 	}
 }
 
-// NewAlertsWindow creates a new alerts window
+// MultiSelectWidget methods
+
+// NewMultiSelectWidget creates a new multi-select widget
+func NewMultiSelectWidget(label string, options []string, window fyne.Window, onChange func(selected map[string]bool)) *MultiSelectWidget {
+	ms := &MultiSelectWidget{
+		label:    label,
+		options:  options,
+		selected: make(map[string]bool),
+		window:   window,
+		onChange: onChange,
+	}
+
+	// Select "All" by default
+	ms.selected["All"] = true
+
+	ms.ExtendBaseWidget(ms)
+	ms.createUI()
+	return ms
+}
+
+// createUI creates the UI components for the multi-select widget
+func (ms *MultiSelectWidget) createUI() {
+	ms.button = widget.NewButton(ms.getButtonText(), ms.showPopup)
+	ms.button.Importance = widget.LowImportance
+
+	ms.container = container.NewHBox(
+		widget.NewLabel(ms.label+":"),
+		ms.button,
+	)
+}
+
+// getButtonText returns the text to display on the button
+func (ms *MultiSelectWidget) getButtonText() string {
+	selectedCount := len(ms.selected)
+	if selectedCount == 0 || (selectedCount == 1 && ms.selected["All"]) {
+		return "All"
+	}
+
+	if selectedCount == 1 {
+		for key := range ms.selected {
+			if key != "All" {
+				return key
+			}
+		}
+	}
+
+	return fmt.Sprintf("%d selected", selectedCount)
+}
+
+// showPopup shows the multi-select popup
+func (ms *MultiSelectWidget) showPopup() {
+	content := container.NewVBox()
+
+	// Add "All" option first
+	allCheck := widget.NewCheck("All", func(checked bool) {
+		if checked {
+			// Select all and clear others
+			ms.selected = map[string]bool{"All": true}
+		} else {
+			// Deselect all
+			delete(ms.selected, "All")
+		}
+		ms.refreshChecks(content)
+		ms.updateButton()
+		if ms.onChange != nil {
+			ms.onChange(ms.selected)
+		}
+	})
+	allCheck.SetChecked(ms.selected["All"])
+	content.Add(allCheck)
+
+	content.Add(widget.NewSeparator())
+
+	// Add individual options
+	for _, option := range ms.options {
+		if option == "All" {
+			continue // Already added above
+		}
+
+		optionCopy := option
+		check := widget.NewCheck(option, func(checked bool) {
+			if checked {
+				// Remove "All" if selecting individual items
+				delete(ms.selected, "All")
+				ms.selected[optionCopy] = true
+			} else {
+				delete(ms.selected, optionCopy)
+				// If nothing selected, select "All"
+				if len(ms.selected) == 0 {
+					ms.selected["All"] = true
+				}
+			}
+			ms.refreshChecks(content)
+			ms.updateButton()
+			if ms.onChange != nil {
+				ms.onChange(ms.selected)
+			}
+		})
+		check.SetChecked(ms.selected[option])
+		content.Add(check)
+	}
+
+	// Action buttons
+	actionContainer := container.NewHBox(
+		widget.NewButton("Clear All", func() {
+			ms.selected = map[string]bool{"All": true}
+			ms.refreshChecks(content)
+			ms.updateButton()
+			if ms.onChange != nil {
+				ms.onChange(ms.selected)
+			}
+		}),
+		widget.NewButton("Close", func() {
+			if ms.popup != nil {
+				ms.popup.Hide()
+			}
+		}),
+	)
+	content.Add(widget.NewSeparator())
+	content.Add(actionContainer)
+
+	// Create scrollable container
+	scroll := container.NewScroll(content)
+	scroll.SetMinSize(fyne.NewSize(200, 300))
+
+	ms.popup = widget.NewPopUp(scroll, ms.window.Canvas())
+
+	// Position popup below button
+	buttonPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(ms.button)
+	buttonSize := ms.button.Size()
+	ms.popup.ShowAtPosition(fyne.NewPos(buttonPos.X, buttonPos.Y+buttonSize.Height))
+}
+
+// refreshChecks updates all checkboxes in the popup
+func (ms *MultiSelectWidget) refreshChecks(content *fyne.Container) {
+	for i, obj := range content.Objects {
+		if check, ok := obj.(*widget.Check); ok {
+			if i == 0 { // "All" checkbox
+				check.SetChecked(ms.selected["All"])
+			} else if i > 1 { // Skip separator at index 1
+				checkText := check.Text
+				check.SetChecked(ms.selected[checkText])
+			}
+		}
+	}
+}
+
+// updateButton updates the button text
+func (ms *MultiSelectWidget) updateButton() {
+	ms.button.SetText(ms.getButtonText())
+}
+
+// GetSelected returns the currently selected options
+func (ms *MultiSelectWidget) GetSelected() map[string]bool {
+	return ms.selected
+}
+
+// SetOptions updates the available options
+func (ms *MultiSelectWidget) SetOptions(options []string) {
+	ms.options = options
+	// Reset selection to "All"
+	ms.selected = map[string]bool{"All": true}
+	ms.updateButton()
+}
+
+// CreateRenderer creates the renderer for the widget
+func (ms *MultiSelectWidget) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(ms.container)
+}
+
+// NewAlertsWindow creates a new alerts window with enhanced features
 func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConfig interface{}) *AlertsWindow {
 	myApp := app.NewWithID("com.notificator.alerts")
 	myApp.SetIcon(theme.InfoIcon())
@@ -171,7 +391,7 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 		filteredData:       []models.Alert{},
 		data:               binding.NewUntypedList(),
 		autoRefresh:        true,
-		refreshInterval:    30 * time.Second, // Default 30 seconds
+		refreshInterval:    30 * time.Second,
 		lastActivity:       time.Now(),
 		connectionHealth:   &ConnectionHealth{LastSuccessful: time.Now(), IsHealthy: true},
 		updateChan:         make(chan func(), 100),
@@ -182,6 +402,7 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 		themeVariant:       "light",
 		selectedAlerts:     make(map[int]bool),
 		showHiddenAlerts:   false,
+		groupedMode:        false, // Start in flat mode
 	}
 
 	// Initialize hidden alerts cache
@@ -194,28 +415,24 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 	aw.setupUI()
 	aw.setupKeyboardShortcuts()
 	aw.startUpdateHandler()
-
-	// Start connection health monitoring
 	aw.startConnectionHealthMonitoring()
 
 	// Mark UI as ready
 	aw.uiReady = true
 
-	// Load initial data synchronously on the main thread (safe)
+	// Load initial data
 	aw.loadInitialData()
-
 	aw.startSmartAutoRefresh()
 
 	return aw
 }
 
-// ConfigStruct for type assertion (simplified)
+// ConfigStruct for type assertion
 type ConfigStruct struct {
 	Notifications NotificationConfigStruct `json:"notifications"`
 	ColumnWidths  map[string]float32       `json:"column_widths"`
 }
 
-// NotificationConfigStruct for type assertion (simplified)
 type NotificationConfigStruct struct {
 	Enabled          bool            `json:"enabled"`
 	SoundEnabled     bool            `json:"sound_enabled"`
@@ -240,9 +457,7 @@ func (aw *AlertsWindow) startUpdateHandler() {
 func (aw *AlertsWindow) scheduleUpdate(updateFunc func()) {
 	select {
 	case aw.updateChan <- updateFunc:
-		// Update scheduled successfully
 	default:
-		// Channel is full, skip this update
 		log.Printf("Update channel full, skipping update")
 	}
 }
@@ -251,9 +466,7 @@ func (aw *AlertsWindow) loadInitialData() {
 	aw.alerts = []models.Alert{}
 	aw.filteredData = []models.Alert{}
 
-	// Schedule the actual data loading to happen after window.Show()
 	go func() {
-		// Wait for window to be fully shown
 		time.Sleep(1 * time.Second)
 		aw.loadAlertsWithCaching()
 	}()
@@ -265,7 +478,6 @@ func (aw *AlertsWindow) alertsChanged(oldAlerts, newAlerts []models.Alert) bool 
 		return true
 	}
 
-	// Create maps for efficient comparison
 	oldMap := make(map[string]models.Alert)
 	for _, alert := range oldAlerts {
 		key := fmt.Sprintf("%s_%s_%s", alert.GetAlertName(), alert.GetInstance(), alert.Status.State)
@@ -276,10 +488,9 @@ func (aw *AlertsWindow) alertsChanged(oldAlerts, newAlerts []models.Alert) bool 
 		key := fmt.Sprintf("%s_%s_%s", newAlert.GetAlertName(), newAlert.GetInstance(), newAlert.Status.State)
 		oldAlert, exists := oldMap[key]
 		if !exists {
-			return true // New alert found
+			return true
 		}
 
-		// Check if alert details changed
 		if !oldAlert.StartsAt.Equal(newAlert.StartsAt) ||
 			!oldAlert.EndsAt.Equal(newAlert.EndsAt) ||
 			len(oldAlert.Status.SilencedBy) != len(newAlert.Status.SilencedBy) ||
@@ -291,9 +502,8 @@ func (aw *AlertsWindow) alertsChanged(oldAlerts, newAlerts []models.Alert) bool 
 	return false
 }
 
-// loadAlertsWithCaching loads alerts with smart caching - only updates UI when data actually changes
+// loadAlertsWithCaching loads alerts with smart caching
 func (aw *AlertsWindow) loadAlertsWithCaching() {
-	// Don't show loading state if UI isn't ready
 	if aw.statusLabel != nil && aw.refreshBtn != nil {
 		aw.setStatus("Loading alerts...")
 		aw.scheduleUpdate(func() {
@@ -307,7 +517,6 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 	go func() {
 		alerts, err := aw.client.FetchAlerts()
 
-		// Schedule UI update on main thread
 		aw.scheduleUpdate(func() {
 			if err != nil {
 				log.Printf("Failed to fetch alerts: %v", err)
@@ -315,17 +524,14 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 				aw.connectionHealth.FailureCount++
 				aw.connectionHealth.IsHealthy = false
 
-				// Show error dialog only for manual refresh
 				if aw.refreshBtn != nil && aw.refreshBtn.Text == "Loading..." {
 					dialog.ShowError(err, aw.window)
 				}
 			} else {
-				// Update connection health
 				aw.connectionHealth.LastSuccessful = time.Now()
 				aw.connectionHealth.FailureCount = 0
 				aw.connectionHealth.IsHealthy = true
 
-				// Check if alerts actually changed (smart diffing)
 				if !aw.alertsChanged(aw.alerts, alerts) {
 					aw.setStatus("No changes detected")
 					if aw.lastUpdate != nil {
@@ -338,17 +544,12 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 					return
 				}
 
-				// Process notifications before updating UI
 				aw.notifier.ProcessAlerts(alerts, aw.previousAlerts)
-
-				// Update alerts
-				aw.previousAlerts = aw.alerts // Store previous alerts
+				aw.previousAlerts = aw.alerts
 				aw.alerts = alerts
 				aw.updateTeamFilter()
-				aw.safeApplyFilters() // Use safe version
-				aw.updateDashboard()  // Update dashboard cards
-
-				// Update hidden count display - this is now safe because it's in scheduleUpdate
+				aw.safeApplyFilters()
+				aw.updateDashboard()
 				aw.updateHiddenCountDisplay()
 
 				activeCount := 0
@@ -374,25 +575,21 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 
 // loadAlertsInBackground performs background refresh with minimal UI disruption
 func (aw *AlertsWindow) loadAlertsInBackground() {
-	// Don't show loading state for background refreshes
 	go func() {
 		alerts, err := aw.client.FetchAlerts()
 
 		aw.scheduleUpdate(func() {
 			if err != nil {
-				// Show subtle error indicator instead of dialog for background refreshes
 				aw.setStatus(fmt.Sprintf("Background refresh failed: %v", err))
 				aw.connectionHealth.FailureCount++
 				aw.connectionHealth.IsHealthy = false
 				return
 			}
 
-			// Update connection health
 			aw.connectionHealth.LastSuccessful = time.Now()
 			aw.connectionHealth.FailureCount = 0
 			aw.connectionHealth.IsHealthy = true
 
-			// Process silently
 			if aw.alertsChanged(aw.alerts, alerts) {
 				aw.notifier.ProcessAlerts(alerts, aw.previousAlerts)
 				aw.previousAlerts = aw.alerts
@@ -402,7 +599,6 @@ func (aw *AlertsWindow) loadAlertsInBackground() {
 				aw.updateDashboard()
 				aw.updateHiddenCountDisplay()
 
-				// Show brief notification for significant changes
 				activeCount := 0
 				newCritical := 0
 				for _, alert := range alerts {
@@ -414,7 +610,6 @@ func (aw *AlertsWindow) loadAlertsInBackground() {
 					}
 				}
 
-				// Flash status bar for important updates
 				if newCritical > 0 {
 					aw.flashStatus(fmt.Sprintf("🚨 %d critical alerts!", newCritical), 3*time.Second)
 				} else {
@@ -436,8 +631,6 @@ func (aw *AlertsWindow) flashStatus(message string, duration time.Duration) {
 
 	originalText := aw.statusLabel.Text
 	aw.statusLabel.SetText(message)
-
-	// Flash with importance
 	aw.statusLabel.Importance = widget.DangerImportance
 	aw.statusLabel.Refresh()
 
@@ -578,47 +771,53 @@ func (aw *AlertsWindow) startConnectionHealthMonitoring() {
 
 // isUIReady checks if the main UI components are initialized
 func (aw *AlertsWindow) isUIReady() bool {
-	return aw.uiReady && aw.table != nil && aw.searchEntry != nil && aw.severitySelect != nil &&
-		aw.statusSelect != nil && aw.teamSelect != nil
+	return aw.uiReady && aw.table != nil && aw.searchEntry != nil &&
+		aw.severityMultiSelect != nil && aw.statusMultiSelect != nil && aw.teamMultiSelect != nil
 }
 
 // safeApplyFilters applies filters only if table is initialized
 func (aw *AlertsWindow) safeApplyFilters() {
 	if aw.isUIReady() {
-		aw.applyFilters()
+		aw.applyEnhancedFilters()
+
+		// If in grouped mode, refresh the grouped table
+		if aw.groupedMode {
+			aw.refreshGroupedTable()
+		}
 	}
 }
 
-// applyFilters applies current filter settings to the alerts
-func (aw *AlertsWindow) applyFilters() {
+// applyEnhancedFilters applies filter logic with multi-select support
+func (aw *AlertsWindow) applyEnhancedFilters() {
 	filtered := []models.Alert{}
+	searchText := strings.ToLower(aw.searchEntry.Text)
 
-	searchText := ""
-	severityFilter := "All"
-	statusFilter := "All"
-	teamFilter := "All"
+	// Get selected filters
+	var selectedSeverities, selectedStatuses, selectedTeams map[string]bool
 
-	// Safely get filter values only if UI components exist
-	if aw.searchEntry != nil {
-		searchText = strings.ToLower(aw.searchEntry.Text)
+	if aw.severityMultiSelect != nil {
+		selectedSeverities = aw.severityMultiSelect.GetSelected()
+	} else {
+		selectedSeverities = map[string]bool{"All": true}
 	}
-	if aw.severitySelect != nil {
-		severityFilter = aw.severitySelect.Selected
+
+	if aw.statusMultiSelect != nil {
+		selectedStatuses = aw.statusMultiSelect.GetSelected()
+	} else {
+		selectedStatuses = map[string]bool{"All": true}
 	}
-	if aw.statusSelect != nil {
-		statusFilter = aw.statusSelect.Selected
-	}
-	if aw.teamSelect != nil {
-		teamFilter = aw.teamSelect.Selected
+
+	if aw.teamMultiSelect != nil {
+		selectedTeams = aw.teamMultiSelect.GetSelected()
+	} else {
+		selectedTeams = map[string]bool{"All": true}
 	}
 
 	for _, alert := range aw.alerts {
-		// Check if alert is hidden and we're not showing hidden alerts
+		// Check if alert is hidden
 		if !aw.showHiddenAlerts && aw.hiddenAlertsCache.IsHidden(alert) {
 			continue
 		}
-
-		// If we're only showing hidden alerts, skip non-hidden ones
 		if aw.showHiddenAlerts && !aw.hiddenAlertsCache.IsHidden(alert) {
 			continue
 		}
@@ -629,42 +828,37 @@ func (aw *AlertsWindow) applyFilters() {
 				strings.Contains(strings.ToLower(alert.GetSummary()), searchText) ||
 				strings.Contains(strings.ToLower(alert.GetTeam()), searchText) ||
 				strings.Contains(strings.ToLower(alert.GetInstance()), searchText)
-
 			if !searchMatch {
 				continue
 			}
 		}
 
-		// Apply severity filter
-		if severityFilter != "All" && alert.GetSeverity() != severityFilter {
+		// Apply multi-select severity filter
+		if !selectedSeverities["All"] && !selectedSeverities[alert.GetSeverity()] {
 			continue
 		}
 
-		// Apply status filter
-		if statusFilter != "All" && alert.Status.State != statusFilter {
+		// Apply multi-select status filter
+		if !selectedStatuses["All"] && !selectedStatuses[alert.Status.State] {
 			continue
 		}
 
-		// Apply team filter
-		if teamFilter != "All" && alert.GetTeam() != teamFilter {
+		// Apply multi-select team filter
+		if !selectedTeams["All"] && !selectedTeams[alert.GetTeam()] {
 			continue
 		}
 
 		filtered = append(filtered, alert)
 	}
 
-	// Clear selections when filters change and update selection label
+	// Clear selections when filters change
 	aw.selectedAlerts = make(map[int]bool)
 	if aw.selectionLabel != nil {
 		aw.updateSelectionLabel()
 	}
 
 	aw.filteredData = filtered
-
-	// Apply custom sorting
 	aw.sortFilteredData()
-
-	// Update dashboard with filtered data
 	aw.updateDashboard()
 
 	if aw.table != nil {
@@ -674,8 +868,7 @@ func (aw *AlertsWindow) applyFilters() {
 
 // updateTeamFilter populates the team filter with unique teams from alerts
 func (aw *AlertsWindow) updateTeamFilter() {
-	// Safety check - only update if UI component exists
-	if aw.teamSelect == nil {
+	if aw.teamMultiSelect == nil {
 		return
 	}
 
@@ -693,9 +886,275 @@ func (aw *AlertsWindow) updateTeamFilter() {
 	}
 	sort.Strings(teamOptions[1:]) // Sort all except "All"
 
-	// Update the UI component directly
-	aw.teamSelect.Options = teamOptions
-	aw.teamSelect.Refresh()
+	aw.teamMultiSelect.SetOptions(teamOptions)
+}
+
+// clearFilters resets all filters to default state
+func (aw *AlertsWindow) clearFilters() {
+	aw.searchEntry.SetText("")
+
+	// Reset multi-select filters to "All"
+	if aw.severityMultiSelect != nil {
+		aw.severityMultiSelect.selected = map[string]bool{"All": true}
+		aw.severityMultiSelect.updateButton()
+	}
+
+	if aw.statusMultiSelect != nil {
+		aw.statusMultiSelect.selected = map[string]bool{"All": true}
+		aw.statusMultiSelect.updateButton()
+	}
+
+	if aw.teamMultiSelect != nil {
+		aw.teamMultiSelect.selected = map[string]bool{"All": true}
+		aw.teamMultiSelect.updateButton()
+	}
+
+	aw.focusSearchEntry()
+	aw.safeApplyFilters()
+}
+
+// toggleGroupedMode toggles between grouped and flat table view
+func (aw *AlertsWindow) toggleGroupedMode() {
+	aw.groupedMode = !aw.groupedMode
+
+	if aw.groupedMode {
+		aw.groupToggleBtn.SetText("Flat View")
+		aw.groupToggleBtn.SetIcon(theme.ViewFullScreenIcon())
+		aw.refreshGroupedTable()
+	} else {
+		aw.groupToggleBtn.SetText("Group View")
+		aw.groupToggleBtn.SetIcon(theme.ListIcon())
+		// Clear selections when switching to flat mode
+		aw.selectedAlerts = make(map[int]bool)
+		aw.updateSelectionLabel()
+	}
+
+	// Recreate the entire UI to properly switch table modes
+	aw.setupUI()
+}
+
+// toggleGroupExpansion toggles the expansion state of a group
+func (aw *AlertsWindow) toggleGroupExpansion(groupIndex int) {
+	if groupIndex < len(aw.alertGroups) {
+		aw.alertGroups[groupIndex].IsExpanded = !aw.alertGroups[groupIndex].IsExpanded
+
+		// Recreate table rows
+		aw.tableRows = aw.createTableRowsFromGroups(aw.alertGroups)
+
+		// Refresh table
+		if aw.table != nil {
+			aw.table.Refresh()
+		}
+	}
+}
+
+// expandAllGroups expands all alert groups
+func (aw *AlertsWindow) expandAllGroups() {
+	for i := range aw.alertGroups {
+		aw.alertGroups[i].IsExpanded = true
+	}
+	aw.tableRows = aw.createTableRowsFromGroups(aw.alertGroups)
+	if aw.table != nil {
+		aw.table.Refresh()
+	}
+}
+
+// collapseAllGroups collapses all alert groups
+func (aw *AlertsWindow) collapseAllGroups() {
+	for i := range aw.alertGroups {
+		aw.alertGroups[i].IsExpanded = false
+	}
+	aw.tableRows = aw.createTableRowsFromGroups(aw.alertGroups)
+	if aw.table != nil {
+		aw.table.Refresh()
+	}
+}
+
+// refreshGroupedTable refreshes the grouped table with current data
+func (aw *AlertsWindow) refreshGroupedTable() {
+	if !aw.groupedMode {
+		return
+	}
+
+	// Preserve expansion states
+	expansionStates := make(map[string]bool)
+	for _, group := range aw.alertGroups {
+		expansionStates[group.AlertName] = group.IsExpanded
+	}
+
+	// Recreate groups
+	aw.alertGroups = aw.createGroupedAlertsFromFiltered()
+
+	// Restore expansion states
+	for i, group := range aw.alertGroups {
+		if expanded, exists := expansionStates[group.AlertName]; exists {
+			aw.alertGroups[i].IsExpanded = expanded
+		}
+	}
+
+	// Recreate table rows
+	aw.tableRows = aw.createTableRowsFromGroups(aw.alertGroups)
+
+	// Clear selections as row indices have changed
+	aw.selectedAlerts = make(map[int]bool)
+	aw.updateSelectionLabel()
+
+	if aw.table != nil {
+		aw.table.Refresh()
+	}
+}
+
+// toggleGroupSelection selects/deselects all alerts in a group
+func (aw *AlertsWindow) toggleGroupSelection(groupIndex int, selected bool) {
+	if groupIndex >= len(aw.alertGroups) {
+		return
+	}
+
+	// Find all rows belonging to this group
+	for _, row := range aw.tableRows {
+		if row.Type == "alert" && row.GroupIndex == groupIndex {
+			if selected {
+				aw.selectedAlerts[row.RowIndex] = true
+			} else {
+				delete(aw.selectedAlerts, row.RowIndex)
+			}
+		}
+	}
+
+	aw.updateSelectionLabel()
+	if aw.table != nil {
+		aw.table.Refresh()
+	}
+}
+
+// selectGroupAlertsQuietly selects/deselects all alerts in a group without triggering table refresh
+func (aw *AlertsWindow) selectGroupAlertsQuietly(groupIndex int, selected bool) {
+	if groupIndex >= len(aw.alertGroups) {
+		return
+	}
+
+	// Find all rows belonging to this group
+	for _, row := range aw.tableRows {
+		if row.Type == "alert" && row.GroupIndex == groupIndex {
+			if selected {
+				aw.selectedAlerts[row.RowIndex] = true
+			} else {
+				delete(aw.selectedAlerts, row.RowIndex)
+			}
+		}
+	}
+}
+
+// areAllGroupAlertsSelected checks if all alerts in a group are selected
+func (aw *AlertsWindow) areAllGroupAlertsSelected(groupIndex int) bool {
+	if groupIndex >= len(aw.alertGroups) {
+		return false
+	}
+
+	alertCount := 0
+	selectedCount := 0
+
+	for _, row := range aw.tableRows {
+		if row.Type == "alert" && row.GroupIndex == groupIndex {
+			alertCount++
+			if aw.selectedAlerts[row.RowIndex] {
+				selectedCount++
+			}
+		}
+	}
+
+	return alertCount > 0 && alertCount == selectedCount
+}
+
+// selectAllVisibleAlerts selects all currently visible alerts
+func (aw *AlertsWindow) selectAllVisibleAlerts() {
+	// Check if all are currently selected
+	totalAlerts := 0
+	selectedAlerts := 0
+
+	for _, row := range aw.tableRows {
+		if row.Type == "alert" {
+			totalAlerts++
+			if aw.selectedAlerts[row.RowIndex] {
+				selectedAlerts++
+			}
+		}
+	}
+
+	allSelected := totalAlerts > 0 && totalAlerts == selectedAlerts
+
+	if allSelected {
+		// Deselect all
+		aw.selectedAlerts = make(map[int]bool)
+	} else {
+		// Select all visible alerts
+		for _, row := range aw.tableRows {
+			if row.Type == "alert" {
+				aw.selectedAlerts[row.RowIndex] = true
+			}
+		}
+	}
+
+	aw.updateSelectionLabel()
+	if aw.table != nil {
+		aw.table.Refresh()
+	}
+}
+
+// handleTableClick handles clicks on table cells
+func (aw *AlertsWindow) handleTableClick(cellID widget.TableCellID) {
+	// Skip checkbox column clicks
+	if cellID.Col == 0 {
+		return
+	}
+
+	if cellID.Row > 0 && cellID.Row-1 < len(aw.tableRows) {
+		row := aw.tableRows[cellID.Row-1]
+
+		if row.Type == "group" {
+			// Toggle group expansion on click
+			aw.toggleGroupExpansion(row.GroupIndex)
+		} else if row.Type == "alert" {
+			// Show alert details
+			if row.Alert != nil {
+				aw.showAlertDetails(*row.Alert)
+			}
+		}
+	}
+}
+
+// getSelectedAlertsFromGrouped returns the actual alert objects that are selected in grouped mode
+func (aw *AlertsWindow) getSelectedAlertsFromGrouped() []models.Alert {
+	var selectedAlerts []models.Alert
+
+	for _, row := range aw.tableRows {
+		if row.Type == "group" && aw.selectedAlerts[row.RowIndex] && row.Group != nil {
+			// Group is selected - add all alerts in the group
+			for _, alert := range row.Group.Alerts {
+				selectedAlerts = append(selectedAlerts, alert)
+			}
+		} else if row.Type == "alert" && aw.selectedAlerts[row.RowIndex] && row.Alert != nil {
+			// Individual alert is selected
+			selectedAlerts = append(selectedAlerts, *row.Alert)
+		}
+	}
+
+	return selectedAlerts
+}
+
+// getSelectedAlertsForAction returns the actual alerts that are selected (works for both modes)
+func (aw *AlertsWindow) getSelectedAlertsForAction() []models.Alert {
+	if aw.groupedMode {
+		return aw.getSelectedAlertsFromGrouped()
+	} else {
+		var selectedAlerts []models.Alert
+		for index := range aw.selectedAlerts {
+			if index < len(aw.filteredData) {
+				selectedAlerts = append(selectedAlerts, aw.filteredData[index])
+			}
+		}
+		return selectedAlerts
+	}
 }
 
 // Event handlers
@@ -711,14 +1170,6 @@ func (aw *AlertsWindow) handleSettings() {
 	aw.showNotificationSettings()
 }
 
-func (aw *AlertsWindow) clearFilters() {
-	aw.searchEntry.SetText("")
-	aw.severitySelect.SetSelected("All")
-	aw.statusSelect.SetSelected("All")
-	aw.teamSelect.SetSelected("All")
-	aw.focusSearchEntry()
-}
-
 func (aw *AlertsWindow) focusSearchEntry() {
 	if aw.searchEntry != nil {
 		aw.window.Canvas().Focus(aw.searchEntry)
@@ -732,6 +1183,21 @@ func (aw *AlertsWindow) setupKeyboardShortcuts() {
 
 		if key.Name == fyne.KeyF && (key.Physical.ScanCode == 0 || key.Physical.ScanCode == 33) {
 			aw.focusSearchEntry()
+		}
+
+		// Toggle grouped mode with Ctrl+G
+		if key.Name == fyne.KeyG && (key.Physical.ScanCode == 0 || key.Physical.ScanCode == 34) {
+			aw.toggleGroupedMode()
+		}
+
+		// Expand all groups with Ctrl+E
+		if key.Name == fyne.KeyE && aw.groupedMode {
+			aw.expandAllGroups()
+		}
+
+		// Collapse all groups with Ctrl+C
+		if key.Name == fyne.KeyC && aw.groupedMode {
+			aw.collapseAllGroups()
 		}
 	})
 }
@@ -756,7 +1222,7 @@ func (aw *AlertsWindow) handleColumnSort(column int) {
 	}
 
 	// Re-apply filters which will trigger sorting
-	aw.applyFilters()
+	aw.safeApplyFilters()
 }
 
 // sortFilteredData sorts the filtered data based on current sort settings
@@ -769,9 +1235,9 @@ func (aw *AlertsWindow) sortFilteredData() {
 		var result bool
 
 		switch aw.sortColumn {
-		case 0: // Alert name (column 1 in display)
+		case 0: // Alert name
 			result = strings.Compare(aw.filteredData[i].GetAlertName(), aw.filteredData[j].GetAlertName()) < 0
-		case 1: // Severity (column 2 in display)
+		case 1: // Severity
 			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
 			sev1, exists1 := severityOrder[aw.filteredData[i].GetSeverity()]
 			if !exists1 {
@@ -782,15 +1248,15 @@ func (aw *AlertsWindow) sortFilteredData() {
 				sev2 = 4
 			}
 			result = sev1 < sev2
-		case 2: // Status (column 3 in display)
+		case 2: // Status
 			result = strings.Compare(aw.filteredData[i].Status.State, aw.filteredData[j].Status.State) < 0
-		case 3: // Team (column 4 in display)
+		case 3: // Team
 			result = strings.Compare(aw.filteredData[i].GetTeam(), aw.filteredData[j].GetTeam()) < 0
-		case 4: // Summary (column 5 in display)
+		case 4: // Summary
 			result = strings.Compare(aw.filteredData[i].GetSummary(), aw.filteredData[j].GetSummary()) < 0
-		case 5: // Duration (column 6 in display)
+		case 5: // Duration
 			result = aw.filteredData[i].Duration() < aw.filteredData[j].Duration()
-		case 6: // Instance (column 7 in display)
+		case 6: // Instance
 			result = strings.Compare(aw.filteredData[i].GetInstance(), aw.filteredData[j].GetInstance()) < 0
 		default:
 			// Default sort by severity then start time
@@ -827,7 +1293,6 @@ func (aw *AlertsWindow) stopAutoRefresh() {
 
 // Utility methods
 func (aw *AlertsWindow) setStatus(status string) {
-	// Ensure UI updates happen on the main thread and component exists
 	if aw.statusLabel != nil {
 		aw.statusLabel.SetText(status)
 	}
@@ -840,7 +1305,7 @@ func (aw *AlertsWindow) Show() {
 // Close method to clean up resources
 func (aw *AlertsWindow) Close() {
 	aw.stopAutoRefresh()
-	close(aw.updateChan) // Close the update channel
+	close(aw.updateChan)
 	aw.window.Close()
 }
 
@@ -848,7 +1313,8 @@ func (aw *AlertsWindow) Close() {
 
 // hideSelectedAlerts hides all currently selected alerts
 func (aw *AlertsWindow) hideSelectedAlerts() {
-	if len(aw.selectedAlerts) == 0 {
+	selectedAlerts := aw.getSelectedAlertsForAction()
+	if len(selectedAlerts) == 0 {
 		dialog.ShowInformation("No Selection", "Please select alerts to hide using the checkboxes", aw.window)
 		return
 	}
@@ -858,7 +1324,7 @@ func (aw *AlertsWindow) hideSelectedAlerts() {
 	reasonEntry.SetPlaceHolder("Optional reason for hiding these alerts...")
 	reasonEntry.MultiLine = true
 
-	selectedCount := len(aw.selectedAlerts)
+	selectedCount := len(selectedAlerts)
 	content := container.NewVBox(
 		widget.NewLabelWithStyle(fmt.Sprintf("Hide %d selected alerts?", selectedCount),
 			fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
@@ -875,20 +1341,17 @@ func (aw *AlertsWindow) hideSelectedAlerts() {
 			hiddenCount := 0
 
 			// Hide each selected alert
-			for row := range aw.selectedAlerts {
-				if row < len(aw.filteredData) {
-					alert := aw.filteredData[row]
-					if err := aw.hiddenAlertsCache.HideAlert(alert, reason); err != nil {
-						log.Printf("Failed to hide alert %s: %v", alert.GetAlertName(), err)
-					} else {
-						hiddenCount++
-					}
+			for _, alert := range selectedAlerts {
+				if err := aw.hiddenAlertsCache.HideAlert(alert, reason); err != nil {
+					log.Printf("Failed to hide alert %s: %v", alert.GetAlertName(), err)
+				} else {
+					hiddenCount++
 				}
 			}
 
 			// Clear selections and refresh
 			aw.selectedAlerts = make(map[int]bool)
-			aw.applyFilters()
+			aw.safeApplyFilters()
 			aw.updateHiddenCountDisplay()
 
 			aw.setStatus(fmt.Sprintf("Hidden %d alerts", hiddenCount))
@@ -907,7 +1370,6 @@ func (aw *AlertsWindow) toggleShowHidden() {
 		aw.showHiddenBtn.SetText("Show Normal Alerts")
 		aw.showHiddenBtn.SetIcon(theme.VisibilityIcon())
 
-		// Update hide button for hidden view
 		if aw.hideSelectedBtn != nil {
 			aw.hideSelectedBtn.SetText("Unhide Selected")
 			aw.hideSelectedBtn.SetIcon(theme.VisibilityIcon())
@@ -916,7 +1378,6 @@ func (aw *AlertsWindow) toggleShowHidden() {
 		aw.showHiddenBtn.SetText("Show Hidden Alerts")
 		aw.showHiddenBtn.SetIcon(theme.VisibilityOffIcon())
 
-		// Update hide button for normal view
 		if aw.hideSelectedBtn != nil {
 			aw.hideSelectedBtn.SetText("Hide Selected")
 			aw.hideSelectedBtn.SetIcon(theme.VisibilityOffIcon())
@@ -926,21 +1387,22 @@ func (aw *AlertsWindow) toggleShowHidden() {
 	// Clear selections when switching views
 	aw.selectedAlerts = make(map[int]bool)
 	aw.updateSelectionLabel()
-	aw.applyFilters()
+	aw.safeApplyFilters()
 }
 
 // unhideSelectedAlerts unhides selected alerts (when viewing hidden alerts)
 func (aw *AlertsWindow) unhideSelectedAlerts() {
 	if !aw.showHiddenAlerts {
-		return // Should not be called when not viewing hidden alerts
+		return
 	}
 
-	if len(aw.selectedAlerts) == 0 {
+	selectedAlerts := aw.getSelectedAlertsForAction()
+	if len(selectedAlerts) == 0 {
 		dialog.ShowInformation("No Selection", "Please select alerts to unhide using the checkboxes", aw.window)
 		return
 	}
 
-	selectedCount := len(aw.selectedAlerts)
+	selectedCount := len(selectedAlerts)
 	content := widget.NewLabelWithStyle(
 		fmt.Sprintf("Unhide %d selected alerts?\n\nThey will appear in the main alert view again.", selectedCount),
 		fyne.TextAlignCenter, fyne.TextStyle{})
@@ -949,21 +1411,17 @@ func (aw *AlertsWindow) unhideSelectedAlerts() {
 		if confirmed {
 			unhiddenCount := 0
 
-			// Unhide each selected alert
-			for row := range aw.selectedAlerts {
-				if row < len(aw.filteredData) {
-					alert := aw.filteredData[row]
-					if err := aw.hiddenAlertsCache.UnhideAlert(alert); err != nil {
-						log.Printf("Failed to unhide alert %s: %v", alert.GetAlertName(), err)
-					} else {
-						unhiddenCount++
-					}
+			for _, alert := range selectedAlerts {
+				if err := aw.hiddenAlertsCache.UnhideAlert(alert); err != nil {
+					log.Printf("Failed to unhide alert %s: %v", alert.GetAlertName(), err)
+				} else {
+					unhiddenCount++
 				}
 			}
 
 			// Clear selections and refresh
 			aw.selectedAlerts = make(map[int]bool)
-			aw.applyFilters()
+			aw.safeApplyFilters()
 			aw.updateHiddenCountDisplay()
 
 			aw.setStatus(fmt.Sprintf("Unhidden %d alerts", unhiddenCount))
@@ -983,8 +1441,13 @@ func (aw *AlertsWindow) updateHiddenCountDisplay() {
 	aw.hiddenCountLabel.SetText(fmt.Sprintf("%d", count))
 }
 
-// selectAllAlerts selects or deselects all visible alerts
+// selectAllAlerts selects or deselects all visible alerts (flat mode)
 func (aw *AlertsWindow) selectAllAlerts() {
+	if aw.groupedMode {
+		aw.selectAllVisibleAlerts()
+		return
+	}
+
 	// Check if all are currently selected
 	allSelected := len(aw.selectedAlerts) == len(aw.filteredData)
 
@@ -1051,15 +1514,12 @@ func formatMap(m map[string]string) string {
 	return strings.Join(lines, "\n")
 }
 
-// loadColumnConfig loads saved column widths from configuration file
+// Configuration loading/saving methods
 func (aw *AlertsWindow) loadColumnConfig() {
-	// Try to read existing config file to get saved column widths
 	if aw.configPath == "" {
 		return
 	}
 
-	// Read the config file and extract column widths
-	// This is a simple approach - in production you might want more sophisticated config management
 	type ConfigFile struct {
 		ColumnWidths map[string]float32 `json:"column_widths"`
 	}
@@ -1067,7 +1527,6 @@ func (aw *AlertsWindow) loadColumnConfig() {
 	if data, err := os.ReadFile(aw.configPath + ".gui"); err == nil {
 		var config ConfigFile
 		if json.Unmarshal(data, &config) == nil && config.ColumnWidths != nil {
-			// Apply saved column widths
 			for i, col := range aw.columns {
 				if width, exists := config.ColumnWidths[col.Name]; exists {
 					aw.columns[i].Width = width
@@ -1077,7 +1536,6 @@ func (aw *AlertsWindow) loadColumnConfig() {
 	}
 }
 
-// saveColumnConfig saves current column widths to configuration file
 func (aw *AlertsWindow) saveColumnConfig() {
 	if aw.configPath == "" {
 		return
@@ -1087,7 +1545,6 @@ func (aw *AlertsWindow) saveColumnConfig() {
 		ColumnWidths map[string]float32 `json:"column_widths"`
 	}
 
-	// Create column widths map
 	widths := make(map[string]float32)
 	for _, col := range aw.columns {
 		widths[col.Name] = col.Width
@@ -1097,13 +1554,11 @@ func (aw *AlertsWindow) saveColumnConfig() {
 		ColumnWidths: widths,
 	}
 
-	// Save to a separate GUI config file
 	if data, err := json.MarshalIndent(config, "", "  "); err == nil {
 		os.WriteFile(aw.configPath+".gui", data, 0644)
 	}
 }
 
-// saveNotificationConfig saves current notification settings to configuration file
 func (aw *AlertsWindow) saveNotificationConfig() {
 	if aw.configPath == "" {
 		return
@@ -1120,21 +1575,17 @@ func (aw *AlertsWindow) saveNotificationConfig() {
 		SeverityRules:    aw.notificationConfig.SeverityRules,
 	}
 
-	// Save to notification config file
 	if data, err := json.MarshalIndent(config, "", "  "); err == nil {
 		os.WriteFile(aw.configPath+".notifications", data, 0644)
 	}
 }
 
-// updateAutocompleteEntry updates the autocomplete entry with new suggestions
 func (aw *AlertsWindow) updateAutocompleteEntry() {
-	// Update the autocomplete entry with new suggestions
 	if aw.autocompleteEntry != nil && len(aw.searchSuggestions) > 0 {
 		aw.autocompleteEntry.SetSuggestions(aw.searchSuggestions)
 	}
 }
 
-// formatCooldownTime formats cooldown seconds into human readable format
 func formatCooldownTime(seconds int) string {
 	if seconds < 60 {
 		return fmt.Sprintf("%ds", seconds)
@@ -1143,108 +1594,4 @@ func formatCooldownTime(seconds int) string {
 	} else {
 		return fmt.Sprintf("%dh", seconds/3600)
 	}
-}
-
-// silenceAlert creates a silence for the given alert
-func (aw *AlertsWindow) silenceAlert(alert models.Alert) {
-	// Show silence duration selection dialog
-	durationOptions := []string{"1 hour", "4 hours", "8 hours", "24 hours", "Custom"}
-
-	durationSelect := widget.NewSelect(durationOptions, nil)
-	durationSelect.SetSelected("1 hour")
-
-	commentEntry := widget.NewEntry()
-	commentEntry.SetPlaceHolder("Reason for silencing (optional)")
-	commentEntry.MultiLine = true
-	commentEntry.Resize(fyne.NewSize(400, 80))
-
-	content := container.NewVBox(
-		widget.NewLabelWithStyle("Silence Alert: "+alert.GetAlertName(), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewSeparator(),
-		widget.NewLabel("Duration:"),
-		durationSelect,
-		widget.NewLabel("Comment:"),
-		commentEntry,
-	)
-
-	dialog := dialog.NewCustomConfirm("Silence Alert", "Silence", "Cancel", content, func(confirmed bool) {
-		if confirmed {
-			aw.createSilenceForAlert(alert, durationSelect.Selected, commentEntry.Text)
-		}
-	}, aw.window)
-
-	dialog.Resize(fyne.NewSize(500, 300))
-	dialog.Show()
-}
-
-// createSilenceForAlert creates a silence for the alert with the specified duration
-func (aw *AlertsWindow) createSilenceForAlert(alert models.Alert, duration string, comment string) {
-	// Parse duration
-	var silenceDuration time.Duration
-	switch duration {
-	case "1 hour":
-		silenceDuration = time.Hour
-	case "4 hours":
-		silenceDuration = 4 * time.Hour
-	case "8 hours":
-		silenceDuration = 8 * time.Hour
-	case "24 hours":
-		silenceDuration = 24 * time.Hour
-	default:
-		silenceDuration = time.Hour // Default to 1 hour
-	}
-
-	// Create silence matchers based on alert labels
-	var matchers []models.SilenceMatcher
-
-	// Always match on alertname
-	matchers = append(matchers, models.SilenceMatcher{
-		Name:    "alertname",
-		Value:   alert.GetAlertName(),
-		IsRegex: false,
-		IsEqual: true,
-	})
-
-	// Add instance matcher if available
-	if instance := alert.GetInstance(); instance != "unknown" && instance != "" {
-		matchers = append(matchers, models.SilenceMatcher{
-			Name:    "instance",
-			Value:   instance,
-			IsRegex: false,
-			IsEqual: true,
-		})
-	}
-
-	// Create the silence
-	now := time.Now()
-	silence := models.Silence{
-		Matchers:  matchers,
-		StartsAt:  now,
-		EndsAt:    now.Add(silenceDuration),
-		CreatedBy: "notificator-gui",
-		Comment:   comment,
-	}
-
-	// Show progress
-	aw.setStatus("Creating silence...")
-
-	go func() {
-		createdSilence, err := aw.client.CreateSilence(silence)
-
-		aw.scheduleUpdate(func() {
-			if err != nil {
-				log.Printf("Failed to create silence: %v", err)
-				aw.setStatus("Failed to create silence")
-				dialog.ShowError(fmt.Errorf("Failed to create silence: %v", err), aw.window)
-			} else {
-				aw.setStatus(fmt.Sprintf("Silence created: %s", createdSilence.ID))
-				dialog.ShowInformation("Success",
-					fmt.Sprintf("Silence created successfully!\nID: %s\nDuration: %s",
-						createdSilence.ID, duration), aw.window)
-
-				// Refresh alerts to show updated status
-				aw.loadAlertsWithCaching()
-			}
-		})
-	}()
 }

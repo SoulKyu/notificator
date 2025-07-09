@@ -97,7 +97,6 @@ func (aw *AlertsWindow) createSummaryCard(title string, count int, importance wi
 
 // updateDashboard refreshes the dashboard cards with current data
 func (aw *AlertsWindow) updateDashboard() {
-	// Update status bar metrics (dashboard cards removed)
 	aw.updateStatusBarMetrics()
 }
 
