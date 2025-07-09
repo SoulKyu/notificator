@@ -197,6 +197,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 	enabledCheck := widget.NewCheck("Enable notifications", func(checked bool) {
 		aw.notificationConfig.Enabled = checked
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+		aw.updateNotificationFilters() // Update filters when recreating notifier
 		aw.saveNotificationConfig()
 	})
 	enabledCheck.SetChecked(aw.notificationConfig.Enabled)
@@ -206,6 +207,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 	systemCheck := widget.NewCheck("Show system notifications", func(checked bool) {
 		aw.notificationConfig.ShowSystem = checked
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+		aw.updateNotificationFilters() // Update filters when recreating notifier
 		aw.saveNotificationConfig()
 	})
 	systemCheck.SetChecked(aw.notificationConfig.ShowSystem)
@@ -215,15 +217,46 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 	soundCheck := widget.NewCheck("Enable sound notifications", func(checked bool) {
 		aw.notificationConfig.SoundEnabled = checked
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+		aw.updateNotificationFilters() // Update filters when recreating notifier
 		aw.saveNotificationConfig()
 	})
 	soundCheck.SetChecked(aw.notificationConfig.SoundEnabled)
 	content.Add(soundCheck)
 
+	content.Add(widget.NewSeparator())
+
+	respectFiltersCheck := widget.NewCheck("Only notify for filtered alerts", func(checked bool) {
+		aw.notificationConfig.RespectFilters = checked
+		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+		aw.updateNotificationFilters() // Update filters when recreating notifier
+		aw.saveNotificationConfig()
+	})
+	respectFiltersCheck.SetChecked(aw.notificationConfig.RespectFilters)
+	content.Add(respectFiltersCheck)
+
+	// Explanation of filter-based notifications
+	filterExplanation := widget.NewRichTextFromMarkdown(`**Filter-Based Notifications:**
+
+When enabled, you will only receive notifications for alerts that match your current UI filters:
+
+• **Search text** - Only alerts matching your search will notify
+• **Severity filters** - Only selected severities will trigger notifications  
+• **Status filters** - Only alerts with selected statuses will notify
+• **Team filters** - Only alerts from selected teams will notify
+
+This helps reduce notification noise by focusing only on what you're currently monitoring in the UI.
+
+**Example:** If you filter to show only "critical" alerts from "backend" team, you'll only get notifications for those alerts, even if other alerts are firing.`)
+	filterExplanation.Wrapping = fyne.TextWrapWord
+	content.Add(filterExplanation)
+
+	content.Add(widget.NewSeparator())
+
 	// Critical only mode
 	criticalOnlyCheck := widget.NewCheck("Critical alerts only", func(checked bool) {
 		aw.notificationConfig.CriticalOnly = checked
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+		aw.updateNotificationFilters() // Update filters when recreating notifier
 		aw.saveNotificationConfig()
 	})
 	criticalOnlyCheck.SetChecked(aw.notificationConfig.CriticalOnly)
@@ -240,6 +273,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 		check := widget.NewCheck(severity, func(checked bool) {
 			aw.notificationConfig.SeverityRules[severityCopy] = checked
 			aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+			aw.updateNotificationFilters() // Update filters when recreating notifier
 			aw.saveNotificationConfig()
 		})
 		check.SetChecked(enabled)
@@ -257,6 +291,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 		aw.notificationConfig.CooldownSeconds = int(value)
 		cooldownLabel.SetText(fmt.Sprintf("Cooldown: %d seconds (%s)", int(value), formatCooldownTime(int(value))))
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+		aw.updateNotificationFilters() // Update filters when recreating notifier
 		aw.saveNotificationConfig()
 	}
 
@@ -284,6 +319,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 		aw.notificationConfig.MaxNotifications = int(value)
 		maxNotifLabel.SetText(fmt.Sprintf("Max simultaneous: %d notifications", int(value)))
 		aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+		aw.updateNotificationFilters() // Update filters when recreating notifier
 		aw.saveNotificationConfig()
 	}
 
@@ -312,6 +348,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 				soundPathEntry.SetText(reader.URI().Path())
 				aw.notificationConfig.SoundPath = reader.URI().Path()
 				aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+				aw.updateNotificationFilters() // Update filters when recreating notifier
 				reader.Close()
 			}
 		}, aw.window)
@@ -349,6 +386,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 		widget.NewButton("Reset to Defaults", func() {
 			aw.notificationConfig = notifier.CreateDefaultNotificationConfig()
 			aw.notifier = notifier.NewNotifier(aw.notificationConfig, aw.app)
+			aw.updateNotificationFilters() // Update filters when recreating notifier
 			dialog.ShowInformation("Reset", "Notification settings reset to defaults", aw.window)
 		}),
 	)

@@ -69,6 +69,7 @@ type NotificationConfig struct {
 	MaxNotifications int             `json:"max_notifications"`
 	CooldownSeconds  int             `json:"cooldown_seconds"`
 	SeverityRules    map[string]bool `json:"severity_rules"`
+	RespectFilters   bool            `json:"respect_filters"`
 }
 
 // PollingConfig contains polling settings
@@ -115,6 +116,7 @@ func DefaultConfig() *Config {
 				"info":     false,
 				"unknown":  false,
 			},
+			RespectFilters: true,
 		},
 		Polling: PollingConfig{
 			Interval: 30 * time.Second,

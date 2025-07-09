@@ -865,6 +865,13 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 		viewModeLabel.SetText("📁 Grouped")
 	}
 
+	// Filter notification status indicator
+	filterNotifLabel := widget.NewLabel("🔔 All")
+	if aw.notificationConfig.RespectFilters {
+		filterNotifLabel.SetText("🔔 Filtered")
+		filterNotifLabel.Importance = widget.LowImportance
+	}
+
 	// Store references for updates
 	aw.statusBarMetrics = &StatusBarMetrics{
 		criticalLabel: criticalLabel,
@@ -900,6 +907,8 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 		aw.hiddenCountLabel,
 		widget.NewSeparator(),
 		viewModeLabel,
+		widget.NewSeparator(),
+		filterNotifLabel,
 		widget.NewSeparator(),
 		connectionStatusLabel,
 		widget.NewSeparator(),

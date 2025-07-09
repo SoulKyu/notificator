@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,17 @@ type NotificationConfig struct {
 	MaxNotifications int             `json:"max_notifications"`
 	CooldownSeconds  int             `json:"cooldown_seconds"`
 	SeverityRules    map[string]bool `json:"severity_rules"`
+
+	RespectFilters bool `json:"respect_filters"` // Whether to apply UI filters to notifications
+}
+
+// FilterState represents the current UI filter state
+type FilterState struct {
+	SearchText         string
+	SelectedSeverities map[string]bool
+	SelectedStatuses   map[string]bool
+	SelectedTeams      map[string]bool
+	ShowHiddenAlerts   bool
 }
 
 // Notifier handles alert notifications
@@ -33,6 +45,9 @@ type Notifier struct {
 	lastNotifications map[string]time.Time
 	mutex             sync.RWMutex
 	soundPlayer       SoundPlayer
+
+	currentFilters *FilterState
+	filterMutex    sync.RWMutex
 }
 
 // SoundPlayer interface for playing sounds
@@ -67,7 +82,88 @@ func NewNotifier(config NotificationConfig, app fyne.App) *Notifier {
 		app:               app,
 		lastNotifications: make(map[string]time.Time),
 		soundPlayer:       &DefaultSoundPlayer{},
+		currentFilters:    &FilterState{}, // Initialize with empty filters
 	}
+}
+
+// UpdateFilters updates the current filter state for notification filtering
+func (n *Notifier) UpdateFilters(filters FilterState) {
+	n.filterMutex.Lock()
+	defer n.filterMutex.Unlock()
+	n.currentFilters = &filters
+}
+
+// GetCurrentFilters returns a copy of the current filter state
+func (n *Notifier) GetCurrentFilters() FilterState {
+	n.filterMutex.RLock()
+	defer n.filterMutex.RUnlock()
+
+	if n.currentFilters == nil {
+		return FilterState{}
+	}
+
+	// Return a copy to avoid race conditions
+	return FilterState{
+		SearchText:         n.currentFilters.SearchText,
+		SelectedSeverities: copyStringBoolMap(n.currentFilters.SelectedSeverities),
+		SelectedStatuses:   copyStringBoolMap(n.currentFilters.SelectedStatuses),
+		SelectedTeams:      copyStringBoolMap(n.currentFilters.SelectedTeams),
+		ShowHiddenAlerts:   n.currentFilters.ShowHiddenAlerts,
+	}
+}
+
+// copyStringBoolMap creates a deep copy of a map[string]bool
+func copyStringBoolMap(original map[string]bool) map[string]bool {
+	if original == nil {
+		return make(map[string]bool)
+	}
+
+	copy := make(map[string]bool)
+	for k, v := range original {
+		copy[k] = v
+	}
+	return copy
+}
+
+// matchesFilters checks if an alert matches the current UI filters
+func (n *Notifier) matchesFilters(alert models.Alert) bool {
+	if !n.config.RespectFilters {
+		return true // If filter respect is disabled, all alerts pass
+	}
+
+	filters := n.GetCurrentFilters()
+
+	// Apply search text filter
+	if filters.SearchText != "" {
+		searchText := strings.ToLower(filters.SearchText)
+		searchMatch := strings.Contains(strings.ToLower(alert.GetAlertName()), searchText) ||
+			strings.Contains(strings.ToLower(alert.GetSummary()), searchText) ||
+			strings.Contains(strings.ToLower(alert.GetTeam()), searchText) ||
+			strings.Contains(strings.ToLower(alert.GetInstance()), searchText)
+		if !searchMatch {
+			return false
+		}
+	}
+
+	// Apply severity filter
+	if filters.SelectedSeverities != nil && !filters.SelectedSeverities["All"] &&
+		!filters.SelectedSeverities[alert.GetSeverity()] {
+		return false
+	}
+
+	// Apply status filter
+	if filters.SelectedStatuses != nil && !filters.SelectedStatuses["All"] &&
+		!filters.SelectedStatuses[alert.Status.State] {
+		return false
+	}
+
+	// Apply team filter
+	if filters.SelectedTeams != nil && !filters.SelectedTeams["All"] &&
+		!filters.SelectedTeams[alert.GetTeam()] {
+		return false
+	}
+
+	return true
 }
 
 // ProcessAlerts checks for new/changed alerts and sends notifications
@@ -91,6 +187,10 @@ func (n *Notifier) ProcessAlerts(newAlerts []models.Alert, previousAlerts []mode
 
 		// Skip if alert doesn't match notification rules
 		if !n.shouldNotify(alert) {
+			continue
+		}
+
+		if !n.matchesFilters(alert) {
 			continue
 		}
 
@@ -191,7 +291,12 @@ func (n *Notifier) sendSingleNotification(alert models.Alert) {
 		n.playAlertSound(alert)
 	}
 
-	log.Printf("Notification sent for alert: %s (severity: %s)", alert.GetAlertName(), alert.GetSeverity())
+	// Log notification with filter status
+	filterStatus := ""
+	if n.config.RespectFilters {
+		filterStatus = " (filtered)"
+	}
+	log.Printf("Notification sent for alert: %s (severity: %s)%s", alert.GetAlertName(), alert.GetSeverity(), filterStatus)
 }
 
 // sendSystemNotification sends a system notification
@@ -378,5 +483,6 @@ func CreateDefaultNotificationConfig() NotificationConfig {
 			"info":     false,
 			"unknown":  false,
 		},
+		RespectFilters: true,
 	}
 }

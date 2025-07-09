@@ -377,6 +377,7 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 				MaxNotifications: cfg.Notifications.MaxNotifications,
 				CooldownSeconds:  cfg.Notifications.CooldownSeconds,
 				SeverityRules:    cfg.Notifications.SeverityRules,
+				RespectFilters:   cfg.Notifications.RespectFilters,
 			}
 		} else {
 			notifConfig = notifier.CreateDefaultNotificationConfig()
@@ -446,6 +447,7 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 	aw.loadInitialData()
 	aw.startSmartAutoRefresh()
 
+	aw.updateNotificationFilters()
 	return aw
 }
 
@@ -478,6 +480,7 @@ type NotificationConfigStruct struct {
 	MaxNotifications int             `json:"max_notifications"`
 	CooldownSeconds  int             `json:"cooldown_seconds"`
 	SeverityRules    map[string]bool `json:"severity_rules"`
+	RespectFilters   bool            `json:"respect_filters"`
 }
 
 // startUpdateHandler starts a goroutine to handle UI updates safely
@@ -536,6 +539,49 @@ func (aw *AlertsWindow) alertsChanged(oldAlerts, newAlerts []models.Alert) bool 
 	}
 
 	return false
+}
+
+func (aw *AlertsWindow) updateNotificationFilters() {
+	if aw.notifier == nil {
+		return
+	}
+
+	// Get current filter states
+	var searchText string
+	var selectedSeverities, selectedStatuses, selectedTeams map[string]bool
+
+	if aw.searchEntry != nil {
+		searchText = aw.searchEntry.Text
+	}
+
+	if aw.severityMultiSelect != nil {
+		selectedSeverities = aw.severityMultiSelect.GetSelected()
+	} else {
+		selectedSeverities = map[string]bool{"All": true}
+	}
+
+	if aw.statusMultiSelect != nil {
+		selectedStatuses = aw.statusMultiSelect.GetSelected()
+	} else {
+		selectedStatuses = map[string]bool{"All": true}
+	}
+
+	if aw.teamMultiSelect != nil {
+		selectedTeams = aw.teamMultiSelect.GetSelected()
+	} else {
+		selectedTeams = map[string]bool{"All": true}
+	}
+
+	// Create filter state and update notifier
+	filterState := notifier.FilterState{
+		SearchText:         searchText,
+		SelectedSeverities: selectedSeverities,
+		SelectedStatuses:   selectedStatuses,
+		SelectedTeams:      selectedTeams,
+		ShowHiddenAlerts:   aw.showHiddenAlerts,
+	}
+
+	aw.notifier.UpdateFilters(filterState)
 }
 
 // loadAlertsWithCaching loads alerts with smart caching
@@ -820,6 +866,8 @@ func (aw *AlertsWindow) safeApplyFilters() {
 		if aw.groupedMode {
 			aw.refreshGroupedTable()
 		}
+
+		aw.updateNotificationFilters()
 	}
 }
 
@@ -1449,6 +1497,8 @@ func (aw *AlertsWindow) toggleShowHidden() {
 	aw.selectedAlerts = make(map[int]bool)
 	aw.updateSelectionLabel()
 	aw.safeApplyFilters()
+
+	aw.updateNotificationFilters()
 }
 
 // unhideSelectedAlerts unhides selected alerts (when viewing hidden alerts)
@@ -1634,6 +1684,7 @@ func (aw *AlertsWindow) saveNotificationConfig() {
 		MaxNotifications: aw.notificationConfig.MaxNotifications,
 		CooldownSeconds:  aw.notificationConfig.CooldownSeconds,
 		SeverityRules:    aw.notificationConfig.SeverityRules,
+		RespectFilters:   aw.notificationConfig.RespectFilters,
 	}
 
 	if data, err := json.MarshalIndent(config, "", "  "); err == nil {
