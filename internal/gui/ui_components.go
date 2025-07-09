@@ -186,36 +186,94 @@ func (aw *AlertsWindow) createBulkActionsToolbar() *fyne.Container {
 	)
 }
 
-// createSeverityBadge creates a styled severity badge
+// createSeverityBadge creates a styled severity badge with enhanced visual styling
 func (aw *AlertsWindow) createSeverityBadge(alert models.Alert) fyne.CanvasObject {
-	severity := alert.GetSeverity()
+	// Use the new enhanced severity badge for all severity levels
+	return aw.createEnhancedSeverityBadgeNew(alert)
+}
 
-	var severityText string
-	var importance widget.Importance
+// createEnhancedSeverityContainer creates a container with border colors and background gradients
+func (aw *AlertsWindow) createEnhancedSeverityContainer(badge *widget.Label, severity string) fyne.CanvasObject {
+	// Create a card container for enhanced styling
+	var card *widget.Card
 
 	switch severity {
 	case "critical":
-		severityText = "🔴 CRITICAL"
-		importance = widget.DangerImportance
+		// Critical alerts: Red border with red gradient background
+		card = widget.NewCard("", "", badge)
+		card.Resize(fyne.NewSize(120, 40))
+
+		// Create a container with visual enhancements for critical
+		criticalContainer := container.NewBorder(nil, nil, nil, nil, card)
+		return aw.wrapWithCriticalStyling(criticalContainer)
+
 	case "warning":
-		severityText = "🟡 WARNING"
-		importance = widget.WarningImportance
-	case "info":
-		severityText = "🔵 INFO"
-		importance = widget.LowImportance
+		// Warning alerts: Orange/Yellow border with orange gradient background
+		card = widget.NewCard("", "", badge)
+		card.Resize(fyne.NewSize(120, 40))
+
+		// Create a container with visual enhancements for warning
+		warningContainer := container.NewBorder(nil, nil, nil, nil, card)
+		return aw.wrapWithWarningStyling(warningContainer)
+
 	default:
-		severityText = "⚪ " + strings.ToUpper(severity)
-		importance = widget.MediumImportance
+		// Default styling for info and other severities
+		return badge
 	}
+}
 
-	badge := widget.NewLabelWithStyle(
-		severityText,
-		fyne.TextAlignCenter,
-		fyne.TextStyle{Bold: true},
+// wrapWithCriticalStyling adds critical alert styling with red border and gradient
+func (aw *AlertsWindow) wrapWithCriticalStyling(content fyne.CanvasObject) fyne.CanvasObject {
+	// Create a visual indicator for critical alerts
+	criticalIndicator := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{})
+	criticalIndicator.Importance = widget.DangerImportance
+
+	// Create border effect using separators
+	topBorder := widget.NewSeparator()
+	bottomBorder := widget.NewSeparator()
+	leftBorder := widget.NewSeparator()
+	rightBorder := widget.NewSeparator()
+
+	// Create the bordered container
+	borderedContent := container.NewBorder(
+		topBorder,    // top
+		bottomBorder, // bottom
+		leftBorder,   // left
+		rightBorder,  // right
+		content,      // center
 	)
-	badge.Importance = importance
 
-	return badge
+	// Add padding and background effect
+	paddedContainer := container.NewPadded(borderedContent)
+
+	return paddedContainer
+}
+
+// wrapWithWarningStyling adds warning alert styling with orange border and gradient
+func (aw *AlertsWindow) wrapWithWarningStyling(content fyne.CanvasObject) fyne.CanvasObject {
+	// Create a visual indicator for warning alerts
+	warningIndicator := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{})
+	warningIndicator.Importance = widget.WarningImportance
+
+	// Create border effect using separators
+	topBorder := widget.NewSeparator()
+	bottomBorder := widget.NewSeparator()
+	leftBorder := widget.NewSeparator()
+	rightBorder := widget.NewSeparator()
+
+	// Create the bordered container
+	borderedContent := container.NewBorder(
+		topBorder,    // top
+		bottomBorder, // bottom
+		leftBorder,   // left
+		rightBorder,  // right
+		content,      // center
+	)
+
+	// Add padding and background effect
+	paddedContainer := container.NewPadded(borderedContent)
+
+	return paddedContainer
 }
 
 // createStatusBadge creates a styled status badge
@@ -514,6 +572,9 @@ func (aw *AlertsWindow) createGroupedAlertsFromFiltered() []AlertGroup {
 	// Convert to AlertGroup slice
 	var groups []AlertGroup
 	for alertName, alerts := range groupMap {
+		// Sort alerts within each group according to current sort settings
+		aw.sortAlertsInGroup(alerts)
+
 		group := AlertGroup{
 			AlertName:  alertName,
 			Alerts:     alerts,
@@ -540,16 +601,8 @@ func (aw *AlertsWindow) createGroupedAlertsFromFiltered() []AlertGroup {
 		groups = append(groups, group)
 	}
 
-	// Sort groups by criticality (critical first, then by name)
-	sort.Slice(groups, func(i, j int) bool {
-		if groups[i].CriticalCount != groups[j].CriticalCount {
-			return groups[i].CriticalCount > groups[j].CriticalCount
-		}
-		if groups[i].WarningCount != groups[j].WarningCount {
-			return groups[i].WarningCount > groups[j].WarningCount
-		}
-		return groups[i].AlertName < groups[j].AlertName
-	})
+	// Sort groups according to current sort settings, or by criticality if no sort is set
+	aw.sortGroups(groups)
 
 	return groups
 }
@@ -939,4 +992,165 @@ func (aw *AlertsWindow) applyColumnWidths() {
 	for i, col := range aw.columns {
 		aw.table.SetColumnWidth(i, col.Width)
 	}
+}
+
+// sortAlertsInGroup sorts alerts within a group according to current sort settings
+func (aw *AlertsWindow) sortAlertsInGroup(alerts []models.Alert) {
+	if len(alerts) <= 1 {
+		return
+	}
+
+	sort.Slice(alerts, func(i, j int) bool {
+		var result bool
+
+		switch aw.sortColumn {
+		case 0: // Alert name
+			result = strings.Compare(alerts[i].GetAlertName(), alerts[j].GetAlertName()) < 0
+		case 1: // Severity
+			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
+			sev1, exists1 := severityOrder[alerts[i].GetSeverity()]
+			if !exists1 {
+				sev1 = 4
+			}
+			sev2, exists2 := severityOrder[alerts[j].GetSeverity()]
+			if !exists2 {
+				sev2 = 4
+			}
+			result = sev1 < sev2
+		case 2: // Status
+			result = strings.Compare(alerts[i].Status.State, alerts[j].Status.State) < 0
+		case 3: // Team
+			result = strings.Compare(alerts[i].GetTeam(), alerts[j].GetTeam()) < 0
+		case 4: // Summary
+			result = strings.Compare(alerts[i].GetSummary(), alerts[j].GetSummary()) < 0
+		case 5: // Duration
+			result = alerts[i].Duration() < alerts[j].Duration()
+		case 6: // Instance
+			result = strings.Compare(alerts[i].GetInstance(), alerts[j].GetInstance()) < 0
+		default:
+			// Default sort by severity then start time
+			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
+			sev1, exists1 := severityOrder[alerts[i].GetSeverity()]
+			if !exists1 {
+				sev1 = 4
+			}
+			sev2, exists2 := severityOrder[alerts[j].GetSeverity()]
+			if !exists2 {
+				sev2 = 4
+			}
+			if sev1 != sev2 {
+				result = sev1 < sev2
+			} else {
+				result = alerts[i].StartsAt.After(alerts[j].StartsAt)
+			}
+		}
+
+		if !aw.sortAscending {
+			result = !result
+		}
+
+		return result
+	})
+}
+
+// sortGroups sorts alert groups according to current sort settings
+func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
+	if len(groups) <= 1 {
+		return
+	}
+
+	sort.Slice(groups, func(i, j int) bool {
+		var result bool
+
+		switch aw.sortColumn {
+		case 0: // Alert name (group name)
+			result = strings.Compare(groups[i].AlertName, groups[j].AlertName) < 0
+		case 1: // Severity (by highest severity in group)
+			// Get highest severity for each group
+			sev1 := aw.getGroupHighestSeverity(groups[i])
+			sev2 := aw.getGroupHighestSeverity(groups[j])
+			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
+			sevOrder1, exists1 := severityOrder[sev1]
+			if !exists1 {
+				sevOrder1 = 4
+			}
+			sevOrder2, exists2 := severityOrder[sev2]
+			if !exists2 {
+				sevOrder2 = 4
+			}
+			result = sevOrder1 < sevOrder2
+		case 2: // Status (by active count)
+			result = groups[i].ActiveCount > groups[j].ActiveCount
+		case 3: // Team (by first team in group)
+			team1 := "unknown"
+			team2 := "unknown"
+			if len(groups[i].Alerts) > 0 {
+				team1 = groups[i].Alerts[0].GetTeam()
+			}
+			if len(groups[j].Alerts) > 0 {
+				team2 = groups[j].Alerts[0].GetTeam()
+			}
+			result = strings.Compare(team1, team2) < 0
+		case 4: // Summary (by alert count)
+			result = groups[i].TotalCount > groups[j].TotalCount
+		case 5: // Duration (by newest alert in group)
+			newest1 := aw.getGroupNewestAlert(groups[i])
+			newest2 := aw.getGroupNewestAlert(groups[j])
+			if newest1 != nil && newest2 != nil {
+				result = newest1.Duration() < newest2.Duration()
+			} else if newest1 != nil {
+				result = true
+			} else {
+				result = false
+			}
+		case 6: // Instance (by instance count)
+			instances1 := len(aw.getUniqueInstances(groups[i].Alerts))
+			instances2 := len(aw.getUniqueInstances(groups[j].Alerts))
+			result = instances1 > instances2
+		default:
+			// Default sort by criticality (critical first, then by name)
+			if groups[i].CriticalCount != groups[j].CriticalCount {
+				result = groups[i].CriticalCount > groups[j].CriticalCount
+			} else if groups[i].WarningCount != groups[j].WarningCount {
+				result = groups[i].WarningCount > groups[j].WarningCount
+			} else {
+				result = strings.Compare(groups[i].AlertName, groups[j].AlertName) < 0
+			}
+		}
+
+		if !aw.sortAscending {
+			result = !result
+		}
+
+		return result
+	})
+}
+
+// getGroupHighestSeverity returns the highest severity in a group
+func (aw *AlertsWindow) getGroupHighestSeverity(group AlertGroup) string {
+	if group.CriticalCount > 0 {
+		return "critical"
+	}
+	if group.WarningCount > 0 {
+		return "warning"
+	}
+	if group.InfoCount > 0 {
+		return "info"
+	}
+	return "unknown"
+}
+
+// getGroupNewestAlert returns the newest alert in a group
+func (aw *AlertsWindow) getGroupNewestAlert(group AlertGroup) *models.Alert {
+	if len(group.Alerts) == 0 {
+		return nil
+	}
+
+	newest := &group.Alerts[0]
+	for i := 1; i < len(group.Alerts); i++ {
+		if group.Alerts[i].StartsAt.After(newest.StartsAt) {
+			newest = &group.Alerts[i]
+		}
+	}
+	return newest
 }

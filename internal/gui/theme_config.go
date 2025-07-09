@@ -43,6 +43,16 @@ func (aw *AlertsWindow) toggleTheme() {
 
 	// Save theme preference
 	aw.saveThemePreference()
+
+	// Refresh the table to update enhanced severity badges with new theme
+	aw.refreshEnhancedStyling()
+}
+
+// refreshEnhancedStyling refreshes the table to update enhanced styling elements
+func (aw *AlertsWindow) refreshEnhancedStyling() {
+	if aw.table != nil {
+		aw.table.Refresh()
+	}
 }
 
 // saveThemePreference saves the current theme to config
