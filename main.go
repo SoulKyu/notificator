@@ -53,33 +53,45 @@ func main() {
 			cfg.Alertmanager.Headers,
 		)
 
-		fmt.Println()
-		if err := client.TestOAuthBypass(); err != nil {
-			fmt.Printf("OAuth bypass test failed: %v\n", err)
-			fmt.Println("\n💡 To fix this, you have two options:")
-			fmt.Println("Option 1 - Use OAuth bypass token:")
-			fmt.Println("1. Get your OAuth bypass token from your infrastructure team")
-			fmt.Println("2. Set it via environment variable:")
-			fmt.Println("   export METRICS_PROVIDER_HEADERS=\"X-Oauth-Bypass-Token=your-token\"")
-			fmt.Println("3. Or add it to your config file at:", configPath)
+		// Only test OAuth bypass if we have an OAuth bypass token configured
+		if bypassToken, hasToken := cfg.Alertmanager.Headers["X-Oauth-Bypass-Token"]; hasToken && bypassToken != "" {
 			fmt.Println()
-			fmt.Println("Option 2 - Enable OAuth authentication:")
-			fmt.Println("1. Add OAuth configuration to your config file:")
-			fmt.Println("   \"oauth\": {")
-			fmt.Println("     \"enabled\": true,")
-			fmt.Println("     \"client_id\": \"your-client-id\",")
-			fmt.Println("     \"client_secret\": \"your-client-secret\",")
-			fmt.Println("     \"auth_url\": \"https://your-oauth-provider/auth\",")
-			fmt.Println("     \"token_url\": \"https://your-oauth-provider/token\",")
-			fmt.Println("     \"redirect_url\": \"http://localhost:8080/callback\",")
-			fmt.Println("     \"scopes\": [\"read\"]")
-			fmt.Println("   }")
-			fmt.Println()
+			if err := client.TestOAuthBypass(); err != nil {
+				fmt.Printf("OAuth bypass test failed: %v\n", err)
+				fmt.Println("\n💡 To fix this, you have two options:")
+				fmt.Println("Option 1 - Use OAuth bypass token:")
+				fmt.Println("1. Get your OAuth bypass token from your infrastructure team")
+				fmt.Println("2. Set it via environment variable:")
+				fmt.Println("   export METRICS_PROVIDER_HEADERS=\"X-Oauth-Bypass-Token=your-token\"")
+				fmt.Println("3. Or add it to your config file at:", configPath)
+				fmt.Println()
+				fmt.Println("Option 2 - Enable OAuth authentication:")
+				fmt.Println("1. Add OAuth configuration to your config file:")
+				fmt.Println("   \"oauth\": {")
+				fmt.Println("     \"enabled\": true,")
+				fmt.Println("     \"client_id\": \"your-client-id\",")
+				fmt.Println("     \"client_secret\": \"your-client-secret\",")
+				fmt.Println("     \"auth_url\": \"https://your-oauth-provider/auth\",")
+				fmt.Println("     \"token_url\": \"https://your-oauth-provider/token\",")
+				fmt.Println("     \"redirect_url\": \"http://localhost:8080/callback\",")
+				fmt.Println("     \"scopes\": [\"read\"]")
+				fmt.Println("   }")
+				fmt.Println()
 
-			fmt.Println("=== DEBUG REQUEST ===")
-			client.DebugRequest("/api/v2/alerts")
+				fmt.Println("=== DEBUG REQUEST ===")
+				client.DebugRequest("/api/v2/alerts")
 
-			os.Exit(1)
+				os.Exit(1)
+			}
+		} else {
+			// No OAuth bypass token configured - check if any authentication is configured
+			hasAuth := cfg.Alertmanager.Username != "" || cfg.Alertmanager.Password != "" || cfg.Alertmanager.Token != "" || len(cfg.Alertmanager.Headers) > 0
+
+			if hasAuth {
+				fmt.Println("Authentication configured (username/password/token/headers)")
+			} else {
+				fmt.Println("No authentication configured - connecting directly to alertmanager")
+			}
 		}
 	}
 

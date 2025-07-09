@@ -24,7 +24,7 @@ Notificator provides a desktop interface for monitoring Prometheus Alertmanager 
 
 2. Run with your Alertmanager URL:
    ```bash
-   ./notificator --alertmanager-url http://your-alertmanager:9093
+   ./notificator --alertmanager-url http://127.0.0.1:9093
    ```
 
 3. The GUI will open showing your alerts with sound and notification capabilities enabled.

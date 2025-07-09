@@ -16,7 +16,8 @@
 coverage.*
 *.coverprofile
 profile.cov
-
+*.venv
+.venv
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
