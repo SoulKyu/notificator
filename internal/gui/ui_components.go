@@ -1,7 +1,9 @@
 package gui
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -40,20 +42,34 @@ func (aw *AlertsWindow) setupUI() {
 	aw.window.SetContent(content)
 }
 
-// createEnhancedToolbar creates the main toolbar with theme toggle
+// createEnhancedToolbar creates the main toolbar with theme toggle and polling status
 func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 	aw.refreshBtn = widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), aw.handleRefresh)
 	aw.refreshBtn.Importance = widget.HighImportance
 
-	autoRefreshCheck := widget.NewCheck("Auto-refresh (30s)", func(checked bool) {
+	// Enhanced auto-refresh toggle with polling status
+	autoRefreshCheck := widget.NewCheck("Smart auto-refresh", func(checked bool) {
 		aw.autoRefresh = checked
 		if checked {
-			aw.startAutoRefresh()
+			aw.startSmartAutoRefresh()
 		} else {
 			aw.stopAutoRefresh()
 		}
 	})
 	autoRefreshCheck.SetChecked(true)
+
+	// Polling interval display
+	pollingStatusLabel := widget.NewLabel(fmt.Sprintf("(%v)", aw.refreshInterval))
+	pollingStatusLabel.TextStyle = fyne.TextStyle{Italic: true}
+
+	// Connection health indicator
+	var connectionIndicator *widget.Label
+	if aw.connectionHealth.IsHealthy {
+		connectionIndicator = widget.NewLabel("🟢")
+	} else {
+		connectionIndicator = widget.NewLabel("🔴")
+	}
+	connectionIndicator.Resize(fyne.NewSize(20, 20))
 
 	// Theme toggle button
 	aw.themeBtn = aw.createThemeToggle()
@@ -68,10 +84,17 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 
 	settingsBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), aw.handleSettings)
 
-	return container.NewHBox(
+	// Create refresh section with status
+	refreshSection := container.NewHBox(
 		aw.refreshBtn,
 		widget.NewSeparator(),
 		autoRefreshCheck,
+		pollingStatusLabel,
+		connectionIndicator,
+	)
+
+	return container.NewHBox(
+		refreshSection,
 		widget.NewSeparator(),
 		aw.themeBtn,
 		widget.NewSeparator(),
@@ -191,6 +214,8 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 	aw.searchEntry = widget.NewEntry()
 	aw.searchEntry.SetPlaceHolder("🔍 Search alerts, teams, summaries, instances, or any text...")
 	aw.searchEntry.OnChanged = func(text string) {
+		// Update activity time when user searches
+		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
 	}
 
@@ -199,18 +224,21 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 
 	// Severity filter
 	aw.severitySelect = widget.NewSelect([]string{"All", "critical", "warning", "info", "unknown"}, func(selected string) {
+		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
 	})
 	aw.severitySelect.SetSelected("All")
 
 	// Status filter
 	aw.statusSelect = widget.NewSelect([]string{"All", "firing", "resolved", "suppressed"}, func(selected string) {
+		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
 	})
 	aw.statusSelect.SetSelected("All")
 
 	// Team filter (will be populated dynamically)
 	aw.teamSelect = widget.NewSelect([]string{"All"}, func(selected string) {
+		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
 	})
 	aw.teamSelect.SetSelected("All")
@@ -309,6 +337,8 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 					switch i.Col {
 					case 0: // Checkbox column
 						checkbox := widget.NewCheck("", func(checked bool) {
+							// Update activity time when user selects
+							aw.lastActivity = time.Now()
 							if checked {
 								aw.selectedAlerts[dataRowIndex] = true
 							} else {
@@ -369,6 +399,9 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 
 	// Add double-click handler for alert details
 	aw.table.OnSelected = func(id widget.TableCellID) {
+		// Update activity time when user clicks
+		aw.lastActivity = time.Now()
+
 		// Skip checkbox column clicks
 		if id.Col == 0 {
 			return
@@ -383,7 +416,7 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 	return container.NewScroll(aw.table)
 }
 
-// createStatusBar creates the bottom status bar with enhanced metrics
+// createStatusBar creates the bottom status bar with enhanced metrics and polling info
 func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 	aw.statusLabel = widget.NewLabel("Ready")
 	aw.lastUpdate = widget.NewLabel("Never")
@@ -408,6 +441,13 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 	aw.hiddenCountLabel = widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	aw.hiddenCountLabel.Importance = widget.MediumImportance
 
+	// Connection status indicator
+	connectionStatusLabel := widget.NewLabel("🟢 Connected")
+	if !aw.connectionHealth.IsHealthy {
+		connectionStatusLabel.SetText("🔴 Disconnected")
+		connectionStatusLabel.Importance = widget.DangerImportance
+	}
+
 	// Store references for updates
 	aw.statusBarMetrics = &StatusBarMetrics{
 		criticalLabel: criticalLabel,
@@ -416,6 +456,10 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 		activeLabel:   activeLabel,
 		totalLabel:    totalLabel,
 	}
+
+	// Polling info
+	pollingInfo := widget.NewLabel(fmt.Sprintf("Polling: %v", aw.refreshInterval))
+	pollingInfo.TextStyle = fyne.TextStyle{Italic: true}
 
 	return container.NewHBox(
 		aw.statusLabel,
@@ -438,6 +482,10 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 		widget.NewLabel("🙈"),
 		aw.hiddenCountLabel,
 		widget.NewSeparator(),
+		connectionStatusLabel,
+		widget.NewSeparator(),
+		pollingInfo,
+		widget.NewSeparator(),
 		widget.NewLabel("Last update:"),
 		aw.lastUpdate,
 	)
@@ -452,4 +500,18 @@ func (aw *AlertsWindow) applyColumnWidths() {
 	for i, col := range aw.columns {
 		aw.table.SetColumnWidth(i, col.Width)
 	}
+}
+
+// updatePollingStatusInUI updates polling-related UI elements
+func (aw *AlertsWindow) updatePollingStatusInUI() {
+	aw.scheduleUpdate(func() {
+		// Update connection status in status bar
+		if aw.statusBarMetrics != nil {
+			// Find and update connection status label in status bar
+			// This would require storing a reference to the connection status label
+		}
+
+		// Update any polling interval displays
+		// This would be called when adaptive polling changes the interval
+	})
 }

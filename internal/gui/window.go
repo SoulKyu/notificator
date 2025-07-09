@@ -30,6 +30,13 @@ type ColumnConfig struct {
 	MaxWidth float32
 }
 
+// ConnectionHealth tracks the health of the Alertmanager connection
+type ConnectionHealth struct {
+	LastSuccessful time.Time
+	FailureCount   int
+	IsHealthy      bool
+}
+
 // AlertsWindow represents the main GUI window
 type AlertsWindow struct {
 	app            fyne.App
@@ -51,9 +58,12 @@ type AlertsWindow struct {
 	statusLabel       *widget.Label
 	lastUpdate        *widget.Label
 
-	// Auto-refresh
-	autoRefresh   bool
-	refreshTicker *time.Ticker
+	// Enhanced Auto-refresh with adaptive polling
+	autoRefresh      bool
+	refreshTicker    *time.Ticker
+	refreshInterval  time.Duration
+	lastActivity     time.Time
+	connectionHealth *ConnectionHealth
 
 	// Channel for thread-safe updates
 	updateChan chan func()
@@ -161,6 +171,9 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 		filteredData:       []models.Alert{},
 		data:               binding.NewUntypedList(),
 		autoRefresh:        true,
+		refreshInterval:    30 * time.Second, // Default 30 seconds
+		lastActivity:       time.Now(),
+		connectionHealth:   &ConnectionHealth{LastSuccessful: time.Now(), IsHealthy: true},
 		updateChan:         make(chan func(), 100),
 		columns:            getDefaultColumns(),
 		notificationConfig: notifConfig,
@@ -182,13 +195,16 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 	aw.setupKeyboardShortcuts()
 	aw.startUpdateHandler()
 
+	// Start connection health monitoring
+	aw.startConnectionHealthMonitoring()
+
 	// Mark UI as ready
 	aw.uiReady = true
 
 	// Load initial data synchronously on the main thread (safe)
 	aw.loadInitialData()
 
-	aw.startAutoRefresh()
+	aw.startSmartAutoRefresh()
 
 	return aw
 }
@@ -239,12 +255,44 @@ func (aw *AlertsWindow) loadInitialData() {
 	go func() {
 		// Wait for window to be fully shown
 		time.Sleep(1 * time.Second)
-		aw.loadAlerts()
+		aw.loadAlertsWithCaching()
 	}()
 }
 
-// loadAlerts fetches alerts from Alertmanager
-func (aw *AlertsWindow) loadAlerts() {
+// alertsChanged detects if alerts have actually changed
+func (aw *AlertsWindow) alertsChanged(oldAlerts, newAlerts []models.Alert) bool {
+	if len(oldAlerts) != len(newAlerts) {
+		return true
+	}
+
+	// Create maps for efficient comparison
+	oldMap := make(map[string]models.Alert)
+	for _, alert := range oldAlerts {
+		key := fmt.Sprintf("%s_%s_%s", alert.GetAlertName(), alert.GetInstance(), alert.Status.State)
+		oldMap[key] = alert
+	}
+
+	for _, newAlert := range newAlerts {
+		key := fmt.Sprintf("%s_%s_%s", newAlert.GetAlertName(), newAlert.GetInstance(), newAlert.Status.State)
+		oldAlert, exists := oldMap[key]
+		if !exists {
+			return true // New alert found
+		}
+
+		// Check if alert details changed
+		if !oldAlert.StartsAt.Equal(newAlert.StartsAt) ||
+			!oldAlert.EndsAt.Equal(newAlert.EndsAt) ||
+			len(oldAlert.Status.SilencedBy) != len(newAlert.Status.SilencedBy) ||
+			len(oldAlert.Status.InhibitedBy) != len(newAlert.Status.InhibitedBy) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// loadAlertsWithCaching loads alerts with smart caching - only updates UI when data actually changes
+func (aw *AlertsWindow) loadAlertsWithCaching() {
 	// Don't show loading state if UI isn't ready
 	if aw.statusLabel != nil && aw.refreshBtn != nil {
 		aw.setStatus("Loading alerts...")
@@ -264,10 +312,32 @@ func (aw *AlertsWindow) loadAlerts() {
 			if err != nil {
 				log.Printf("Failed to fetch alerts: %v", err)
 				aw.setStatus(fmt.Sprintf("Error: %v", err))
+				aw.connectionHealth.FailureCount++
+				aw.connectionHealth.IsHealthy = false
 
-				// Show error dialog
-				dialog.ShowError(err, aw.window)
+				// Show error dialog only for manual refresh
+				if aw.refreshBtn != nil && aw.refreshBtn.Text == "Loading..." {
+					dialog.ShowError(err, aw.window)
+				}
 			} else {
+				// Update connection health
+				aw.connectionHealth.LastSuccessful = time.Now()
+				aw.connectionHealth.FailureCount = 0
+				aw.connectionHealth.IsHealthy = true
+
+				// Check if alerts actually changed (smart diffing)
+				if !aw.alertsChanged(aw.alerts, alerts) {
+					aw.setStatus("No changes detected")
+					if aw.lastUpdate != nil {
+						aw.lastUpdate.SetText(time.Now().Format("15:04:05"))
+					}
+					if aw.refreshBtn != nil {
+						aw.refreshBtn.SetText("Refresh")
+						aw.refreshBtn.Enable()
+					}
+					return
+				}
+
 				// Process notifications before updating UI
 				aw.notifier.ProcessAlerts(alerts, aw.previousAlerts)
 
@@ -288,7 +358,7 @@ func (aw *AlertsWindow) loadAlerts() {
 					}
 				}
 
-				aw.setStatus(fmt.Sprintf("Loaded %d alerts (%d active)", len(alerts), activeCount))
+				aw.setStatus(fmt.Sprintf("Updated %d alerts (%d active)", len(alerts), activeCount))
 				if aw.lastUpdate != nil {
 					aw.lastUpdate.SetText(time.Now().Format("15:04:05"))
 				}
@@ -299,6 +369,210 @@ func (aw *AlertsWindow) loadAlerts() {
 				aw.refreshBtn.Enable()
 			}
 		})
+	}()
+}
+
+// loadAlertsInBackground performs background refresh with minimal UI disruption
+func (aw *AlertsWindow) loadAlertsInBackground() {
+	// Don't show loading state for background refreshes
+	go func() {
+		alerts, err := aw.client.FetchAlerts()
+
+		aw.scheduleUpdate(func() {
+			if err != nil {
+				// Show subtle error indicator instead of dialog for background refreshes
+				aw.setStatus(fmt.Sprintf("Background refresh failed: %v", err))
+				aw.connectionHealth.FailureCount++
+				aw.connectionHealth.IsHealthy = false
+				return
+			}
+
+			// Update connection health
+			aw.connectionHealth.LastSuccessful = time.Now()
+			aw.connectionHealth.FailureCount = 0
+			aw.connectionHealth.IsHealthy = true
+
+			// Process silently
+			if aw.alertsChanged(aw.alerts, alerts) {
+				aw.notifier.ProcessAlerts(alerts, aw.previousAlerts)
+				aw.previousAlerts = aw.alerts
+				aw.alerts = alerts
+				aw.updateTeamFilter()
+				aw.safeApplyFilters()
+				aw.updateDashboard()
+				aw.updateHiddenCountDisplay()
+
+				// Show brief notification for significant changes
+				activeCount := 0
+				newCritical := 0
+				for _, alert := range alerts {
+					if alert.IsActive() {
+						activeCount++
+						if alert.GetSeverity() == "critical" {
+							newCritical++
+						}
+					}
+				}
+
+				// Flash status bar for important updates
+				if newCritical > 0 {
+					aw.flashStatus(fmt.Sprintf("🚨 %d critical alerts!", newCritical), 3*time.Second)
+				} else {
+					aw.setStatus(fmt.Sprintf("Updated: %d alerts (%d active)", len(alerts), activeCount))
+				}
+				if aw.lastUpdate != nil {
+					aw.lastUpdate.SetText(time.Now().Format("15:04:05"))
+				}
+			}
+		})
+	}()
+}
+
+// flashStatus provides visual feedback for important status changes
+func (aw *AlertsWindow) flashStatus(message string, duration time.Duration) {
+	if aw.statusLabel == nil {
+		return
+	}
+
+	originalText := aw.statusLabel.Text
+	aw.statusLabel.SetText(message)
+
+	// Flash with importance
+	aw.statusLabel.Importance = widget.DangerImportance
+	aw.statusLabel.Refresh()
+
+	go func() {
+		time.Sleep(duration)
+		aw.scheduleUpdate(func() {
+			if aw.statusLabel != nil {
+				aw.statusLabel.SetText(originalText)
+				aw.statusLabel.Importance = widget.MediumImportance
+				aw.statusLabel.Refresh()
+			}
+		})
+	}()
+}
+
+// startSmartAutoRefresh implements adaptive polling with user activity detection
+func (aw *AlertsWindow) startSmartAutoRefresh() {
+	if aw.refreshTicker != nil {
+		aw.refreshTicker.Stop()
+	}
+
+	if aw.autoRefresh {
+		aw.refreshTicker = time.NewTicker(aw.refreshInterval)
+
+		// Update activity time when user interacts
+		aw.window.Canvas().SetOnTypedKey(func(key *fyne.KeyEvent) {
+			aw.lastActivity = time.Now()
+		})
+
+		go func() {
+			backgroundRefreshCount := 0
+
+			for range aw.refreshTicker.C {
+				if !aw.autoRefresh {
+					return
+				}
+
+				// Determine adaptive interval based on alert activity
+				aw.updateAdaptiveInterval()
+
+				// Determine if user is active (interacted in last 2 minutes)
+				userActive := time.Since(aw.lastActivity) < 2*time.Minute
+
+				if userActive {
+					// User is actively using the app - normal refresh
+					aw.loadAlertsWithCaching()
+					backgroundRefreshCount = 0
+				} else {
+					// User idle - background refresh
+					aw.loadAlertsInBackground()
+					backgroundRefreshCount++
+
+					// Slow down refresh rate when user is idle for a while
+					if backgroundRefreshCount > 10 { // After 5 minutes of inactivity
+						if aw.refreshInterval < 60*time.Second {
+							aw.updateRefreshInterval(60 * time.Second) // Slower refresh
+						}
+					}
+				}
+			}
+		}()
+	}
+}
+
+// updateAdaptiveInterval adjusts polling interval based on alert activity
+func (aw *AlertsWindow) updateAdaptiveInterval() {
+	activeCount := 0
+	criticalCount := 0
+	for _, alert := range aw.alerts {
+		if alert.IsActive() {
+			activeCount++
+			if alert.GetSeverity() == "critical" {
+				criticalCount++
+			}
+		}
+	}
+
+	// Adaptive intervals:
+	var newInterval time.Duration
+	switch {
+	case criticalCount > 0:
+		newInterval = 15 * time.Second // Fast for critical alerts
+	case activeCount > 5:
+		newInterval = 20 * time.Second // Medium for many alerts
+	case activeCount > 0:
+		newInterval = 30 * time.Second // Normal for some alerts
+	default:
+		newInterval = 60 * time.Second // Slow when all quiet
+	}
+
+	// Update ticker if interval changed significantly
+	if newInterval != aw.refreshInterval {
+		aw.updateRefreshInterval(newInterval)
+		aw.setStatus(fmt.Sprintf("Polling every %v (adaptive)", newInterval))
+	}
+}
+
+// updateRefreshInterval updates the refresh interval
+func (aw *AlertsWindow) updateRefreshInterval(interval time.Duration) {
+	aw.refreshInterval = interval
+	if aw.refreshTicker != nil {
+		aw.refreshTicker.Reset(interval)
+	}
+}
+
+// startConnectionHealthMonitoring monitors connection health
+func (aw *AlertsWindow) startConnectionHealthMonitoring() {
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute) // Check every 5 minutes
+
+			if time.Since(aw.connectionHealth.LastSuccessful) > 2*time.Minute {
+				aw.connectionHealth.IsHealthy = false
+				aw.connectionHealth.FailureCount++
+
+				aw.scheduleUpdate(func() {
+					aw.setStatus(fmt.Sprintf("⚠️ Connection issues detected (%d failures)", aw.connectionHealth.FailureCount))
+
+					// Show reconnection dialog after multiple failures
+					if aw.connectionHealth.FailureCount > 3 {
+						dialog.ShowInformation("Connection Issues",
+							"Having trouble connecting to Alertmanager. Check your connection and configuration.",
+							aw.window)
+					}
+				})
+			} else if !aw.connectionHealth.IsHealthy && time.Since(aw.connectionHealth.LastSuccessful) < 30*time.Second {
+				// Connection restored
+				aw.connectionHealth.IsHealthy = true
+				aw.connectionHealth.FailureCount = 0
+
+				aw.scheduleUpdate(func() {
+					aw.setStatus("✅ Connection restored")
+				})
+			}
+		}
 	}()
 }
 
@@ -426,7 +700,7 @@ func (aw *AlertsWindow) updateTeamFilter() {
 
 // Event handlers
 func (aw *AlertsWindow) handleRefresh() {
-	aw.loadAlerts()
+	aw.loadAlertsWithCaching()
 }
 
 func (aw *AlertsWindow) handleExport() {
@@ -453,6 +727,9 @@ func (aw *AlertsWindow) focusSearchEntry() {
 
 func (aw *AlertsWindow) setupKeyboardShortcuts() {
 	aw.window.Canvas().SetOnTypedKey(func(key *fyne.KeyEvent) {
+		// Update activity time for smart refresh
+		aw.lastActivity = time.Now()
+
 		if key.Name == fyne.KeyF && (key.Physical.ScanCode == 0 || key.Physical.ScanCode == 33) {
 			aw.focusSearchEntry()
 		}
@@ -539,24 +816,6 @@ func (aw *AlertsWindow) sortFilteredData() {
 
 		return result
 	})
-}
-
-// Auto-refresh functionality
-func (aw *AlertsWindow) startAutoRefresh() {
-	if aw.refreshTicker != nil {
-		aw.refreshTicker.Stop()
-	}
-
-	if aw.autoRefresh {
-		aw.refreshTicker = time.NewTicker(30 * time.Second)
-		go func() {
-			for range aw.refreshTicker.C {
-				if aw.autoRefresh {
-					aw.loadAlerts()
-				}
-			}
-		}()
-	}
 }
 
 func (aw *AlertsWindow) stopAutoRefresh() {
@@ -984,7 +1243,7 @@ func (aw *AlertsWindow) createSilenceForAlert(alert models.Alert, duration strin
 						createdSilence.ID, duration), aw.window)
 
 				// Refresh alerts to show updated status
-				aw.loadAlerts()
+				aw.loadAlertsWithCaching()
 			}
 		})
 	}()

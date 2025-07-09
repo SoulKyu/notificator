@@ -756,7 +756,7 @@ func (aw *AlertsWindow) createSilenceFromForm(alert models.Alert, creator, durat
 						createdSilence.ID, duration), aw.window)
 
 				// Refresh alerts to show updated status
-				aw.loadAlerts()
+				aw.loadAlertsWithCaching()
 			}
 		})
 	}()

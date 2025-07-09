@@ -29,6 +29,10 @@ func (aw *AlertsWindow) showNotificationSettings() {
 	notificationTab := aw.createNotificationSettingsTab()
 	tabs.Append(container.NewTabItem("Notifications", notificationTab))
 
+	// Polling Settings Tab
+	pollingTab := aw.createPollingSettingsTab()
+	tabs.Append(container.NewTabItem("Polling", pollingTab))
+
 	// Hidden Alerts Management Tab
 	hiddenAlertsTab := aw.createHiddenAlertsManagementTab()
 	tabs.Append(container.NewTabItem("Hidden Alerts", hiddenAlertsTab))
@@ -43,6 +47,146 @@ func (aw *AlertsWindow) showNotificationSettings() {
 	settingsDialog := dialog.NewCustom("Settings", "Close", scroll, aw.window)
 	settingsDialog.Resize(fyne.NewSize(650, 750))
 	settingsDialog.Show()
+}
+
+// createPollingSettingsTab creates the polling configuration tab
+func (aw *AlertsWindow) createPollingSettingsTab() *fyne.Container {
+	content := container.NewVBox()
+
+	// Auto-refresh toggle
+	autoRefreshCheck := widget.NewCheck("Enable auto-refresh", func(checked bool) {
+		aw.autoRefresh = checked
+		if checked {
+			aw.startSmartAutoRefresh()
+		} else {
+			aw.stopAutoRefresh()
+		}
+	})
+	autoRefreshCheck.SetChecked(aw.autoRefresh)
+	content.Add(autoRefreshCheck)
+
+	content.Add(widget.NewSeparator())
+
+	// Refresh interval settings
+	intervalLabel := widget.NewLabelWithStyle("Refresh Interval Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	content.Add(intervalLabel)
+
+	// Current interval display
+	currentIntervalLabel := widget.NewLabel(fmt.Sprintf("Current interval: %v", aw.refreshInterval))
+	content.Add(currentIntervalLabel)
+
+	// Refresh interval selection
+	refreshIntervals := []string{"10 seconds", "15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes"}
+
+	refreshSelect := widget.NewSelect(refreshIntervals, func(selected string) {
+		var interval time.Duration
+		switch selected {
+		case "10 seconds":
+			interval = 10 * time.Second
+		case "15 seconds":
+			interval = 15 * time.Second
+		case "30 seconds":
+			interval = 30 * time.Second
+		case "1 minute":
+			interval = 60 * time.Second
+		case "2 minutes":
+			interval = 2 * 60 * time.Second
+		case "5 minutes":
+			interval = 5 * 60 * time.Second
+		default:
+			interval = 30 * time.Second
+		}
+
+		aw.updateRefreshInterval(interval)
+		currentIntervalLabel.SetText(fmt.Sprintf("Current interval: %v", interval))
+	})
+
+	// Set current selection based on current interval
+	currentSelection := "30 seconds"
+	switch aw.refreshInterval {
+	case 10 * time.Second:
+		currentSelection = "10 seconds"
+	case 15 * time.Second:
+		currentSelection = "15 seconds"
+	case 30 * time.Second:
+		currentSelection = "30 seconds"
+	case 60 * time.Second:
+		currentSelection = "1 minute"
+	case 2 * 60 * time.Second:
+		currentSelection = "2 minutes"
+	case 5 * 60 * time.Second:
+		currentSelection = "5 minutes"
+	}
+	refreshSelect.SetSelected(currentSelection)
+
+	content.Add(widget.NewLabel("Base refresh interval:"))
+	content.Add(refreshSelect)
+
+	// Explanation of adaptive polling
+	adaptiveExplanation := widget.NewRichTextFromMarkdown(`**Adaptive Polling:**
+
+The application automatically adjusts polling speed based on alert activity:
+
+• **15 seconds** - When critical alerts are present
+• **20 seconds** - When many alerts (>5) are active  
+• **30 seconds** - When some alerts are active
+• **60 seconds** - When no alerts are active
+
+**Smart Background Refresh:**
+• Faster refresh when you're actively using the app
+• Slower refresh when the app is idle
+• Reduces resource usage while maintaining responsiveness`)
+	adaptiveExplanation.Wrapping = fyne.TextWrapWord
+
+	content.Add(widget.NewSeparator())
+	content.Add(adaptiveExplanation)
+
+	content.Add(widget.NewSeparator())
+
+	// Connection health status
+	healthLabel := widget.NewLabelWithStyle("Connection Health", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	content.Add(healthLabel)
+
+	// Connection status display
+	var healthStatusLabel *widget.Label
+	if aw.connectionHealth.IsHealthy {
+		healthStatusLabel = widget.NewLabel("✅ Connection healthy")
+		healthStatusLabel.Importance = widget.SuccessImportance
+	} else {
+		healthStatusLabel = widget.NewLabel(fmt.Sprintf("⚠️ Connection issues (%d failures)", aw.connectionHealth.FailureCount))
+		healthStatusLabel.Importance = widget.WarningImportance
+	}
+	content.Add(healthStatusLabel)
+
+	lastSuccessLabel := widget.NewLabel(fmt.Sprintf("Last successful: %s", aw.connectionHealth.LastSuccessful.Format("15:04:05")))
+	content.Add(lastSuccessLabel)
+
+	// Test connection button
+	testConnBtn := widget.NewButton("Test Connection Now", func() {
+		aw.setStatus("Testing connection...")
+		go func() {
+			_, err := aw.client.FetchAlerts()
+			aw.scheduleUpdate(func() {
+				if err != nil {
+					aw.setStatus("Connection test failed")
+					healthStatusLabel.SetText("❌ Connection test failed")
+					healthStatusLabel.Importance = widget.DangerImportance
+					dialog.ShowError(fmt.Errorf("Connection test failed: %v", err), aw.window)
+				} else {
+					aw.setStatus("Connection test successful")
+					healthStatusLabel.SetText("✅ Connection healthy")
+					healthStatusLabel.Importance = widget.SuccessImportance
+					aw.connectionHealth.LastSuccessful = time.Now()
+					aw.connectionHealth.IsHealthy = true
+					aw.connectionHealth.FailureCount = 0
+					lastSuccessLabel.SetText(fmt.Sprintf("Last successful: %s", time.Now().Format("15:04:05")))
+				}
+			})
+		}()
+	})
+	content.Add(testConnBtn)
+
+	return content
 }
 
 // createNotificationSettingsTab creates the notification settings tab content
