@@ -32,3 +32,5 @@ go.work.sum
 # .idea/
 # .vscode/
 notificator
+fyne-cross
+*.tar.*
