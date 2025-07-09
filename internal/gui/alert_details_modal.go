@@ -322,7 +322,7 @@ func (aw *AlertsWindow) createStatusTab(alert models.Alert) fyne.CanvasObject {
 	}
 
 	// Show positive status for active alerts
-	if alert.Status.State == "firing" && len(alert.Status.SilencedBy) == 0 && len(alert.Status.InhibitedBy) == 0 {
+	if (alert.Status.State == "firing" || alert.Status.State == "active") && len(alert.Status.SilencedBy) == 0 && len(alert.Status.InhibitedBy) == 0 {
 		statusInfo.Add(widget.NewSeparator())
 		statusInfo.Add(widget.NewLabelWithStyle("✅ Alert Status", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		statusInfo.Add(widget.NewLabel("• This alert is actively firing"))
@@ -346,6 +346,8 @@ func (aw *AlertsWindow) createStatusTab(alert models.Alert) fyne.CanvasObject {
 func (aw *AlertsWindow) getStatusDescription(state string) string {
 	switch state {
 	case "firing":
+		return "The alert condition is currently active and notifications may be sent."
+	case "active":
 		return "The alert condition is currently active and notifications may be sent."
 	case "resolved":
 		return "The alert condition is no longer active and has been resolved."
@@ -373,6 +375,8 @@ func (aw *AlertsWindow) getSeverityIcon(severity string) string {
 func (aw *AlertsWindow) getStatusIcon(status string) string {
 	switch status {
 	case "firing":
+		return "🔥"
+	case "active":
 		return "🔥"
 	case "resolved":
 		return "✅"
@@ -423,6 +427,8 @@ func (aw *AlertsWindow) createSilenceTab(alert models.Alert) fyne.CanvasObject {
 
 		// Show status-specific message
 		switch alert.Status.State {
+		case "active":
+			content.Add(widget.NewLabel("This alert is currently active. You can create a silence to suppress notifications."))
 		case "firing":
 			content.Add(widget.NewLabel("This alert is currently firing. You can create a silence to suppress notifications."))
 		case "resolved":

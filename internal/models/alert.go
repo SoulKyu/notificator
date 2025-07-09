@@ -86,7 +86,7 @@ func (a *Alert) GetTeam() string {
 
 // IsActive returns true if the alert is currently firing
 func (a *Alert) IsActive() bool {
-	return a.Status.State == "firing"
+	return a.Status.State == "active"
 }
 
 // Duration returns how long the alert has been active
@@ -121,6 +121,8 @@ func (a *Alert) GetStatusWithIcon() string {
 
 	switch status {
 	case "firing":
+		return "🔥 " + status
+	case "active":
 		return "🔥 " + status
 	case "resolved":
 		return "✅ " + status

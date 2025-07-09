@@ -226,6 +226,9 @@ func (aw *AlertsWindow) createStatusBadge(alert models.Alert) fyne.CanvasObject 
 		case "firing":
 			statusText = "🔥 FIRING"
 			importance = widget.DangerImportance
+		case "active":
+			statusText = "🔥 FIRING"
+			importance = widget.DangerImportance
 		case "resolved":
 			statusText = "✅ RESOLVED"
 			importance = widget.SuccessImportance
@@ -267,7 +270,7 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 		aw.saveFilterState()
 	})
 
-	statusOptions := []string{"All", "firing", "resolved", "suppressed"}
+	statusOptions := []string{"All", "active", "firing", "resolved", "suppressed"}
 	aw.statusMultiSelect = NewMultiSelectWidget("Status", statusOptions, aw.window, func(selected map[string]bool) {
 		aw.lastActivity = time.Now()
 		aw.safeApplyFilters()
@@ -781,6 +784,8 @@ func (aw *AlertsWindow) createStatusSummary(group *AlertGroup) string {
 
 	for _, alert := range group.Alerts {
 		switch alert.Status.State {
+		case "active":
+			firing++
 		case "firing":
 			firing++
 		case "resolved":

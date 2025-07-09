@@ -304,7 +304,7 @@ func (aw *AlertsWindow) updateSearchSuggestions() {
 	// Add common search terms
 	commonTerms := []string{
 		"critical", "warning", "info", "unknown",
-		"firing", "resolved", "suppressed",
+		"firing", "resolved", "suppressed", "active",
 		"error", "failed", "timeout", "down", "up",
 		"high", "low", "disk", "memory", "cpu",
 		"network", "database", "service", "api",

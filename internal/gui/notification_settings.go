@@ -328,7 +328,7 @@ func (aw *AlertsWindow) createNotificationSettingsTab() *fyne.Container {
 				"summary": "This is a test notification",
 			},
 			Status: models.AlertStatus{
-				State: "firing",
+				State: "active",
 			},
 		}
 
