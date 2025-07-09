@@ -19,19 +19,22 @@ func (aw *AlertsWindow) setupUI() {
 	// Create filters
 	filters := aw.createFilters()
 
+	// Create bulk actions toolbar
+	bulkActions := aw.createBulkActionsToolbar()
+
 	// Create alerts table
 	tableContainer := aw.createTable()
 
 	// Create status bar
 	statusBar := aw.createStatusBar()
 
-	// Layout the main content without dashboard
+	// Layout the main content
 	content := container.NewBorder(
-		container.NewVBox(toolbar, filters), // Top (removed dashboard)
-		statusBar,                           // Bottom
-		nil,                                 // Left
-		nil,                                 // Right
-		tableContainer,                      // Center
+		container.NewVBox(toolbar, filters, bulkActions), // Top
+		statusBar,      // Bottom
+		nil,            // Left
+		nil,            // Right
+		tableContainer, // Center
 	)
 
 	aw.window.SetContent(content)
@@ -55,6 +58,9 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 	// Theme toggle button
 	aw.themeBtn = aw.createThemeToggle()
 
+	// Show hidden alerts button
+	aw.showHiddenBtn = widget.NewButtonWithIcon("Show Hidden Alerts", theme.VisibilityOffIcon(), aw.toggleShowHidden)
+
 	exportBtn := widget.NewButtonWithIcon("Export", theme.DocumentSaveIcon(), aw.handleExport)
 
 	// Column settings button
@@ -69,9 +75,43 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 		widget.NewSeparator(),
 		aw.themeBtn,
 		widget.NewSeparator(),
+		aw.showHiddenBtn,
+		widget.NewSeparator(),
 		exportBtn,
 		columnBtn,
 		settingsBtn,
+	)
+}
+
+// createBulkActionsToolbar creates toolbar for bulk operations on selected alerts
+func (aw *AlertsWindow) createBulkActionsToolbar() *fyne.Container {
+	// Select all button
+	selectAllBtn := widget.NewButtonWithIcon("Select All", theme.CheckButtonIcon(), aw.selectAllAlerts)
+	selectAllBtn.Importance = widget.LowImportance
+
+	// Hide selected button
+	hideSelectedBtn := widget.NewButtonWithIcon("Hide Selected", theme.VisibilityOffIcon(), func() {
+		if aw.showHiddenAlerts {
+			aw.unhideSelectedAlerts()
+		} else {
+			aw.hideSelectedAlerts()
+		}
+	})
+	hideSelectedBtn.Importance = widget.WarningImportance
+
+	// Store reference to update button text when view changes
+	aw.hideSelectedBtn = hideSelectedBtn
+
+	// Selection count label
+	selectionLabel := widget.NewLabel("No alerts selected")
+	aw.selectionLabel = selectionLabel
+
+	return container.NewHBox(
+		selectAllBtn,
+		widget.NewSeparator(),
+		hideSelectedBtn,
+		widget.NewSeparator(),
+		selectionLabel,
 	)
 }
 
@@ -229,22 +269,30 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 				if container, ok := o.(*fyne.Container); ok {
 					container.RemoveAll()
 					if i.Col < len(aw.columns) {
-						headerText := aw.columns[i.Col].Name
+						if i.Col == 0 {
+							// Checkbox column header
+							headerBtn := widget.NewButton("✓", aw.selectAllAlerts)
+							headerBtn.Importance = widget.LowImportance
+							container.Add(headerBtn)
+						} else {
+							// Regular sortable column
+							headerText := aw.columns[i.Col].Name
 
-						// Add sort indicator
-						if aw.sortColumn == i.Col {
-							if aw.sortAscending {
-								headerText += " ↑"
-							} else {
-								headerText += " ↓"
+							// Add sort indicator (adjust for checkbox column)
+							if aw.sortColumn == i.Col-1 {
+								if aw.sortAscending {
+									headerText += " ↑"
+								} else {
+									headerText += " ↓"
+								}
 							}
-						}
 
-						headerBtn := widget.NewButton(headerText, func() {
-							aw.handleColumnSort(i.Col)
-						})
-						headerBtn.Importance = widget.LowImportance
-						container.Add(headerBtn)
+							headerBtn := widget.NewButton(headerText, func() {
+								aw.handleColumnSort(i.Col)
+							})
+							headerBtn.Importance = widget.LowImportance
+							container.Add(headerBtn)
+						}
 					}
 				}
 				return
@@ -253,28 +301,46 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 			// Data rows
 			if i.Row-1 < len(aw.filteredData) {
 				alert := aw.filteredData[i.Row-1]
+				dataRowIndex := i.Row - 1
 
 				if cellContainer, ok := o.(*fyne.Container); ok {
 					cellContainer.RemoveAll()
 
 					switch i.Col {
-					case 0: // Alert name
+					case 0: // Checkbox column
+						checkbox := widget.NewCheck("", func(checked bool) {
+							if checked {
+								aw.selectedAlerts[dataRowIndex] = true
+							} else {
+								delete(aw.selectedAlerts, dataRowIndex)
+							}
+							// Update selection label when checkbox changes
+							aw.updateSelectionLabel()
+						})
+						checkbox.SetChecked(aw.selectedAlerts[dataRowIndex])
+						cellContainer.Add(checkbox)
+
+					case 1: // Alert name
 						label := widget.NewLabel(alert.GetAlertName())
+						// Add visual indicator if alert is hidden (when viewing hidden alerts)
+						if aw.showHiddenAlerts {
+							label.SetText("🙈 " + alert.GetAlertName())
+						}
 						cellContainer.Add(label)
 
-					case 1: // Severity - use badge
+					case 2: // Severity - use badge
 						cellContainer.Add(aw.createSeverityBadge(alert))
 
-					case 2: // Status - use badge
+					case 3: // Status - use badge
 						cellContainer.Add(aw.createStatusBadge(alert))
 
-					case 3: // Team
+					case 4: // Team
 						label := widget.NewLabel(alert.GetTeam())
 						cellContainer.Add(label)
 
-					case 4: // Summary
+					case 5: // Summary
 						summary := alert.GetSummary()
-						maxLen := int(aw.columns[4].Width / 6)
+						maxLen := int(aw.columns[5].Width / 6)
 						if maxLen < 20 {
 							maxLen = 20
 						}
@@ -284,12 +350,12 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 						label := widget.NewLabel(summary)
 						cellContainer.Add(label)
 
-					case 5: // Duration
+					case 6: // Duration
 						duration := alert.Duration()
 						label := widget.NewLabel(formatDuration(duration))
 						cellContainer.Add(label)
 
-					case 6: // Instance
+					case 7: // Instance
 						label := widget.NewLabel(alert.GetInstance())
 						cellContainer.Add(label)
 					}
@@ -303,6 +369,11 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 
 	// Add double-click handler for alert details
 	aw.table.OnSelected = func(id widget.TableCellID) {
+		// Skip checkbox column clicks
+		if id.Col == 0 {
+			return
+		}
+
 		if id.Row > 0 && id.Row-1 < len(aw.filteredData) {
 			alert := aw.filteredData[id.Row-1]
 			aw.showAlertDetails(alert)
@@ -333,6 +404,10 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 	totalLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	totalLabel.Importance = widget.MediumImportance
 
+	// Hidden count label
+	aw.hiddenCountLabel = widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	aw.hiddenCountLabel.Importance = widget.MediumImportance
+
 	// Store references for updates
 	aw.statusBarMetrics = &StatusBarMetrics{
 		criticalLabel: criticalLabel,
@@ -359,6 +434,9 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 		widget.NewSeparator(),
 		widget.NewLabel("📊"),
 		totalLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("🙈"),
+		aw.hiddenCountLabel,
 		widget.NewSeparator(),
 		widget.NewLabel("Last update:"),
 		aw.lastUpdate,
