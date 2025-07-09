@@ -218,28 +218,48 @@ func (bn *BackgroundNotifier) sendSingleNotification(alert models.Alert) {
 // sendClickableNotification sends a notification that can restore the window when clicked
 func (bn *BackgroundNotifier) sendClickableNotification(alert models.Alert) {
 	var title string
-	message := fmt.Sprintf("%s\n%s\nClick to open Notificator",
-		alert.GetAlertName(),
-		alert.GetSummary())
+	var message string
 
 	// Add severity emoji to title for visual distinction
 	switch alert.GetSeverity() {
 	case "critical":
-		title = "🔴 Critical Alert"
+		title = "🔴 Critical Alert - Notificator"
+		message = fmt.Sprintf("CRITICAL: %s\n%s\n\n💡 Use system tray to show Notificator window",
+			alert.GetAlertName(),
+			alert.GetSummary())
 	case "warning":
-		title = "🟡 Warning Alert"
+		title = "🟡 Warning Alert - Notificator"
+		message = fmt.Sprintf("WARNING: %s\n%s\n\n💡 Use system tray to show Notificator window",
+			alert.GetAlertName(),
+			alert.GetSummary())
 	case "info":
-		title = "🔵 Info Alert"
+		title = "🔵 Info Alert - Notificator"
+		message = fmt.Sprintf("INFO: %s\n%s\n\n💡 Use system tray to show Notificator window",
+			alert.GetAlertName(),
+			alert.GetSummary())
 	default:
-		title = "⚪ Alert"
+		title = "⚪ Alert - Notificator"
+		message = fmt.Sprintf("%s\n%s\n\n💡 Use system tray to show Notificator window",
+			alert.GetAlertName(),
+			alert.GetSummary())
+	}
+
+	// Add instance information if available
+	if instance := alert.GetInstance(); instance != "" && instance != "unknown" {
+		message += fmt.Sprintf("\nInstance: %s", instance)
+	}
+
+	// Add team information if available
+	if team := alert.GetTeam(); team != "" && team != "unknown" {
+		message += fmt.Sprintf("\nTeam: %s", team)
 	}
 
 	// Create notification
 	notification := fyne.NewNotification(title, message)
 
 	// Note: Fyne doesn't support click callbacks directly
-	// For now, we'll rely on the system tray for user interaction
-	// In a future enhancement, we could implement platform-specific notifications
+	// However, the system tray provides the mechanism for users to restore the window
+	// The notification message guides users to use the system tray
 
 	if bn.app != nil {
 		bn.app.SendNotification(notification)

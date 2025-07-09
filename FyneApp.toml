@@ -5,7 +5,7 @@ Website = "https://github.com/SoulKyu/notificator"
   Name = "Notificator"
   ID = "com.soulkyu.notificator"
   Version = "1.0.0"
-  Build = 12
+  Build = 13
 
 [LinuxAndBSD]
   GenericName = "Alert Manager Dashboard"

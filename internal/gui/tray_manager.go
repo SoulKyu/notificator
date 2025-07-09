@@ -89,7 +89,12 @@ func (tm *TrayManager) setupSystemTray() {
 		// Set the system tray
 		desk.SetSystemTrayMenu(tm.trayMenu)
 
-		log.Println("System tray initialized")
+		// Set up window close intercept to hide instead of close
+		tm.window.SetCloseIntercept(func() {
+			tm.HideToBackground()
+		})
+
+		log.Println("System tray initialized with window lifecycle management")
 	} else {
 		log.Println("System tray not supported on this platform")
 	}
@@ -195,11 +200,12 @@ func (tm *TrayManager) UpdateAlertCounts() {
 
 // HandleWindowClose determines what happens when user closes the window
 func (tm *TrayManager) HandleWindowClose() bool {
-	// Check if we should minimize to tray
-	if tm.alertsWindow.config != nil && tm.alertsWindow.config.GUI.FilterState.SearchText != "" {
-		// This is a simplified check - you might want to add a proper MinimizeToTray field
+	// Check if we should minimize to tray based on configuration
+	if tm.alertsWindow.originalConfig != nil && tm.alertsWindow.originalConfig.GUI.MinimizeToTray {
 		tm.HideToBackground()
 		return false // Prevent actual close
 	}
+
+	// If minimize to tray is not configured, allow normal close
 	return true // Allow normal close
 }

@@ -466,14 +466,7 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 		}
 	})
 
-	// Handle window close event
-	window.SetCloseIntercept(func() {
-		if aw.originalConfig != nil && aw.originalConfig.GUI.MinimizeToTray {
-			aw.trayManager.HideToBackground()
-		} else {
-			aw.app.Quit()
-		}
-	})
+	// Window close intercept will be handled by TrayManager
 	aw.setupKeyboardShortcuts()
 	aw.startUpdateHandler()
 	aw.startConnectionHealthMonitoring()
