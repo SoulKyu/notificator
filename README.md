@@ -1,6 +1,6 @@
 # Notificator
 
-A GUI application for Alertmanager with sound and notification alerts on your laptop.
+A GUI application for multiple Alertmanagers with sound and notification alerts on your laptop.
 
 ![alt text](img/preview.gif "Preview")
 
@@ -37,17 +37,20 @@ Notificator uses a JSON configuration file located at `~/.config/notificator/con
 
 ```json
 {
-  "alertmanager": {
-    "url": "http://localhost:9093",
-    "username": "",
-    "password": "",
-    "token": "",
-    "headers": {},
-    "oauth": {
-      "enabled": false,
-      "proxy_mode": true
+  "alertmanagers": [
+    {
+      "name": "default",
+      "url": "http://localhost:9093",
+      "username": "",
+      "password": "",
+      "token": "",
+      "headers": {},
+      "oauth": {
+        "enabled": false,
+        "proxy_mode": true
+      }
     }
-  },
+  ],
   "gui": {
     "width": 1200,
     "height": 800,
@@ -87,6 +90,7 @@ Notificator uses a JSON configuration file located at `~/.config/notificator/con
 ### Environment Variables
 
 You can also set headers via environment variable:
+
 ```bash
 export METRICS_PROVIDER_HEADERS="X-API-Key=your-key,Authorization=Bearer token"
 ```
@@ -100,5 +104,6 @@ export METRICS_PROVIDER_HEADERS="X-API-Key=your-key,Authorization=Bearer token"
 - Alert silencing functionality
 - Customizable notification settings
 - Light/dark theme support
+- Multiple Alertmanagers
 
 Perfect for keeping track of your infrastructure alerts directly from your laptop!

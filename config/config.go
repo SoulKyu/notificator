@@ -11,8 +11,8 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	// Alertmanager configuration
-	Alertmanager AlertmanagerConfig `json:"alertmanager"`
+	// Alertmanager configurations, supports multiple instances
+	Alertmanagers []AlertmanagerConfig `json:"alertmanagers"`
 
 	// GUI configuration
 	GUI GUIConfig `json:"gui"`
@@ -29,6 +29,7 @@ type Config struct {
 
 // AlertmanagerConfig contains Alertmanager-specific settings
 type AlertmanagerConfig struct {
+	Name     string            `json:"name"`
 	URL      string            `json:"url"`
 	Username string            `json:"username"`
 	Password string            `json:"password"`
@@ -57,10 +58,11 @@ type GUIConfig struct {
 
 // FilterStateConfig contains the state of filters
 type FilterStateConfig struct {
-	SearchText         string          `json:"search_text"`
-	SelectedSeverities map[string]bool `json:"selected_severities"`
-	SelectedStatuses   map[string]bool `json:"selected_statuses"`
-	SelectedTeams      map[string]bool `json:"selected_teams"`
+	SearchText            string          `json:"search_text"`
+	SelectedAlertmanagers map[string]bool `json:"selected_alertmanagers"`
+	SelectedSeverities    map[string]bool `json:"selected_severities"`
+	SelectedStatuses      map[string]bool `json:"selected_statuses"`
+	SelectedTeams         map[string]bool `json:"selected_teams"`
 }
 
 // NotificationConfig contains notification settings
@@ -91,10 +93,13 @@ func DefaultConfig() *Config {
 	}
 
 	return &Config{
-		Alertmanager: AlertmanagerConfig{
-			URL:     "http://localhost:9093",
-			Headers: headers,
-			OAuth:   oauthConfig,
+		Alertmanagers: []AlertmanagerConfig{
+			{
+				Name:    "Default",
+				URL:     "http://localhost:9093",
+				Headers: headers,
+				OAuth:   oauthConfig,
+			},
 		},
 		GUI: GUIConfig{
 			Width:          1920,
@@ -105,10 +110,11 @@ func DefaultConfig() *Config {
 			ShowTrayIcon:   true,
 			BackgroundMode: false,
 			FilterState: FilterStateConfig{
-				SearchText:         "",
-				SelectedSeverities: map[string]bool{"All": true},
-				SelectedStatuses:   map[string]bool{"All": true},
-				SelectedTeams:      map[string]bool{"All": true},
+				SearchText:            "",
+				SelectedAlertmanagers: map[string]bool{"All": true},
+				SelectedSeverities:    map[string]bool{"All": true},
+				SelectedStatuses:      map[string]bool{"All": true},
+				SelectedTeams:         map[string]bool{"All": true},
 			},
 		},
 		Notifications: NotificationConfig{
@@ -242,11 +248,93 @@ func ParseHeadersFromEnv(envVar string) map[string]string {
 func (c *Config) MergeHeaders() {
 	envHeaders := ParseHeadersFromEnv("METRICS_PROVIDER_HEADERS")
 
-	if c.Alertmanager.Headers == nil {
-		c.Alertmanager.Headers = make(map[string]string)
+	// Apply environment headers to all alertmanagers
+	for i := range c.Alertmanagers {
+		if c.Alertmanagers[i].Headers == nil {
+			c.Alertmanagers[i].Headers = make(map[string]string)
+		}
+
+		for key, value := range envHeaders {
+			c.Alertmanagers[i].Headers[key] = value
+		}
+	}
+}
+
+// GetAlertmanagerByName returns an Alertmanager configuration by name
+func (c *Config) GetAlertmanagerByName(name string) *AlertmanagerConfig {
+	for i := range c.Alertmanagers {
+		if c.Alertmanagers[i].Name == name {
+			return &c.Alertmanagers[i]
+		}
+	}
+	return nil
+}
+
+// GetAlertmanagerByURL returns an Alertmanager configuration by URL
+func (c *Config) GetAlertmanagerByURL(url string) *AlertmanagerConfig {
+	for i := range c.Alertmanagers {
+		if c.Alertmanagers[i].URL == url {
+			return &c.Alertmanagers[i]
+		}
+	}
+	return nil
+}
+
+// AddAlertmanager adds a new Alertmanager configuration
+func (c *Config) AddAlertmanager(config AlertmanagerConfig) {
+	// Ensure unique name
+	if c.GetAlertmanagerByName(config.Name) != nil {
+		// Find a unique name
+		baseName := config.Name
+		counter := 1
+		for c.GetAlertmanagerByName(config.Name) != nil {
+			config.Name = fmt.Sprintf("%s_%d", baseName, counter)
+			counter++
+		}
+	}
+	c.Alertmanagers = append(c.Alertmanagers, config)
+}
+
+// RemoveAlertmanager removes an Alertmanager configuration by name
+func (c *Config) RemoveAlertmanager(name string) bool {
+	for i := range c.Alertmanagers {
+		if c.Alertmanagers[i].Name == name {
+			c.Alertmanagers = append(c.Alertmanagers[:i], c.Alertmanagers[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// GetAlertmanagerNames returns a list of all Alertmanager names
+func (c *Config) GetAlertmanagerNames() []string {
+	names := make([]string, len(c.Alertmanagers))
+	for i, am := range c.Alertmanagers {
+		names[i] = am.Name
+	}
+	return names
+}
+
+// ValidateAlertmanagers validates all Alertmanager configurations
+func (c *Config) ValidateAlertmanagers() error {
+	if len(c.Alertmanagers) == 0 {
+		return fmt.Errorf("at least one Alertmanager must be configured")
 	}
 
-	for key, value := range envHeaders {
-		c.Alertmanager.Headers[key] = value
+	names := make(map[string]bool)
+	urls := make(map[string]bool)
+
+	for i, am := range c.Alertmanagers {
+		if am.Name == "" {
+			return fmt.Errorf("alertmanager at index %d has no name", i)
+		}
+		names[am.Name] = true
+
+		if am.URL == "" {
+			return fmt.Errorf("alertmanager '%s' has no URL", am.Name)
+		}
+		urls[am.URL] = true
 	}
+
+	return nil
 }

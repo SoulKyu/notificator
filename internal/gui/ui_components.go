@@ -9,6 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -82,6 +83,11 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 	// Show hidden alerts button
 	aw.showHiddenBtn = widget.NewButtonWithIcon("Show Hidden Alerts", theme.VisibilityOffIcon(), aw.toggleShowHidden)
 
+	// Alertmanager info button
+	alertmanagerInfoBtn := widget.NewButtonWithIcon("Alertmanagers", theme.InfoIcon(), func() {
+		aw.showAlertmanagerInfo()
+	})
+
 	// Group toggle button
 	aw.groupToggleBtn = widget.NewButtonWithIcon("Group View", theme.ListIcon(), func() {
 		aw.toggleGroupedMode()
@@ -120,6 +126,7 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 		widget.NewSeparator(),
 		backgroundModeBtn,
 		widget.NewSeparator(),
+		alertmanagerInfoBtn,
 		aw.groupToggleBtn,
 		widget.NewSeparator(),
 		aw.showHiddenBtn,
@@ -190,90 +197,6 @@ func (aw *AlertsWindow) createBulkActionsToolbar() *fyne.Container {
 func (aw *AlertsWindow) createSeverityBadge(alert models.Alert) fyne.CanvasObject {
 	// Use the new enhanced severity badge for all severity levels
 	return aw.createEnhancedSeverityBadgeNew(alert)
-}
-
-// createEnhancedSeverityContainer creates a container with border colors and background gradients
-func (aw *AlertsWindow) createEnhancedSeverityContainer(badge *widget.Label, severity string) fyne.CanvasObject {
-	// Create a card container for enhanced styling
-	var card *widget.Card
-
-	switch severity {
-	case "critical":
-		// Critical alerts: Red border with red gradient background
-		card = widget.NewCard("", "", badge)
-		card.Resize(fyne.NewSize(120, 40))
-
-		// Create a container with visual enhancements for critical
-		criticalContainer := container.NewBorder(nil, nil, nil, nil, card)
-		return aw.wrapWithCriticalStyling(criticalContainer)
-
-	case "warning":
-		// Warning alerts: Orange/Yellow border with orange gradient background
-		card = widget.NewCard("", "", badge)
-		card.Resize(fyne.NewSize(120, 40))
-
-		// Create a container with visual enhancements for warning
-		warningContainer := container.NewBorder(nil, nil, nil, nil, card)
-		return aw.wrapWithWarningStyling(warningContainer)
-
-	default:
-		// Default styling for info and other severities
-		return badge
-	}
-}
-
-// wrapWithCriticalStyling adds critical alert styling with red border and gradient
-func (aw *AlertsWindow) wrapWithCriticalStyling(content fyne.CanvasObject) fyne.CanvasObject {
-	// Create a visual indicator for critical alerts
-	criticalIndicator := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{})
-	criticalIndicator.Importance = widget.DangerImportance
-
-	// Create border effect using separators
-	topBorder := widget.NewSeparator()
-	bottomBorder := widget.NewSeparator()
-	leftBorder := widget.NewSeparator()
-	rightBorder := widget.NewSeparator()
-
-	// Create the bordered container
-	borderedContent := container.NewBorder(
-		topBorder,    // top
-		bottomBorder, // bottom
-		leftBorder,   // left
-		rightBorder,  // right
-		content,      // center
-	)
-
-	// Add padding and background effect
-	paddedContainer := container.NewPadded(borderedContent)
-
-	return paddedContainer
-}
-
-// wrapWithWarningStyling adds warning alert styling with orange border and gradient
-func (aw *AlertsWindow) wrapWithWarningStyling(content fyne.CanvasObject) fyne.CanvasObject {
-	// Create a visual indicator for warning alerts
-	warningIndicator := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{})
-	warningIndicator.Importance = widget.WarningImportance
-
-	// Create border effect using separators
-	topBorder := widget.NewSeparator()
-	bottomBorder := widget.NewSeparator()
-	leftBorder := widget.NewSeparator()
-	rightBorder := widget.NewSeparator()
-
-	// Create the bordered container
-	borderedContent := container.NewBorder(
-		topBorder,    // top
-		bottomBorder, // bottom
-		leftBorder,   // left
-		rightBorder,  // right
-		content,      // center
-	)
-
-	// Add padding and background effect
-	paddedContainer := container.NewPadded(borderedContent)
-
-	return paddedContainer
 }
 
 // createStatusBadge creates a styled status badge
@@ -353,6 +276,13 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 		aw.saveFilterState()
 	})
 
+	alertmanagerOptions := []string{"All"}
+	aw.alertmanagerMultiSelect = NewMultiSelectWidget("Alertmanager", alertmanagerOptions, aw.window, func(selected map[string]bool) {
+		aw.lastActivity = time.Now()
+		aw.safeApplyFilters()
+		aw.saveFilterState()
+	})
+
 	clearBtn := widget.NewButtonWithIcon("Clear All Filters", theme.ContentClearIcon(), aw.clearFilters)
 	clearBtn.Importance = widget.LowImportance
 
@@ -367,6 +297,8 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 
 	// Create filters container
 	filtersContainer := container.NewHBox(
+		aw.alertmanagerMultiSelect,
+		widget.NewSeparator(),
 		aw.severityMultiSelect,
 		widget.NewSeparator(),
 		aw.statusMultiSelect,
@@ -488,25 +420,28 @@ func (aw *AlertsWindow) renderFlatAlertRow(cellID widget.TableCellID, obj fyne.C
 			checkbox.SetChecked(aw.selectedAlerts[dataRowIndex])
 			cellContainer.Add(checkbox)
 
-		case 1: // Alert name
+		case 1: // Alertmanager name
+			cellContainer.Add(widget.NewLabel(alert.GetSource()))
+
+		case 2: // Alert name
 			label := widget.NewLabel(alert.GetAlertName())
 			if aw.showHiddenAlerts {
 				label.SetText("🙈 " + alert.GetAlertName())
 			}
 			cellContainer.Add(label)
 
-		case 2: // Severity
+		case 3: // Severity
 			cellContainer.Add(aw.createSeverityBadge(alert))
 
-		case 3: // Status
+		case 4: // Status
 			cellContainer.Add(aw.createStatusBadge(alert))
 
-		case 4: // Team
+		case 5: // Team
 			cellContainer.Add(widget.NewLabel(alert.GetTeam()))
 
-		case 5: // Summary
+		case 6: // Summary
 			summary := alert.GetSummary()
-			maxLen := int(aw.columns[5].Width / 6)
+			maxLen := int(aw.columns[6].Width / 6)
 			if maxLen < 20 {
 				maxLen = 20
 			}
@@ -515,10 +450,10 @@ func (aw *AlertsWindow) renderFlatAlertRow(cellID widget.TableCellID, obj fyne.C
 			}
 			cellContainer.Add(widget.NewLabel(summary))
 
-		case 6: // Duration
+		case 7: // Duration
 			cellContainer.Add(widget.NewLabel(formatDuration(alert.Duration())))
 
-		case 7: // Instance
+		case 8: // Instance
 			cellContainer.Add(widget.NewLabel(alert.GetInstance()))
 		}
 	}
@@ -555,432 +490,6 @@ func (aw *AlertsWindow) renderTableHeader(cellID widget.TableCellID, obj fyne.Ca
 			}
 		}
 	}
-}
-
-// Continue with grouped table rendering methods...
-
-// createGroupedAlertsFromFiltered creates alert groups from filtered data
-func (aw *AlertsWindow) createGroupedAlertsFromFiltered() []AlertGroup {
-	// Group alerts by alertname
-	groupMap := make(map[string][]models.Alert)
-
-	for _, alert := range aw.filteredData {
-		alertName := alert.GetAlertName()
-		groupMap[alertName] = append(groupMap[alertName], alert)
-	}
-
-	// Convert to AlertGroup slice
-	var groups []AlertGroup
-	for alertName, alerts := range groupMap {
-		// Sort alerts within each group according to current sort settings
-		aw.sortAlertsInGroup(alerts)
-
-		group := AlertGroup{
-			AlertName:  alertName,
-			Alerts:     alerts,
-			IsExpanded: false, // Start collapsed
-			TotalCount: len(alerts),
-		}
-
-		// Count by severity and status
-		for _, alert := range alerts {
-			if alert.IsActive() {
-				group.ActiveCount++
-			}
-
-			switch alert.GetSeverity() {
-			case "critical":
-				group.CriticalCount++
-			case "warning":
-				group.WarningCount++
-			case "info":
-				group.InfoCount++
-			}
-		}
-
-		groups = append(groups, group)
-	}
-
-	// Sort groups according to current sort settings, or by criticality if no sort is set
-	aw.sortGroups(groups)
-
-	return groups
-}
-
-// createTableRowsFromGroups creates table rows from alert groups
-func (aw *AlertsWindow) createTableRowsFromGroups(groups []AlertGroup) []TableRow {
-	var rows []TableRow
-	rowIndex := 0
-
-	for groupIndex, group := range groups {
-		// Add group header row
-		groupRow := TableRow{
-			Type:       "group",
-			Group:      &groups[groupIndex], // Use pointer to allow modifications
-			GroupIndex: groupIndex,
-			RowIndex:   rowIndex,
-		}
-		rows = append(rows, groupRow)
-		rowIndex++
-
-		// Add individual alert rows if expanded
-		if group.IsExpanded {
-			for alertIndex, alert := range group.Alerts {
-				alertCopy := alert // Create copy to avoid pointer issues
-				alertRow := TableRow{
-					Type:       "alert",
-					Alert:      &alertCopy,
-					GroupIndex: groupIndex,
-					AlertIndex: alertIndex,
-					RowIndex:   rowIndex,
-				}
-				rows = append(rows, alertRow)
-				rowIndex++
-			}
-		}
-	}
-
-	return rows
-}
-
-// renderTableRow renders a table row (either group or alert)
-func (aw *AlertsWindow) renderTableRow(cellID widget.TableCellID, obj fyne.CanvasObject, row TableRow) {
-	if cellContainer, ok := obj.(*fyne.Container); ok {
-		cellContainer.RemoveAll()
-
-		if row.Type == "group" {
-			aw.renderGroupRow(cellID, cellContainer, row)
-		} else {
-			aw.renderAlertRow(cellID, cellContainer, row)
-		}
-	}
-}
-
-// renderGroupRow renders a group header row
-func (aw *AlertsWindow) renderGroupRow(cellID widget.TableCellID, cellContainer *fyne.Container, row TableRow) {
-	group := row.Group
-
-	switch cellID.Col {
-	case 0: // Checkbox column - group selection
-		checkbox := widget.NewCheck("", func(checked bool) {
-			aw.lastActivity = time.Now()
-			if checked {
-				// Select the group row itself for group-level operations
-				aw.selectedAlerts[row.RowIndex] = true
-				// Also select all individual alerts in the group (without triggering refresh)
-				aw.selectGroupAlertsQuietly(row.GroupIndex, true)
-			} else {
-				// Deselect the group row
-				delete(aw.selectedAlerts, row.RowIndex)
-				// Also deselect all individual alerts in the group (without triggering refresh)
-				aw.selectGroupAlertsQuietly(row.GroupIndex, false)
-			}
-			aw.updateSelectionLabel()
-		})
-		// Check if the group itself is selected OR if all alerts in group are selected
-		groupSelected := aw.selectedAlerts[row.RowIndex]
-		allAlertsSelected := aw.areAllGroupAlertsSelected(row.GroupIndex)
-		checkbox.SetChecked(groupSelected || allAlertsSelected)
-		cellContainer.Add(checkbox)
-
-	case 1: // Alert name with expand/collapse button
-		var expandIcon fyne.Resource
-		if group.IsExpanded {
-			expandIcon = theme.MenuDropDownIcon()
-		} else {
-			expandIcon = theme.MenuDropUpIcon()
-		}
-
-		expandBtn := widget.NewButtonWithIcon("", expandIcon, func() {
-			aw.toggleGroupExpansion(row.GroupIndex)
-		})
-		expandBtn.Importance = widget.LowImportance
-
-		nameLabel := widget.NewLabelWithStyle(
-			fmt.Sprintf("📋 %s", group.AlertName),
-			fyne.TextAlignLeading,
-			fyne.TextStyle{Bold: true},
-		)
-
-		cellContainer.Add(container.NewHBox(expandBtn, nameLabel))
-
-	case 2: // Severity summary
-		severityText := aw.createSeveritySummary(group)
-		severityLabel := widget.NewRichText(&widget.TextSegment{
-			Text:  severityText,
-			Style: widget.RichTextStyle{},
-		})
-		cellContainer.Add(severityLabel)
-
-	case 3: // Status summary
-		statusText := aw.createStatusSummary(group)
-		statusLabel := widget.NewLabel(statusText)
-		cellContainer.Add(statusLabel)
-
-	case 4: // Team (first team found)
-		team := "Mixed"
-		if len(group.Alerts) > 0 {
-			team = group.Alerts[0].GetTeam()
-			// Check if all alerts have same team
-			for _, alert := range group.Alerts[1:] {
-				if alert.GetTeam() != team {
-					team = "Mixed"
-					break
-				}
-			}
-		}
-		teamLabel := widget.NewLabel(team)
-		cellContainer.Add(teamLabel)
-
-	case 5: // Summary (count of alerts)
-		summaryText := fmt.Sprintf("📊 %d alerts", group.TotalCount)
-		if group.ActiveCount > 0 {
-			summaryText += fmt.Sprintf(" (%d active)", group.ActiveCount)
-		}
-		summaryLabel := widget.NewLabel(summaryText)
-		cellContainer.Add(summaryLabel)
-
-	case 6: // Duration (newest alert)
-		if len(group.Alerts) > 0 {
-			// Find the most recent alert
-			newest := group.Alerts[0]
-			for _, alert := range group.Alerts[1:] {
-				if alert.StartsAt.After(newest.StartsAt) {
-					newest = alert
-				}
-			}
-			durationLabel := widget.NewLabel(formatDuration(newest.Duration()))
-			cellContainer.Add(durationLabel)
-		} else {
-			cellContainer.Add(widget.NewLabel("-"))
-		}
-
-	case 7: // Instance count
-		instanceCount := len(aw.getUniqueInstances(group.Alerts))
-		instanceLabel := widget.NewLabel(fmt.Sprintf("%d instances", instanceCount))
-		cellContainer.Add(instanceLabel)
-	}
-}
-
-// renderAlertRow renders an individual alert row (indented)
-func (aw *AlertsWindow) renderAlertRow(cellID widget.TableCellID, container *fyne.Container, row TableRow) {
-	alert := row.Alert
-
-	switch cellID.Col {
-	case 0: // Checkbox column
-		checkbox := widget.NewCheck("", func(checked bool) {
-			aw.lastActivity = time.Now()
-			if checked {
-				aw.selectedAlerts[row.RowIndex] = true
-			} else {
-				delete(aw.selectedAlerts, row.RowIndex)
-			}
-			aw.updateSelectionLabel()
-		})
-		checkbox.SetChecked(aw.selectedAlerts[row.RowIndex])
-		container.Add(checkbox)
-
-	case 1: // Alert name (indented)
-		nameLabel := widget.NewLabel("    └─ " + alert.GetAlertName())
-		if aw.showHiddenAlerts {
-			nameLabel.SetText("    └─ 🙈 " + alert.GetAlertName())
-		}
-		container.Add(nameLabel)
-
-	case 2: // Severity badge
-		container.Add(aw.createSeverityBadge(*alert))
-
-	case 3: // Status badge
-		container.Add(aw.createStatusBadge(*alert))
-
-	case 4: // Team
-		teamLabel := widget.NewLabel(alert.GetTeam())
-		container.Add(teamLabel)
-
-	case 5: // Summary (truncated)
-		summary := alert.GetSummary()
-		maxLen := int(aw.columns[5].Width / 6)
-		if maxLen < 20 {
-			maxLen = 20
-		}
-		if len(summary) > maxLen {
-			summary = summary[:maxLen-3] + "..."
-		}
-		summaryLabel := widget.NewLabel(summary)
-		container.Add(summaryLabel)
-
-	case 6: // Duration
-		durationLabel := widget.NewLabel(formatDuration(alert.Duration()))
-		container.Add(durationLabel)
-
-	case 7: // Instance
-		instanceLabel := widget.NewLabel(alert.GetInstance())
-		container.Add(instanceLabel)
-	}
-}
-
-// createSeveritySummary creates a summary of severities in the group
-func (aw *AlertsWindow) createSeveritySummary(group *AlertGroup) string {
-	var parts []string
-
-	if group.CriticalCount > 0 {
-		parts = append(parts, fmt.Sprintf("🔴 %d", group.CriticalCount))
-	}
-	if group.WarningCount > 0 {
-		parts = append(parts, fmt.Sprintf("🟡 %d", group.WarningCount))
-	}
-	if group.InfoCount > 0 {
-		parts = append(parts, fmt.Sprintf("🔵 %d", group.InfoCount))
-	}
-
-	if len(parts) == 0 {
-		return "⚪ " + fmt.Sprint(group.TotalCount)
-	}
-
-	return strings.Join(parts, " ")
-}
-
-// createStatusSummary creates a summary of statuses in the group
-func (aw *AlertsWindow) createStatusSummary(group *AlertGroup) string {
-	firing := 0
-	resolved := 0
-	suppressed := 0
-
-	for _, alert := range group.Alerts {
-		switch alert.Status.State {
-		case "active":
-			firing++
-		case "firing":
-			firing++
-		case "resolved":
-			resolved++
-		case "suppressed":
-			suppressed++
-		}
-	}
-
-	var parts []string
-	if firing > 0 {
-		parts = append(parts, fmt.Sprintf("🔥 %d", firing))
-	}
-	if resolved > 0 {
-		parts = append(parts, fmt.Sprintf("✅ %d", resolved))
-	}
-	if suppressed > 0 {
-		parts = append(parts, fmt.Sprintf("🔇 %d", suppressed))
-	}
-
-	return strings.Join(parts, " ")
-}
-
-// getUniqueInstances returns unique instances from a group of alerts
-func (aw *AlertsWindow) getUniqueInstances(alerts []models.Alert) []string {
-	instanceMap := make(map[string]bool)
-	for _, alert := range alerts {
-		instance := alert.GetInstance()
-		if instance != "unknown" && instance != "" {
-			instanceMap[instance] = true
-		}
-	}
-
-	var instances []string
-	for instance := range instanceMap {
-		instances = append(instances, instance)
-	}
-
-	return instances
-}
-
-// createStatusBar creates the bottom status bar with enhanced metrics and polling info
-func (aw *AlertsWindow) createStatusBar() *fyne.Container {
-	aw.statusLabel = widget.NewLabel("Ready")
-	aw.lastUpdate = widget.NewLabel("Never")
-
-	// Create metric labels that will be updated dynamically
-	criticalLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	criticalLabel.Importance = widget.DangerImportance
-
-	warningLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	warningLabel.Importance = widget.WarningImportance
-
-	infoLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	infoLabel.Importance = widget.LowImportance
-
-	activeLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	activeLabel.Importance = widget.HighImportance
-
-	totalLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	totalLabel.Importance = widget.MediumImportance
-
-	// Hidden count label
-	aw.hiddenCountLabel = widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	aw.hiddenCountLabel.Importance = widget.MediumImportance
-
-	// Connection status indicator
-	connectionStatusLabel := widget.NewLabel("🟢 Connected")
-	if !aw.connectionHealth.IsHealthy {
-		connectionStatusLabel.SetText("🔴 Disconnected")
-		connectionStatusLabel.Importance = widget.DangerImportance
-	}
-
-	// View mode indicator
-	viewModeLabel := widget.NewLabel("📋 Flat")
-	if aw.groupedMode {
-		viewModeLabel.SetText("📁 Grouped")
-	}
-
-	// Filter notification status indicator
-	filterNotifLabel := widget.NewLabel("🔔 All")
-	if aw.notificationConfig.RespectFilters {
-		filterNotifLabel.SetText("🔔 Filtered")
-		filterNotifLabel.Importance = widget.LowImportance
-	}
-
-	// Store references for updates
-	aw.statusBarMetrics = &StatusBarMetrics{
-		criticalLabel: criticalLabel,
-		warningLabel:  warningLabel,
-		infoLabel:     infoLabel,
-		activeLabel:   activeLabel,
-		totalLabel:    totalLabel,
-	}
-
-	// Polling info
-	pollingInfo := widget.NewLabel(fmt.Sprintf("Polling: %v", aw.refreshInterval))
-	pollingInfo.TextStyle = fyne.TextStyle{Italic: true}
-
-	return container.NewHBox(
-		aw.statusLabel,
-		widget.NewSeparator(),
-		widget.NewLabel("🔴"),
-		criticalLabel,
-		widget.NewSeparator(),
-		widget.NewLabel("🟡"),
-		warningLabel,
-		widget.NewSeparator(),
-		widget.NewLabel("🔵"),
-		infoLabel,
-		widget.NewSeparator(),
-		widget.NewLabel("🔥"),
-		activeLabel,
-		widget.NewSeparator(),
-		widget.NewLabel("📊"),
-		totalLabel,
-		widget.NewSeparator(),
-		widget.NewLabel("🙈"),
-		aw.hiddenCountLabel,
-		widget.NewSeparator(),
-		viewModeLabel,
-		widget.NewSeparator(),
-		filterNotifLabel,
-		widget.NewSeparator(),
-		connectionStatusLabel,
-		widget.NewSeparator(),
-		pollingInfo,
-		widget.NewSeparator(),
-		widget.NewLabel("Last update:"),
-		aw.lastUpdate,
-	)
 }
 
 // applyColumnWidths applies the current column width configuration to the table
@@ -1124,6 +633,676 @@ func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
 
 		return result
 	})
+}
+
+// createGroupedAlertsFromFiltered creates alert groups from filtered data
+func (aw *AlertsWindow) createGroupedAlertsFromFiltered() []AlertGroup {
+	// Group alerts by alertname
+	groupMap := make(map[string][]models.Alert)
+
+	for _, alert := range aw.filteredData {
+		alertName := alert.GetAlertName()
+		groupMap[alertName] = append(groupMap[alertName], alert)
+	}
+
+	// Convert to AlertGroup slice
+	var groups []AlertGroup
+	for alertName, alerts := range groupMap {
+		// Sort alerts within each group according to current sort settings
+		aw.sortAlertsInGroup(alerts)
+
+		group := AlertGroup{
+			AlertName:  alertName,
+			Alerts:     alerts,
+			IsExpanded: false, // Start collapsed
+			TotalCount: len(alerts),
+		}
+
+		// Count by severity and status
+		for _, alert := range alerts {
+			if alert.IsActive() {
+				group.ActiveCount++
+			}
+
+			switch alert.GetSeverity() {
+			case "critical":
+				group.CriticalCount++
+			case "warning":
+				group.WarningCount++
+			case "info":
+				group.InfoCount++
+			}
+		}
+
+		groups = append(groups, group)
+	}
+
+	// Sort groups according to current sort settings, or by criticality if no sort is set
+	aw.sortGroups(groups)
+
+	return groups
+}
+
+// createTableRowsFromGroups creates table rows from alert groups
+func (aw *AlertsWindow) createTableRowsFromGroups(groups []AlertGroup) []TableRow {
+	var rows []TableRow
+	rowIndex := 0
+
+	for groupIndex, group := range groups {
+		// Add group header row
+		groupRow := TableRow{
+			Type:       "group",
+			Group:      &groups[groupIndex], // Use pointer to allow modifications
+			GroupIndex: groupIndex,
+			RowIndex:   rowIndex,
+		}
+		rows = append(rows, groupRow)
+		rowIndex++
+
+		// Add individual alert rows if expanded
+		if group.IsExpanded {
+			for alertIndex, alert := range group.Alerts {
+				alertCopy := alert // Create copy to avoid pointer issues
+				alertRow := TableRow{
+					Type:       "alert",
+					Alert:      &alertCopy,
+					GroupIndex: groupIndex,
+					AlertIndex: alertIndex,
+					RowIndex:   rowIndex,
+				}
+				rows = append(rows, alertRow)
+				rowIndex++
+			}
+		}
+	}
+
+	return rows
+}
+
+// renderTableRow renders a table row (either group or alert)
+func (aw *AlertsWindow) renderTableRow(cellID widget.TableCellID, obj fyne.CanvasObject, row TableRow) {
+	if cellContainer, ok := obj.(*fyne.Container); ok {
+		cellContainer.RemoveAll()
+
+		if row.Type == "group" {
+			aw.renderGroupRow(cellID, cellContainer, row)
+		} else {
+			aw.renderAlertRow(cellID, cellContainer, row)
+		}
+	}
+}
+
+// renderGroupRow renders a group header row
+func (aw *AlertsWindow) renderGroupRow(cellID widget.TableCellID, cellContainer *fyne.Container, row TableRow) {
+	group := row.Group
+
+	switch cellID.Col {
+	case 0: // Checkbox column - group selection
+		checkbox := widget.NewCheck("", func(checked bool) {
+			aw.lastActivity = time.Now()
+			if checked {
+				// Select the group row itself for group-level operations
+				aw.selectedAlerts[row.RowIndex] = true
+				// Also select all individual alerts in the group (without triggering refresh)
+				aw.selectGroupAlertsQuietly(row.GroupIndex, true)
+			} else {
+				// Deselect the group row
+				delete(aw.selectedAlerts, row.RowIndex)
+				// Also deselect all individual alerts in the group (without triggering refresh)
+				aw.selectGroupAlertsQuietly(row.GroupIndex, false)
+			}
+			aw.updateSelectionLabel()
+		})
+		// Check if the group itself is selected OR if all alerts in group are selected
+		groupSelected := aw.selectedAlerts[row.RowIndex]
+		allAlertsSelected := aw.areAllGroupAlertsSelected(row.GroupIndex)
+		checkbox.SetChecked(groupSelected || allAlertsSelected)
+		cellContainer.Add(checkbox)
+
+	case 1: // Alertmanager sources
+		sources := aw.getUniqueAlertmanagerSources(group.Alerts)
+		sourceLabel := widget.NewLabel(fmt.Sprintf("%d sources", len(sources)))
+		cellContainer.Add(sourceLabel)
+
+	case 2: // Alert name with expand/collapse button
+		var expandIcon fyne.Resource
+		if group.IsExpanded {
+			expandIcon = theme.MenuDropDownIcon()
+		} else {
+			expandIcon = theme.MenuDropUpIcon()
+		}
+
+		expandBtn := widget.NewButtonWithIcon("", expandIcon, func() {
+			aw.toggleGroupExpansion(row.GroupIndex)
+		})
+		expandBtn.Importance = widget.LowImportance
+
+		nameLabel := widget.NewLabelWithStyle(
+			fmt.Sprintf("📋 %s", group.AlertName),
+			fyne.TextAlignLeading,
+			fyne.TextStyle{Bold: true},
+		)
+
+		cellContainer.Add(container.NewHBox(expandBtn, nameLabel))
+
+	case 3: // Severity summary
+		severityText := aw.createSeveritySummary(group)
+		severityLabel := widget.NewRichText(&widget.TextSegment{
+			Text:  severityText,
+			Style: widget.RichTextStyle{},
+		})
+		cellContainer.Add(severityLabel)
+
+	case 4: // Status summary
+		statusText := aw.createStatusSummary(group)
+		statusLabel := widget.NewLabel(statusText)
+		cellContainer.Add(statusLabel)
+
+	case 5: // Team (first team found)
+		team := "Mixed"
+		if len(group.Alerts) > 0 {
+			team = group.Alerts[0].GetTeam()
+			// Check if all alerts have same team
+			for _, alert := range group.Alerts[1:] {
+				if alert.GetTeam() != team {
+					team = "Mixed"
+					break
+				}
+			}
+		}
+		teamLabel := widget.NewLabel(team)
+		cellContainer.Add(teamLabel)
+
+	case 6: // Summary (count of alerts)
+		summaryText := fmt.Sprintf("📊 %d alerts", group.TotalCount)
+		if group.ActiveCount > 0 {
+			summaryText += fmt.Sprintf(" (%d active)", group.ActiveCount)
+		}
+		summaryLabel := widget.NewLabel(summaryText)
+		cellContainer.Add(summaryLabel)
+
+	case 7: // Duration (newest alert)
+		if len(group.Alerts) > 0 {
+			// Find the most recent alert
+			newest := group.Alerts[0]
+			for _, alert := range group.Alerts[1:] {
+				if alert.StartsAt.After(newest.StartsAt) {
+					newest = alert
+				}
+			}
+			durationLabel := widget.NewLabel(formatDuration(newest.Duration()))
+			cellContainer.Add(durationLabel)
+		} else {
+			cellContainer.Add(widget.NewLabel("-"))
+		}
+
+	case 8: // Instance count
+		instanceCount := len(aw.getUniqueInstances(group.Alerts))
+		instanceLabel := widget.NewLabel(fmt.Sprintf("%d instances", instanceCount))
+		cellContainer.Add(instanceLabel)
+	}
+}
+
+// renderAlertRow renders an individual alert row (indented)
+func (aw *AlertsWindow) renderAlertRow(cellID widget.TableCellID, container *fyne.Container, row TableRow) {
+	alert := row.Alert
+
+	switch cellID.Col {
+	case 0: // Checkbox column
+		checkbox := widget.NewCheck("", func(checked bool) {
+			aw.lastActivity = time.Now()
+			if checked {
+				aw.selectedAlerts[row.RowIndex] = true
+			} else {
+				delete(aw.selectedAlerts, row.RowIndex)
+			}
+			aw.updateSelectionLabel()
+		})
+		checkbox.SetChecked(aw.selectedAlerts[row.RowIndex])
+		container.Add(checkbox)
+
+	case 1: // Alertmanager
+		sourceLabel := widget.NewLabel(alert.GetSource())
+		container.Add(sourceLabel)
+
+	case 2: // Alert name (indented)
+		nameLabel := widget.NewLabel("    └─ " + alert.GetAlertName())
+		if aw.showHiddenAlerts {
+			nameLabel.SetText("    └─ 🙈 " + alert.GetAlertName())
+		}
+		container.Add(nameLabel)
+
+	case 3: // Severity badge
+		container.Add(aw.createSeverityBadge(*alert))
+
+	case 4: // Status badge
+		container.Add(aw.createStatusBadge(*alert))
+
+	case 5: // Team
+		teamLabel := widget.NewLabel(alert.GetTeam())
+		container.Add(teamLabel)
+
+	case 6: // Summary (truncated)
+		summary := alert.GetSummary()
+		maxLen := int(aw.columns[6].Width / 6)
+		if maxLen < 20 {
+			maxLen = 20
+		}
+		if len(summary) > maxLen {
+			summary = summary[:maxLen-3] + "..."
+		}
+		summaryLabel := widget.NewLabel(summary)
+		container.Add(summaryLabel)
+
+	case 7: // Duration
+		durationLabel := widget.NewLabel(formatDuration(alert.Duration()))
+		container.Add(durationLabel)
+
+	case 8: // Instance
+		instanceLabel := widget.NewLabel(alert.GetInstance())
+		container.Add(instanceLabel)
+	}
+}
+
+// createSeveritySummary creates a summary of severities in the group
+func (aw *AlertsWindow) createSeveritySummary(group *AlertGroup) string {
+	var parts []string
+
+	if group.CriticalCount > 0 {
+		parts = append(parts, fmt.Sprintf("🔴 %d", group.CriticalCount))
+	}
+	if group.WarningCount > 0 {
+		parts = append(parts, fmt.Sprintf("🟡 %d", group.WarningCount))
+	}
+	if group.InfoCount > 0 {
+		parts = append(parts, fmt.Sprintf("🔵 %d", group.InfoCount))
+	}
+
+	if len(parts) == 0 {
+		return "⚪ " + fmt.Sprint(group.TotalCount)
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// createStatusSummary creates a summary of statuses in the group
+func (aw *AlertsWindow) createStatusSummary(group *AlertGroup) string {
+	firing := 0
+	resolved := 0
+	suppressed := 0
+
+	for _, alert := range group.Alerts {
+		switch alert.Status.State {
+		case "active":
+			firing++
+		case "firing":
+			firing++
+		case "resolved":
+			resolved++
+		case "suppressed":
+			suppressed++
+		}
+	}
+
+	var parts []string
+	if firing > 0 {
+		parts = append(parts, fmt.Sprintf("🔥 %d", firing))
+	}
+	if resolved > 0 {
+		parts = append(parts, fmt.Sprintf("✅ %d", resolved))
+	}
+	if suppressed > 0 {
+		parts = append(parts, fmt.Sprintf("🔇 %d", suppressed))
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// getUniqueInstances returns unique instances from a group of alerts
+func (aw *AlertsWindow) getUniqueInstances(alerts []models.Alert) []string {
+	instanceMap := make(map[string]bool)
+	for _, alert := range alerts {
+		instance := alert.GetInstance()
+		if instance != "unknown" && instance != "" {
+			instanceMap[instance] = true
+		}
+	}
+
+	var instances []string
+	for instance := range instanceMap {
+		instances = append(instances, instance)
+	}
+
+	return instances
+}
+
+// getUniqueAlertmanagerSources returns unique Alertmanager sources from a group of alerts
+func (aw *AlertsWindow) getUniqueAlertmanagerSources(alerts []models.Alert) []string {
+	sourceMap := make(map[string]bool)
+	for _, alert := range alerts {
+		source := alert.GetSource()
+		if source != "unknown" && source != "" {
+			sourceMap[source] = true
+		}
+	}
+
+	var sources []string
+	for source := range sourceMap {
+		sources = append(sources, source)
+	}
+
+	return sources
+}
+
+// createStatusBar creates the bottom status bar with enhanced metrics and polling info
+func (aw *AlertsWindow) createStatusBar() *fyne.Container {
+	aw.statusLabel = widget.NewLabel("Ready")
+	aw.lastUpdate = widget.NewLabel("Never")
+
+	// Create metric labels that will be updated dynamically
+	criticalLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	criticalLabel.Importance = widget.DangerImportance
+
+	warningLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	warningLabel.Importance = widget.WarningImportance
+
+	infoLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	infoLabel.Importance = widget.LowImportance
+
+	activeLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	activeLabel.Importance = widget.HighImportance
+
+	totalLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	totalLabel.Importance = widget.MediumImportance
+
+	// Hidden count label
+	aw.hiddenCountLabel = widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	aw.hiddenCountLabel.Importance = widget.MediumImportance
+
+	// View mode indicator
+	viewModeLabel := widget.NewLabel("📋 Flat")
+	if aw.groupedMode {
+		viewModeLabel.SetText("📁 Grouped")
+	}
+
+	// Filter notification status indicator
+	filterNotifLabel := widget.NewLabel("🔔 All")
+	if aw.notificationConfig.RespectFilters {
+		filterNotifLabel.SetText("🔔 Filtered")
+		filterNotifLabel.Importance = widget.LowImportance
+	}
+
+	// Alertmanager status indicators with individual status buttons
+	alertmanagerContainer := aw.createAlertmanagerStatusContainer()
+
+	// Store references for updates
+	aw.statusBarMetrics = &StatusBarMetrics{
+		criticalLabel:         criticalLabel,
+		warningLabel:          warningLabel,
+		infoLabel:             infoLabel,
+		activeLabel:           activeLabel,
+		totalLabel:            totalLabel,
+		alertmanagerInfoLabel: widget.NewLabel(""), // Placeholder, will be updated by alertmanagerContainer
+	}
+
+	// Polling info
+	pollingInfo := widget.NewLabel(fmt.Sprintf("Polling: %v", aw.refreshInterval))
+	pollingInfo.TextStyle = fyne.TextStyle{Italic: true}
+
+	return container.NewHBox(
+		aw.statusLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("🔴"),
+		criticalLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("🟡"),
+		warningLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("🔵"),
+		infoLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("🔥"),
+		activeLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("📊"),
+		totalLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("🙈"),
+		aw.hiddenCountLabel,
+		widget.NewSeparator(),
+		viewModeLabel,
+		widget.NewSeparator(),
+		filterNotifLabel,
+		widget.NewSeparator(),
+		alertmanagerContainer,
+		widget.NewSeparator(),
+		pollingInfo,
+		widget.NewSeparator(),
+		widget.NewLabel("Last update:"),
+		aw.lastUpdate,
+	)
+}
+
+// createAlertmanagerStatusContainer creates a container with global Alertmanager status
+func (aw *AlertsWindow) createAlertmanagerStatusContainer() *fyne.Container {
+	// Get health status for each Alertmanager
+	var healthStatus map[string]bool
+	if aw.multiClient != nil {
+		healthStatus = aw.multiClient.GetHealthStatus()
+	} else {
+		// For single client, create a simple status map
+		healthStatus = make(map[string]bool)
+		if len(aw.alertmanagerNames) > 0 {
+			healthStatus[aw.alertmanagerNames[0]] = aw.connectionHealth.IsHealthy
+		}
+	}
+
+	// Calculate global status
+	healthyCount := 0
+	totalCount := len(aw.alertmanagerNames)
+	for _, isHealthy := range healthStatus {
+		if isHealthy {
+			healthyCount++
+		}
+	}
+
+	// Create global status label (default display)
+	var globalStatusText string
+	var globalStatusIcon string
+	if totalCount == 0 {
+		globalStatusText = "No Alertmanagers"
+		globalStatusIcon = "⚪"
+	} else if healthyCount == totalCount {
+		globalStatusText = fmt.Sprintf("%d/%d All Connected", healthyCount, totalCount)
+		globalStatusIcon = "🟢"
+	} else if healthyCount > 0 {
+		globalStatusText = fmt.Sprintf("%d/%d Partially Connected", healthyCount, totalCount)
+		globalStatusIcon = "🟡"
+	} else {
+		globalStatusText = fmt.Sprintf("%d/%d All Disconnected", healthyCount, totalCount)
+		globalStatusIcon = "🔴"
+	}
+
+	// Create global status button
+	globalStatusBtn := widget.NewButton(fmt.Sprintf("%s %s", globalStatusIcon, globalStatusText), func() {
+		aw.showGlobalAlertmanagerStatus(healthStatus)
+	})
+
+	// Create container and store reference for updates
+	container := container.NewHBox(globalStatusBtn)
+	aw.alertmanagerStatusContainer = container
+
+	return container
+}
+
+// updateAlertmanagerStatusContainer updates the Alertmanager global status button
+func (aw *AlertsWindow) updateAlertmanagerStatusContainer() {
+	if aw.alertmanagerStatusContainer == nil {
+		return
+	}
+
+	// Clear existing content
+	aw.alertmanagerStatusContainer.RemoveAll()
+
+	// Get current health status
+	var healthStatus map[string]bool
+	if aw.multiClient != nil {
+		healthStatus = aw.multiClient.GetHealthStatus()
+	} else {
+		healthStatus = make(map[string]bool)
+		if len(aw.alertmanagerNames) > 0 {
+			healthStatus[aw.alertmanagerNames[0]] = aw.connectionHealth.IsHealthy
+		}
+	}
+
+	// Calculate global status
+	healthyCount := 0
+	totalCount := len(aw.alertmanagerNames)
+	for _, isHealthy := range healthStatus {
+		if isHealthy {
+			healthyCount++
+		}
+	}
+
+	// Create global status label
+	var globalStatusText string
+	var globalStatusIcon string
+	if totalCount == 0 {
+		globalStatusText = "� No Alertmanagers"
+		globalStatusIcon = "⚪"
+	} else if healthyCount == totalCount {
+		globalStatusText = fmt.Sprintf("%d/%d All Connected", healthyCount, totalCount)
+		globalStatusIcon = "🟢"
+	} else if healthyCount > 0 {
+		globalStatusText = fmt.Sprintf("%d/%d Partially Connected", healthyCount, totalCount)
+		globalStatusIcon = "🟡"
+	} else {
+		globalStatusText = fmt.Sprintf("%d/%d All Disconnected", healthyCount, totalCount)
+		globalStatusIcon = "🔴"
+	}
+
+	// Create updated global status button
+	globalStatusBtn := widget.NewButton(fmt.Sprintf("%s %s", globalStatusIcon, globalStatusText), func() {
+		aw.showGlobalAlertmanagerStatus(healthStatus)
+	})
+
+	// Add the button to the container
+	aw.alertmanagerStatusContainer.Add(globalStatusBtn)
+
+	// Refresh the container
+	aw.alertmanagerStatusContainer.Refresh()
+}
+
+// showAlertmanagerDetails shows detailed information about a specific Alertmanager
+func (aw *AlertsWindow) showAlertmanagerDetails(name string, isHealthy bool) {
+	var statusText string
+	var statusIcon string
+
+	if isHealthy {
+		statusText = "✅ Connected and healthy"
+		statusIcon = "🟢"
+	} else {
+		statusText = "❌ Disconnected or unhealthy"
+		statusIcon = "🔴"
+	}
+
+	// Build detailed information
+	var details strings.Builder
+	details.WriteString(fmt.Sprintf("Name: %s\n", name))
+	details.WriteString(fmt.Sprintf("Status: %s %s\n", statusIcon, statusText))
+
+	// Add URL if available (you might need to get this from the client)
+	if aw.multiClient != nil {
+		// You can extend this to show URL and other details
+		details.WriteString("Type: Multi-client setup\n")
+	}
+
+	// Add last update time
+	details.WriteString(fmt.Sprintf("Last checked: %s\n", time.Now().Format("15:04:05")))
+
+	dialog := dialog.NewInformation(
+		fmt.Sprintf("Alertmanager Details: %s", name),
+		details.String(),
+		aw.window,
+	)
+	dialog.Show()
+}
+
+// showGlobalAlertmanagerStatus shows a global status dialog for all Alertmanagers
+func (aw *AlertsWindow) showGlobalAlertmanagerStatus(healthStatus map[string]bool) {
+	// Calculate summary statistics
+	totalCount := len(aw.alertmanagerNames)
+	healthyCount := 0
+	for _, isHealthy := range healthStatus {
+		if isHealthy {
+			healthyCount++
+		}
+	}
+
+	// Build global status information
+	var details strings.Builder
+	details.WriteString("📊 Global Alertmanager Status\n")
+	details.WriteString(strings.Repeat("=", 35))
+	details.WriteString("\n\n")
+
+	// Summary
+	details.WriteString(fmt.Sprintf("Total Alertmanagers: %d\n", totalCount))
+	details.WriteString(fmt.Sprintf("Healthy: %d\n", healthyCount))
+	details.WriteString(fmt.Sprintf("Unhealthy: %d\n", totalCount-healthyCount))
+
+	// Overall status
+	var overallStatus string
+	var statusIcon string
+	if totalCount == 0 {
+		overallStatus = "No Alertmanagers configured"
+		statusIcon = "⚪"
+	} else if healthyCount == totalCount {
+		overallStatus = "All systems operational"
+		statusIcon = "🟢"
+	} else if healthyCount > 0 {
+		overallStatus = "Partial connectivity"
+		statusIcon = "🟡"
+	} else {
+		overallStatus = "All systems down"
+		statusIcon = "🔴"
+	}
+
+	details.WriteString(fmt.Sprintf("Overall Status: %s %s\n\n", statusIcon, overallStatus))
+
+	// Individual statuses
+	if totalCount > 0 {
+		details.WriteString("Individual Status:\n")
+		details.WriteString(strings.Repeat("-", 20))
+		details.WriteString("\n")
+
+		for _, name := range aw.alertmanagerNames {
+			isHealthy, exists := healthStatus[name]
+			if !exists {
+				isHealthy = false
+			}
+
+			var statusIcon string
+			var statusText string
+			if isHealthy {
+				statusIcon = "🟢"
+				statusText = "Connected"
+			} else {
+				statusIcon = "🔴"
+				statusText = "Disconnected"
+			}
+
+			details.WriteString(fmt.Sprintf("  %s %s: %s\n", statusIcon, name, statusText))
+		}
+	}
+
+	details.WriteString(fmt.Sprintf("\nLast updated: %s", time.Now().Format("15:04:05")))
+
+	dialog := dialog.NewInformation(
+		"Global Alertmanager Status",
+		details.String(),
+		aw.window,
+	)
+	dialog.Show()
 }
 
 // getGroupHighestSeverity returns the highest severity in a group
