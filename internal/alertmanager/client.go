@@ -7,8 +7,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"notificator/config"
 	"notificator/internal/auth"
 	"notificator/internal/models"
 )
@@ -34,6 +36,9 @@ func (c *customHeaderRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 
 // Client handles communication with Alertmanager
 type Client struct {
+	// Name is the friendly name of this Alertmanager instance
+	Name string
+
 	// BaseURL is the base URL of the Alertmanager instance
 	BaseURL string
 
@@ -55,9 +60,16 @@ type Client struct {
 	ProxyAuthManager *auth.ProxyAuthManager
 }
 
+// MultiClient manages multiple Alertmanager clients
+type MultiClient struct {
+	clients map[string]*Client
+	mutex   sync.RWMutex
+}
+
 // NewClient creates a new Alertmanager client
 func NewClient(baseURL string) *Client {
 	return &Client{
+		Name:    "default",
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -217,6 +229,7 @@ func (c *Client) TestOAuthBypass() error {
 // NewClientWithAuth creates a new Alertmanager client with authentication
 func NewClientWithAuth(baseURL, username, password, token string) *Client {
 	return &Client{
+		Name:    "default",
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -234,6 +247,7 @@ func NewClientWithProxyAuth(baseURL string) *Client {
 	proxyAuth := auth.NewProxyAuthManager(baseURL)
 
 	return &Client{
+		Name:             "default",
 		BaseURL:          baseURL,
 		HTTPClient:       proxyAuth.GetAuthenticatedClient(),
 		Timeout:          10 * time.Second,
@@ -243,7 +257,7 @@ func NewClientWithProxyAuth(baseURL string) *Client {
 }
 
 // NewClientWithConfig creates a new Alertmanager client from config
-func NewClientWithConfig(baseURL, username, password, token string, headers map[string]string) *Client {
+func NewClientWithConfig(baseURL, username, password, token string, headers map[string]string, name string) *Client {
 	// Create base HTTP client with redirect handling
 	var httpClient *http.Client
 
@@ -289,6 +303,7 @@ func NewClientWithConfig(baseURL, username, password, token string, headers map[
 	}
 
 	return &Client{
+		Name:       name,
 		BaseURL:    baseURL,
 		HTTPClient: httpClient,
 		Timeout:    10 * time.Second,
@@ -297,6 +312,81 @@ func NewClientWithConfig(baseURL, username, password, token string, headers map[
 		Token:      token,
 		Headers:    headers,
 	}
+}
+
+// NewMultiClient creates a new MultiClient from configuration
+func NewMultiClient(cfg *config.Config) *MultiClient {
+	mc := &MultiClient{
+		clients: make(map[string]*Client),
+	}
+
+	// Create clients for each Alertmanager configuration
+	for _, amConfig := range cfg.Alertmanagers {
+		client := NewClientFromConfig(amConfig)
+		mc.clients[amConfig.Name] = client
+	}
+
+	return mc
+}
+
+// NewClientFromConfig creates a new client from AlertmanagerConfig
+func NewClientFromConfig(amConfig config.AlertmanagerConfig) *Client {
+	return NewClientWithConfig(
+		amConfig.URL,
+		amConfig.Username,
+		amConfig.Password,
+		amConfig.Token,
+		amConfig.Headers,
+		amConfig.Name,
+	)
+}
+
+// GetClient returns a client by name
+func (mc *MultiClient) GetClient(name string) (*Client, bool) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	client, exists := mc.clients[name]
+	return client, exists
+}
+
+// GetAllClients returns all clients
+func (mc *MultiClient) GetAllClients() map[string]*Client {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	// Create a copy to avoid race conditions
+	clients := make(map[string]*Client)
+	for name, client := range mc.clients {
+		clients[name] = client
+	}
+	return clients
+}
+
+// AddClient adds a new client
+func (mc *MultiClient) AddClient(amConfig config.AlertmanagerConfig) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	client := NewClientFromConfig(amConfig)
+	mc.clients[amConfig.Name] = client
+}
+
+// RemoveClient removes a client by name
+func (mc *MultiClient) RemoveClient(name string) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	delete(mc.clients, name)
+}
+
+// UpdateClient updates an existing client
+func (mc *MultiClient) UpdateClient(amConfig config.AlertmanagerConfig) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	client := NewClientFromConfig(amConfig)
+	mc.clients[amConfig.Name] = client
 }
 
 // addAuth adds authentication to the request
@@ -639,4 +729,249 @@ func (c *Client) TestAPIEndpoints() {
 		}
 		fmt.Println()
 	}
+}
+
+// AlertWithSource represents an alert with its source Alertmanager
+type AlertWithSource struct {
+	Alert  models.Alert
+	Source string // Name of the Alertmanager instance
+}
+
+// SilenceWithSource represents a silence with its source Alertmanager
+type SilenceWithSource struct {
+	Silence models.Silence
+	Source  string // Name of the Alertmanager instance
+}
+
+// FetchAllAlerts retrieves alerts from all Alertmanagers
+func (mc *MultiClient) FetchAllAlerts() ([]AlertWithSource, error) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	var allAlerts []AlertWithSource
+	var errors []error
+
+	for name, client := range mc.clients {
+		alerts, err := client.FetchAlerts()
+		if err != nil {
+			errors = append(errors, fmt.Errorf("failed to fetch alerts from %s: %w", name, err))
+			continue
+		}
+
+		for _, alert := range alerts {
+			allAlerts = append(allAlerts, AlertWithSource{
+				Alert:  alert,
+				Source: name,
+			})
+		}
+	}
+
+	// If all clients failed, return the first error
+	if len(errors) > 0 && len(allAlerts) == 0 {
+		return nil, errors[0]
+	}
+
+	return allAlerts, nil
+}
+
+// FetchAllActiveAlerts retrieves only active alerts from all Alertmanagers
+func (mc *MultiClient) FetchAllActiveAlerts() ([]AlertWithSource, error) {
+	allAlerts, err := mc.FetchAllAlerts()
+	if err != nil {
+		return nil, err
+	}
+
+	var activeAlerts []AlertWithSource
+	for _, alertWithSource := range allAlerts {
+		if alertWithSource.Alert.IsActive() {
+			activeAlerts = append(activeAlerts, alertWithSource)
+		}
+	}
+
+	return activeAlerts, nil
+}
+
+// FetchAllSilences retrieves silences from all Alertmanagers
+func (mc *MultiClient) FetchAllSilences() ([]SilenceWithSource, error) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	var allSilences []SilenceWithSource
+	var errors []error
+
+	for name, client := range mc.clients {
+		silences, err := client.FetchSilences()
+		if err != nil {
+			errors = append(errors, fmt.Errorf("failed to fetch silences from %s: %w", name, err))
+			continue
+		}
+
+		for _, silence := range silences {
+			allSilences = append(allSilences, SilenceWithSource{
+				Silence: silence,
+				Source:  name,
+			})
+		}
+	}
+
+	// If all clients failed, return the first error
+	if len(errors) > 0 && len(allSilences) == 0 {
+		return nil, errors[0]
+	}
+
+	return allSilences, nil
+}
+
+// TestAllConnections tests connectivity to all Alertmanagers
+func (mc *MultiClient) TestAllConnections() map[string]error {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	results := make(map[string]error)
+
+	for name, client := range mc.clients {
+		results[name] = client.TestConnection()
+	}
+
+	return results
+}
+
+// CreateSilenceOnAlertmanager creates a silence on a specific Alertmanager
+func (mc *MultiClient) CreateSilenceOnAlertmanager(alertmanagerName string, silence models.Silence) (*models.Silence, error) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	client, exists := mc.clients[alertmanagerName]
+	if !exists {
+		return nil, fmt.Errorf("alertmanager '%s' not found", alertmanagerName)
+	}
+
+	return client.CreateSilence(silence)
+}
+
+// FetchSilenceFromAlertmanager retrieves a specific silence from a specific Alertmanager
+func (mc *MultiClient) FetchSilenceFromAlertmanager(alertmanagerName, silenceID string) (*models.Silence, error) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	client, exists := mc.clients[alertmanagerName]
+	if !exists {
+		return nil, fmt.Errorf("alertmanager '%s' not found", alertmanagerName)
+	}
+
+	return client.FetchSilence(silenceID)
+}
+
+// GetClientNames returns the names of all configured Alertmanagers
+func (mc *MultiClient) GetClientNames() []string {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	names := make([]string, 0, len(mc.clients))
+	for name := range mc.clients {
+		names = append(names, name)
+	}
+
+	return names
+}
+
+// GetName returns the name of the Alertmanager client
+func (c *Client) GetName() string {
+	return c.Name
+}
+
+// SetName sets the name of the Alertmanager client
+func (c *Client) SetName(name string) {
+	c.Name = name
+}
+
+// String returns a string representation of the client
+func (c *Client) String() string {
+	return fmt.Sprintf("Alertmanager{Name: %s, URL: %s}", c.Name, c.BaseURL)
+}
+
+// IsHealthy checks if the Alertmanager is healthy
+func (c *Client) IsHealthy() bool {
+	return c.TestConnection() == nil
+}
+
+// GetHealthStatus returns the health status of all Alertmanagers
+func (mc *MultiClient) GetHealthStatus() map[string]bool {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	status := make(map[string]bool)
+	for name, client := range mc.clients {
+		status[name] = client.IsHealthy()
+	}
+
+	return status
+}
+
+// GetHealthyClients returns only the healthy clients
+func (mc *MultiClient) GetHealthyClients() map[string]*Client {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	healthy := make(map[string]*Client)
+	for name, client := range mc.clients {
+		if client.IsHealthy() {
+			healthy[name] = client
+		}
+	}
+
+	return healthy
+}
+
+// Count returns the number of configured Alertmanagers
+func (mc *MultiClient) Count() int {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	return len(mc.clients)
+}
+
+// MigrateFromSingleClient helps migrate from single client usage to MultiClient
+// This function can be used when upgrading from single Alertmanager to multiple
+func MigrateFromSingleClient(oldClient *Client) *MultiClient {
+	mc := &MultiClient{
+		clients: make(map[string]*Client),
+	}
+
+	// Use the old client's name or default
+	name := oldClient.Name
+	if name == "" {
+		name = "Default"
+	}
+
+	mc.clients[name] = oldClient
+	return mc
+}
+
+// UpdateFromConfig updates the MultiClient configuration
+func (mc *MultiClient) UpdateFromConfig(cfg *config.Config) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	// Clear existing clients
+	mc.clients = make(map[string]*Client)
+
+	// Create new clients from configuration
+	for _, amConfig := range cfg.Alertmanagers {
+		client := NewClientFromConfig(amConfig)
+		mc.clients[amConfig.Name] = client
+	}
+}
+
+// GetClientByURL returns a client by its URL (for backward compatibility)
+func (mc *MultiClient) GetClientByURL(url string) (*Client, bool) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	for _, client := range mc.clients {
+		if client.BaseURL == url {
+			return client, true
+		}
+	}
+	return nil, false
 }

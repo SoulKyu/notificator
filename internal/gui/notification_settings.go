@@ -39,6 +39,10 @@ func (aw *AlertsWindow) showNotificationSettings() {
 	hiddenAlertsTab := aw.createHiddenAlertsManagementTab()
 	tabs.Append(container.NewTabItem("Hidden Alerts", hiddenAlertsTab))
 
+	// Resolved Alerts Settings Tab
+	resolvedAlertsTab := aw.createResolvedAlertsSettingsTab()
+	tabs.Append(container.NewTabItem("Resolved Alerts", resolvedAlertsTab))
+
 	content.Add(tabs)
 
 	// Create scrollable container
@@ -168,12 +172,12 @@ The application automatically adjusts polling speed based on alert activity:
 		aw.setStatus("Testing connection...")
 		go func() {
 			_, err := aw.client.FetchAlerts()
-			aw.scheduleUpdate(func() {
+			fyne.Do(func() {
 				if err != nil {
 					aw.setStatus("Connection test failed")
 					healthStatusLabel.SetText("❌ Connection test failed")
 					healthStatusLabel.Importance = widget.DangerImportance
-					dialog.ShowError(fmt.Errorf("Connection test failed: %v", err), aw.window)
+					dialog.ShowError(fmt.Errorf("connection test failed: %v", err), aw.window)
 				} else {
 					aw.setStatus("Connection test successful")
 					healthStatusLabel.SetText("✅ Connection healthy")
@@ -529,7 +533,7 @@ func (aw *AlertsWindow) createHiddenAlertCard(hiddenAlert HiddenAlertInfo) *widg
 		for _, alert := range aw.alerts {
 			if aw.hiddenAlertsCache.generateAlertKey(alert) == aw.generateKeyFromHiddenInfo(hiddenAlert) {
 				if err := aw.hiddenAlertsCache.UnhideAlert(alert); err != nil {
-					dialog.ShowError(fmt.Errorf("Failed to unhide alert: %v", err), aw.window)
+					dialog.ShowError(fmt.Errorf("failed to unhide alert: %v", err), aw.window)
 				} else {
 					aw.safeApplyFilters()
 					aw.updateHiddenCountDisplay()
@@ -539,7 +543,7 @@ func (aw *AlertsWindow) createHiddenAlertCard(hiddenAlert HiddenAlertInfo) *widg
 			}
 		}
 		// If alert not found in current alerts, remove from hidden cache anyway
-		dialog.ShowError(fmt.Errorf("Alert not found in current alerts, but will be removed from hidden list"), aw.window)
+		dialog.ShowError(fmt.Errorf("alert not found in current alerts, but will be removed from hidden list"), aw.window)
 	})
 	unhideBtn.Importance = widget.LowImportance
 
@@ -577,7 +581,7 @@ func (aw *AlertsWindow) confirmClearAllHiddenAlerts(statusLabel *widget.Label) {
 	dialog := dialog.NewConfirm("Clear All Hidden Alerts", content.Text, func(confirmed bool) {
 		if confirmed {
 			if err := aw.hiddenAlertsCache.ClearAll(); err != nil {
-				dialog.ShowError(fmt.Errorf("Failed to clear hidden alerts: %v", err), aw.window)
+				dialog.ShowError(fmt.Errorf("failed to clear hidden alerts: %v", err), aw.window)
 			} else {
 				statusLabel.SetText("Currently hiding 0 alert(s)")
 				aw.updateHiddenCountDisplay()
@@ -659,7 +663,7 @@ func (aw *AlertsWindow) createAudioDeviceSelection() *fyne.Container {
 		// Re-enumerate devices
 		newDevices, err := deviceManager.GetAvailableDevices()
 		if err != nil {
-			dialog.ShowError(fmt.Errorf("Failed to refresh audio devices: %v", err), aw.window)
+			dialog.ShowError(fmt.Errorf("failed to refresh audio devices: %v", err), aw.window)
 			return
 		}
 
@@ -724,6 +728,18 @@ Choose which audio output device to use for notification sounds:
 	return content
 }
 
+// formatCooldownTime formats seconds into a human-readable duration string
+func formatCooldownTime(seconds int) string {
+	duration := time.Duration(seconds) * time.Second
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", seconds)
+	} else if duration < time.Hour {
+		return fmt.Sprintf("%dm", seconds/60)
+	} else {
+		return fmt.Sprintf("%dh", seconds/3600)
+	}
+}
+
 // cleanupOldHiddenAlerts removes hidden alerts older than 30 days
 func (aw *AlertsWindow) cleanupOldHiddenAlerts(statusLabel *widget.Label) {
 	content := widget.NewLabel("Remove hidden alerts that are older than 30 days?\n\nThis helps clean up alerts that may no longer be relevant.")
@@ -732,7 +748,7 @@ func (aw *AlertsWindow) cleanupOldHiddenAlerts(statusLabel *widget.Label) {
 		if confirmed {
 			// Cleanup alerts older than 30 days
 			if err := aw.hiddenAlertsCache.CleanupExpired(30 * 24 * time.Hour); err != nil {
-				dialog.ShowError(fmt.Errorf("Failed to cleanup old hidden alerts: %v", err), aw.window)
+				dialog.ShowError(fmt.Errorf("failed to cleanup old hidden alerts: %v", err), aw.window)
 			} else {
 				newCount := aw.hiddenAlertsCache.GetHiddenCount()
 				statusLabel.SetText(fmt.Sprintf("Currently hiding %d alert(s)", newCount))
@@ -743,4 +759,176 @@ func (aw *AlertsWindow) cleanupOldHiddenAlerts(statusLabel *widget.Label) {
 	}, aw.window)
 
 	dialog.Show()
+}
+
+// createResolvedAlertsSettingsTab creates the resolved alerts configuration tab
+func (aw *AlertsWindow) createResolvedAlertsSettingsTab() *fyne.Container {
+	content := container.NewVBox()
+
+	// Header
+	headerLabel := widget.NewLabelWithStyle("Resolved Alerts Configuration", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	content.Add(headerLabel)
+
+	// Current status
+	resolvedCount := aw.getResolvedAlertsCount()
+	statusLabel := widget.NewLabel(fmt.Sprintf("Currently tracking %d resolved alert(s)", resolvedCount))
+	content.Add(statusLabel)
+
+	content.Add(widget.NewSeparator())
+
+	// Explanation
+	explanationText := widget.NewRichTextFromMarkdown(`**About Resolved Alerts:**
+
+When alerts are resolved (no longer active in Alertmanager), they can be:
+
+• **Tracked temporarily** - Store resolved alerts for a configurable time period
+• **Notified about** - Send system notifications when alerts are resolved
+• **Viewed separately** - Access resolved alerts in a dedicated panel
+
+**Key Features:**
+• Configurable retention period (how long to keep resolved alerts)
+• Optional notifications when alerts are resolved
+• Clean interface showing when alerts were resolved
+• Automatic cleanup of expired resolved alerts`)
+	explanationText.Wrapping = fyne.TextWrapWord
+	content.Add(explanationText)
+
+	content.Add(widget.NewSeparator())
+
+	// Enable resolved alerts tracking
+	enabledCheck := widget.NewCheck("Enable resolved alerts tracking", func(checked bool) {
+		aw.resolvedAlertsConfig.Enabled = checked
+		aw.saveResolvedAlertsConfig()
+	})
+	enabledCheck.SetChecked(aw.resolvedAlertsConfig.Enabled)
+	content.Add(enabledCheck)
+
+	// Enable notifications for resolved alerts
+	notificationsCheck := widget.NewCheck("Send notifications when alerts are resolved", func(checked bool) {
+		aw.resolvedAlertsConfig.NotificationsEnabled = checked
+		aw.saveResolvedAlertsConfig()
+	})
+	notificationsCheck.SetChecked(aw.resolvedAlertsConfig.NotificationsEnabled)
+	content.Add(notificationsCheck)
+
+	content.Add(widget.NewSeparator())
+
+	// Retention duration settings
+	retentionLabel := widget.NewLabel(fmt.Sprintf("Retention period: %v", aw.resolvedAlertsConfig.RetentionDuration))
+	content.Add(widget.NewLabel("How long to keep resolved alerts:"))
+	content.Add(retentionLabel)
+
+	// Retention duration options
+	retentionOptions := []string{"15 minutes", "30 minutes", "1 hour", "2 hours", "4 hours", "8 hours", "24 hours"}
+	retentionSelect := widget.NewSelect(retentionOptions, func(selected string) {
+		var duration time.Duration
+		switch selected {
+		case "15 minutes":
+			duration = 15 * time.Minute
+		case "30 minutes":
+			duration = 30 * time.Minute
+		case "1 hour":
+			duration = 1 * time.Hour
+		case "2 hours":
+			duration = 2 * time.Hour
+		case "4 hours":
+			duration = 4 * time.Hour
+		case "8 hours":
+			duration = 8 * time.Hour
+		case "24 hours":
+			duration = 24 * time.Hour
+		default:
+			duration = 1 * time.Hour
+		}
+
+		aw.resolvedAlertsConfig.RetentionDuration = duration
+		retentionLabel.SetText(fmt.Sprintf("Retention period: %v", duration))
+		aw.saveResolvedAlertsConfig()
+	})
+
+	// Set current selection based on current retention duration
+	currentSelection := "1 hour"
+	switch aw.resolvedAlertsConfig.RetentionDuration {
+	case 15 * time.Minute:
+		currentSelection = "15 minutes"
+	case 30 * time.Minute:
+		currentSelection = "30 minutes"
+	case 1 * time.Hour:
+		currentSelection = "1 hour"
+	case 2 * time.Hour:
+		currentSelection = "2 hours"
+	case 4 * time.Hour:
+		currentSelection = "4 hours"
+	case 8 * time.Hour:
+		currentSelection = "8 hours"
+	case 24 * time.Hour:
+		currentSelection = "24 hours"
+	}
+	retentionSelect.SetSelected(currentSelection)
+	content.Add(retentionSelect)
+
+	content.Add(widget.NewSeparator())
+
+	// Management actions
+	actionsLabel := widget.NewLabelWithStyle("Management Actions:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	content.Add(actionsLabel)
+
+	// Clear all resolved alerts button
+	clearAllBtn := widget.NewButton("Clear All Resolved Alerts", func() {
+		aw.confirmClearAllResolvedAlerts(statusLabel)
+	})
+	clearAllBtn.Importance = widget.WarningImportance
+	content.Add(clearAllBtn)
+
+	// View resolved alerts button
+	viewResolvedBtn := widget.NewButton("View Resolved Alerts", func() {
+		if !aw.showResolvedAlerts {
+			aw.toggleShowResolved()
+		}
+	})
+	content.Add(viewResolvedBtn)
+
+	return content
+}
+
+// confirmClearAllResolvedAlerts shows confirmation dialog and clears all resolved alerts
+func (aw *AlertsWindow) confirmClearAllResolvedAlerts(statusLabel *widget.Label) {
+	resolvedCount := aw.getResolvedAlertsCount()
+	if resolvedCount == 0 {
+		dialog.ShowInformation("No Resolved Alerts", "There are no resolved alerts to clear.", aw.window)
+		return
+	}
+
+	content := widget.NewLabel(fmt.Sprintf("Are you sure you want to clear all %d resolved alerts?\n\nThis action cannot be undone.", resolvedCount))
+
+	dialog := dialog.NewConfirm("Clear All Resolved Alerts", content.Text, func(confirmed bool) {
+		if confirmed {
+			aw.resolvedAlertsCache.Clear()
+			statusLabel.SetText("Currently tracking 0 resolved alert(s)")
+			aw.updateResolvedCountDisplay()
+			dialog.ShowInformation("Success", "All resolved alerts have been cleared.", aw.window)
+		}
+	}, aw.window)
+
+	dialog.Show()
+}
+
+// saveResolvedAlertsConfig saves the resolved alerts configuration
+func (aw *AlertsWindow) saveResolvedAlertsConfig() {
+	if aw.originalConfig != nil {
+		aw.originalConfig.ResolvedAlerts = aw.resolvedAlertsConfig
+		if err := aw.originalConfig.SaveToFile(aw.configPath); err != nil {
+			log.Printf("Failed to save resolved alerts config: %v", err)
+		}
+	}
+}
+
+// loadResolvedAlertsConfig loads the resolved alerts configuration
+func (aw *AlertsWindow) loadResolvedAlertsConfig() {
+	if aw.originalConfig != nil {
+		aw.resolvedAlertsConfig = aw.originalConfig.ResolvedAlerts
+		if aw.resolvedAlertsCache != nil {
+			aw.resolvedAlertsCache.UpdateTTL(aw.resolvedAlertsConfig.RetentionDuration)
+		}
+	}
 }

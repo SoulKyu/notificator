@@ -15,7 +15,6 @@ func (aw *AlertsWindow) showColumnSettings() {
 	// Create sliders for each column
 	var sliders []*widget.Slider
 	var labels []*widget.Label
-	var resetBtns []*widget.Button
 
 	content := container.NewVBox()
 
@@ -62,8 +61,6 @@ func (aw *AlertsWindow) showColumnSettings() {
 				aw.table.Refresh()
 			}
 		})
-		resetBtns = append(resetBtns, resetBtn)
-
 		// Layout for this column
 		colContainer := container.NewBorder(
 			nameLabel,  // Top

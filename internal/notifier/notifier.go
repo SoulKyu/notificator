@@ -27,17 +27,17 @@ type NotificationConfig struct {
 	MaxNotifications  int             `json:"max_notifications"`
 	CooldownSeconds   int             `json:"cooldown_seconds"`
 	SeverityRules     map[string]bool `json:"severity_rules"`
-
-	RespectFilters bool `json:"respect_filters"` // Whether to apply UI filters to notifications
+	RespectFilters    bool            `json:"respect_filters"`
 }
 
 // FilterState represents the current UI filter state
 type FilterState struct {
-	SearchText         string
-	SelectedSeverities map[string]bool
-	SelectedStatuses   map[string]bool
-	SelectedTeams      map[string]bool
-	ShowHiddenAlerts   bool
+	SearchText            string
+	SelectedAlertmanagers map[string]bool
+	SelectedSeverities    map[string]bool
+	SelectedStatuses      map[string]bool
+	SelectedTeams         map[string]bool
+	ShowHiddenAlerts      bool
 }
 
 // Notifier handles alert notifications
@@ -119,11 +119,12 @@ func (n *Notifier) GetCurrentFilters() FilterState {
 
 	// Return a copy to avoid race conditions
 	return FilterState{
-		SearchText:         n.currentFilters.SearchText,
-		SelectedSeverities: copyStringBoolMap(n.currentFilters.SelectedSeverities),
-		SelectedStatuses:   copyStringBoolMap(n.currentFilters.SelectedStatuses),
-		SelectedTeams:      copyStringBoolMap(n.currentFilters.SelectedTeams),
-		ShowHiddenAlerts:   n.currentFilters.ShowHiddenAlerts,
+		SearchText:            n.currentFilters.SearchText,
+		SelectedAlertmanagers: copyStringBoolMap(n.currentFilters.SelectedAlertmanagers),
+		SelectedSeverities:    copyStringBoolMap(n.currentFilters.SelectedSeverities),
+		SelectedStatuses:      copyStringBoolMap(n.currentFilters.SelectedStatuses),
+		SelectedTeams:         copyStringBoolMap(n.currentFilters.SelectedTeams),
+		ShowHiddenAlerts:      n.currentFilters.ShowHiddenAlerts,
 	}
 }
 
@@ -132,8 +133,7 @@ func copyStringBoolMap(original map[string]bool) map[string]bool {
 	if original == nil {
 		return make(map[string]bool)
 	}
-
-	copy := make(map[string]bool)
+	copy := make(map[string]bool, len(original))
 	for k, v := range original {
 		copy[k] = v
 	}

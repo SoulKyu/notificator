@@ -143,8 +143,12 @@ def create_alert_groups():
     alert_groups = list(groups.values())
 
 def alert_generator():
-    """Background thread to generate random alerts"""
+    """Background thread to generate random alerts and resolve them periodically"""
+    last_resolution_time = datetime.now(UTC)
+    
     while True:
+        current_time = datetime.now(UTC)
+        
         # Generate new alerts randomly
         if random.random() < 0.4:  # 40% chance every 15 seconds
             new_alert = generate_random_alert()
@@ -163,8 +167,29 @@ def alert_generator():
                 if alert["status"]["state"] == "unprocessed":
                     alert["status"]["state"] = "active"
         
-        # Remove some old alerts randomly
-        if alerts and random.random() < 0.15:  # 15% chance to remove
+        # Resolve alerts every 30 seconds (for testing resolved alerts feature)
+        if (current_time - last_resolution_time).total_seconds() >= 30:
+            print(f"[{current_time.strftime('%H:%M:%S')}] Resolving alerts for testing...", flush=True)
+            
+            # Resolve 30-50% of active alerts
+            active_alerts = [alert for alert in alerts if alert["status"]["state"] == "active"]
+            if active_alerts:
+                resolve_count = max(1, int(len(active_alerts) * random.uniform(0.3, 0.5)))
+                alerts_to_resolve = random.sample(active_alerts, min(resolve_count, len(active_alerts)))
+                
+                for alert in alerts_to_resolve:
+                    alerts.remove(alert)
+                    print(f"  Resolved: {alert['labels']['alertname']} on {alert['labels']['instance']}", flush=True)
+                
+                create_alert_groups()
+                print(f"  Total resolved: {len(alerts_to_resolve)} alerts", flush=True)
+            else:
+                print("  No active alerts to resolve", flush=True)
+            
+            last_resolution_time = current_time
+        
+        # Remove some old alerts randomly (less frequently now)
+        if alerts and random.random() < 0.05:  # 5% chance to remove
             alerts.pop(0)
             create_alert_groups()
         

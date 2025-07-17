@@ -1,0 +1,132 @@
+// proto/alert.proto
+syntax = "proto3";
+
+package notificator.alert;
+
+option go_package = "notificator/internal/backend/proto/alert";
+
+import "google/protobuf/timestamp.proto";
+
+// Alert Service for comments and acknowledgments
+service AlertService {
+  // Comments
+  rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
+  rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+  
+  // Acknowledgments
+  rpc AddAcknowledgment(AddAcknowledgmentRequest) returns (AddAcknowledgmentResponse);
+  rpc GetAcknowledgments(GetAcknowledgmentsRequest) returns (GetAcknowledgmentsResponse);
+  rpc DeleteAcknowledgment(DeleteAcknowledgmentRequest) returns (DeleteAcknowledgmentResponse);
+  
+  // Real-time Updates
+  rpc SubscribeToAlertUpdates(SubscribeToAlertUpdatesRequest) returns (stream AlertUpdate);
+}
+
+// Comment Messages
+message AddCommentRequest {
+  string session_id = 1;
+  string alert_key = 2;
+  string content = 3;
+}
+
+message AddCommentResponse {
+  bool success = 1;
+  Comment comment = 2;
+  string message = 3;
+}
+
+message GetCommentsRequest {
+  string alert_key = 1;
+}
+
+message GetCommentsResponse {
+  repeated Comment comments = 1;
+  int32 count = 2;
+}
+
+message DeleteCommentRequest {
+  string session_id = 1;
+  string comment_id = 2;
+}
+
+message DeleteCommentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message Comment {
+  string id = 1;
+  string alert_key = 2;
+  string user_id = 3;
+  string username = 4;
+  string content = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// Acknowledgment Messages
+message AddAcknowledgmentRequest {
+  string session_id = 1;
+  string alert_key = 2;
+  string reason = 3;
+}
+
+message AddAcknowledgmentResponse {
+  bool success = 1;
+  Acknowledgment acknowledgment = 2;
+  string message = 3;
+}
+
+message GetAcknowledgmentsRequest {
+  string alert_key = 1;
+}
+
+message GetAcknowledgmentsResponse {
+  repeated Acknowledgment acknowledgments = 1;
+  int32 count = 2;
+}
+
+message DeleteAcknowledgmentRequest {
+  string session_id = 1;
+  string alert_key = 2;
+}
+
+message DeleteAcknowledgmentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message Acknowledgment {
+  string id = 1;
+  string alert_key = 2;
+  string user_id = 3;
+  string username = 4;
+  string reason = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// Real-time Updates Messages
+message SubscribeToAlertUpdatesRequest {
+  string session_id = 1;
+  string alert_key = 2;
+}
+
+message AlertUpdate {
+  string alert_key = 1;
+  UpdateType update_type = 2;
+  oneof update_data {
+    Comment comment = 3;
+    Acknowledgment acknowledgment = 4;
+    string deleted_comment_id = 5;
+    string deleted_acknowledgment_id = 6;
+  }
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+enum UpdateType {
+  UNKNOWN_UPDATE = 0;
+  COMMENT_ADDED = 1;
+  COMMENT_DELETED = 2;
+  ACKNOWLEDGMENT_ADDED = 3;
+  ACKNOWLEDGMENT_DELETED = 4;
+}

@@ -9,51 +9,50 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"notificator/internal/models"
 )
 
-// setupUI creates and arranges all UI components
 func (aw *AlertsWindow) setupUI() {
-	// Create toolbar with enhancements
-	toolbar := aw.createEnhancedToolbar()
+	aw.initializeUIComponents()
+	aw.loadSavedState()
+	aw.layoutMainInterface()
+}
 
-	// Create enhanced filters with multi-select
-	filters := aw.createFilters()
+func (aw *AlertsWindow) initializeUIComponents() {
+	aw.toolbar = aw.createMainToolbar()
+	aw.filters = aw.createFilters()
+	aw.bulkActions = aw.createBulkActionsToolbar()
+	aw.tableContainer = aw.createTable()
+	aw.statusBar = aw.createStatusBar()
+}
 
-	// Load saved filter state after creating filters
+func (aw *AlertsWindow) loadSavedState() {
 	aw.loadFilterState()
+	aw.loadColumnConfig()
+	aw.loadThemePreference()
+	aw.loadResolvedAlertsConfig()
+}
 
-	// Create bulk actions toolbar
-	bulkActions := aw.createBulkActionsToolbar()
-
-	// Create alerts table
-	tableContainer := aw.createTable()
-
-	// Create status bar
-	statusBar := aw.createStatusBar()
-
-	// Layout the main content
+func (aw *AlertsWindow) layoutMainInterface() {
 	content := container.NewBorder(
-		container.NewVBox(toolbar, filters, bulkActions), // Top
-		statusBar,      // Bottom
-		nil,            // Left
-		nil,            // Right
-		tableContainer, // Center
+		container.NewVBox(aw.toolbar, aw.filters, aw.bulkActions),
+		aw.statusBar,
+		nil, nil,
+		aw.tableContainer,
 	)
-
 	aw.window.SetContent(content)
 }
 
-// createEnhancedToolbar creates the main toolbar with theme toggle and polling status
-func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
-	aw.refreshBtn = widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), aw.handleRefresh)
+func (aw *AlertsWindow) createMainToolbar() *fyne.Container {
+	// Primary actions - most used
+	aw.refreshBtn = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), aw.handleRefresh)
 	aw.refreshBtn.Importance = widget.HighImportance
 
-	// Enhanced auto-refresh toggle with polling status
-	autoRefreshCheck := widget.NewCheck("Smart auto-refresh", func(checked bool) {
+	autoRefreshCheck := widget.NewCheck("Auto", func(checked bool) {
 		aw.autoRefresh = checked
 		if checked {
 			aw.startSmartAutoRefresh()
@@ -63,11 +62,9 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 	})
 	autoRefreshCheck.SetChecked(true)
 
-	// Polling interval display
 	pollingStatusLabel := widget.NewLabel(fmt.Sprintf("(%v)", aw.refreshInterval))
 	pollingStatusLabel.TextStyle = fyne.TextStyle{Italic: true}
 
-	// Connection health indicator
 	var connectionIndicator *widget.Label
 	if aw.connectionHealth.IsHealthy {
 		connectionIndicator = widget.NewLabel("🟢")
@@ -80,54 +77,233 @@ func (aw *AlertsWindow) createEnhancedToolbar() *fyne.Container {
 	aw.themeBtn = aw.createThemeToggle()
 
 	// Show hidden alerts button
-	aw.showHiddenBtn = widget.NewButtonWithIcon("Show Hidden Alerts", theme.VisibilityOffIcon(), aw.toggleShowHidden)
+	aw.showHiddenBtn = widget.NewButtonWithIcon("Hidden", theme.VisibilityOffIcon(), aw.toggleShowHidden)
+
+	// Alertmanager info button
+	alertmanagerInfoBtn := widget.NewButtonWithIcon("Alertmanagers", theme.InfoIcon(), func() {
+		aw.showAlertmanagerInfo()
+	})
 
 	// Group toggle button
 	aw.groupToggleBtn = widget.NewButtonWithIcon("Group View", theme.ListIcon(), func() {
 		aw.toggleGroupedMode()
 	})
 	aw.groupToggleBtn.Importance = widget.MediumImportance
+	
+	aw.showResolvedBtn = widget.NewButtonWithIcon("Resolved", theme.ConfirmIcon(), aw.toggleShowResolved)
+	aw.showResolvedBtn.Importance = widget.MediumImportance
 
-	exportBtn := widget.NewButtonWithIcon("Export", theme.DocumentSaveIcon(), aw.handleExport)
+	// Create tools dropdown menu
+	toolsDropdown := aw.createToolsDropdown()
 
-	// Column settings button
-	columnBtn := widget.NewButtonWithIcon("Columns", theme.ViewFullScreenIcon(), aw.showColumnSettings)
+	// Create settings dropdown menu  
+	settingsDropdown := aw.createSettingsDropdown()
 
-	settingsBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), aw.handleSettings)
-
-	// Create refresh section with status
-	refreshSection := container.NewHBox(
+	// Left section - primary actions
+	leftSection := container.NewHBox(
 		aw.refreshBtn,
-		widget.NewSeparator(),
 		autoRefreshCheck,
 		pollingStatusLabel,
 		connectionIndicator,
 	)
-	// Background mode toggle button
-	backgroundModeBtn := widget.NewButtonWithIcon("Background", theme.VisibilityOffIcon(), func() {
-		aw.ToggleBackgroundMode()
-	})
-	backgroundModeBtn.Importance = widget.MediumImportance
 
-	// Update button state based on current mode
-	if aw.IsBackgroundMode() {
-		backgroundModeBtn.SetText("Show")
-	}
-	return container.NewHBox(
-		refreshSection,
-		widget.NewSeparator(),
+	// Center section - view controls  
+	centerSection := container.NewHBox(
 		aw.themeBtn,
 		widget.NewSeparator(),
-		backgroundModeBtn,
-		widget.NewSeparator(),
+		alertmanagerInfoBtn,
 		aw.groupToggleBtn,
 		widget.NewSeparator(),
 		aw.showHiddenBtn,
-		widget.NewSeparator(),
-		exportBtn,
-		columnBtn,
-		settingsBtn,
+		aw.showResolvedBtn,
 	)
+
+	// Right section - tools and settings
+	rightSection := container.NewHBox(
+		toolsDropdown,
+		settingsDropdown,
+	)
+
+	// Main toolbar with proper spacing
+	toolbarItems := []fyne.CanvasObject{
+		leftSection,
+		widget.NewSeparator(),
+		centerSection,
+		layout.NewSpacer(),
+		rightSection,
+	}
+	
+	if aw.backendStatusBtn != nil {
+		toolbarItems = append([]fyne.CanvasObject{
+			aw.backendStatusBtn,
+			widget.NewSeparator(),
+		}, toolbarItems...)
+	}
+	
+	return container.NewHBox(toolbarItems...)
+}
+
+func (aw *AlertsWindow) createToolsDropdown() *widget.Button {
+	toolsBtn := widget.NewButtonWithIcon("Tools", theme.MenuIcon(), nil)
+	
+	toolsBtn.OnTapped = func() {
+		columnBtn := widget.NewButtonWithIcon("Columns", theme.ViewFullScreenIcon(), aw.showColumnSettings)
+		
+		backgroundModeBtn := widget.NewButtonWithIcon("Background", theme.VisibilityOffIcon(), func() {
+			aw.ToggleBackgroundMode()
+		})
+		if aw.IsBackgroundMode() {
+			backgroundModeBtn.SetText("Show")
+		}
+
+		content := container.NewVBox(columnBtn, backgroundModeBtn)
+		popup := widget.NewPopUp(content, aw.window.Canvas())
+		
+		buttonPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(toolsBtn)
+		buttonSize := toolsBtn.Size()
+		dropdownPos := fyne.NewPos(
+			buttonPos.X + buttonSize.Width - content.MinSize().Width,
+			buttonPos.Y + buttonSize.Height,
+		)
+		
+		popup.ShowAtPosition(dropdownPos)
+	}
+	return toolsBtn
+}
+
+func (aw *AlertsWindow) createSettingsDropdown() *widget.Button {
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), nil)
+	
+	settingsBtn.OnTapped = func() {
+		themeBtn := aw.createThemeToggle()
+		settingsMenuBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), aw.handleSettings)
+		
+		content := container.NewVBox(
+			themeBtn,
+			widget.NewSeparator(),
+			settingsMenuBtn,
+		)
+		
+		popup := widget.NewPopUp(content, aw.window.Canvas())
+		
+		buttonPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(settingsBtn)
+		buttonSize := settingsBtn.Size()
+		dropdownPos := fyne.NewPos(
+			buttonPos.X + buttonSize.Width - content.MinSize().Width,
+			buttonPos.Y + buttonSize.Height,
+		)
+		
+		popup.ShowAtPosition(dropdownPos)
+	}
+	return settingsBtn
+}
+
+
+func (aw *AlertsWindow) createAcknowledgmentIndicator(alert models.Alert) fyne.CanvasObject {
+	// If backend is not available or user not authenticated, show nothing
+	if !aw.isUserAuthenticated() {
+		return widget.NewLabel("-")
+	}
+
+	// Create a container for the indicator
+	container := container.NewHBox()
+	
+	// Default to unacknowledged
+	indicator := widget.NewLabel("○")
+	indicator.Importance = widget.LowImportance
+	container.Add(indicator)
+
+	// Load acknowledgment status asynchronously
+	go func() {
+		alertKey := alert.GetFingerprint()
+		if alertKey == "" {
+			alertKey = fmt.Sprintf("%s_%s", alert.GetAlertName(), alert.GetInstance())
+		}
+
+		acknowledgments, err := aw.getAlertAcknowledgments(alertKey)
+		if err != nil {
+			// Don't log errors for acknowledgment loading to avoid spam
+			return
+		}
+
+		fyne.Do(func() {
+			// Clear existing content
+			container.RemoveAll()
+			
+			if len(acknowledgments) > 0 {
+				// Show acknowledged indicator
+				ackIndicator := widget.NewLabel("✓")
+				ackIndicator.Importance = widget.SuccessImportance
+				
+				// Show count if multiple acknowledgments
+				if len(acknowledgments) > 1 {
+					countLabel := widget.NewLabel(fmt.Sprintf("(%d)", len(acknowledgments)))
+					countLabel.Importance = widget.LowImportance
+					container.Add(ackIndicator)
+					container.Add(countLabel)
+				} else {
+					container.Add(ackIndicator)
+				}
+			} else {
+				// Show unacknowledged indicator
+				unackIndicator := widget.NewLabel("○")
+				unackIndicator.Importance = widget.LowImportance
+				container.Add(unackIndicator)
+			}
+		})
+	}()
+
+	return container
+}
+
+// createCommentIndicator creates a comment count indicator for the main table
+func (aw *AlertsWindow) createCommentIndicator(alert models.Alert) fyne.CanvasObject {
+	// If backend is not available or user not authenticated, show nothing
+	if !aw.isUserAuthenticated() {
+		return widget.NewLabel("-")
+	}
+
+	// Create a container for the indicator
+	container := container.NewHBox()
+	
+	// Default to no comments
+	indicator := widget.NewLabel("💬")
+	indicator.Importance = widget.LowImportance
+	container.Add(indicator)
+
+	// Load comment count asynchronously
+	go func() {
+		alertKey := alert.GetFingerprint()
+		if alertKey == "" {
+			alertKey = fmt.Sprintf("%s_%s", alert.GetAlertName(), alert.GetInstance())
+		}
+
+		comments, err := aw.getAlertComments(alertKey)
+		if err != nil {
+			// Don't log errors for comment loading to avoid spam
+			return
+		}
+
+		fyne.Do(func() {
+			// Clear existing content
+			container.RemoveAll()
+			
+			if len(comments) > 0 {
+				// Show comment count
+				countLabel := widget.NewLabel(fmt.Sprintf("%d", len(comments)))
+				countLabel.Importance = widget.MediumImportance
+				container.Add(widget.NewLabel("💬"))
+				container.Add(countLabel)
+			} else {
+				// Show no comments indicator
+				noCommentsIndicator := widget.NewLabel("💬")
+				noCommentsIndicator.Importance = widget.LowImportance
+				container.Add(noCommentsIndicator)
+			}
+		})
+	}()
+
+	return container
 }
 
 // createBulkActionsToolbar creates toolbar for bulk operations on selected alerts
@@ -186,94 +362,9 @@ func (aw *AlertsWindow) createBulkActionsToolbar() *fyne.Container {
 	)
 }
 
-// createSeverityBadge creates a styled severity badge with enhanced visual styling
 func (aw *AlertsWindow) createSeverityBadge(alert models.Alert) fyne.CanvasObject {
 	// Use the new enhanced severity badge for all severity levels
-	return aw.createEnhancedSeverityBadgeNew(alert)
-}
-
-// createEnhancedSeverityContainer creates a container with border colors and background gradients
-func (aw *AlertsWindow) createEnhancedSeverityContainer(badge *widget.Label, severity string) fyne.CanvasObject {
-	// Create a card container for enhanced styling
-	var card *widget.Card
-
-	switch severity {
-	case "critical":
-		// Critical alerts: Red border with red gradient background
-		card = widget.NewCard("", "", badge)
-		card.Resize(fyne.NewSize(120, 40))
-
-		// Create a container with visual enhancements for critical
-		criticalContainer := container.NewBorder(nil, nil, nil, nil, card)
-		return aw.wrapWithCriticalStyling(criticalContainer)
-
-	case "warning":
-		// Warning alerts: Orange/Yellow border with orange gradient background
-		card = widget.NewCard("", "", badge)
-		card.Resize(fyne.NewSize(120, 40))
-
-		// Create a container with visual enhancements for warning
-		warningContainer := container.NewBorder(nil, nil, nil, nil, card)
-		return aw.wrapWithWarningStyling(warningContainer)
-
-	default:
-		// Default styling for info and other severities
-		return badge
-	}
-}
-
-// wrapWithCriticalStyling adds critical alert styling with red border and gradient
-func (aw *AlertsWindow) wrapWithCriticalStyling(content fyne.CanvasObject) fyne.CanvasObject {
-	// Create a visual indicator for critical alerts
-	criticalIndicator := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{})
-	criticalIndicator.Importance = widget.DangerImportance
-
-	// Create border effect using separators
-	topBorder := widget.NewSeparator()
-	bottomBorder := widget.NewSeparator()
-	leftBorder := widget.NewSeparator()
-	rightBorder := widget.NewSeparator()
-
-	// Create the bordered container
-	borderedContent := container.NewBorder(
-		topBorder,    // top
-		bottomBorder, // bottom
-		leftBorder,   // left
-		rightBorder,  // right
-		content,      // center
-	)
-
-	// Add padding and background effect
-	paddedContainer := container.NewPadded(borderedContent)
-
-	return paddedContainer
-}
-
-// wrapWithWarningStyling adds warning alert styling with orange border and gradient
-func (aw *AlertsWindow) wrapWithWarningStyling(content fyne.CanvasObject) fyne.CanvasObject {
-	// Create a visual indicator for warning alerts
-	warningIndicator := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{})
-	warningIndicator.Importance = widget.WarningImportance
-
-	// Create border effect using separators
-	topBorder := widget.NewSeparator()
-	bottomBorder := widget.NewSeparator()
-	leftBorder := widget.NewSeparator()
-	rightBorder := widget.NewSeparator()
-
-	// Create the bordered container
-	borderedContent := container.NewBorder(
-		topBorder,    // top
-		bottomBorder, // bottom
-		leftBorder,   // left
-		rightBorder,  // right
-		content,      // center
-	)
-
-	// Add padding and background effect
-	paddedContainer := container.NewPadded(borderedContent)
-
-	return paddedContainer
+	return aw.createEnhancedSeverityBadge(alert)
 }
 
 // createStatusBadge creates a styled status badge
@@ -283,7 +374,6 @@ func (aw *AlertsWindow) createStatusBadge(alert models.Alert) fyne.CanvasObject 
 	var statusText string
 	var importance widget.Importance
 
-	// Enhanced status detection with better silencing logic
 	if alert.Status.State == "suppressed" || len(alert.Status.SilencedBy) > 0 {
 		statusText = "🔇 SILENCED"
 		importance = widget.WarningImportance
@@ -353,6 +443,34 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 		aw.saveFilterState()
 	})
 
+	// Alertmanager filter
+	alertmanagerOptions := []string{"All"}
+	aw.alertmanagerMultiSelect = NewMultiSelectWidget("Alertmanager", alertmanagerOptions, aw.window, func(selected map[string]bool) {
+		aw.lastActivity = time.Now()
+		aw.safeApplyFilters()
+		aw.saveFilterState()
+	})
+
+	// Acknowledgment filter (only show if user is authenticated)
+	if aw.isUserAuthenticated() {
+		ackOptions := []string{"All", "Acknowledged", "Unacknowledged"}
+		aw.ackMultiSelect = NewMultiSelectWidget("Acknowledgment", ackOptions, aw.window, func(selected map[string]bool) {
+			aw.lastActivity = time.Now()
+			aw.safeApplyFilters()
+			aw.saveFilterState()
+		})
+	}
+
+	// Comment filter (only show if user is authenticated)
+	if aw.isUserAuthenticated() {
+		commentOptions := []string{"All", "Has Comments", "No Comments"}
+		aw.commentMultiSelect = NewMultiSelectWidget("Comments", commentOptions, aw.window, func(selected map[string]bool) {
+			aw.lastActivity = time.Now()
+			aw.safeApplyFilters()
+			aw.saveFilterState()
+		})
+	}
+
 	clearBtn := widget.NewButtonWithIcon("Clear All Filters", theme.ContentClearIcon(), aw.clearFilters)
 	clearBtn.Importance = widget.LowImportance
 
@@ -366,15 +484,28 @@ func (aw *AlertsWindow) createFilters() *fyne.Container {
 	searchContainer.Resize(fyne.NewSize(0, 60))
 
 	// Create filters container
-	filtersContainer := container.NewHBox(
+	filterWidgets := []fyne.CanvasObject{
+		aw.alertmanagerMultiSelect,
+		widget.NewSeparator(),
 		aw.severityMultiSelect,
 		widget.NewSeparator(),
 		aw.statusMultiSelect,
 		widget.NewSeparator(),
 		aw.teamMultiSelect,
-		widget.NewSeparator(),
-		clearBtn,
-	)
+	}
+
+	// Add collaboration filters if user is authenticated
+	if aw.isUserAuthenticated() {
+		if aw.ackMultiSelect != nil {
+			filterWidgets = append(filterWidgets, widget.NewSeparator(), aw.ackMultiSelect)
+		}
+		if aw.commentMultiSelect != nil {
+			filterWidgets = append(filterWidgets, widget.NewSeparator(), aw.commentMultiSelect)
+		}
+	}
+
+	filterWidgets = append(filterWidgets, widget.NewSeparator(), clearBtn)
+	filtersContainer := container.NewHBox(filterWidgets...)
 
 	return container.NewVBox(
 		searchContainer,
@@ -488,25 +619,34 @@ func (aw *AlertsWindow) renderFlatAlertRow(cellID widget.TableCellID, obj fyne.C
 			checkbox.SetChecked(aw.selectedAlerts[dataRowIndex])
 			cellContainer.Add(checkbox)
 
-		case 1: // Alert name
+		case 1: // Alertmanager name
+			cellContainer.Add(widget.NewLabel(alert.GetSource()))
+
+		case 2: // Alert name
 			label := widget.NewLabel(alert.GetAlertName())
 			if aw.showHiddenAlerts {
 				label.SetText("🙈 " + alert.GetAlertName())
 			}
 			cellContainer.Add(label)
 
-		case 2: // Severity
+		case 3: // Severity
 			cellContainer.Add(aw.createSeverityBadge(alert))
 
-		case 3: // Status
+		case 4: // Status
 			cellContainer.Add(aw.createStatusBadge(alert))
 
-		case 4: // Team
+		case 5: // Acknowledgment
+			cellContainer.Add(aw.createAcknowledgmentIndicator(alert))
+
+		case 6: // Comments
+			cellContainer.Add(aw.createCommentIndicator(alert))
+
+		case 7: // Team
 			cellContainer.Add(widget.NewLabel(alert.GetTeam()))
 
-		case 5: // Summary
+		case 8: // Summary
 			summary := alert.GetSummary()
-			maxLen := int(aw.columns[5].Width / 6)
+			maxLen := int(aw.columns[8].Width / 6)
 			if maxLen < 20 {
 				maxLen = 20
 			}
@@ -515,10 +655,10 @@ func (aw *AlertsWindow) renderFlatAlertRow(cellID widget.TableCellID, obj fyne.C
 			}
 			cellContainer.Add(widget.NewLabel(summary))
 
-		case 6: // Duration
+		case 9: // Duration
 			cellContainer.Add(widget.NewLabel(formatDuration(alert.Duration())))
 
-		case 7: // Instance
+		case 10: // Instance
 			cellContainer.Add(widget.NewLabel(alert.GetInstance()))
 		}
 	}
@@ -819,25 +959,33 @@ func (aw *AlertsWindow) renderAlertRow(cellID widget.TableCellID, container *fyn
 	}
 }
 
-// createSeveritySummary creates a summary of severities in the group
 func (aw *AlertsWindow) createSeveritySummary(group *AlertGroup) string {
-	var parts []string
+	var builder strings.Builder
+	builder.Grow(50) // Pre-allocate reasonable capacity
 
 	if group.CriticalCount > 0 {
-		parts = append(parts, fmt.Sprintf("🔴 %d", group.CriticalCount))
+		builder.WriteString(fmt.Sprintf("🔴 %d", group.CriticalCount))
 	}
+
 	if group.WarningCount > 0 {
-		parts = append(parts, fmt.Sprintf("🟡 %d", group.WarningCount))
+		if builder.Len() > 0 {
+			builder.WriteString(" ")
+		}
+		builder.WriteString(fmt.Sprintf("🟡 %d", group.WarningCount))
 	}
+
 	if group.InfoCount > 0 {
-		parts = append(parts, fmt.Sprintf("🔵 %d", group.InfoCount))
+		if builder.Len() > 0 {
+			builder.WriteString(" ")
+		}
+		builder.WriteString(fmt.Sprintf("🔵 %d", group.InfoCount))
 	}
 
-	if len(parts) == 0 {
-		return "⚪ " + fmt.Sprint(group.TotalCount)
+	if builder.Len() == 0 {
+		builder.WriteString(fmt.Sprintf("⚪ %d", group.TotalCount))
 	}
 
-	return strings.Join(parts, " ")
+	return builder.String()
 }
 
 // createStatusSummary creates a summary of statuses in the group
@@ -912,9 +1060,6 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 	totalLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	totalLabel.Importance = widget.MediumImportance
 
-	// Hidden count label
-	aw.hiddenCountLabel = widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	aw.hiddenCountLabel.Importance = widget.MediumImportance
 
 	// Connection status indicator
 	connectionStatusLabel := widget.NewLabel("🟢 Connected")
@@ -966,9 +1111,6 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 		widget.NewSeparator(),
 		widget.NewLabel("📊"),
 		totalLabel,
-		widget.NewSeparator(),
-		widget.NewLabel("🙈"),
-		aw.hiddenCountLabel,
 		widget.NewSeparator(),
 		viewModeLabel,
 		widget.NewSeparator(),
@@ -1126,31 +1268,3 @@ func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
 	})
 }
 
-// getGroupHighestSeverity returns the highest severity in a group
-func (aw *AlertsWindow) getGroupHighestSeverity(group AlertGroup) string {
-	if group.CriticalCount > 0 {
-		return "critical"
-	}
-	if group.WarningCount > 0 {
-		return "warning"
-	}
-	if group.InfoCount > 0 {
-		return "info"
-	}
-	return "unknown"
-}
-
-// getGroupNewestAlert returns the newest alert in a group
-func (aw *AlertsWindow) getGroupNewestAlert(group AlertGroup) *models.Alert {
-	if len(group.Alerts) == 0 {
-		return nil
-	}
-
-	newest := &group.Alerts[0]
-	for i := 1; i < len(group.Alerts); i++ {
-		if group.Alerts[i].StartsAt.After(newest.StartsAt) {
-			newest = &group.Alerts[i]
-		}
-	}
-	return newest
-}

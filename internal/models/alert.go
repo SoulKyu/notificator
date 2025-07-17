@@ -1,6 +1,10 @@
 package models
 
 import (
+	"crypto/md5"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -23,6 +27,9 @@ type Alert struct {
 
 	// Status represents the current state of the alert
 	Status AlertStatus `json:"status"`
+
+	// Source indicates which Alertmanager this alert comes from
+	Source string `json:"-"`
 }
 
 // AlertStatus represents the state of an alert
@@ -41,8 +48,6 @@ type AlertmanagerResponse struct {
 // AlertmanagerV2Response represents the response from Alertmanager v2 API
 // v2 API returns alerts directly as an array, not wrapped in a response object
 type AlertmanagerV2Response []Alert
-
-// Helper methods for Alert
 
 // GetAlertName returns the alertname label value
 func (a *Alert) GetAlertName() string {
@@ -129,4 +134,27 @@ func (a *Alert) GetStatusWithIcon() string {
 	default:
 		return status
 	}
+}
+
+// GetFingerprint generates a unique fingerprint for the alert based on its labels
+func (a *Alert) GetFingerprint() string {
+	// Sort labels to ensure consistent fingerprint generation
+	var labelPairs []string
+	for key, value := range a.Labels {
+		labelPairs = append(labelPairs, fmt.Sprintf("%s=%s", key, value))
+	}
+	sort.Strings(labelPairs)
+	
+	// Create a hash from the sorted labels
+	labelString := strings.Join(labelPairs, ",")
+	hash := md5.Sum([]byte(labelString))
+	return fmt.Sprintf("%x", hash)
+}
+
+// GetSource returns the source Alertmanager name
+func (a *Alert) GetSource() string {
+	if a.Source != "" {
+		return a.Source
+	}
+	return "unknown"
 }

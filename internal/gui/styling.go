@@ -1,4 +1,4 @@
-// internal/gui/enhanced_styling.go
+// internal/gui/styling.go
 package gui
 
 import (
@@ -13,7 +13,6 @@ import (
 	"notificator/internal/models"
 )
 
-// SeverityColors defines the color scheme for different alert severities
 type SeverityColors struct {
 	BorderColor     color.Color
 	BackgroundStart color.Color
@@ -21,9 +20,7 @@ type SeverityColors struct {
 	TextColor       color.Color
 }
 
-// getSeverityColors returns the color scheme for a given severity
 func getSeverityColors(severity string, isDarkTheme bool) SeverityColors {
-	// Normalize severity to lowercase for consistent matching
 	normalizedSeverity := strings.ToLower(severity)
 
 	switch normalizedSeverity {
@@ -94,8 +91,7 @@ func getSeverityColors(severity string, isDarkTheme bool) SeverityColors {
 	}
 }
 
-// EnhancedSeverityBadge creates a custom severity badge with gradient background and border
-type EnhancedSeverityBadge struct {
+type SeverityBadge struct {
 	widget.BaseWidget
 	text        string
 	severity    string
@@ -107,8 +103,7 @@ type EnhancedSeverityBadge struct {
 	container   *fyne.Container
 }
 
-// NewEnhancedSeverityBadge creates a new enhanced severity badge
-func NewEnhancedSeverityBadge(alert models.Alert, isDarkTheme bool) *EnhancedSeverityBadge {
+func NewSeverityBadge(alert models.Alert, isDarkTheme bool) *SeverityBadge {
 	severity := alert.GetSeverity()
 	var text string
 
@@ -130,7 +125,7 @@ func NewEnhancedSeverityBadge(alert models.Alert, isDarkTheme bool) *EnhancedSev
 		text = "⚪ " + strings.ToUpper(severity)
 	}
 
-	badge := &EnhancedSeverityBadge{
+	badge := &SeverityBadge{
 		text:        text,
 		severity:    severity,
 		isDarkTheme: isDarkTheme,
@@ -142,8 +137,7 @@ func NewEnhancedSeverityBadge(alert models.Alert, isDarkTheme bool) *EnhancedSev
 	return badge
 }
 
-// createObjects creates the visual components of the badge
-func (b *EnhancedSeverityBadge) createObjects() {
+func (b *SeverityBadge) createObjects() {
 	// Create gradient background
 	b.background = canvas.NewLinearGradient(b.colors.BackgroundStart, b.colors.BackgroundEnd, 45)
 	b.background.Resize(fyne.NewSize(140, 32))
@@ -171,13 +165,11 @@ func (b *EnhancedSeverityBadge) createObjects() {
 	b.container.Resize(fyne.NewSize(140, 32))
 }
 
-// CreateRenderer creates the renderer for the enhanced severity badge
-func (b *EnhancedSeverityBadge) CreateRenderer() fyne.WidgetRenderer {
+func (b *SeverityBadge) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(b.container)
 }
 
-// Resize resizes the badge and all its components
-func (b *EnhancedSeverityBadge) Resize(size fyne.Size) {
+func (b *SeverityBadge) Resize(size fyne.Size) {
 	b.BaseWidget.Resize(size)
 	if b.background != nil {
 		b.background.Resize(size)
@@ -195,21 +187,18 @@ func (b *EnhancedSeverityBadge) Resize(size fyne.Size) {
 	}
 }
 
-// Move moves the badge to a new position
-func (b *EnhancedSeverityBadge) Move(pos fyne.Position) {
+func (b *SeverityBadge) Move(pos fyne.Position) {
 	b.BaseWidget.Move(pos)
 	if b.container != nil {
 		b.container.Move(pos)
 	}
 }
 
-// MinSize returns the minimum size for the badge
-func (b *EnhancedSeverityBadge) MinSize() fyne.Size {
+func (b *SeverityBadge) MinSize() fyne.Size {
 	return fyne.NewSize(120, 28)
 }
 
-// UpdateTheme updates the badge colors when theme changes
-func (b *EnhancedSeverityBadge) UpdateTheme(isDarkTheme bool) {
+func (b *SeverityBadge) UpdateTheme(isDarkTheme bool) {
 	b.isDarkTheme = isDarkTheme
 	b.colors = getSeverityColors(b.severity, isDarkTheme)
 
@@ -230,8 +219,7 @@ func (b *EnhancedSeverityBadge) UpdateTheme(isDarkTheme bool) {
 	}
 }
 
-// EnhancedAlertRow creates an enhanced alert row with severity-based styling
-type EnhancedAlertRow struct {
+type AlertRow struct {
 	widget.BaseWidget
 	alert       models.Alert
 	isDarkTheme bool
@@ -239,9 +227,8 @@ type EnhancedAlertRow struct {
 	container   *fyne.Container
 }
 
-// NewEnhancedAlertRow creates a new enhanced alert row
-func NewEnhancedAlertRow(alert models.Alert, isDarkTheme bool) *EnhancedAlertRow {
-	row := &EnhancedAlertRow{
+func NewAlertRow(alert models.Alert, isDarkTheme bool) *AlertRow {
+	row := &AlertRow{
 		alert:       alert,
 		isDarkTheme: isDarkTheme,
 	}
@@ -251,8 +238,7 @@ func NewEnhancedAlertRow(alert models.Alert, isDarkTheme bool) *EnhancedAlertRow
 	return row
 }
 
-// createBackground creates a subtle background color based on alert severity
-func (r *EnhancedAlertRow) createBackground() {
+func (r *AlertRow) createBackground() {
 	severity := r.alert.GetSeverity()
 
 	// Create a very subtle background color for the entire row
@@ -277,16 +263,14 @@ func (r *EnhancedAlertRow) createBackground() {
 	r.background = canvas.NewRectangle(bgColor)
 }
 
-// CreateRenderer creates the renderer for the enhanced alert row
-func (r *EnhancedAlertRow) CreateRenderer() fyne.WidgetRenderer {
+func (r *AlertRow) CreateRenderer() fyne.WidgetRenderer {
 	if r.container == nil {
 		r.container = container.NewWithoutLayout(r.background)
 	}
 	return widget.NewSimpleRenderer(r.container)
 }
 
-// Resize resizes the row background
-func (r *EnhancedAlertRow) Resize(size fyne.Size) {
+func (r *AlertRow) Resize(size fyne.Size) {
 	r.BaseWidget.Resize(size)
 	if r.background != nil {
 		r.background.Resize(size)
@@ -296,8 +280,7 @@ func (r *EnhancedAlertRow) Resize(size fyne.Size) {
 	}
 }
 
-// Move moves the row to a new position
-func (r *EnhancedAlertRow) Move(pos fyne.Position) {
+func (r *AlertRow) Move(pos fyne.Position) {
 	r.BaseWidget.Move(pos)
 	if r.background != nil {
 		r.background.Move(pos)
@@ -307,8 +290,7 @@ func (r *EnhancedAlertRow) Move(pos fyne.Position) {
 	}
 }
 
-// UpdateTheme updates the row colors when theme changes
-func (r *EnhancedAlertRow) UpdateTheme(isDarkTheme bool) {
+func (r *AlertRow) UpdateTheme(isDarkTheme bool) {
 	r.isDarkTheme = isDarkTheme
 	r.createBackground()
 	if r.container != nil {
@@ -317,12 +299,10 @@ func (r *EnhancedAlertRow) UpdateTheme(isDarkTheme bool) {
 	}
 }
 
-// Helper function to determine if current theme is dark
 func (aw *AlertsWindow) isDarkTheme() bool {
 	return aw.themeVariant == "dark"
 }
 
-// createEnhancedSeverityBadgeNew creates the new enhanced severity badge
-func (aw *AlertsWindow) createEnhancedSeverityBadgeNew(alert models.Alert) fyne.CanvasObject {
-	return NewEnhancedSeverityBadge(alert, aw.isDarkTheme())
+func (aw *AlertsWindow) createEnhancedSeverityBadge(alert models.Alert) fyne.CanvasObject {
+	return NewSeverityBadge(alert, aw.isDarkTheme())
 }

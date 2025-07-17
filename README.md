@@ -1,6 +1,6 @@
 # Notificator
 
-A GUI application for Alertmanager with sound and notification alerts on your laptop.
+A GUI application for multiple Alertmanagers with sound and notification alerts on your laptop.
 
 ![alt text](img/preview.gif "Preview")
 
@@ -37,16 +37,25 @@ Notificator uses a JSON configuration file located at `~/.config/notificator/con
 
 ```json
 {
-  "alertmanager": {
-    "url": "http://localhost:9093",
-    "username": "",
-    "password": "",
-    "token": "",
-    "headers": {},
-    "oauth": {
-      "enabled": false,
-      "proxy_mode": true
+  "alertmanagers": [
+    {
+      "name": "default",
+      "url": "http://localhost:9093",
+      "username": "",
+      "password": "",
+      "token": "",
+      "headers": {},
+      "oauth": {
+        "enabled": false,
+        "proxy_mode": true
+      }
     }
+  ],
+  "backend": {
+    "enabled": true,
+    "grpc_listen": ":50051",
+    "grpc_client": "localhost:50051",
+    "http_listen": ":8080"
   },
   "gui": {
     "width": 1200,
@@ -78,6 +87,10 @@ Notificator uses a JSON configuration file located at `~/.config/notificator/con
 
 - **alertmanager.url**: Alertmanager API endpoint
 - **alertmanager.headers**: Custom HTTP headers for authentication
+- **backend.enabled**: Enable/disable backend collaboration features
+- **backend.grpc_listen**: Port for gRPC server to listen on (e.g., ":50051")
+- **backend.grpc_client**: Address for gRPC client connections (e.g., "localhost:50051")
+- **backend.http_listen**: Port for HTTP server (health checks, metrics) (e.g., ":8080")
 - **notifications.enabled**: Enable/disable all notifications
 - **notifications.sound_enabled**: Enable/disable sound alerts
 - **notifications.critical_only**: Only notify for critical alerts
@@ -87,6 +100,7 @@ Notificator uses a JSON configuration file located at `~/.config/notificator/con
 ### Environment Variables
 
 You can also set headers via environment variable:
+
 ```bash
 export METRICS_PROVIDER_HEADERS="X-API-Key=your-key,Authorization=Bearer token"
 ```
@@ -100,5 +114,6 @@ export METRICS_PROVIDER_HEADERS="X-API-Key=your-key,Authorization=Bearer token"
 - Alert silencing functionality
 - Customizable notification settings
 - Light/dark theme support
+- Multiple Alertmanagers
 
 Perfect for keeping track of your infrastructure alerts directly from your laptop!

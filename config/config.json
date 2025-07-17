@@ -1,0 +1,72 @@
+{
+  "alertmanager": {
+    "url": "https://alertmanager.prometheus1.numberly.in",
+    "username": "",
+    "password": "",
+    "token": "",
+    "headers": {},
+    "oauth": {
+      "enabled": false,
+      "proxy_mode": true
+    }
+  },
+  "backend": {
+    "enabled": true,
+    "grpc_listen": ":50051",
+    "grpc_client": "localhost:50051",
+    "http_listen": ":8080",
+    "database": {
+      "type": "sqlite",
+      "sqlite_path": "./notificator.db",
+      "host": "localhost",
+      "port": 5432,
+      "name": "notificator",
+      "user": "postgres",
+      "password": "postgres",
+      "ssl_mode": "disable"
+    }
+  },
+  "gui": {
+    "width": 1920,
+    "height": 1080,
+    "title": "Notificator - Alert Dashboard",
+    "filter_state": {
+      "search_text": "",
+      "selected_severities": {
+        "critical": true,
+        "warning": true
+      },
+      "selected_statuses": {
+        "active": true
+      },
+      "selected_teams": {
+        "team-infrastructure": true
+      }
+    },
+    "minimize_to_tray": false,
+    "start_minimized": false,
+    "show_tray_icon": false,
+    "background_mode": true
+  },
+  "notifications": {
+    "enabled": true,
+    "sound_enabled": true,
+    "sound_path": "",
+    "audio_output_device": "",
+    "show_system": true,
+    "critical_only": false,
+    "max_notifications": 5,
+    "cooldown_seconds": 300,
+    "severity_rules": {
+      "critical": true,
+      "info": false,
+      "unknown": false,
+      "warning": true
+    },
+    "respect_filters": true
+  },
+  "polling": {
+    "interval": 30000000000
+  },
+  "column_widths": null
+}
