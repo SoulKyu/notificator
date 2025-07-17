@@ -1,0 +1,90 @@
+// proto/auth.proto
+syntax = "proto3";
+
+package notificator.auth;
+
+option go_package = "notificator/internal/backend/proto/auth";
+
+import "google/protobuf/timestamp.proto";
+
+// Authentication Service
+service AuthService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+}
+
+// Messages
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  string email = 3;
+}
+
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+  string user_id = 3;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  bool success = 1;
+  string session_id = 2;
+  User user = 3;
+  string message = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message LogoutRequest {
+  string session_id = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ValidateSessionRequest {
+  string session_id = 1;
+}
+
+message ValidateSessionResponse {
+  bool valid = 1;
+  User user = 2;
+  string message = 3;
+}
+
+message GetProfileRequest {
+  string session_id = 1;
+}
+
+message GetProfileResponse {
+  User user = 1;
+  int64 comment_count = 2;
+}
+
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp last_login = 5;
+}
+
+message SearchUsersRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SearchUsersResponse {
+  repeated User users = 1;
+  int32 total_count = 2;
+}

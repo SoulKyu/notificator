@@ -132,8 +132,7 @@ func copyStringBoolMap(original map[string]bool) map[string]bool {
 	if original == nil {
 		return make(map[string]bool)
 	}
-
-	copy := make(map[string]bool)
+	copy := make(map[string]bool, len(original))
 	for k, v := range original {
 		copy[k] = v
 	}

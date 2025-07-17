@@ -1,6 +1,10 @@
 package models
 
 import (
+	"crypto/md5"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -129,4 +133,19 @@ func (a *Alert) GetStatusWithIcon() string {
 	default:
 		return status
 	}
+}
+
+// GetFingerprint generates a unique fingerprint for the alert based on its labels
+func (a *Alert) GetFingerprint() string {
+	// Sort labels to ensure consistent fingerprint generation
+	var labelPairs []string
+	for key, value := range a.Labels {
+		labelPairs = append(labelPairs, fmt.Sprintf("%s=%s", key, value))
+	}
+	sort.Strings(labelPairs)
+	
+	// Create a hash from the sorted labels
+	labelString := strings.Join(labelPairs, ",")
+	hash := md5.Sum([]byte(labelString))
+	return fmt.Sprintf("%x", hash)
 }

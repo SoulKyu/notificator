@@ -48,6 +48,12 @@ Notificator uses a JSON configuration file located at `~/.config/notificator/con
       "proxy_mode": true
     }
   },
+  "backend": {
+    "enabled": true,
+    "grpc_listen": ":50051",
+    "grpc_client": "localhost:50051",
+    "http_listen": ":8080"
+  },
   "gui": {
     "width": 1200,
     "height": 800,
@@ -78,6 +84,10 @@ Notificator uses a JSON configuration file located at `~/.config/notificator/con
 
 - **alertmanager.url**: Alertmanager API endpoint
 - **alertmanager.headers**: Custom HTTP headers for authentication
+- **backend.enabled**: Enable/disable backend collaboration features
+- **backend.grpc_listen**: Port for gRPC server to listen on (e.g., ":50051")
+- **backend.grpc_client**: Address for gRPC client connections (e.g., "localhost:50051")
+- **backend.http_listen**: Port for HTTP server (health checks, metrics) (e.g., ":8080")
 - **notifications.enabled**: Enable/disable all notifications
 - **notifications.sound_enabled**: Enable/disable sound alerts
 - **notifications.critical_only**: Only notify for critical alerts

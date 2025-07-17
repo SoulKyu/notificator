@@ -24,7 +24,35 @@ type Config struct {
 	Polling PollingConfig `json:"polling"`
 
 	// Column configuration for GUI
-	ColumnWidths map[string]float32 `json:"column_widths"`
+	ColumnWidths    map[string]float32 `json:"column_widths"`
+	Backend         BackendConfig      `json:"backend"`
+	ResolvedAlerts  ResolvedAlertsConfig `json:"resolved_alerts"`
+}
+
+type BackendConfig struct {
+	Enabled    bool           `json:"enabled"`
+	GRPCListen string         `json:"grpc_listen"`  // Port for gRPC server (e.g., ":50051")
+	GRPCClient string         `json:"grpc_client"`  // Address for gRPC client (e.g., "localhost:50051")
+	HTTPListen string         `json:"http_listen"`  // Port for HTTP server (e.g., ":8080")
+	Database   DatabaseConfig `json:"database"`
+}
+
+type DatabaseConfig struct {
+	Type       string `json:"type"` // "sqlite" or "postgres"
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Name       string `json:"name"`
+	User       string `json:"user"`
+	Password   string `json:"password"`
+	SSLMode    string `json:"ssl_mode"`
+	SQLitePath string `json:"sqlite_path"`
+}
+
+// ResolvedAlertsConfig contains resolved alerts settings
+type ResolvedAlertsConfig struct {
+	Enabled              bool          `json:"enabled"`                // Enable resolved alerts tracking
+	NotificationsEnabled bool          `json:"notifications_enabled"`  // Send notifications for resolved alerts
+	RetentionDuration    time.Duration `json:"retention_duration"`     // How long to keep resolved alerts
 }
 
 // AlertmanagerConfig contains Alertmanager-specific settings
@@ -57,10 +85,12 @@ type GUIConfig struct {
 
 // FilterStateConfig contains the state of filters
 type FilterStateConfig struct {
-	SearchText         string          `json:"search_text"`
-	SelectedSeverities map[string]bool `json:"selected_severities"`
-	SelectedStatuses   map[string]bool `json:"selected_statuses"`
-	SelectedTeams      map[string]bool `json:"selected_teams"`
+	SearchText            string          `json:"search_text"`
+	SelectedSeverities    map[string]bool `json:"selected_severities"`
+	SelectedStatuses      map[string]bool `json:"selected_statuses"`
+	SelectedTeams         map[string]bool `json:"selected_teams"`
+	SelectedAcks          map[string]bool `json:"selected_acks"`
+	SelectedComments      map[string]bool `json:"selected_comments"`
 }
 
 // NotificationConfig contains notification settings
@@ -109,6 +139,8 @@ func DefaultConfig() *Config {
 				SelectedSeverities: map[string]bool{"All": true},
 				SelectedStatuses:   map[string]bool{"All": true},
 				SelectedTeams:      map[string]bool{"All": true},
+				SelectedAcks:       map[string]bool{"All": true},
+				SelectedComments:   map[string]bool{"All": true},
 			},
 		},
 		Notifications: NotificationConfig{
@@ -130,6 +162,27 @@ func DefaultConfig() *Config {
 		},
 		Polling: PollingConfig{
 			Interval: 30 * time.Second,
+		},
+		Backend: BackendConfig{
+			Enabled:    false,
+			GRPCListen: ":50051",
+			GRPCClient: "localhost:50051",
+			HTTPListen: ":8080",
+			Database: DatabaseConfig{
+				Type:       "sqlite",
+				SQLitePath: "./notificator.db",
+				Host:       "localhost",
+				Port:       5432,
+				Name:       "notificator",
+				User:       "notificator",
+				Password:   "",
+				SSLMode:    "disable",
+			},
+		},
+		ResolvedAlerts: ResolvedAlertsConfig{
+			Enabled:              true,                // Enable by default
+			NotificationsEnabled: true,                // Send notifications by default
+			RetentionDuration:    1 * time.Hour,       // Keep for 1 hour by default
 		},
 	}
 }
@@ -178,6 +231,12 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 	if config.GUI.FilterState.SelectedTeams == nil {
 		config.GUI.FilterState.SelectedTeams = map[string]bool{"All": true}
+	}
+	if config.GUI.FilterState.SelectedAcks == nil {
+		config.GUI.FilterState.SelectedAcks = map[string]bool{"All": true}
+	}
+	if config.GUI.FilterState.SelectedComments == nil {
+		config.GUI.FilterState.SelectedComments = map[string]bool{"All": true}
 	}
 
 	return &config, nil

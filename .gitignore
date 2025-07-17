@@ -34,3 +34,6 @@ go.work.sum
 notificator
 fyne-cross
 *.tar.*
+notificator.db
+internal_doc
+fake_alertmanager.log
