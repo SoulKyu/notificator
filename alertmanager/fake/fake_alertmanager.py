@@ -3,7 +3,7 @@
 import json
 import random
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from flask import Flask, jsonify, request
 from threading import Thread
 import uuid
@@ -76,7 +76,7 @@ def generate_random_alert():
     instance_id = random.randint(1, 20)
     instance_name = template["instance"].format(instance=instance_id)
     
-    starts_at = datetime.utcnow() - timedelta(minutes=random.randint(1, 30))
+    starts_at = datetime.now(UTC) - timedelta(minutes=random.randint(1, 30))
     ends_at = starts_at + timedelta(hours=random.randint(1, 6))
     
     alert = {
@@ -94,7 +94,7 @@ def generate_random_alert():
         },
         "startsAt": starts_at.isoformat() + "Z",
         "endsAt": ends_at.isoformat() + "Z",
-        "updatedAt": datetime.utcnow().isoformat() + "Z",
+        "updatedAt": datetime.now(UTC).isoformat() + "Z",
         "generatorURL": f"http://prometheus:9090/graph?g0.expr=up{{job=\"{template['job']}\"}}&g0.tab=1",
         "fingerprint": generate_fingerprint(),
         "receivers": [{"name": random.choice(RECEIVER_NAMES)}],
@@ -159,7 +159,7 @@ def alert_generator():
         # Update existing alerts randomly
         for alert in alerts:
             if random.random() < 0.1:  # 10% chance to update
-                alert["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+                alert["updatedAt"] = datetime.now(UTC).isoformat() + "Z"
                 if alert["status"]["state"] == "unprocessed":
                     alert["status"]["state"] = "active"
         
@@ -222,7 +222,7 @@ def get_status():
         "config": {
             "original": "global:\n  smtp_smarthost: 'localhost:587'\nroute:\n  group_by: ['alertname']\n  receiver: 'web.hook'\nreceivers:\n- name: 'web.hook'\n  webhook_configs:\n  - url: 'http://localhost:5001/'"
         },
-        "uptime": datetime.utcnow().isoformat() + "Z"
+        "uptime": datetime.now(UTC).isoformat() + "Z"
     })
 
 @app.route('/api/v2/receivers', methods=['GET'])
@@ -274,9 +274,9 @@ def post_alerts():
             alert = {
                 "labels": alert_data["labels"],
                 "annotations": alert_data.get("annotations", {}),
-                "startsAt": alert_data.get("startsAt", datetime.utcnow().isoformat() + "Z"),
-                "endsAt": alert_data.get("endsAt", (datetime.utcnow() + timedelta(hours=1)).isoformat() + "Z"),
-                "updatedAt": datetime.utcnow().isoformat() + "Z",
+                "startsAt": alert_data.get("startsAt", datetime.now(UTC).isoformat() + "Z"),
+                "endsAt": alert_data.get("endsAt", (datetime.now(UTC) + timedelta(hours=1)).isoformat() + "Z"),
+                "updatedAt": datetime.now(UTC).isoformat() + "Z",
                 "generatorURL": alert_data.get("generatorURL", ""),
                 "fingerprint": generate_fingerprint(),
                 "receivers": [{"name": random.choice(RECEIVER_NAMES)}],
@@ -378,7 +378,7 @@ def post_silences():
             "status": {
                 "state": "active"
             },
-            "updatedAt": datetime.utcnow().isoformat() + "Z"
+            "updatedAt": datetime.now(UTC).isoformat() + "Z"
         }
         
         # Check if updating existing silence
@@ -471,14 +471,14 @@ if __name__ == '__main__':
                     "isEqual": True
                 }
             ],
-            "startsAt": datetime.utcnow().isoformat() + "Z",
-            "endsAt": (datetime.utcnow() + timedelta(hours=2)).isoformat() + "Z",
+            "startsAt": datetime.now(UTC).isoformat() + "Z",
+            "endsAt": (datetime.now(UTC) + timedelta(hours=2)).isoformat() + "Z",
             "createdBy": "test-user@example.com",
             "comment": f"Test silence {_+1}",
             "status": {
                 "state": "active"
             },
-            "updatedAt": datetime.utcnow().isoformat() + "Z"
+            "updatedAt": datetime.now(UTC).isoformat() + "Z"
         }
         silences.append(silence)
     
