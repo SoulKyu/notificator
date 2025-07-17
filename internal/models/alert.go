@@ -27,6 +27,9 @@ type Alert struct {
 
 	// Status represents the current state of the alert
 	Status AlertStatus `json:"status"`
+
+	// Source indicates which Alertmanager this alert comes from
+	Source string `json:"-"`
 }
 
 // AlertStatus represents the state of an alert
@@ -45,8 +48,6 @@ type AlertmanagerResponse struct {
 // AlertmanagerV2Response represents the response from Alertmanager v2 API
 // v2 API returns alerts directly as an array, not wrapped in a response object
 type AlertmanagerV2Response []Alert
-
-// Helper methods for Alert
 
 // GetAlertName returns the alertname label value
 func (a *Alert) GetAlertName() string {
@@ -148,4 +149,12 @@ func (a *Alert) GetFingerprint() string {
 	labelString := strings.Join(labelPairs, ",")
 	hash := md5.Sum([]byte(labelString))
 	return fmt.Sprintf("%x", hash)
+}
+
+// GetSource returns the source Alertmanager name
+func (a *Alert) GetSource() string {
+	if a.Source != "" {
+		return a.Source
+	}
+	return "unknown"
 }

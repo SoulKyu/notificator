@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -83,6 +84,7 @@ type AlertsWindow struct {
 	app                  fyne.App
 	window               fyne.Window
 	client               *alertmanager.Client
+	multiClient          *alertmanager.MultiClient
 	backendClient        *BackendClient
 	backendHealthChecker *BackendHealthChecker
 	backendConnected     bool
@@ -106,11 +108,17 @@ type AlertsWindow struct {
 	statusBar      *fyne.Container
 
 	// Multi-select filter widgets
-	severityMultiSelect *MultiSelectWidget
-	statusMultiSelect   *MultiSelectWidget
-	teamMultiSelect     *MultiSelectWidget
-	ackMultiSelect      *MultiSelectWidget
-	commentMultiSelect  *MultiSelectWidget
+	alertmanagerMultiSelect *MultiSelectWidget
+	severityMultiSelect     *MultiSelectWidget
+	statusMultiSelect       *MultiSelectWidget
+	teamMultiSelect         *MultiSelectWidget
+	ackMultiSelect          *MultiSelectWidget
+	commentMultiSelect      *MultiSelectWidget
+
+	// Legacy single selects (kept for compatibility)
+	severitySelect *widget.Select
+	statusSelect   *widget.Select
+	teamSelect     *widget.Select
 
 	statusLabel *widget.Label
 	lastUpdate  *widget.Label
@@ -193,28 +201,38 @@ type AlertsWindow struct {
 	trayManager        *TrayManager
 	backgroundNotifier *BackgroundNotifier
 	isBackgroundMode   bool
+
+	// Alertmanager connection info
+	alertmanagerCount           int
+	alertmanagerNames           []string
+	alertmanagerHealthy         int
+	alertmanagerStatusContainer *fyne.Container
+	alertmanagerStatusDropdown  *widget.Select
+	alertmanagerStatusDetails   map[string]string
 }
 
 // StatusBarMetrics holds references to status bar metric labels
 type StatusBarMetrics struct {
-	criticalLabel *widget.Label
-	warningLabel  *widget.Label
-	infoLabel     *widget.Label
-	activeLabel   *widget.Label
-	totalLabel    *widget.Label
+	criticalLabel         *widget.Label
+	warningLabel          *widget.Label
+	infoLabel             *widget.Label
+	activeLabel           *widget.Label
+	totalLabel            *widget.Label
+	alertmanagerInfoLabel *widget.Label
 }
 
 // getDefaultColumns returns the default column configuration
 func getDefaultColumns() []ColumnConfig {
 	return []ColumnConfig{
-		{Name: "✓", Width: 40, MinWidth: 30, MaxWidth: 50},
+		{Name: "✓", Width: 35, MinWidth: 30, MaxWidth: 50},
+		{Name: "Alertmanager", Width: 150, MinWidth: 100, MaxWidth: 300},
 		{Name: "Alert", Width: 200, MinWidth: 100, MaxWidth: 400},
 		{Name: "Severity", Width: 120, MinWidth: 100, MaxWidth: 150},
 		{Name: "Status", Width: 120, MinWidth: 100, MaxWidth: 150},
 		{Name: "Ack", Width: 80, MinWidth: 60, MaxWidth: 120},
 		{Name: "Comments", Width: 80, MinWidth: 60, MaxWidth: 120},
 		{Name: "Team", Width: 120, MinWidth: 80, MaxWidth: 200},
-		{Name: "Summary", Width: 400, MinWidth: 200, MaxWidth: 800},
+		{Name: "Summary", Width: 600, MinWidth: 200, MaxWidth: 900},
 		{Name: "Duration", Width: 120, MinWidth: 80, MaxWidth: 200},
 		{Name: "Instance", Width: 200, MinWidth: 100, MaxWidth: 400},
 	}
@@ -391,7 +409,7 @@ func (ms *MultiSelectWidget) CreateRenderer() fyne.WidgetRenderer {
 }
 
 // NewAlertsWindow creates a new alerts window with enhanced features
-func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConfig interface{}) *AlertsWindow {
+func NewAlertsWindow(client interface{}, configPath string, initialConfig interface{}) *AlertsWindow {
 	myApp := app.NewWithID("com.notificator.alerts")
 
 	// The app icon will be set automatically from FyneApp.toml metadata
@@ -424,7 +442,6 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 	aw := &AlertsWindow{
 		app:                myApp,
 		window:             window,
-		client:             client,
 		alerts:             []models.Alert{},
 		previousAlerts:     []models.Alert{},
 		filteredData:       []models.Alert{},
@@ -487,23 +504,58 @@ func NewAlertsWindow(client *alertmanager.Client, configPath string, initialConf
 		aw.backendAuthenticated = false
 	}
 
+	// Handle different client types
+	if multiClient, ok := client.(*alertmanager.MultiClient); ok {
+		aw.multiClient = multiClient
+		// Use the first healthy client as primary for compatibility
+		healthyClients := multiClient.GetHealthyClients()
+		if len(healthyClients) > 0 {
+			for _, primaryClient := range healthyClients {
+				aw.client = primaryClient
+				break
+			}
+		}
+	} else if singleClient, ok := client.(*alertmanager.Client); ok {
+		aw.client = singleClient
+	} else {
+		log.Fatal("Invalid client type passed to NewAlertsWindow")
+	}
+
 	// Store config reference - handle both config types
 	if cfg, ok := initialConfig.(*config.Config); ok {
 		// Convert to our internal structure for compatibility
 		aw.config = &ConfigStruct{
 			GUI: GUIConfigStruct{
 				FilterState: FilterStateConfigStruct{
-					SearchText:         cfg.GUI.FilterState.SearchText,
-					SelectedSeverities: cfg.GUI.FilterState.SelectedSeverities,
-					SelectedStatuses:   cfg.GUI.FilterState.SelectedStatuses,
-					SelectedTeams:      cfg.GUI.FilterState.SelectedTeams,
+					SearchText:            cfg.GUI.FilterState.SearchText,
+					SelectedAlertmanagers: cfg.GUI.FilterState.SelectedAlertmanagers,
+					SelectedSeverities:    cfg.GUI.FilterState.SelectedSeverities,
+					SelectedStatuses:      cfg.GUI.FilterState.SelectedStatuses,
+					SelectedTeams:         cfg.GUI.FilterState.SelectedTeams,
 				},
 			},
 		}
 		// Store the original config for saving
 		aw.originalConfig = cfg
+
+		// Initialize Alertmanager connection info
+		aw.alertmanagerCount = len(cfg.Alertmanagers)
+		aw.alertmanagerNames = make([]string, len(cfg.Alertmanagers))
+		for i, am := range cfg.Alertmanagers {
+			aw.alertmanagerNames[i] = am.Name
+		}
+		// For now, assume all are healthy (will be updated during refresh)
+		aw.alertmanagerHealthy = len(cfg.Alertmanagers)
 	} else if cfg, ok := initialConfig.(*ConfigStruct); ok {
 		aw.config = cfg
+		// Default values for legacy config
+		aw.alertmanagerCount = 1
+		if aw.client != nil {
+			aw.alertmanagerNames = []string{aw.client.GetName()}
+		} else {
+			aw.alertmanagerNames = []string{"default"}
+		}
+		aw.alertmanagerHealthy = 1
 	}
 
 	// Initialize hidden alerts cache
@@ -584,12 +636,13 @@ type GUIConfigStruct struct {
 
 // FilterStateConfigStruct contains the state of filters
 type FilterStateConfigStruct struct {
-	SearchText         string          `json:"search_text"`
-	SelectedSeverities map[string]bool `json:"selected_severities"`
-	SelectedStatuses   map[string]bool `json:"selected_statuses"`
-	SelectedTeams      map[string]bool `json:"selected_teams"`
-	SelectedAcks       map[string]bool `json:"selected_acks"`
-	SelectedComments   map[string]bool `json:"selected_comments"`
+	SearchText            string          `json:"search_text"`
+	SelectedAlertmanagers map[string]bool `json:"selected_alertmanagers"`
+	SelectedSeverities    map[string]bool `json:"selected_severities"`
+	SelectedStatuses      map[string]bool `json:"selected_statuses"`
+	SelectedTeams         map[string]bool `json:"selected_teams"`
+	SelectedAcks          map[string]bool `json:"selected_acks"`
+	SelectedComments      map[string]bool `json:"selected_comments"`
 }
 
 type NotificationConfigStruct struct {
@@ -670,7 +723,7 @@ func (aw *AlertsWindow) updateNotificationFilters() {
 
 	// Get current filter states
 	var searchText string
-	var selectedSeverities, selectedStatuses, selectedTeams map[string]bool
+	var selectedSeverities, selectedStatuses, selectedTeams, selectedAlertmanagers map[string]bool
 
 	if aw.searchEntry != nil {
 		searchText = aw.searchEntry.Text
@@ -694,13 +747,20 @@ func (aw *AlertsWindow) updateNotificationFilters() {
 		selectedTeams = map[string]bool{"All": true}
 	}
 
+	if aw.alertmanagerMultiSelect != nil {
+		selectedAlertmanagers = aw.alertmanagerMultiSelect.GetSelected()
+	} else {
+		selectedAlertmanagers = map[string]bool{"All": true}
+	}
+
 	// Create filter state and update both notifiers
 	filterState := notifier.FilterState{
-		SearchText:         searchText,
-		SelectedSeverities: selectedSeverities,
-		SelectedStatuses:   selectedStatuses,
-		SelectedTeams:      selectedTeams,
-		ShowHiddenAlerts:   aw.showHiddenAlerts,
+		SearchText:            searchText,
+		SelectedAlertmanagers: selectedAlertmanagers,
+		SelectedSeverities:    selectedSeverities,
+		SelectedStatuses:      selectedStatuses,
+		SelectedTeams:         selectedTeams,
+		ShowHiddenAlerts:      aw.showHiddenAlerts,
 	}
 
 	aw.notifier.UpdateFilters(filterState)
@@ -724,7 +784,32 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 	}
 
 	go func() {
-		alerts, err := aw.client.FetchAlerts()
+		var alerts []models.Alert
+		var err error
+
+		if aw.multiClient != nil {
+			// Use MultiClient to get alerts with source information
+			alertsWithSource, multiErr := aw.multiClient.FetchAllAlerts()
+			if multiErr != nil {
+				err = multiErr
+			} else {
+				// Convert AlertWithSource to Alert and populate Source field
+				alerts = make([]models.Alert, len(alertsWithSource))
+				for i, aws := range alertsWithSource {
+					alerts[i] = aws.Alert
+					alerts[i].Source = aws.Source
+				}
+			}
+		} else {
+			// Use single client
+			alerts, err = aw.client.FetchAlerts()
+			// Set default source for single client
+			if err == nil && aw.client != nil {
+				for i := range alerts {
+					alerts[i].Source = aw.client.GetName()
+				}
+			}
+		}
 
 		fyne.Do(func() {
 			if err != nil {
@@ -743,6 +828,7 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 
 				if !aw.alertsChanged(aw.alerts, alerts) {
 					aw.setStatus("No changes detected")
+					aw.updateAlertmanagerInfo()
 					if aw.lastUpdate != nil {
 						aw.lastUpdate.SetText(time.Now().Format("15:04:05"))
 					}
@@ -758,10 +844,12 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 				aw.previousAlerts = aw.alerts
 				aw.alerts = alerts
 				aw.updateTeamFilter()
+				aw.updateAlertmanagerFilter()
 				aw.safeApplyFilters()
 				aw.updateDashboard()
 				aw.updateHiddenCountDisplay()
 				aw.updateResolvedCountDisplay()
+				aw.updateAlertmanagerInfo()
 
 				activeCount := 0
 				for _, alert := range alerts {
@@ -790,7 +878,32 @@ func (aw *AlertsWindow) loadAlertsWithCaching() {
 // loadAlertsInBackground performs background refresh with minimal UI disruption
 func (aw *AlertsWindow) loadAlertsInBackground() {
 	go func() {
-		alerts, err := aw.client.FetchAlerts()
+		var alerts []models.Alert
+		var err error
+
+		if aw.multiClient != nil {
+			// Use MultiClient to get alerts with source information
+			alertsWithSource, multiErr := aw.multiClient.FetchAllAlerts()
+			if multiErr != nil {
+				err = multiErr
+			} else {
+				// Convert AlertWithSource to Alert and populate Source field
+				alerts = make([]models.Alert, len(alertsWithSource))
+				for i, aws := range alertsWithSource {
+					alerts[i] = aws.Alert
+					alerts[i].Source = aws.Source
+				}
+			}
+		} else {
+			// Use single client
+			alerts, err = aw.client.FetchAlerts()
+			// Set default source for single client
+			if err == nil && aw.client != nil {
+				for i := range alerts {
+					alerts[i].Source = aw.client.GetName()
+				}
+			}
+		}
 
 		fyne.Do(func() {
 			if err != nil {
@@ -814,6 +927,7 @@ func (aw *AlertsWindow) loadAlertsInBackground() {
 				aw.previousAlerts = aw.alerts
 				aw.alerts = alerts
 				aw.updateTeamFilter()
+				aw.updateAlertmanagerFilter()
 				aw.safeApplyFilters()
 				aw.updateDashboard()
 				aw.updateHiddenCountDisplay()
@@ -1007,8 +1121,13 @@ func (aw *AlertsWindow) startConnectionHealthMonitoring() {
 
 // isUIReady checks if the main UI components are initialized
 func (aw *AlertsWindow) isUIReady() bool {
-	return aw.uiReady && aw.table != nil && aw.searchEntry != nil &&
-		aw.severityMultiSelect != nil && aw.statusMultiSelect != nil && aw.teamMultiSelect != nil
+	return aw.uiReady &&
+		aw.table != nil &&
+		aw.searchEntry != nil &&
+		aw.severityMultiSelect != nil &&
+		aw.statusMultiSelect != nil &&
+		aw.teamMultiSelect != nil &&
+		aw.alertmanagerMultiSelect != nil
 }
 
 // safeApplyFilters applies filters only if table is initialized
@@ -1030,7 +1149,7 @@ func (aw *AlertsWindow) applyFilters() {
 	searchText := strings.ToLower(aw.searchEntry.Text)
 
 	// Get selected filters
-	var selectedSeverities, selectedStatuses, selectedTeams, selectedAcks, selectedComments map[string]bool
+	var selectedSeverities, selectedStatuses, selectedTeams, selectedAcks, selectedComments, selectedAlertmanagers map[string]bool
 
 	if aw.severityMultiSelect != nil {
 		selectedSeverities = aw.severityMultiSelect.GetSelected()
@@ -1060,6 +1179,12 @@ func (aw *AlertsWindow) applyFilters() {
 		selectedComments = aw.commentMultiSelect.GetSelected()
 	} else {
 		selectedComments = map[string]bool{"All": true}
+	}
+
+	if aw.alertmanagerMultiSelect != nil {
+		selectedAlertmanagers = aw.alertmanagerMultiSelect.GetSelected()
+	} else {
+		selectedAlertmanagers = map[string]bool{"All": true}
 	}
 
 	// Determine which alerts to process based on view mode
@@ -1096,6 +1221,11 @@ func (aw *AlertsWindow) applyFilters() {
 			if !searchMatch {
 				continue
 			}
+		}
+
+		// Apply multi-select alertmanager filter
+		if !selectedAlertmanagers["All"] && !selectedAlertmanagers[alert.GetSource()] {
+			continue
 		}
 
 		// Apply multi-select severity filter
@@ -1214,11 +1344,62 @@ func (aw *AlertsWindow) updateTeamFilter() {
 	aw.teamMultiSelect.updateButton()
 }
 
+// updateAlertmanagerFilter populates the alertmanager filter with unique alertmanagers from alerts
+func (aw *AlertsWindow) updateAlertmanagerFilter() {
+	if aw.alertmanagerMultiSelect == nil {
+		return
+	}
+
+	alertmanagers := make(map[string]bool)
+	for _, alert := range aw.alerts {
+		source := alert.GetSource()
+		if source != "unknown" && source != "" {
+			alertmanagers[source] = true
+		}
+	}
+
+	alertmanagerOptions := []string{"All"}
+	for alertmanager := range alertmanagers {
+		alertmanagerOptions = append(alertmanagerOptions, alertmanager)
+	}
+
+	// Sort alertmanager options, excluding "All"
+	sort.Strings(alertmanagerOptions[1:])
+
+	// Preserve current selection when updating options
+	currentSelection := aw.alertmanagerMultiSelect.GetSelected()
+	aw.alertmanagerMultiSelect.options = alertmanagerOptions
+
+	// Restore selection, but only keep valid options
+	validSelection := make(map[string]bool)
+	for option, selected := range currentSelection {
+		if selected {
+			// Check if this option still exists in the new options
+			if slices.Contains(alertmanagerOptions, option) {
+				validSelection[option] = true
+			}
+		}
+	}
+
+	// If no valid selections remain, default to "All"
+	if len(validSelection) == 0 {
+		validSelection["All"] = true
+	}
+
+	aw.alertmanagerMultiSelect.selected = validSelection
+	aw.alertmanagerMultiSelect.updateButton()
+}
+
 // clearFilters resets all filters to default state
 func (aw *AlertsWindow) clearFilters() {
 	aw.searchEntry.SetText("")
 
 	// Reset multi-select filters to "All"
+	if aw.alertmanagerMultiSelect != nil {
+		aw.alertmanagerMultiSelect.selected = map[string]bool{"All": true}
+		aw.alertmanagerMultiSelect.updateButton()
+	}
+
 	if aw.severityMultiSelect != nil {
 		aw.severityMultiSelect.selected = map[string]bool{"All": true}
 		aw.severityMultiSelect.updateButton()
@@ -1560,9 +1741,11 @@ func (aw *AlertsWindow) sortFilteredData() {
 		var result bool
 
 		switch aw.sortColumn {
-		case 0: // Alert name
+		case 0: // Alertmanager name
+			result = strings.Compare(aw.filteredData[i].GetSource(), aw.filteredData[j].GetSource()) < 0
+		case 1: // Alert name
 			result = strings.Compare(aw.filteredData[i].GetAlertName(), aw.filteredData[j].GetAlertName()) < 0
-		case 1: // Severity
+		case 2: // Severity
 			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
 			sev1, exists1 := severityOrder[aw.filteredData[i].GetSeverity()]
 			if !exists1 {
@@ -1573,25 +1756,25 @@ func (aw *AlertsWindow) sortFilteredData() {
 				sev2 = 4
 			}
 			result = sev1 < sev2
-		case 2: // Status
+		case 3: // Status
 			result = strings.Compare(aw.filteredData[i].Status.State, aw.filteredData[j].Status.State) < 0
-		case 3: // Acknowledgment
+		case 4: // Acknowledgment
 			// Sort by acknowledgment status (acknowledged alerts first when ascending)
 			ackCountI := aw.getAcknowledgmentCountForSort(aw.filteredData[i])
 			ackCountJ := aw.getAcknowledgmentCountForSort(aw.filteredData[j])
 			result = ackCountI > ackCountJ // More acknowledgments = higher priority
-		case 4: // Comments
+		case 5: // Comments
 			// Sort by comment count
 			commentCountI := aw.getCommentCountForSort(aw.filteredData[i])
 			commentCountJ := aw.getCommentCountForSort(aw.filteredData[j])
 			result = commentCountI > commentCountJ // More comments = higher priority  
-		case 5: // Team
+		case 6: // Team
 			result = strings.Compare(aw.filteredData[i].GetTeam(), aw.filteredData[j].GetTeam()) < 0
-		case 6: // Summary
+		case 7: // Summary
 			result = strings.Compare(aw.filteredData[i].GetSummary(), aw.filteredData[j].GetSummary()) < 0
-		case 7: // Duration
+		case 8: // Duration
 			result = aw.filteredData[i].Duration() < aw.filteredData[j].Duration()
-		case 8: // Instance
+		case 9: // Instance
 			result = strings.Compare(aw.filteredData[i].GetInstance(), aw.filteredData[j].GetInstance()) < 0
 		default:
 			// Default sort by severity then start time
@@ -2231,10 +2414,16 @@ func (aw *AlertsWindow) saveFilterState() {
 
 	// Get current filter state
 	var searchText string
-	var selectedSeverities, selectedStatuses, selectedTeams, selectedAcks, selectedComments map[string]bool
+	var selectedSeverities, selectedStatuses, selectedTeams, selectedAcks, selectedComments, selectedAlertmanagers map[string]bool
 
 	if aw.searchEntry != nil {
 		searchText = aw.searchEntry.Text
+	}
+
+	if aw.alertmanagerMultiSelect != nil {
+		selectedAlertmanagers = aw.alertmanagerMultiSelect.GetSelected()
+	} else {
+		selectedAlertmanagers = map[string]bool{"All": true}
 	}
 
 	if aw.severityMultiSelect != nil {
@@ -2274,6 +2463,7 @@ func (aw *AlertsWindow) saveFilterState() {
 	aw.originalConfig.GUI.FilterState.SelectedTeams = selectedTeams
 	aw.originalConfig.GUI.FilterState.SelectedAcks = selectedAcks
 	aw.originalConfig.GUI.FilterState.SelectedComments = selectedComments
+	aw.originalConfig.GUI.FilterState.SelectedAlertmanagers = selectedAlertmanagers
 
 	// Save the original config to file
 	if err := aw.originalConfig.SaveToFile(aw.configPath); err != nil {
@@ -2292,6 +2482,15 @@ func (aw *AlertsWindow) loadFilterState() {
 	// Restore search text
 	if aw.searchEntry != nil && filterState.SearchText != "" {
 		aw.searchEntry.SetText(filterState.SearchText)
+	}
+
+	// Restore alertmanager filter
+	if aw.alertmanagerMultiSelect != nil && filterState.SelectedAlertmanagers != nil {
+		aw.alertmanagerMultiSelect.selected = make(map[string]bool)
+		for k, v := range filterState.SelectedAlertmanagers {
+			aw.alertmanagerMultiSelect.selected[k] = v
+		}
+		aw.alertmanagerMultiSelect.updateButton()
 	}
 
 	// Restore severity filter
@@ -2441,4 +2640,128 @@ func (aw *AlertsWindow) tryAutoLogin() {
 			aw.updateUserInterface()
 		})
 	}
+}
+
+// updateAlertmanagerInfo updates the Alertmanager connection information
+func (aw *AlertsWindow) updateAlertmanagerInfo() {
+	if aw.statusBarMetrics == nil || aw.statusBarMetrics.alertmanagerInfoLabel == nil {
+		return
+	}
+
+	// Update health status based on MultiClient or single client
+	if aw.multiClient != nil {
+		// Use MultiClient to get real health status
+		healthStatus := aw.multiClient.GetHealthStatus()
+		healthyCount := 0
+		for _, isHealthy := range healthStatus {
+			if isHealthy {
+				healthyCount++
+			}
+		}
+		aw.alertmanagerHealthy = healthyCount
+	} else {
+		// Use single client health status
+		if aw.connectionHealth.IsHealthy {
+			aw.alertmanagerHealthy = aw.alertmanagerCount
+		} else {
+			aw.alertmanagerHealthy = 0
+		}
+	}
+
+	// Update the label text
+	labelText := fmt.Sprintf("📡 %d/%d Alertmanagers", aw.alertmanagerHealthy, aw.alertmanagerCount)
+
+	// Add more detailed text for multiple Alertmanagers
+	if len(aw.alertmanagerNames) > 1 {
+		// Show names in the label text for multiple Alertmanagers
+		shortNames := make([]string, 0, len(aw.alertmanagerNames))
+		for _, name := range aw.alertmanagerNames {
+			if len(name) > 8 {
+				shortNames = append(shortNames, name[:8]+"...")
+			} else {
+				shortNames = append(shortNames, name)
+			}
+		}
+		if len(shortNames) <= 3 {
+			labelText = fmt.Sprintf("📡 %d/%d (%s)", aw.alertmanagerHealthy, aw.alertmanagerCount, strings.Join(shortNames, ", "))
+		}
+	}
+
+	aw.statusBarMetrics.alertmanagerInfoLabel.SetText(labelText)
+
+	// Update the color based on health status
+	if aw.alertmanagerHealthy == aw.alertmanagerCount {
+		aw.statusBarMetrics.alertmanagerInfoLabel.Importance = widget.SuccessImportance
+	} else if aw.alertmanagerHealthy > 0 {
+		aw.statusBarMetrics.alertmanagerInfoLabel.Importance = widget.WarningImportance
+	} else {
+		aw.statusBarMetrics.alertmanagerInfoLabel.Importance = widget.DangerImportance
+	}
+
+	// Refresh the label
+	aw.statusBarMetrics.alertmanagerInfoLabel.Refresh()
+
+	// Update the status container as well
+	// TODO: Implement updateAlertmanagerStatusContainer method if needed
+	// aw.updateAlertmanagerStatusContainer()
+}
+
+// updateAlertmanagerHealthStatus updates the health status of Alertmanagers
+func (aw *AlertsWindow) updateAlertmanagerHealthStatus(healthyCount int) {
+	aw.alertmanagerHealthy = healthyCount
+	aw.updateAlertmanagerInfo()
+}
+
+// getAlertmanagerInfo returns formatted information about Alertmanagers
+func (aw *AlertsWindow) getAlertmanagerInfo() string {
+	if len(aw.alertmanagerNames) == 0 {
+		return "No Alertmanagers configured"
+	}
+
+	if len(aw.alertmanagerNames) == 1 {
+		return fmt.Sprintf("Connected to: %s", aw.alertmanagerNames[0])
+	}
+
+	return fmt.Sprintf("Connected to %d Alertmanagers: %s",
+		len(aw.alertmanagerNames),
+		strings.Join(aw.alertmanagerNames, ", "))
+}
+
+// showAlertmanagerInfo displays detailed information about configured Alertmanagers
+func (aw *AlertsWindow) showAlertmanagerInfo() {
+	if len(aw.alertmanagerNames) == 0 {
+		content := widget.NewLabel("No Alertmanagers configured")
+		dialog.ShowInformation("Alertmanager Information", content.Text, aw.window)
+		return
+	}
+
+	// Create a formatted list of Alertmanagers
+	var infoText strings.Builder
+	infoText.WriteString(fmt.Sprintf("Total Alertmanagers: %d\n", aw.alertmanagerCount))
+	infoText.WriteString(fmt.Sprintf("Healthy Alertmanagers: %d\n\n", aw.alertmanagerHealthy))
+
+	infoText.WriteString("Configured Alertmanagers:\n")
+	for i, name := range aw.alertmanagerNames {
+		status := "✅ Healthy"
+		if aw.alertmanagerHealthy < aw.alertmanagerCount {
+			// For now, assume the primary client health applies to all
+			if !aw.connectionHealth.IsHealthy {
+				status = "❌ Unhealthy"
+			}
+		}
+		infoText.WriteString(fmt.Sprintf("  %d. %s - %s\n", i+1, name, status))
+	}
+
+	if aw.alertmanagerCount > 1 {
+		infoText.WriteString(fmt.Sprintf("\nNote: Currently using '%s' as primary client for GUI.\n", aw.client.GetName()))
+		infoText.WriteString("Full MultiClient support coming in future updates.")
+	}
+
+	content := widget.NewLabel(infoText.String())
+	content.Wrapping = fyne.TextWrapWord
+
+	scroll := container.NewScroll(content)
+	scroll.SetMinSize(fyne.NewSize(400, 200))
+
+	dialog.ShowCustom("Alertmanager Information", "Close", scroll, aw.window)
 }
