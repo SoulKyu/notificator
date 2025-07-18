@@ -15,6 +15,8 @@ Here's what it does:
 - Updates in real-time (no more F5 spam!)
 - Lets you search and filter alerts easily
 - You can create silences directly from the app
+- Resizable columns (drag column borders like in Excel!)
+- Configurable column widths through settings dialog
 
 ## Let's get started
 

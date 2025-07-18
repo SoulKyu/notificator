@@ -89,14 +89,14 @@ func (aw *AlertsWindow) createMainToolbar() *fyne.Container {
 		aw.toggleGroupedMode()
 	})
 	aw.groupToggleBtn.Importance = widget.MediumImportance
-	
+
 	aw.showResolvedBtn = widget.NewButtonWithIcon("Resolved", theme.ConfirmIcon(), aw.toggleShowResolved)
 	aw.showResolvedBtn.Importance = widget.MediumImportance
 
 	// Create tools dropdown menu
 	toolsDropdown := aw.createToolsDropdown()
 
-	// Create settings dropdown menu  
+	// Create settings dropdown menu
 	settingsDropdown := aw.createSettingsDropdown()
 
 	// Left section - primary actions
@@ -107,7 +107,7 @@ func (aw *AlertsWindow) createMainToolbar() *fyne.Container {
 		connectionIndicator,
 	)
 
-	// Center section - view controls  
+	// Center section - view controls
 	centerSection := container.NewHBox(
 		aw.themeBtn,
 		widget.NewSeparator(),
@@ -132,23 +132,23 @@ func (aw *AlertsWindow) createMainToolbar() *fyne.Container {
 		layout.NewSpacer(),
 		rightSection,
 	}
-	
+
 	if aw.backendStatusBtn != nil {
 		toolbarItems = append([]fyne.CanvasObject{
 			aw.backendStatusBtn,
 			widget.NewSeparator(),
 		}, toolbarItems...)
 	}
-	
+
 	return container.NewHBox(toolbarItems...)
 }
 
 func (aw *AlertsWindow) createToolsDropdown() *widget.Button {
 	toolsBtn := widget.NewButtonWithIcon("Tools", theme.MenuIcon(), nil)
-	
+
 	toolsBtn.OnTapped = func() {
 		columnBtn := widget.NewButtonWithIcon("Columns", theme.ViewFullScreenIcon(), aw.showColumnSettings)
-		
+
 		backgroundModeBtn := widget.NewButtonWithIcon("Background", theme.VisibilityOffIcon(), func() {
 			aw.ToggleBackgroundMode()
 		})
@@ -158,14 +158,14 @@ func (aw *AlertsWindow) createToolsDropdown() *widget.Button {
 
 		content := container.NewVBox(columnBtn, backgroundModeBtn)
 		popup := widget.NewPopUp(content, aw.window.Canvas())
-		
+
 		buttonPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(toolsBtn)
 		buttonSize := toolsBtn.Size()
 		dropdownPos := fyne.NewPos(
-			buttonPos.X + buttonSize.Width - content.MinSize().Width,
-			buttonPos.Y + buttonSize.Height,
+			buttonPos.X+buttonSize.Width-content.MinSize().Width,
+			buttonPos.Y+buttonSize.Height,
 		)
-		
+
 		popup.ShowAtPosition(dropdownPos)
 	}
 	return toolsBtn
@@ -173,31 +173,30 @@ func (aw *AlertsWindow) createToolsDropdown() *widget.Button {
 
 func (aw *AlertsWindow) createSettingsDropdown() *widget.Button {
 	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), nil)
-	
+
 	settingsBtn.OnTapped = func() {
 		themeBtn := aw.createThemeToggle()
 		settingsMenuBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), aw.handleSettings)
-		
+
 		content := container.NewVBox(
 			themeBtn,
 			widget.NewSeparator(),
 			settingsMenuBtn,
 		)
-		
+
 		popup := widget.NewPopUp(content, aw.window.Canvas())
-		
+
 		buttonPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(settingsBtn)
 		buttonSize := settingsBtn.Size()
 		dropdownPos := fyne.NewPos(
-			buttonPos.X + buttonSize.Width - content.MinSize().Width,
-			buttonPos.Y + buttonSize.Height,
+			buttonPos.X+buttonSize.Width-content.MinSize().Width,
+			buttonPos.Y+buttonSize.Height,
 		)
-		
+
 		popup.ShowAtPosition(dropdownPos)
 	}
 	return settingsBtn
 }
-
 
 func (aw *AlertsWindow) createAcknowledgmentIndicator(alert models.Alert) fyne.CanvasObject {
 	// If backend is not available or user not authenticated, show nothing
@@ -207,7 +206,7 @@ func (aw *AlertsWindow) createAcknowledgmentIndicator(alert models.Alert) fyne.C
 
 	// Create a container for the indicator
 	container := container.NewHBox()
-	
+
 	// Default to unacknowledged
 	indicator := widget.NewLabel("○")
 	indicator.Importance = widget.LowImportance
@@ -229,12 +228,12 @@ func (aw *AlertsWindow) createAcknowledgmentIndicator(alert models.Alert) fyne.C
 		fyne.Do(func() {
 			// Clear existing content
 			container.RemoveAll()
-			
+
 			if len(acknowledgments) > 0 {
 				// Show acknowledged indicator
 				ackIndicator := widget.NewLabel("✓")
 				ackIndicator.Importance = widget.SuccessImportance
-				
+
 				// Show count if multiple acknowledgments
 				if len(acknowledgments) > 1 {
 					countLabel := widget.NewLabel(fmt.Sprintf("(%d)", len(acknowledgments)))
@@ -265,7 +264,7 @@ func (aw *AlertsWindow) createCommentIndicator(alert models.Alert) fyne.CanvasOb
 
 	// Create a container for the indicator
 	container := container.NewHBox()
-	
+
 	// Default to no comments
 	indicator := widget.NewLabel("💬")
 	indicator.Importance = widget.LowImportance
@@ -287,7 +286,7 @@ func (aw *AlertsWindow) createCommentIndicator(alert models.Alert) fyne.CanvasOb
 		fyne.Do(func() {
 			// Clear existing content
 			container.RemoveAll()
-			
+
 			if len(comments) > 0 {
 				// Show comment count
 				countLabel := widget.NewLabel(fmt.Sprintf("%d", len(comments)))
@@ -525,26 +524,64 @@ func (aw *AlertsWindow) createTable() fyne.CanvasObject {
 
 // createFlatTable creates the traditional flat table
 func (aw *AlertsWindow) createFlatTable() fyne.CanvasObject {
-	aw.table = widget.NewTable(
+	aw.table = widget.NewTableWithHeaders(
 		func() (int, int) {
-			return len(aw.filteredData) + 1, len(aw.columns)
+			return len(aw.filteredData), len(aw.columns)
 		},
 		func() fyne.CanvasObject {
-			return container.NewHBox(widget.NewLabel("Template"))
+			return container.NewStack()
 		},
 		func(i widget.TableCellID, o fyne.CanvasObject) {
-			if i.Row == 0 {
-				aw.renderTableHeader(i, o)
-				return
-			}
-
-			if i.Row-1 < len(aw.filteredData) {
-				alert := aw.filteredData[i.Row-1]
-				dataRowIndex := i.Row - 1
-				aw.renderFlatAlertRow(i, o, alert, dataRowIndex)
+			if i.Row < len(aw.filteredData) {
+				alert := aw.filteredData[i.Row]
+				aw.renderFlatAlertRow(i, o, alert, i.Row)
 			}
 		},
 	)
+
+	// Enable column headers (this makes them resizable!)
+	aw.table.ShowHeaderColumn = true
+
+	// Create header buttons for sorting
+	aw.table.CreateHeader = func() fyne.CanvasObject {
+		return widget.NewButton("", func() {})
+	}
+
+	// Set up header content
+	aw.table.UpdateHeader = func(id widget.TableCellID, obj fyne.CanvasObject) {
+		if button, ok := obj.(*widget.Button); ok {
+			if id.Col == -1 {
+				// Row header column - show row numbers
+				button.SetText(fmt.Sprintf("%d", id.Row))
+				button.Importance = widget.LowImportance
+				button.Disable()
+			} else if id.Col >= 0 && id.Col < len(aw.columns) {
+				// Regular column headers
+				button.SetText(aw.columns[id.Col].Name)
+				button.Importance = widget.MediumImportance
+				
+				// Set sort indicator icon
+				if aw.sortColumn == id.Col {
+					if aw.sortAscending {
+						button.Icon = theme.MoveUpIcon()
+					} else {
+						button.Icon = theme.MoveDownIcon()
+					}
+				} else {
+					button.Icon = nil
+				}
+				
+				// Set up click handler for sorting
+				button.OnTapped = func() {
+					aw.handleColumnSort(id.Col)
+				}
+				button.Enable()
+				fyne.Do(func() {
+					button.Refresh()
+				})
+			}
+		}
+	}
 
 	aw.applyColumnWidths()
 
@@ -555,8 +592,8 @@ func (aw *AlertsWindow) createFlatTable() fyne.CanvasObject {
 			return
 		}
 
-		if id.Row > 0 && id.Row-1 < len(aw.filteredData) {
-			alert := aw.filteredData[id.Row-1]
+		if id.Row < len(aw.filteredData) {
+			alert := aw.filteredData[id.Row]
 			aw.showAlertDetails(alert)
 		}
 	}
@@ -570,25 +607,64 @@ func (aw *AlertsWindow) createGroupedTable() fyne.CanvasObject {
 	aw.alertGroups = aw.createGroupedAlertsFromFiltered()
 	aw.tableRows = aw.createTableRowsFromGroups(aw.alertGroups)
 
-	aw.table = widget.NewTable(
+	aw.table = widget.NewTableWithHeaders(
 		func() (int, int) {
-			return len(aw.tableRows) + 1, len(aw.columns)
+			return len(aw.tableRows), len(aw.columns)
 		},
 		func() fyne.CanvasObject {
-			return container.NewHBox(widget.NewLabel("Template"))
+			return container.NewStack()
 		},
 		func(i widget.TableCellID, o fyne.CanvasObject) {
-			if i.Row == 0 {
-				aw.renderTableHeader(i, o)
-				return
-			}
-
-			if i.Row-1 < len(aw.tableRows) {
-				row := aw.tableRows[i.Row-1]
+			if i.Row < len(aw.tableRows) {
+				row := aw.tableRows[i.Row]
 				aw.renderTableRow(i, o, row)
 			}
 		},
 	)
+
+	// Enable column headers (this makes them resizable!)
+	aw.table.ShowHeaderColumn = true
+
+	// Create header buttons for sorting
+	aw.table.CreateHeader = func() fyne.CanvasObject {
+		return widget.NewButton("", func() {})
+	}
+
+	// Set up header content
+	aw.table.UpdateHeader = func(id widget.TableCellID, obj fyne.CanvasObject) {
+		if button, ok := obj.(*widget.Button); ok {
+			if id.Col == -1 {
+				// Row header column - show row numbers
+				button.SetText(fmt.Sprintf("%d", id.Row))
+				button.Importance = widget.LowImportance
+				button.Disable()
+			} else if id.Col >= 0 && id.Col < len(aw.columns) {
+				// Regular column headers
+				button.SetText(aw.columns[id.Col].Name)
+				button.Importance = widget.MediumImportance
+				
+				// Set sort indicator icon
+				if aw.sortColumn == id.Col {
+					if aw.sortAscending {
+						button.Icon = theme.MoveUpIcon()
+					} else {
+						button.Icon = theme.MoveDownIcon()
+					}
+				} else {
+					button.Icon = nil
+				}
+				
+				// Set up click handler for sorting
+				button.OnTapped = func() {
+					aw.handleColumnSort(id.Col)
+				}
+				button.Enable()
+				fyne.Do(func() {
+					button.Refresh()
+				})
+			}
+		}
+	}
 
 	aw.applyColumnWidths()
 
@@ -617,49 +693,59 @@ func (aw *AlertsWindow) renderFlatAlertRow(cellID widget.TableCellID, obj fyne.C
 				aw.updateSelectionLabel()
 			})
 			checkbox.SetChecked(aw.selectedAlerts[dataRowIndex])
-			cellContainer.Add(checkbox)
+			cellContainer.Objects = []fyne.CanvasObject{checkbox}
 
-		case 1: // Alertmanager name
-			cellContainer.Add(widget.NewLabel(alert.GetSource()))
-
-		case 2: // Alert name
-			label := widget.NewLabel(alert.GetAlertName())
+		case 1: // Alert name
+			alertName := alert.GetAlertName()
 			if aw.showHiddenAlerts {
-				label.SetText("🙈 " + alert.GetAlertName())
+				alertName = "🙈 " + alertName
 			}
-			cellContainer.Add(label)
+			label := widget.NewLabel(alertName)
+			label.Truncation = fyne.TextTruncateEllipsis
+			label.Wrapping = fyne.TextWrapOff
+			cellContainer.Objects = []fyne.CanvasObject{label}
 
-		case 3: // Severity
-			cellContainer.Add(aw.createSeverityBadge(alert))
+		case 2: // Acknowledgment
+			cellContainer.Objects = []fyne.CanvasObject{aw.createAcknowledgmentIndicator(alert)}
 
-		case 4: // Status
-			cellContainer.Add(aw.createStatusBadge(alert))
+		case 3: // Instance
+			label := widget.NewLabel(alert.GetInstance())
+			label.Truncation = fyne.TextTruncateEllipsis
+			label.Wrapping = fyne.TextWrapOff
+			cellContainer.Objects = []fyne.CanvasObject{label}
 
-		case 5: // Acknowledgment
-			cellContainer.Add(aw.createAcknowledgmentIndicator(alert))
+		case 4: // Severity
+			cellContainer.Objects = []fyne.CanvasObject{aw.createSeverityBadge(alert)}
+
+		case 5: // Status
+			cellContainer.Objects = []fyne.CanvasObject{aw.createStatusBadge(alert)}
 
 		case 6: // Comments
-			cellContainer.Add(aw.createCommentIndicator(alert))
+			cellContainer.Objects = []fyne.CanvasObject{aw.createCommentIndicator(alert)}
 
 		case 7: // Team
-			cellContainer.Add(widget.NewLabel(alert.GetTeam()))
+			label := widget.NewLabel(alert.GetTeam())
+			label.Truncation = fyne.TextTruncateEllipsis
+			label.Wrapping = fyne.TextWrapOff
+			cellContainer.Objects = []fyne.CanvasObject{label}
 
 		case 8: // Summary
-			summary := alert.GetSummary()
-			maxLen := int(aw.columns[8].Width / 6)
-			if maxLen < 20 {
-				maxLen = 20
-			}
-			if len(summary) > maxLen {
-				summary = summary[:maxLen-3] + "..."
-			}
-			cellContainer.Add(widget.NewLabel(summary))
+			label := widget.NewLabel(alert.GetSummary())
+			label.Truncation = fyne.TextTruncateEllipsis
+			label.Wrapping = fyne.TextWrapOff
+			cellContainer.Objects = []fyne.CanvasObject{label}
 
 		case 9: // Duration
-			cellContainer.Add(widget.NewLabel(formatDuration(alert.Duration())))
+			label := widget.NewLabel(formatDuration(alert.Duration()))
+			label.Truncation = fyne.TextTruncateEllipsis
+			label.Wrapping = fyne.TextWrapOff
+			cellContainer.Objects = []fyne.CanvasObject{label}
 
-		case 10: // Instance
-			cellContainer.Add(widget.NewLabel(alert.GetInstance()))
+		case 10: // Alertmanager name
+			label := widget.NewLabel(alert.GetSource())
+			label.Truncation = fyne.TextTruncateEllipsis
+			label.Wrapping = fyne.TextWrapOff
+			cellContainer.Objects = []fyne.CanvasObject{label}
 		}
 	}
 }
@@ -821,9 +907,9 @@ func (aw *AlertsWindow) renderGroupRow(cellID widget.TableCellID, cellContainer 
 		groupSelected := aw.selectedAlerts[row.RowIndex]
 		allAlertsSelected := aw.areAllGroupAlertsSelected(row.GroupIndex)
 		checkbox.SetChecked(groupSelected || allAlertsSelected)
-		cellContainer.Add(checkbox)
+		cellContainer.Objects = []fyne.CanvasObject{checkbox}
 
-	case 1: // Alert name with expand/collapse button
+	case 1: // Alert name with expand/collapse button and group name
 		var expandIcon fyne.Resource
 		if group.IsExpanded {
 			expandIcon = theme.MenuDropDownIcon()
@@ -836,28 +922,54 @@ func (aw *AlertsWindow) renderGroupRow(cellID widget.TableCellID, cellContainer 
 		})
 		expandBtn.Importance = widget.LowImportance
 
-		nameLabel := widget.NewLabelWithStyle(
-			fmt.Sprintf("📋 %s", group.AlertName),
-			fyne.TextAlignLeading,
-			fyne.TextStyle{Bold: true},
-		)
+		groupName := fmt.Sprintf("📋 %s (%d alerts)", group.AlertName, group.TotalCount)
+		nameLabel := widget.NewLabelWithStyle(groupName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		// Use ellipsis truncation for group names but with proper wrapping
+		nameLabel.Truncation = fyne.TextTruncateClip
+		nameLabel.Wrapping = fyne.TextWrapOff
 
-		cellContainer.Add(container.NewHBox(expandBtn, nameLabel))
+		// Use HBox with proper sizing - button takes fixed space, label takes remaining
+		expandBtn.Resize(fyne.NewSize(30, 24)) // Fixed size for button
+		container := container.NewHBox(expandBtn, nameLabel)
+		cellContainer.Objects = []fyne.CanvasObject{container}
 
-	case 2: // Severity summary
+	case 2: // Acknowledgment - show basic acknowledgment indicator
+		// For groups, show a basic acknowledgment status
+		// TODO: Implement proper acknowledgment checking for groups
+		label := widget.NewLabel("-")
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		cellContainer.Objects = []fyne.CanvasObject{label}
+
+	case 3: // Instance count
+		instanceCount := len(aw.getUniqueInstances(group.Alerts))
+		instanceLabel := widget.NewLabel(fmt.Sprintf("%d instances", instanceCount))
+		instanceLabel.Truncation = fyne.TextTruncateEllipsis
+		instanceLabel.Wrapping = fyne.TextWrapOff
+		cellContainer.Objects = []fyne.CanvasObject{instanceLabel}
+
+	case 4: // Severity summary
 		severityText := aw.createSeveritySummary(group)
 		severityLabel := widget.NewRichText(&widget.TextSegment{
 			Text:  severityText,
 			Style: widget.RichTextStyle{},
 		})
-		cellContainer.Add(severityLabel)
+		cellContainer.Objects = []fyne.CanvasObject{severityLabel}
 
-	case 3: // Status summary
+	case 5: // Status summary
 		statusText := aw.createStatusSummary(group)
 		statusLabel := widget.NewLabel(statusText)
-		cellContainer.Add(statusLabel)
+		cellContainer.Objects = []fyne.CanvasObject{statusLabel}
 
-	case 4: // Team (first team found)
+	case 6: // Comments - show basic comments indicator
+		// For groups, show a basic comments status
+		// TODO: Implement proper comments checking for groups
+		label := widget.NewLabel("-")
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		cellContainer.Objects = []fyne.CanvasObject{label}
+
+	case 7: // Team (first team found)
 		team := "Mixed"
 		if len(group.Alerts) > 0 {
 			team = group.Alerts[0].GetTeam()
@@ -869,18 +981,22 @@ func (aw *AlertsWindow) renderGroupRow(cellID widget.TableCellID, cellContainer 
 				}
 			}
 		}
-		teamLabel := widget.NewLabel(team)
-		cellContainer.Add(teamLabel)
+		label := widget.NewLabel(team)
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		cellContainer.Objects = []fyne.CanvasObject{label}
 
-	case 5: // Summary (count of alerts)
+	case 8: // Summary (count of alerts)
 		summaryText := fmt.Sprintf("📊 %d alerts", group.TotalCount)
 		if group.ActiveCount > 0 {
 			summaryText += fmt.Sprintf(" (%d active)", group.ActiveCount)
 		}
 		summaryLabel := widget.NewLabel(summaryText)
-		cellContainer.Add(summaryLabel)
+		summaryLabel.Truncation = fyne.TextTruncateEllipsis
+		summaryLabel.Wrapping = fyne.TextWrapOff
+		cellContainer.Objects = []fyne.CanvasObject{summaryLabel}
 
-	case 6: // Duration (newest alert)
+	case 9: // Duration (newest alert)
 		if len(group.Alerts) > 0 {
 			// Find the most recent alert
 			newest := group.Alerts[0]
@@ -890,15 +1006,27 @@ func (aw *AlertsWindow) renderGroupRow(cellID widget.TableCellID, cellContainer 
 				}
 			}
 			durationLabel := widget.NewLabel(formatDuration(newest.Duration()))
-			cellContainer.Add(durationLabel)
+			cellContainer.Objects = []fyne.CanvasObject{durationLabel}
 		} else {
-			cellContainer.Add(widget.NewLabel("-"))
+			cellContainer.Objects = []fyne.CanvasObject{widget.NewLabel("-")}
 		}
 
-	case 7: // Instance count
-		instanceCount := len(aw.getUniqueInstances(group.Alerts))
-		instanceLabel := widget.NewLabel(fmt.Sprintf("%d instances", instanceCount))
-		cellContainer.Add(instanceLabel)
+	case 10: // Alertmanager name - show first alertmanager from group
+		alertmanagerName := "Mixed"
+		if len(group.Alerts) > 0 {
+			alertmanagerName = group.Alerts[0].GetSource()
+			// Check if all alerts have same alertmanager
+			for _, alert := range group.Alerts[1:] {
+				if alert.GetSource() != alertmanagerName {
+					alertmanagerName = "Mixed"
+					break
+				}
+			}
+		}
+		label := widget.NewLabel(alertmanagerName)
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		cellContainer.Objects = []fyne.CanvasObject{label}
 	}
 }
 
@@ -918,44 +1046,61 @@ func (aw *AlertsWindow) renderAlertRow(cellID widget.TableCellID, container *fyn
 			aw.updateSelectionLabel()
 		})
 		checkbox.SetChecked(aw.selectedAlerts[row.RowIndex])
-		container.Add(checkbox)
+		container.Objects = []fyne.CanvasObject{checkbox}
 
 	case 1: // Alert name (indented)
-		nameLabel := widget.NewLabel("    └─ " + alert.GetAlertName())
+		alertName := "    └─ " + alert.GetAlertName()
 		if aw.showHiddenAlerts {
-			nameLabel.SetText("    └─ 🙈 " + alert.GetAlertName())
+			alertName = "    └─ 🙈 " + alert.GetAlertName()
 		}
-		container.Add(nameLabel)
+		label := widget.NewLabel(alertName)
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		container.Objects = []fyne.CanvasObject{label}
 
-	case 2: // Severity badge
-		container.Add(aw.createSeverityBadge(*alert))
+	case 2: // Acknowledgment
+		container.Objects = []fyne.CanvasObject{aw.createAcknowledgmentIndicator(*alert)}
 
-	case 3: // Status badge
-		container.Add(aw.createStatusBadge(*alert))
+	case 3: // Instance (indented)
+		instanceName := "    └─ " + alert.GetInstance()
+		label := widget.NewLabel(instanceName)
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		container.Objects = []fyne.CanvasObject{label}
 
-	case 4: // Team
-		teamLabel := widget.NewLabel(alert.GetTeam())
-		container.Add(teamLabel)
+	case 4: // Severity badge
+		container.Objects = []fyne.CanvasObject{aw.createSeverityBadge(*alert)}
 
-	case 5: // Summary (truncated)
-		summary := alert.GetSummary()
-		maxLen := int(aw.columns[5].Width / 6)
-		if maxLen < 20 {
-			maxLen = 20
-		}
-		if len(summary) > maxLen {
-			summary = summary[:maxLen-3] + "..."
-		}
-		summaryLabel := widget.NewLabel(summary)
-		container.Add(summaryLabel)
+	case 5: // Status badge
+		container.Objects = []fyne.CanvasObject{aw.createStatusBadge(*alert)}
 
-	case 6: // Duration
-		durationLabel := widget.NewLabel(formatDuration(alert.Duration()))
-		container.Add(durationLabel)
+	case 6: // Comments
+		container.Objects = []fyne.CanvasObject{aw.createCommentIndicator(*alert)}
 
-	case 7: // Instance
-		instanceLabel := widget.NewLabel(alert.GetInstance())
-		container.Add(instanceLabel)
+	case 7: // Team
+		label := widget.NewLabel(alert.GetTeam())
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		container.Objects = []fyne.CanvasObject{label}
+
+	case 8: // Summary (truncated)
+		label := widget.NewLabel(alert.GetSummary())
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		container.Objects = []fyne.CanvasObject{label}
+
+	case 9: // Duration
+		label := widget.NewLabel(formatDuration(alert.Duration()))
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		container.Objects = []fyne.CanvasObject{label}
+
+	case 10: // Alertmanager name (indented)
+		alertmanagerName := "    └─ " + alert.GetSource()
+		label := widget.NewLabel(alertmanagerName)
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.Wrapping = fyne.TextWrapOff
+		container.Objects = []fyne.CanvasObject{label}
 	}
 }
 
@@ -1060,7 +1205,6 @@ func (aw *AlertsWindow) createStatusBar() *fyne.Container {
 	totalLabel := widget.NewLabelWithStyle("0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	totalLabel.Importance = widget.MediumImportance
 
-
 	// Connection status indicator
 	connectionStatusLabel := widget.NewLabel("🟢 Connected")
 	if !aw.connectionHealth.IsHealthy {
@@ -1134,6 +1278,11 @@ func (aw *AlertsWindow) applyColumnWidths() {
 	for i, col := range aw.columns {
 		aw.table.SetColumnWidth(i, col.Width)
 	}
+
+	// Refresh the table to update text truncation
+	fyne.Do(func() {
+		aw.table.Refresh()
+	})
 }
 
 // sortAlertsInGroup sorts alerts within a group according to current sort settings
@@ -1146,9 +1295,16 @@ func (aw *AlertsWindow) sortAlertsInGroup(alerts []models.Alert) {
 		var result bool
 
 		switch aw.sortColumn {
-		case 0: // Alert name
+		case 1: // Alert name
 			result = strings.Compare(alerts[i].GetAlertName(), alerts[j].GetAlertName()) < 0
-		case 1: // Severity
+		case 2: // Acknowledgment
+			// Sort by acknowledgment status (acknowledged alerts first when ascending)
+			ackCountI := aw.getAcknowledgmentCountForSort(alerts[i])
+			ackCountJ := aw.getAcknowledgmentCountForSort(alerts[j])
+			result = ackCountI > ackCountJ // More acknowledgments = higher priority
+		case 3: // Instance
+			result = strings.Compare(alerts[i].GetInstance(), alerts[j].GetInstance()) < 0
+		case 4: // Severity
 			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
 			sev1, exists1 := severityOrder[alerts[i].GetSeverity()]
 			if !exists1 {
@@ -1159,16 +1315,21 @@ func (aw *AlertsWindow) sortAlertsInGroup(alerts []models.Alert) {
 				sev2 = 4
 			}
 			result = sev1 < sev2
-		case 2: // Status
+		case 5: // Status
 			result = strings.Compare(alerts[i].Status.State, alerts[j].Status.State) < 0
-		case 3: // Team
+		case 6: // Comments
+			// Sort by comment count
+			commentCountI := aw.getCommentCountForSort(alerts[i])
+			commentCountJ := aw.getCommentCountForSort(alerts[j])
+			result = commentCountI > commentCountJ // More comments = higher priority
+		case 7: // Team
 			result = strings.Compare(alerts[i].GetTeam(), alerts[j].GetTeam()) < 0
-		case 4: // Summary
+		case 8: // Summary
 			result = strings.Compare(alerts[i].GetSummary(), alerts[j].GetSummary()) < 0
-		case 5: // Duration
+		case 9: // Duration
 			result = alerts[i].Duration() < alerts[j].Duration()
-		case 6: // Instance
-			result = strings.Compare(alerts[i].GetInstance(), alerts[j].GetInstance()) < 0
+		case 10: // Alertmanager
+			result = strings.Compare(alerts[i].GetSource(), alerts[j].GetSource()) < 0
 		default:
 			// Default sort by severity then start time
 			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
@@ -1205,9 +1366,9 @@ func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
 		var result bool
 
 		switch aw.sortColumn {
-		case 0: // Alert name (group name)
+		case 1: // Alert name (group name)
 			result = strings.Compare(groups[i].AlertName, groups[j].AlertName) < 0
-		case 1: // Severity (by highest severity in group)
+		case 4: // Severity (by highest severity in group)
 			// Get highest severity for each group
 			sev1 := aw.getGroupHighestSeverity(groups[i])
 			sev2 := aw.getGroupHighestSeverity(groups[j])
@@ -1221,9 +1382,9 @@ func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
 				sevOrder2 = 4
 			}
 			result = sevOrder1 < sevOrder2
-		case 2: // Status (by active count)
+		case 5: // Status (by active count)
 			result = groups[i].ActiveCount > groups[j].ActiveCount
-		case 3: // Team (by first team in group)
+		case 7: // Team (by first team in group)
 			team1 := "unknown"
 			team2 := "unknown"
 			if len(groups[i].Alerts) > 0 {
@@ -1233,9 +1394,9 @@ func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
 				team2 = groups[j].Alerts[0].GetTeam()
 			}
 			result = strings.Compare(team1, team2) < 0
-		case 4: // Summary (by alert count)
+		case 8: // Summary (by alert count)
 			result = groups[i].TotalCount > groups[j].TotalCount
-		case 5: // Duration (by newest alert in group)
+		case 9: // Duration (by newest alert in group)
 			newest1 := aw.getGroupNewestAlert(groups[i])
 			newest2 := aw.getGroupNewestAlert(groups[j])
 			if newest1 != nil && newest2 != nil {
@@ -1245,7 +1406,7 @@ func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
 			} else {
 				result = false
 			}
-		case 6: // Instance (by instance count)
+		case 3: // Instance (by instance count)
 			instances1 := len(aw.getUniqueInstances(groups[i].Alerts))
 			instances2 := len(aw.getUniqueInstances(groups[j].Alerts))
 			result = instances1 > instances2
@@ -1267,4 +1428,3 @@ func (aw *AlertsWindow) sortGroups(groups []AlertGroup) {
 		return result
 	})
 }
-

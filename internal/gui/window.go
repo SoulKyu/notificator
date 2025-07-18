@@ -224,17 +224,17 @@ type StatusBarMetrics struct {
 // getDefaultColumns returns the default column configuration
 func getDefaultColumns() []ColumnConfig {
 	return []ColumnConfig{
-		{Name: "✓", Width: 35, MinWidth: 30, MaxWidth: 50},
-		{Name: "Alertmanager", Width: 150, MinWidth: 100, MaxWidth: 300},
-		{Name: "Alert", Width: 200, MinWidth: 100, MaxWidth: 400},
-		{Name: "Severity", Width: 120, MinWidth: 100, MaxWidth: 150},
-		{Name: "Status", Width: 120, MinWidth: 100, MaxWidth: 150},
-		{Name: "Ack", Width: 80, MinWidth: 60, MaxWidth: 120},
-		{Name: "Comments", Width: 80, MinWidth: 60, MaxWidth: 120},
-		{Name: "Team", Width: 120, MinWidth: 80, MaxWidth: 200},
-		{Name: "Summary", Width: 600, MinWidth: 200, MaxWidth: 900},
-		{Name: "Duration", Width: 120, MinWidth: 80, MaxWidth: 200},
-		{Name: "Instance", Width: 200, MinWidth: 100, MaxWidth: 400},
+		{Name: "✓", Width: 35, MinWidth: 30, MaxWidth: 50},        // 0: Checkbox
+		{Name: "Alert", Width: 200, MinWidth: 100, MaxWidth: 400},     // 1: Alert name
+		{Name: "Ack", Width: 80, MinWidth: 60, MaxWidth: 120},        // 2: Acknowledgment
+		{Name: "Instance", Width: 200, MinWidth: 100, MaxWidth: 400}, // 3: Instance
+		{Name: "Severity", Width: 120, MinWidth: 100, MaxWidth: 150}, // 4: Severity
+		{Name: "Status", Width: 120, MinWidth: 100, MaxWidth: 150},   // 5: Status
+		{Name: "Comments", Width: 80, MinWidth: 60, MaxWidth: 120},   // 6: Comments
+		{Name: "Team", Width: 120, MinWidth: 80, MaxWidth: 200},      // 7: Team
+		{Name: "Summary", Width: 600, MinWidth: 200, MaxWidth: 900},  // 8: Summary
+		{Name: "Duration", Width: 120, MinWidth: 80, MaxWidth: 200},  // 9: Duration
+		{Name: "Alertmanager", Width: 150, MinWidth: 100, MaxWidth: 300}, // 10: Alertmanager
 	}
 }
 
@@ -1293,7 +1293,11 @@ func (aw *AlertsWindow) applyFilters() {
 	aw.updateDashboard()
 
 	if aw.table != nil {
-		aw.table.Refresh()
+		fyne.Do(func() {
+			fyne.Do(func() {
+			aw.table.Refresh()
+		})
+		})
 	}
 }
 
@@ -1458,7 +1462,9 @@ func (aw *AlertsWindow) toggleGroupExpansion(groupIndex int) {
 
 		// Refresh table
 		if aw.table != nil {
+			fyne.Do(func() {
 			aw.table.Refresh()
+		})
 		}
 	}
 }
@@ -1470,7 +1476,9 @@ func (aw *AlertsWindow) expandAllGroups() {
 	}
 	aw.tableRows = aw.createTableRowsFromGroups(aw.alertGroups)
 	if aw.table != nil {
-		aw.table.Refresh()
+		fyne.Do(func() {
+			aw.table.Refresh()
+		})
 	}
 }
 
@@ -1481,7 +1489,9 @@ func (aw *AlertsWindow) collapseAllGroups() {
 	}
 	aw.tableRows = aw.createTableRowsFromGroups(aw.alertGroups)
 	if aw.table != nil {
-		aw.table.Refresh()
+		fyne.Do(func() {
+			aw.table.Refresh()
+		})
 	}
 }
 
@@ -1515,7 +1525,9 @@ func (aw *AlertsWindow) refreshGroupedTable() {
 	aw.updateSelectionLabel()
 
 	if aw.table != nil {
-		aw.table.Refresh()
+		fyne.Do(func() {
+			aw.table.Refresh()
+		})
 	}
 }
 
@@ -1589,7 +1601,9 @@ func (aw *AlertsWindow) selectAllVisibleAlerts() {
 
 	aw.updateSelectionLabel()
 	if aw.table != nil {
-		aw.table.Refresh()
+		fyne.Do(func() {
+			aw.table.Refresh()
+		})
 	}
 }
 
@@ -1600,18 +1614,30 @@ func (aw *AlertsWindow) handleTableClick(cellID widget.TableCellID) {
 		return
 	}
 
-	if cellID.Row > 0 && cellID.Row-1 < len(aw.tableRows) {
-		row := aw.tableRows[cellID.Row-1]
+	// In grouped mode, use direct row index (no header row offset)
+	if aw.groupedMode {
+		if cellID.Row >= 0 && cellID.Row < len(aw.tableRows) {
+			row := aw.tableRows[cellID.Row]
 
-		switch row.Type {
-		case "group":
-			// Toggle group expansion on click
-			aw.toggleGroupExpansion(row.GroupIndex)
-		case "alert":
-			// Show alert details
-			if row.Alert != nil {
-				aw.showAlertDetails(*row.Alert)
+			switch row.Type {
+			case "group":
+				// Only toggle group expansion when clicking on the alert name column (column 1)
+				if cellID.Col == 1 {
+					aw.toggleGroupExpansion(row.GroupIndex)
+				}
+				// For other columns, do nothing to avoid interfering with expansion/collapse
+			case "alert":
+				// Show alert details
+				if row.Alert != nil {
+					aw.showAlertDetails(*row.Alert)
+				}
 			}
+		}
+	} else {
+		// In flat mode, skip header row (row 0)
+		if cellID.Row > 0 && cellID.Row-1 < len(aw.filteredData) {
+			alert := aw.filteredData[cellID.Row-1]
+			aw.showAlertDetails(alert)
 		}
 	}
 }
@@ -1714,14 +1740,14 @@ func (aw *AlertsWindow) handleColumnSort(column int) {
 		return
 	}
 
-	// Adjust column index for checkbox column
-	adjustedColumn := column - 1
+	// Use direct column index since we're now using the correct column mapping
+	sortColumn := column
 
-	if aw.sortColumn == adjustedColumn {
+	if aw.sortColumn == sortColumn {
 		// Same column, toggle sort direction
 		aw.sortAscending = !aw.sortAscending
 	} else {
-		aw.sortColumn = adjustedColumn
+		aw.sortColumn = sortColumn
 		aw.sortAscending = true
 	}
 
@@ -1730,6 +1756,13 @@ func (aw *AlertsWindow) handleColumnSort(column int) {
 	
 	// Re-apply filters which will trigger sorting
 	aw.safeApplyFilters()
+	
+	// Refresh the table to update header indicators
+	if aw.table != nil {
+		fyne.Do(func() {
+			aw.table.Refresh()
+		})
+	}
 }
 
 // sortFilteredData sorts the filtered data based on current sort settings
@@ -1742,11 +1775,16 @@ func (aw *AlertsWindow) sortFilteredData() {
 		var result bool
 
 		switch aw.sortColumn {
-		case 0: // Alertmanager name
-			result = strings.Compare(aw.filteredData[i].GetSource(), aw.filteredData[j].GetSource()) < 0
 		case 1: // Alert name
 			result = strings.Compare(aw.filteredData[i].GetAlertName(), aw.filteredData[j].GetAlertName()) < 0
-		case 2: // Severity
+		case 2: // Acknowledgment
+			// Sort by acknowledgment status (acknowledged alerts first when ascending)
+			ackCountI := aw.getAcknowledgmentCountForSort(aw.filteredData[i])
+			ackCountJ := aw.getAcknowledgmentCountForSort(aw.filteredData[j])
+			result = ackCountI > ackCountJ // More acknowledgments = higher priority
+		case 3: // Instance
+			result = strings.Compare(aw.filteredData[i].GetInstance(), aw.filteredData[j].GetInstance()) < 0
+		case 4: // Severity
 			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
 			sev1, exists1 := severityOrder[aw.filteredData[i].GetSeverity()]
 			if !exists1 {
@@ -1757,26 +1795,21 @@ func (aw *AlertsWindow) sortFilteredData() {
 				sev2 = 4
 			}
 			result = sev1 < sev2
-		case 3: // Status
+		case 5: // Status
 			result = strings.Compare(aw.filteredData[i].Status.State, aw.filteredData[j].Status.State) < 0
-		case 4: // Acknowledgment
-			// Sort by acknowledgment status (acknowledged alerts first when ascending)
-			ackCountI := aw.getAcknowledgmentCountForSort(aw.filteredData[i])
-			ackCountJ := aw.getAcknowledgmentCountForSort(aw.filteredData[j])
-			result = ackCountI > ackCountJ // More acknowledgments = higher priority
-		case 5: // Comments
+		case 6: // Comments
 			// Sort by comment count
 			commentCountI := aw.getCommentCountForSort(aw.filteredData[i])
 			commentCountJ := aw.getCommentCountForSort(aw.filteredData[j])
 			result = commentCountI > commentCountJ // More comments = higher priority  
-		case 6: // Team
+		case 7: // Team
 			result = strings.Compare(aw.filteredData[i].GetTeam(), aw.filteredData[j].GetTeam()) < 0
-		case 7: // Summary
+		case 8: // Summary
 			result = strings.Compare(aw.filteredData[i].GetSummary(), aw.filteredData[j].GetSummary()) < 0
-		case 8: // Duration
+		case 9: // Duration
 			result = aw.filteredData[i].Duration() < aw.filteredData[j].Duration()
-		case 9: // Instance
-			result = strings.Compare(aw.filteredData[i].GetInstance(), aw.filteredData[j].GetInstance()) < 0
+		case 10: // Alertmanager
+			result = strings.Compare(aw.filteredData[i].GetSource(), aw.filteredData[j].GetSource()) < 0
 		default:
 			// Default sort by severity then start time
 			severityOrder := map[string]int{"critical": 0, "warning": 1, "info": 2, "unknown": 3}
@@ -2295,7 +2328,9 @@ func (aw *AlertsWindow) selectAllAlerts() {
 	// Update selection label and refresh table
 	aw.updateSelectionLabel()
 	if aw.table != nil {
-		aw.table.Refresh()
+		fyne.Do(func() {
+			aw.table.Refresh()
+		})
 	}
 }
 
