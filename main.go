@@ -81,7 +81,6 @@ func main() {
 	var (
 		backendMode = flag.Bool("backend", false, "Run in backend mode (GRPC server)")
 		configPath  = flag.String("config", config.GetConfigPath(), "Path to config file")
-		migrate     = flag.Bool("migrate", false, "Run database migrations (backend mode only)")
 		dbType      = flag.String("db", "sqlite", "Database type: sqlite or postgres")
 	)
 	flag.Parse()
@@ -93,24 +92,24 @@ func main() {
 
 	if *backendMode {
 		fmt.Println("🚀 Starting Notificator Backend Server...")
-		runBackendMode(cfg, *migrate, *dbType)
+		runBackendMode(cfg, *dbType)
 	} else {
 		fmt.Println("🖥️  Starting Notificator Desktop Client...")
 		runFrontendMode(cfg, *configPath)
 	}
 }
 
-func runBackendMode(cfg *config.Config, migrate bool, dbType string) {
+func runBackendMode(cfg *config.Config, dbType string) {
 	server := backend.NewServer(cfg, dbType)
 
-	if migrate {
-		if err := server.RunMigrations(); err != nil {
-			log.Fatalf("Migration failed: %v", err)
-		}
-		fmt.Println("✅ Database migrations completed")
-		return
+	// Always run migrations on startup (they are idempotent)
+	fmt.Println("📦 Running database migrations...")
+	if err := server.RunMigrations(); err != nil {
+		log.Fatalf("Migration failed: %v", err)
 	}
+	fmt.Println("✅ Database migrations completed")
 
+	// Start the server
 	if err := server.Start(); err != nil {
 		log.Fatalf("Backend server failed: %v", err)
 	}

@@ -1,0 +1,47 @@
+# Git files
+.git
+.gitignore
+
+# Build artifacts
+notificator
+notificator-backend
+*.exe
+
+# Test files
+*_test.go
+/test/
+/tests/
+
+# Documentation
+*.md
+/docs/
+/img/
+
+# Helm charts
+/helm/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local config and data
+config.json
+notificator.db
+*.db
+*.log
+
+# Fake alertmanager
+/alertmanager/fake/
+
+# Hidden alerts cache
+hidden_alerts.json
+
+# Credentials
+credentials.enc

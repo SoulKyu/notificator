@@ -144,7 +144,7 @@ func (a *Alert) GetFingerprint() string {
 		labelPairs = append(labelPairs, fmt.Sprintf("%s=%s", key, value))
 	}
 	sort.Strings(labelPairs)
-	
+
 	// Create a hash from the sorted labels
 	labelString := strings.Join(labelPairs, ",")
 	hash := md5.Sum([]byte(labelString))

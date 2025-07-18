@@ -1703,6 +1703,7 @@ func (aw *AlertsWindow) setupKeyboardShortcuts() {
 			}
 		}
 
+
 	})
 }
 
