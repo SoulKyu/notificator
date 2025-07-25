@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # Fake Alertmanager for testing
+  alertmanager:
+    image: registry-1.docker.io/soulkyu/notificator-backend:alertmanager
+    container_name: notificator-alertmanager
+    ports:
+      - "9093:9093"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - notificator-network
+
+  # Notificator Backend Server
+  backend:
+    image: registry-1.docker.io/soulkyu/notificator-backend:backend
+    container_name: notificator-backend
+    ports:
+      - "50051:50051"  # gRPC API
+      - "8080:8080"    # HTTP API
+    user: "1001:1001"  # Run as notificator user (matches Dockerfile)
+    environment:
+      # Database configuration
+      - NOTIFICATOR_BACKEND_ENABLED=true
+      - NOTIFICATOR_BACKEND_GRPC_LISTEN=:50051
+      - NOTIFICATOR_BACKEND_HTTP_LISTEN=:8080
+      - NOTIFICATOR_BACKEND_DATABASE_TYPE=sqlite
+      - NOTIFICATOR_BACKEND_DATABASE_SQLITE_PATH=/app/data/notificator.db
+      
+      # Alertmanager configuration
+      - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager
+      - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093
+      
+      # Logging
+      - NOTIFICATOR_LOG_LEVEL=info
+    volumes:
+      - ./data:/app/data:rw
+    depends_on:
+      alertmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - notificator-network
+
+  # Notificator WebUI
+  webui:
+    image: registry-1.docker.io/soulkyu/notificator-backend:webui
+    container_name: notificator-webui
+    ports:
+      - "8081:8081"
+    environment:
+      # Backend connection
+      - BACKEND_ADDRESS=backend:50051
+      - NOTIFICATOR_WEBUI_LISTEN=:8081
+      - NOTIFICATOR_WEBUI_BACKEND=backend:50051
+      # Alertmanager configuration
+      - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager
+      - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093
+      - NOTIFICATOR_ALERTMANAGERS_0_OAUTH_ENABLED=false
+      - NOTIFICATOR_ALERTMANAGERS_0_OAUTH_PROXY_MODE=true
+      # Logging
+      - NOTIFICATOR_LOG_LEVEL=info
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - notificator-network
+
+# Named volumes for data persistence (not used with bind mount)
+
+# Custom network for service communication
+networks:
+  notificator-network:
+    driver: bridge

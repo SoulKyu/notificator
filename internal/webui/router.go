@@ -2,6 +2,7 @@ package webui
 
 import (
 	"log"
+	"os"
 	"path/filepath"
 	"runtime"
 
@@ -18,14 +19,20 @@ import (
 func SetupRouter(backendAddress string) *gin.Engine {
 	r := gin.New()
 
-	// Load configuration
-	cfg, err := config.LoadConfig("config/config.json")
+	// Load configuration with Viper to support environment variables
+	cfg, err := config.LoadConfigWithViper()
 	if err != nil {
 		log.Printf("Warning: Failed to load config, using defaults: %v", err)
 		// Create a default config if none exists
 		cfg = &config.Config{
 			Alertmanagers: []config.AlertmanagerConfig{},
 		}
+	}
+	
+	// Log the loaded configuration for debugging
+	log.Printf("Loaded %d alertmanagers", len(cfg.Alertmanagers))
+	for i, am := range cfg.Alertmanagers {
+		log.Printf("Alertmanager %d: Name=%s, URL=%s", i, am.Name, am.URL)
 	}
 
 	// Initialize Alertmanager multi-client
@@ -64,16 +71,38 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	r.Use(gin.Recovery())
 	r.Use(middleware.SessionMiddleware(sessionSecret))
 
-	// Static files - use absolute path resolution
-	_, currentFile, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
-	staticPath := filepath.Join(projectRoot, "internal", "webui", "static")
+	// Static files - handle both development and container environments
+	var staticPath string
+	if _, err := os.Stat("./internal/webui/static"); err == nil {
+		// Running from project root (development)
+		staticPath = "./internal/webui/static"
+	} else if _, err := os.Stat("internal/webui/static"); err == nil {
+		// Running from container root
+		staticPath = "internal/webui/static"
+	} else {
+		// Fallback to runtime.Caller method
+		_, currentFile, _, _ := runtime.Caller(0)
+		projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
+		staticPath = filepath.Join(projectRoot, "internal", "webui", "static")
+	}
+	
+	log.Printf("Serving static files from: %s", staticPath)
 	r.Static("/static", staticPath)
 
 	// Health checks
 	r.GET("/health", handlers.HealthCheck)
 	r.GET("/health/backend", handlers.BackendHealthCheck)
 	r.GET("/health/alertmanager", handlers.AlertmanagerHealthCheck)
+	
+	// Static file health check
+	r.GET("/health/static", func(c *gin.Context) {
+		cssPath := filepath.Join(staticPath, "css", "output.css")
+		if _, err := os.Stat(cssPath); err == nil {
+			c.JSON(200, gin.H{"status": "ok", "css_path": cssPath, "static_path": staticPath})
+		} else {
+			c.JSON(500, gin.H{"status": "error", "error": err.Error(), "css_path": cssPath, "static_path": staticPath})
+		}
+	})
 
 	// API routes
 	api := r.Group("/api/v1")

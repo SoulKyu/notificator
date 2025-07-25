@@ -47,3 +47,4 @@ hidden_alerts.json
 credentials.enc
 
 node_modules
+bin

@@ -1,0 +1,46 @@
+# docker-compose.override.yml
+# This file provides common overrides for development
+# Rename to docker-compose.override.yml to activate
+
+version: '3.8'
+
+services:
+  backend:
+    environment:
+      # Development database configuration
+      - NOTIFICATOR_BACKEND_DATABASE_TYPE=sqlite
+      - NOTIFICATOR_LOG_LEVEL=debug
+      
+    # Uncomment to use PostgreSQL instead of SQLite
+    # environment:
+    #   - NOTIFICATOR_BACKEND_DATABASE_TYPE=postgres
+    #   - DB_HOST=postgres
+    #   - DB_PORT=5432
+    #   - DB_NAME=notificator
+    #   - DB_USER=notificator
+    #   - DB_PASSWORD=secretpassword
+    # depends_on:
+    #   - postgres
+
+  webui:
+    environment:
+      - NOTIFICATOR_LOG_LEVEL=debug
+
+  # Uncomment to add PostgreSQL database
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: notificator-postgres
+  #   environment:
+  #     - POSTGRES_DB=notificator
+  #     - POSTGRES_USER=notificator
+  #     - POSTGRES_PASSWORD=secretpassword
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - notificator-network
+
+# volumes:
+#   postgres-data:
+#     driver: local

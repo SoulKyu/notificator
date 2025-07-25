@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 // Config holds all configuration for the application
@@ -275,6 +277,165 @@ func GetConfigPath() string {
 	}
 
 	return filepath.Join(home, ".config", "notificator", "config.json")
+}
+
+// LoadConfigWithViper loads configuration using Viper with environment variable support
+func LoadConfigWithViper() (*Config, error) {
+	// Create default config
+	cfg := DefaultConfig()
+
+	// Set up Viper defaults from the default config
+	setViperDefaults(cfg)
+	
+	// Debug: Log what Viper sees for alertmanager config
+	fmt.Printf("DEBUG: Viper alertmanagers.0.url = %s\n", viper.GetString("alertmanagers.0.url"))
+	fmt.Printf("DEBUG: Viper alertmanagers.0.name = %s\n", viper.GetString("alertmanagers.0.name"))
+
+	// Unmarshal into config struct
+	if err := viper.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+	
+	// Manually handle alertmanager array from environment variables
+	// This is needed because Viper doesn't handle arrays well from env vars
+	alertmanagers := []AlertmanagerConfig{}
+	for i := 0; i < 10; i++ { // Support up to 10 alertmanagers
+		prefix := fmt.Sprintf("alertmanagers.%d", i)
+		url := viper.GetString(prefix + ".url")
+		if url != "" {
+			am := AlertmanagerConfig{
+				Name:     viper.GetString(prefix + ".name"),
+				URL:      url,
+				Username: viper.GetString(prefix + ".username"),
+				Password: viper.GetString(prefix + ".password"),
+				Token:    viper.GetString(prefix + ".token"),
+				Headers:  make(map[string]string),
+			}
+			
+			// Handle OAuth config
+			if viper.IsSet(prefix + ".oauth.enabled") {
+				am.OAuth = &OAuthConfig{
+					Enabled:   viper.GetBool(prefix + ".oauth.enabled"),
+					ProxyMode: viper.GetBool(prefix + ".oauth.proxy_mode"),
+				}
+			}
+			
+			alertmanagers = append(alertmanagers, am)
+		}
+	}
+	
+	// Override alertmanagers if any were found in env vars
+	if len(alertmanagers) > 0 {
+		cfg.Alertmanagers = alertmanagers
+		fmt.Printf("DEBUG: Loaded %d alertmanagers from environment\n", len(alertmanagers))
+	}
+
+	// Post-process configuration
+	if cfg.Notifications.SeverityRules == nil {
+		cfg.Notifications.SeverityRules = map[string]bool{
+			"critical": true,
+			"warning":  true,
+			"info":     false,
+			"unknown":  false,
+		}
+	}
+
+	// Initialize filter state if missing (backward compatibility)
+	initializeFilterStates(cfg)
+
+	return cfg, nil
+}
+
+// setViperDefaults sets default values in Viper from the default config
+func setViperDefaults(cfg *Config) {
+	// Backend defaults
+	viper.SetDefault("backend.enabled", cfg.Backend.Enabled)
+	viper.SetDefault("backend.grpc_listen", cfg.Backend.GRPCListen)
+	viper.SetDefault("backend.grpc_client", cfg.Backend.GRPCClient)
+	viper.SetDefault("backend.http_listen", cfg.Backend.HTTPListen)
+	
+	// Database defaults
+	viper.SetDefault("backend.database.type", cfg.Backend.Database.Type)
+	viper.SetDefault("backend.database.host", cfg.Backend.Database.Host)
+	viper.SetDefault("backend.database.port", cfg.Backend.Database.Port)
+	viper.SetDefault("backend.database.name", cfg.Backend.Database.Name)
+	viper.SetDefault("backend.database.user", cfg.Backend.Database.User)
+	viper.SetDefault("backend.database.password", cfg.Backend.Database.Password)
+	viper.SetDefault("backend.database.ssl_mode", cfg.Backend.Database.SSLMode)
+	viper.SetDefault("backend.database.sqlite_path", cfg.Backend.Database.SQLitePath)
+
+	// GUI defaults
+	viper.SetDefault("gui.width", cfg.GUI.Width)
+	viper.SetDefault("gui.height", cfg.GUI.Height)
+	viper.SetDefault("gui.title", cfg.GUI.Title)
+	viper.SetDefault("gui.minimize_to_tray", cfg.GUI.MinimizeToTray)
+	viper.SetDefault("gui.start_minimized", cfg.GUI.StartMinimized)
+	viper.SetDefault("gui.show_tray_icon", cfg.GUI.ShowTrayIcon)
+	viper.SetDefault("gui.background_mode", cfg.GUI.BackgroundMode)
+
+	// Notification defaults
+	viper.SetDefault("notifications.enabled", cfg.Notifications.Enabled)
+	viper.SetDefault("notifications.sound_enabled", cfg.Notifications.SoundEnabled)
+	viper.SetDefault("notifications.sound_path", cfg.Notifications.SoundPath)
+	viper.SetDefault("notifications.audio_output_device", cfg.Notifications.AudioOutputDevice)
+	viper.SetDefault("notifications.show_system", cfg.Notifications.ShowSystem)
+	viper.SetDefault("notifications.critical_only", cfg.Notifications.CriticalOnly)
+	viper.SetDefault("notifications.max_notifications", cfg.Notifications.MaxNotifications)
+	viper.SetDefault("notifications.cooldown_seconds", cfg.Notifications.CooldownSeconds)
+	viper.SetDefault("notifications.respect_filters", cfg.Notifications.RespectFilters)
+
+	// Polling defaults
+	viper.SetDefault("polling.interval", cfg.Polling.Interval)
+
+	// Resolved alerts defaults
+	viper.SetDefault("resolved_alerts.enabled", cfg.ResolvedAlerts.Enabled)
+	viper.SetDefault("resolved_alerts.notifications_enabled", cfg.ResolvedAlerts.NotificationsEnabled)
+	viper.SetDefault("resolved_alerts.retention_duration", cfg.ResolvedAlerts.RetentionDuration)
+
+	// Alertmanager defaults (first one only)
+	if len(cfg.Alertmanagers) > 0 {
+		am := cfg.Alertmanagers[0]
+		viper.SetDefault("alertmanagers.0.name", am.Name)
+		viper.SetDefault("alertmanagers.0.url", am.URL)
+		viper.SetDefault("alertmanagers.0.username", am.Username)
+		viper.SetDefault("alertmanagers.0.password", am.Password)
+		viper.SetDefault("alertmanagers.0.token", am.Token)
+		if am.OAuth != nil {
+			viper.SetDefault("alertmanagers.0.oauth.enabled", am.OAuth.Enabled)
+			viper.SetDefault("alertmanagers.0.oauth.proxy_mode", am.OAuth.ProxyMode)
+		}
+	}
+
+	// Support common environment variables
+	viper.BindEnv("backend.database.host", "DB_HOST", "DATABASE_HOST")
+	viper.BindEnv("backend.database.port", "DB_PORT", "DATABASE_PORT")
+	viper.BindEnv("backend.database.name", "DB_NAME", "DATABASE_NAME")
+	viper.BindEnv("backend.database.user", "DB_USER", "DATABASE_USER")
+	viper.BindEnv("backend.database.password", "DB_PASSWORD", "DATABASE_PASSWORD")
+	viper.BindEnv("backend.database.ssl_mode", "DB_SSL_MODE", "DATABASE_SSL_MODE")
+	viper.BindEnv("backend.database.sqlite_path", "DB_PATH", "DATABASE_PATH")
+	
+	// Support DATABASE_URL for full connection string
+	viper.BindEnv("database_url", "DATABASE_URL")
+}
+
+// initializeFilterStates initializes filter states for backward compatibility
+func initializeFilterStates(cfg *Config) {
+	if cfg.GUI.FilterState.SelectedSeverities == nil {
+		cfg.GUI.FilterState.SelectedSeverities = map[string]bool{"All": true}
+	}
+	if cfg.GUI.FilterState.SelectedStatuses == nil {
+		cfg.GUI.FilterState.SelectedStatuses = map[string]bool{"All": true}
+	}
+	if cfg.GUI.FilterState.SelectedTeams == nil {
+		cfg.GUI.FilterState.SelectedTeams = map[string]bool{"All": true}
+	}
+	if cfg.GUI.FilterState.SelectedAcks == nil {
+		cfg.GUI.FilterState.SelectedAcks = map[string]bool{"All": true}
+	}
+	if cfg.GUI.FilterState.SelectedComments == nil {
+		cfg.GUI.FilterState.SelectedComments = map[string]bool{"All": true}
+	}
 }
 
 // ParseHeadersFromEnv parses headers from environment variable

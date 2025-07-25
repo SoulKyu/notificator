@@ -1,4 +1,4 @@
-.PHONY: help clean webui-setup webui-build webui-dev webui-css webui-css-prod webui-css-build webui-templates webui-full-rebuild go-build go-run-backend go-run-webui run-all
+.PHONY: help clean webui-setup webui-build webui-dev webui-css webui-css-prod webui-css-build webui-templates webui-full-rebuild go-build go-run-backend go-run-webui go-run-desktop run-all
 
 # Default target
 help: ## Show this help message
@@ -9,8 +9,7 @@ help: ## Show this help message
 # Variables
 WEBUI_CSS_INPUT = ./internal/webui/static/css/input.css
 WEBUI_CSS_OUTPUT = ./internal/webui/static/css/output.css
-GO_BACKEND_CMD = ./cmd/backend
-GO_WEBUI_CMD = ./cmd/webui
+GO_MAIN_CMD = .
 
 # WebUI Setup and Dependencies
 webui-setup: ## Install WebUI dependencies (npm install)
@@ -63,26 +62,36 @@ webui-full-rebuild: clean webui-setup webui-css-build webui-templates ## Clean a
 go-build: ## Build Go binaries
 	@echo "Building Go binaries..."
 	@echo "Building backend..."
-	go build -o bin/backend $(GO_BACKEND_CMD)
+	go build -o bin/backend $(GO_MAIN_CMD)
 	@echo "Building webui..."
-	go build -o bin/webui $(GO_WEBUI_CMD)
+	go build -o bin/webui $(GO_MAIN_CMD)
+	@echo "Building desktop..."
+	go build -o bin/notificator $(GO_MAIN_CMD)
 
 go-build-backend: ## Build only the backend binary
 	@echo "Building backend binary..."
-	go build -o bin/backend $(GO_BACKEND_CMD)
+	go build -o bin/backend $(GO_MAIN_CMD)
 
 go-build-webui: ## Build only the webui binary
 	@echo "Building webui binary..."
-	go build -o bin/webui $(GO_WEBUI_CMD)
+	go build -o bin/webui $(GO_MAIN_CMD)
+
+go-build-desktop: ## Build only the desktop binary
+	@echo "Building desktop binary..."
+	go build -o bin/notificator $(GO_MAIN_CMD)
 
 # Go Run Targets
 go-run-backend: ## Run the backend server
 	@echo "Starting backend server..."
-	go run $(GO_BACKEND_CMD)
+	go run $(GO_MAIN_CMD) backend
 
 go-run-webui: ## Run the webui server
 	@echo "Starting webui server..."
-	go run $(GO_WEBUI_CMD)
+	go run $(GO_MAIN_CMD) webui
+
+go-run-desktop: ## Run the desktop application
+	@echo "Starting desktop application..."
+	go run $(GO_MAIN_CMD) desktop
 
 # Full Build
 build-all: webui-build go-build ## Build everything (WebUI + Go binaries)
@@ -91,19 +100,23 @@ build-all: webui-build go-build ## Build everything (WebUI + Go binaries)
 # Development
 dev-backend: ## Start backend in development mode
 	@echo "Starting backend in development mode..."
-	go run $(GO_BACKEND_CMD)
+	go run $(GO_MAIN_CMD) backend
 
 dev-webui: webui-templates ## Start webui in development mode (assumes CSS is built)
 	@echo "Starting webui in development mode..."
-	go run $(GO_WEBUI_CMD)
+	go run $(GO_MAIN_CMD) webui
+
+dev-desktop: ## Start desktop in development mode
+	@echo "Starting desktop in development mode..."
+	go run $(GO_MAIN_CMD) desktop
 
 run-all: ## Run both backend and webui servers concurrently
 	@echo "Starting both backend and webui servers..."
 	@echo "Backend will run on :50051, WebUI on :8081"
 	@echo "Press Ctrl+C to stop both servers"
 	@(trap 'kill 0' SIGINT; \
-		go run $(GO_BACKEND_CMD) & \
-		sleep 2 && go run $(GO_WEBUI_CMD) & \
+		go run $(GO_MAIN_CMD) backend & \
+		sleep 2 && go run $(GO_MAIN_CMD) webui & \
 		wait)
 
 # Cleaning

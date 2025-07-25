@@ -38,3 +38,4 @@ notificator.db
 internal_doc
 fake_alertmanager.log
 node_modules
+bin

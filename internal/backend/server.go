@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -77,6 +78,14 @@ func (s *Server) initDatabase() error {
 	var dbConfig config.DatabaseConfig
 	if s.config.Backend.Database.Type != "" {
 		dbConfig = s.config.Backend.Database
+		
+		// Override SQLite path with Viper value if available
+		if s.dbType == "sqlite" {
+			if viperPath := viper.GetString("backend.database.sqlite_path"); viperPath != "" {
+				dbConfig.SQLitePath = viperPath
+				log.Printf("Using SQLite path from configuration: %s", dbConfig.SQLitePath)
+			}
+		}
 	} else {
 		dbConfig = config.DatabaseConfig{
 			Type:       s.dbType,

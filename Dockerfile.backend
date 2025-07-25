@@ -1,0 +1,45 @@
+# Build stage
+FROM golang:1.23-alpine AS build
+
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the code
+COPY . ./
+
+# Install build dependencies for CGO
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+# Build the backend binary from the unified main.go
+# Enable CGO for SQLite support
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s" -tags nogui -o /notificator-backend .
+
+# Final stage - Alpine for libc support (required for CGO/SQLite)
+FROM alpine:latest
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates sqlite
+
+# Create non-root user first
+RUN addgroup -g 1001 -S notificator && adduser -u 1001 -S notificator -G notificator
+
+# Create data directory with proper permissions
+RUN mkdir -p /app/data && chown -R notificator:notificator /app
+
+# Copy the binary from build stage to /app
+COPY --from=build /notificator-backend /app/notificator-backend
+RUN chown notificator:notificator /app/notificator-backend
+
+# Run as non-root user
+USER notificator
+
+# Expose backend ports
+# 50051 - gRPC API
+# 8080  - HTTP health/metrics
+EXPOSE 50051 8080
+
+ENTRYPOINT ["./notificator-backend", "backend"]

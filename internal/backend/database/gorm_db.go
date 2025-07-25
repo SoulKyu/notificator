@@ -3,6 +3,8 @@ package database
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -36,6 +38,14 @@ func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 		if cfg.SQLitePath == "" {
 			cfg.SQLitePath = "./notificator.db"
 		}
+		
+		// Create directory if it doesn't exist
+		dir := filepath.Dir(cfg.SQLitePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create database directory %s: %w", dir, err)
+		}
+		log.Printf("📁 Ensured database directory exists: %s", dir)
+		
 		db, err = gorm.Open(sqlite.Open(cfg.SQLitePath), gormConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
