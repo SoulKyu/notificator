@@ -15,7 +15,7 @@ alerts = []
 alert_groups = []
 silences = []
 
-# Sample alert templates
+# Sample alert templates with various severity levels
 ALERT_TEMPLATES = [
     {
         "alertname": "HighCPUUsage",
@@ -27,6 +27,15 @@ ALERT_TEMPLATES = [
         "summary": "High CPU usage on {instance}"
     },
     {
+        "alertname": "CriticalCPUUsage",
+        "severity": "critical",
+        "instance": "server-{instance}.example.com",
+        "job": "node-exporter",
+        "team": "infrastructure",
+        "description": "CPU usage is above 95% for more than 2 minutes",
+        "summary": "Critical CPU usage on {instance}"
+    },
+    {
         "alertname": "DiskSpaceLow",
         "severity": "critical",
         "instance": "server-{instance}.example.com",
@@ -36,6 +45,15 @@ ALERT_TEMPLATES = [
         "summary": "Low disk space on {instance}"
     },
     {
+        "alertname": "DiskSpaceWarning",
+        "severity": "warning",
+        "instance": "server-{instance}.example.com",
+        "job": "node-exporter",
+        "team": "infrastructure",
+        "description": "Disk space is below 20% on {instance}",
+        "summary": "Disk space getting low on {instance}"
+    },
+    {
         "alertname": "ServiceDown",
         "severity": "critical",
         "instance": "service-{instance}.example.com",
@@ -43,6 +61,15 @@ ALERT_TEMPLATES = [
         "team": "platform",
         "description": "Service {instance} is not responding to health checks",
         "summary": "Service {instance} is down"
+    },
+    {
+        "alertname": "ServiceSlowResponse",
+        "severity": "warning",
+        "instance": "service-{instance}.example.com",
+        "job": "blackbox",
+        "team": "platform",
+        "description": "Service {instance} response time is above 2 seconds",
+        "summary": "Service {instance} responding slowly"
     },
     {
         "alertname": "HighMemoryUsage",
@@ -61,8 +88,71 @@ ALERT_TEMPLATES = [
         "team": "database",
         "description": "Cannot connect to database {instance}",
         "summary": "Database connection failed on {instance}"
+    },
+    {
+        "alertname": "DatabaseSlowQuery",
+        "severity": "warning",
+        "instance": "db-{instance}.example.com",
+        "job": "mysql-exporter",
+        "team": "database",
+        "description": "Database queries taking longer than 5 seconds on {instance}",
+        "summary": "Slow database queries on {instance}"
+    },
+    {
+        "alertname": "NetworkLatencyHigh",
+        "severity": "minor",
+        "instance": "network-{instance}.example.com",
+        "job": "ping-exporter",
+        "team": "network",
+        "description": "Network latency is above 100ms on {instance}",
+        "summary": "High network latency on {instance}"
+    },
+    {
+        "alertname": "CertificateExpiringSoon",
+        "severity": "info",
+        "instance": "web-{instance}.example.com",
+        "job": "cert-exporter",
+        "team": "security",
+        "description": "SSL certificate will expire in 30 days on {instance}",
+        "summary": "Certificate expiring soon on {instance}"
+    },
+    {
+        "alertname": "LogErrorRateHigh",
+        "severity": "minor",
+        "instance": "app-{instance}.example.com",
+        "job": "log-exporter",
+        "team": "application",
+        "description": "Error rate in logs is above 5% on {instance}",
+        "summary": "High error rate in logs on {instance}"
+    },
+    {
+        "alertname": "BackupFailed",
+        "severity": "major",
+        "instance": "backup-{instance}.example.com",
+        "job": "backup-exporter",
+        "team": "operations",
+        "description": "Daily backup failed on {instance}",
+        "summary": "Backup failure on {instance}"
+    },
+    {
+        "alertname": "LoadBalancerHealthy",
+        "severity": "info",
+        "instance": "lb-{instance}.example.com",
+        "job": "haproxy-exporter",
+        "team": "infrastructure",
+        "description": "Load balancer {instance} is healthy and operational",
+        "summary": "Load balancer {instance} operational"
     }
 ]
+
+# Severity levels with weights for random selection (higher weight = more frequent)
+SEVERITY_WEIGHTS = {
+    "critical": 10,
+    "major": 15,
+    "warning": 30,
+    "minor": 25,
+    "info": 20
+}
 
 RECEIVER_NAMES = ["web.hook", "email-team", "slack-critical", "pagerduty", "discord-alerts"]
 
@@ -70,11 +160,20 @@ def generate_fingerprint():
     """Generate a unique fingerprint for an alert"""
     return ''.join(random.choices('0123456789abcdef', k=16))
 
+def get_weighted_severity():
+    """Get a random severity based on weights"""
+    severities = list(SEVERITY_WEIGHTS.keys())
+    weights = list(SEVERITY_WEIGHTS.values())
+    return random.choices(severities, weights=weights)[0]
+
 def generate_random_alert():
     """Generate a random alert based on templates"""
     template = random.choice(ALERT_TEMPLATES)
     instance_id = random.randint(1, 20)
     instance_name = template["instance"].format(instance=instance_id)
+    
+    # 20% chance to override template severity with weighted random severity
+    severity = get_weighted_severity() if random.random() < 0.2 else template["severity"]
     
     starts_at = datetime.now(UTC) - timedelta(minutes=random.randint(1, 30))
     ends_at = starts_at + timedelta(hours=random.randint(1, 6))
@@ -82,7 +181,7 @@ def generate_random_alert():
     alert = {
         "labels": {
             "alertname": template["alertname"],
-            "severity": template["severity"],
+            "severity": severity,
             "instance": instance_name,
             "job": template["job"],
             "team": template["team"]
@@ -99,15 +198,15 @@ def generate_random_alert():
         "fingerprint": generate_fingerprint(),
         "receivers": [{"name": random.choice(RECEIVER_NAMES)}],
         "status": {
-            "state": random.choice(["active", "suppressed", "unprocessed"]),
+            "state": random.choice(["active", "active", "active", "active", "unprocessed"]),  # 80% active, 20% unprocessed
             "silencedBy": [],
             "inhibitedBy": [],
             "mutedBy": []
         }
     }
     
-    # Randomly silence some alerts
-    if random.random() < 0.2:  # 20% chance to be silenced
+    # Randomly silence some alerts (reduced probability for more active alerts)
+    if random.random() < 0.05:  # 5% chance to be silenced
         silence_id = str(uuid.uuid4())
         alert["status"]["state"] = "suppressed"
         alert["status"]["silencedBy"] = [silence_id]
@@ -149,13 +248,13 @@ def alert_generator():
     while True:
         current_time = datetime.now(UTC)
         
-        # Generate new alerts randomly
-        if random.random() < 0.4:  # 40% chance every 15 seconds
+        # Generate new alerts randomly (increased frequency for more alerts)
+        if random.random() < 0.6:  # 60% chance every 15 seconds
             new_alert = generate_random_alert()
             alerts.append(new_alert)
             
-            # Keep only last 100 alerts
-            if len(alerts) > 100:
+            # Keep only last 150 alerts (increased for more active alerts)
+            if len(alerts) > 150:
                 alerts.pop(0)
             
             create_alert_groups()
@@ -171,10 +270,10 @@ def alert_generator():
         if (current_time - last_resolution_time).total_seconds() >= 30:
             print(f"[{current_time.strftime('%H:%M:%S')}] Resolving alerts for testing...", flush=True)
             
-            # Resolve 30-50% of active alerts
+            # Resolve 15-25% of active alerts (reduced to keep more active alerts)
             active_alerts = [alert for alert in alerts if alert["status"]["state"] == "active"]
             if active_alerts:
-                resolve_count = max(1, int(len(active_alerts) * random.uniform(0.3, 0.5)))
+                resolve_count = max(1, int(len(active_alerts) * random.uniform(0.15, 0.25)))
                 alerts_to_resolve = random.sample(active_alerts, min(resolve_count, len(active_alerts)))
                 
                 for alert in alerts_to_resolve:
@@ -480,12 +579,12 @@ def get_receivers_v1():
     return get_receivers()
 
 if __name__ == '__main__':
-    # Generate some initial alerts
-    for _ in range(10):
+    # Generate some initial alerts (increased for more active alerts)
+    for _ in range(20):
         alerts.append(generate_random_alert())
     
-    # Generate some initial silences
-    for _ in range(3):
+    # Generate some initial silences (reduced for fewer silenced alerts)
+    for _ in range(1):
         silence = {
             "id": str(uuid.uuid4()),
             "matchers": [

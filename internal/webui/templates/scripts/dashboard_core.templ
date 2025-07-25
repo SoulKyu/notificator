@@ -1,0 +1,233 @@
+package scripts
+
+templ DashboardCore() {
+	<script>
+		function newDashboard() {
+			return {
+				// Core state
+				loading: true,
+				alerts: [],
+				groups: [],
+				metadata: {
+					totalAlerts: 0,
+					filteredCount: 0,
+					lastUpdate: null,
+					counters: {
+						critical: 0,
+						warning: 0,
+						info: 0,
+						firing: 0,
+						resolved: 0,
+						acknowledged: 0,
+						withComments: 0
+					},
+					availableFilters: {
+						alertmanagers: [],
+						severities: [],
+						statuses: [],
+						teams: []
+					}
+				},
+				settings: {
+					theme: 'light',
+					notificationsEnabled: true,
+					soundEnabled: true,
+					resolvedAlertsRetention: 1,
+					refreshInterval: 5,
+					notificationDelay: 1500,
+					maxConcurrentNotifications: 3,
+					notificationBatching: true,
+					prioritizedNotifications: true
+				},
+				
+				// Remove resolved alerts state
+				isRemovingResolvedAlerts: false,
+				
+				// UI state
+				displayMode: 'classic',
+				viewMode: 'list',
+				sortField: 'duration',
+				sortDirection: 'asc',
+				showSettings: false,
+				
+				// Acknowledgment modal state
+				showAckModal: false,
+				ackAction: 'single', // 'single', 'bulk', or 'group'
+				ackReason: '',
+				ackError: '',
+				ackSubmitting: false,
+				currentAckAlert: null,
+				currentGroupName: '',
+				
+				// Alert details modal state
+				showAlertModal: false,
+				alertDetails: null,
+				currentAlertTab: 'overview',
+				alertDetailsLoading: false,
+				
+				// Comment management state
+				newCommentContent: '',
+				commentSubmitting: false,
+				commentDeleting: {},
+				currentUser: null,
+				
+				// Filter state
+				searchQuery: '',
+				filters: {
+					alertmanagers: [],
+					severities: [],
+					statuses: [],
+					teams: []
+				},
+				acknowledgmentFilter: null,
+				commentsFilter: null,
+				
+				// Selection state
+				selectedAlerts: [],
+				selectedGroups: [],
+				expandedGroups: [],
+				
+				// Auto-refresh
+				refreshInterval: null,
+				lastUpdateTime: null,
+				
+				// Color preferences
+				alertColors: {}, // fingerprint -> ColorResult
+				alertColorsTimestamp: 0, // when colors were last loaded
+				
+				// Sound objects
+				criticalSound: null,
+				warningSound: null,
+				
+				// Notification queue system
+				notificationQueue: [],
+				audioQueue: [],
+				isProcessingNotifications: false,
+				isProcessingAudio: false,
+				maxConcurrentNotifications: 3,
+				notificationDelay: 1500, // milliseconds between notifications
+				activeNotifications: new Set(),
+				notificationProcessingTimer: null,
+				audioProcessingTimer: null,
+				
+				// Resizable columns
+				columnWidths: {
+					alertName: 300,
+					acknowledge: 75,
+					instance: 350,
+					severity: 150,
+					status: 150,
+					comments: 130,
+					team: 200,
+					summary: 400,
+					duration: 150,
+					source: 180
+				},
+				isResizing: false,
+				startX: 0,
+				startWidth: 0,
+				currentColumn: null,
+
+				// Utility function to map status for display
+				getDisplayStatus(status) {
+					if (!status?.state) return 'unknown';
+					// Map 'suppressed' to 'silenced' for UI display
+					return status.state === 'suppressed' ? 'silenced' : status.state;
+				},
+
+				// Utility function to check if status matches a value (handles suppressed->silenced mapping)
+				statusMatches(status, value) {
+					const displayStatus = this.getDisplayStatus(status);
+					return displayStatus === value;
+				},
+
+				init() {
+					// Merge all mixins into this instance
+					Object.assign(this, window.dashboardDataMixin || {});
+					Object.assign(this, window.dashboardActionsMixin || {});
+					Object.assign(this, window.dashboardNotificationsMixin || {});
+					Object.assign(this, window.dashboardUtilitiesMixin || {});
+					Object.assign(this, window.dashboardModalMixin || {});
+					
+					// Set global reference for other components
+					window.dashboardInstance = this;
+					
+					this.loadSettings();
+					this.loadFiltersFromURL();
+					this.initializeSounds();
+					this.loadColumnWidths();
+					this.loadCurrentUser();
+					this.startAutoRefresh();
+					this.loadDashboardData();
+					
+					// Check if URL contains alert ID and open modal
+					this.checkAlertFromURL();
+					
+					// Listen for visibility changes to pause/resume refresh
+					document.addEventListener('visibilitychange', () => {
+						if (document.hidden) {
+							this.stopAutoRefresh();
+						} else {
+							this.startAutoRefresh();
+							// Use incremental update when coming back from hidden
+							this.loadDashboardIncremental();
+						}
+					});
+					
+					// Add global mouse events for resizing
+					document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+					document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+				},
+
+				// Global functions needed by the template
+				openSettings() {
+					this.showSettings = true;
+				},
+				
+				getStatusText() {
+					if (this.loading) return 'Loading...';
+					if (this.metadata && this.metadata.lastUpdate) {
+						return `Last updated: ${new Date(this.metadata.lastUpdate).toLocaleTimeString()}`;
+					}
+					return 'Ready';
+				},
+
+				// Display modes
+				setDisplayMode(mode) {
+					if (this.displayMode !== mode) {
+						this.displayMode = mode;
+						this.clearSelection();
+						this.loadDashboardData();
+					}
+				},
+
+				setViewMode(mode) {
+					if (this.viewMode !== mode) {
+						this.viewMode = mode;
+						this.clearSelection();
+						if (mode === 'group') {
+							this.expandedGroups = this.groups.map(g => g.groupName);
+						}
+						this.loadDashboardData();
+					}
+				},
+
+				// Auto-refresh management
+				startAutoRefresh() {
+					this.stopAutoRefresh();
+					this.refreshInterval = setInterval(() => {
+						// Use incremental updates for auto-refresh
+						this.loadDashboardIncremental();
+					}, this.settings.refreshInterval * 1000);
+				},
+
+				stopAutoRefresh() {
+					if (this.refreshInterval) {
+						clearInterval(this.refreshInterval);
+						this.refreshInterval = null;
+					}
+				}
+			}
+		}
+	</script>
+}

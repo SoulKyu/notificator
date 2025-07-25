@@ -1,15 +1,18 @@
 {
-  "alertmanager": {
-    "url": "https://alertmanager.prometheus1.numberly.in",
-    "username": "",
-    "password": "",
-    "token": "",
-    "headers": {},
-    "oauth": {
-      "enabled": false,
-      "proxy_mode": true
+  "alertmanagers": [
+    {
+      "name": "Main Alertmanager",
+      "url": "http://127.0.0.1:9093",
+      "username": "",
+      "password": "",
+      "token": "",
+      "headers": {},
+      "oauth": {
+        "enabled": false,
+        "proxy_mode": true
+      }
     }
-  },
+  ],
   "backend": {
     "enabled": true,
     "grpc_listen": ":50051",

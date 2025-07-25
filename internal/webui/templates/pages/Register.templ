@@ -1,0 +1,213 @@
+package pages
+
+import "notificator/internal/webui/templates/layouts"
+import "notificator/internal/webui/templates/components"
+
+templ Register() {
+	@layouts.Base("Register - Notificator", RegisterContent())
+}
+
+templ RegisterContent() {
+	<div class="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
+		<div class="sm:mx-auto sm:w-full sm:max-w-sm">
+			<h2 class="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900 dark:text-white">
+				Create your account
+			</h2>
+		</div>
+
+		<div class="sm:mx-auto sm:w-full sm:max-w-sm">
+			@components.BackendWarning()
+		</div>
+
+		<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+			<form class="space-y-6" x-data="registerForm()" @submit.prevent="submitForm">
+				<div>
+					<label for="username" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
+						Username
+					</label>
+					<div class="mt-2">
+						<input id="username" name="username" type="text" required 
+							   x-model="form.username"
+							   class="input-field"
+							   :class="{ 'border-red-500': errors.username }"/>
+					</div>
+					<p x-show="errors.username" class="mt-1 text-sm text-red-600" x-text="errors.username"></p>
+				</div>
+
+				<div>
+					<label for="email" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
+						Email address
+					</label>
+					<div class="mt-2">
+						<input id="email" name="email" type="email" required 
+							   x-model="form.email"
+							   class="input-field"
+							   :class="{ 'border-red-500': errors.email }"/>
+					</div>
+					<p x-show="errors.email" class="mt-1 text-sm text-red-600" x-text="errors.email"></p>
+				</div>
+
+				<div>
+					<label for="password" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
+						Password
+					</label>
+					<div class="mt-2">
+						<input id="password" name="password" type="password" required 
+							   x-model="form.password"
+							   class="input-field"
+							   :class="{ 'border-red-500': errors.password }"/>
+					</div>
+					<p x-show="errors.password" class="mt-1 text-sm text-red-600" x-text="errors.password"></p>
+					<p class="mt-1 text-xs text-gray-500">Minimum 4 characters</p>
+				</div>
+
+				<div>
+					<label for="confirm-password" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
+						Confirm password
+					</label>
+					<div class="mt-2">
+						<input id="confirm-password" name="confirm-password" type="password" required 
+							   x-model="form.confirmPassword"
+							   class="input-field"
+							   :class="{ 'border-red-500': errors.confirmPassword }"/>
+					</div>
+					<p x-show="errors.confirmPassword" class="mt-1 text-sm text-red-600" x-text="errors.confirmPassword"></p>
+				</div>
+
+				<div>
+					<button type="submit" class="btn-primary w-full" :disabled="loading">
+						<span x-show="!loading">Create account</span>
+						<span x-show="loading" class="flex items-center justify-center">
+							<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+							</svg>
+							Creating account...
+						</span>
+					</button>
+				</div>
+
+				<!-- Success/Error Messages -->
+				<div x-show="message.text" class="rounded-md p-4" 
+					 :class="message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'">
+					<p class="text-sm" x-text="message.text"></p>
+				</div>
+			</form>
+
+			<script>
+				function registerForm() {
+					return {
+						form: {
+							username: '',
+							email: '',
+							password: '',
+							confirmPassword: ''
+						},
+						errors: {},
+						message: { text: '', type: '' },
+						loading: false,
+						
+						async submitForm() {
+							this.clearErrors();
+							
+							if (!this.validateForm()) {
+								return;
+							}
+							
+							this.loading = true;
+							
+							try {
+								const formData = new FormData();
+								formData.append('username', this.form.username);
+								formData.append('email', this.form.email);
+								formData.append('password', this.form.password);
+								formData.append('confirm-password', this.form.confirmPassword);
+								
+								const response = await fetch('/api/v1/auth/register', {
+									method: 'POST',
+									body: formData
+								});
+								
+								const result = await response.json();
+								
+								if (result.success) {
+									this.message = { text: result.data.message, type: 'success' };
+									// Redirect to login page
+									setTimeout(() => {
+										window.location.href = result.data.redirect;
+									}, 2000);
+								} else {
+									this.message = { text: result.error, type: 'error' };
+								}
+							} catch (error) {
+								this.message = { text: 'Network error. Please try again.', type: 'error' };
+							} finally {
+								this.loading = false;
+							}
+						},
+						
+						validateForm() {
+							let isValid = true;
+							
+							if (!this.form.username.trim()) {
+								this.errors.username = 'Username is required';
+								isValid = false;
+							}
+							
+							if (!this.form.email.trim()) {
+								this.errors.email = 'Email is required';
+								isValid = false;
+							} else if (!this.isValidEmail(this.form.email)) {
+								this.errors.email = 'Please enter a valid email address';
+								isValid = false;
+							}
+							
+							if (!this.form.password) {
+								this.errors.password = 'Password is required';
+								isValid = false;
+							} else if (this.form.password.length < 4) {
+								this.errors.password = 'Password must be at least 4 characters long';
+								isValid = false;
+							}
+							
+							if (!this.form.confirmPassword) {
+								this.errors.confirmPassword = 'Please confirm your password';
+								isValid = false;
+							} else if (this.form.password !== this.form.confirmPassword) {
+								this.errors.confirmPassword = 'Passwords do not match';
+								isValid = false;
+							}
+							
+							return isValid;
+						},
+						
+						isValidEmail(email) {
+							const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+							return emailRegex.test(email);
+						},
+						
+						clearErrors() {
+							this.errors = {};
+							this.message = { text: '', type: '' };
+						}
+					}
+				}
+			</script>
+
+			<p class="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
+				Already have an account?
+				<a href="/login" class="font-semibold leading-6 text-primary-600 hover:text-primary-500">
+					Sign in
+				</a>
+			</p>
+
+			<!-- Dark mode toggle -->
+			<div class="mt-8 flex justify-center">
+				<button @click="toggle()" 
+						class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-bg-secondary transition-colors">
+					<span x-show="!darkMode">🌙 Dark Mode</span>
+					<span x-show="darkMode">☀️ Light Mode</span>
+				</button>
+			</div>
+		</div>
+	</div>
+}

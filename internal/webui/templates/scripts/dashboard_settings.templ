@@ -1,0 +1,253 @@
+package scripts
+
+templ DashboardSettings() {
+	<script>
+		// Settings Modal Data Handler
+		function settingsModalData() {
+			return {
+				activeTab: 'general',
+				colorPreferences: [],
+				availableLabels: {}, // labelKey -> [values]
+				availableLabelsLastLoaded: null, // timestamp for cache expiry
+				
+				async init() {
+					console.log('Settings modal initializing...');
+					await this.loadColorPreferences();
+					await this.loadAvailableLabels();
+					// Ensure the global reference is set
+					window.currentSettingsModal = this;
+					console.log('Settings modal initialized, window.currentSettingsModal set:', !!window.currentSettingsModal);
+				},
+
+				async loadColorPreferences() {
+					try {
+						const response = await fetch('/api/v1/dashboard/color-preferences', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success) {
+								this.colorPreferences = (result.data.preferences || []).map(pref => ({
+									...pref,
+									id: pref.id || Date.now() + Math.random(), // Ensure each has an ID for tracking
+									isEditing: false
+								}));
+								console.log('Loaded color preferences:', this.colorPreferences.length);
+							}
+						}
+					} catch (error) {
+						console.error('Error loading color preferences:', error);
+					}
+				},
+
+				async loadAvailableLabels() {
+					// Skip if recently loaded (cache for 5 minutes)
+					const now = Date.now();
+					if (this.availableLabelsLastLoaded && (now - this.availableLabelsLastLoaded) < 5 * 60 * 1000) {
+						console.log('Using cached available labels');
+						return;
+					}
+
+					try {
+						console.log('Loading available labels...');
+						const response = await fetch('/api/v1/dashboard/available-labels', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success) {
+								this.availableLabels = result.data.labels || {};
+								this.availableLabelsLastLoaded = now;
+								console.log('Loaded available labels:', Object.keys(this.availableLabels).length, 'label keys');
+							}
+						}
+					} catch (error) {
+						console.error('Error loading available labels:', error);
+					}
+				},
+
+				// Color preference management
+				addColorPreference() {
+					const newPref = {
+						id: Date.now() + Math.random(),
+						labelKey: '',
+						labelValue: '',
+						bgColor: '#ff9999',
+						textColor: '#000000',
+						isEditing: true
+					};
+					this.colorPreferences.push(newPref);
+				},
+
+				editColorPreference(id) {
+					const pref = this.colorPreferences.find(p => p.id === id);
+					if (pref) {
+						pref.isEditing = true;
+					}
+				},
+
+				cancelEditColorPreference(id) {
+					const index = this.colorPreferences.findIndex(p => p.id === id);
+					if (index !== -1) {
+						const pref = this.colorPreferences[index];
+						if (!pref.labelKey && !pref.labelValue) {
+							// Remove if it's a new preference being cancelled
+							this.colorPreferences.splice(index, 1);
+						} else {
+							pref.isEditing = false;
+						}
+					}
+				},
+
+				async saveColorPreference(id) {
+					const pref = this.colorPreferences.find(p => p.id === id);
+					if (!pref || !pref.labelKey.trim() || !pref.labelValue.trim()) {
+						console.warn('Cannot save color preference: missing required fields');
+						return;
+					}
+
+					try {
+						const method = pref.serverId ? 'PUT' : 'POST';
+						const url = pref.serverId 
+							? `/api/v1/dashboard/color-preferences/${pref.serverId}`
+							: '/api/v1/dashboard/color-preferences';
+
+						const response = await fetch(url, {
+							method: method,
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								labelKey: pref.labelKey.trim(),
+								labelValue: pref.labelValue.trim(),
+								bgColor: pref.bgColor,
+								textColor: pref.textColor
+							})
+						});
+
+						const result = await response.json();
+						if (result.success) {
+							// Update the preference with server data
+							if (result.data && result.data.id) {
+								pref.serverId = result.data.id;
+							}
+							pref.isEditing = false;
+							console.log('Color preference saved successfully');
+							
+							// Trigger alert color refresh in dashboard
+							if (window.dashboardInstance && typeof window.dashboardInstance.refreshAlertColors === 'function') {
+								console.log('Triggering dashboard alert color refresh...');
+								await window.dashboardInstance.refreshAlertColors();
+							}
+						} else {
+							console.error('Failed to save color preference:', result.error);
+						}
+					} catch (error) {
+						console.error('Error saving color preference:', error);
+					}
+				},
+
+				async deleteColorPreference(id) {
+					if (!confirm('Are you sure you want to delete this color preference?')) {
+						return;
+					}
+
+					const index = this.colorPreferences.findIndex(p => p.id === id);
+					if (index === -1) return;
+
+					const pref = this.colorPreferences[index];
+					
+					// If it has a server ID, delete from server
+					if (pref.serverId) {
+						try {
+							const response = await fetch(`/api/v1/dashboard/color-preferences/${pref.serverId}`, {
+								method: 'DELETE',
+								credentials: 'include'
+							});
+
+							const result = await response.json();
+							if (!result.success) {
+								console.error('Failed to delete color preference from server:', result.error);
+								return;
+							}
+						} catch (error) {
+							console.error('Error deleting color preference:', error);
+							return;
+						}
+					}
+
+					// Remove from local array
+					this.colorPreferences.splice(index, 1);
+					console.log('Color preference deleted successfully');
+					
+					// Trigger alert color refresh in dashboard
+					if (window.dashboardInstance && typeof window.dashboardInstance.refreshAlertColors === 'function') {
+						console.log('Triggering dashboard alert color refresh after deletion...');
+						await window.dashboardInstance.refreshAlertColors();
+					}
+				},
+
+				// Get available values for a selected label key
+				getAvailableValuesForLabel(labelKey) {
+					return this.availableLabels[labelKey] || [];
+				},
+
+				// Preview the color combination
+				getPreviewStyle(pref) {
+					return `background-color: ${pref.bgColor}; color: ${pref.textColor}; padding: 2px 8px; border-radius: 4px; display: inline-block; min-width: 60px; text-align: center;`;
+				},
+
+				// Tab management
+				setActiveTab(tab) {
+					this.activeTab = tab;
+					if (tab === 'colors') {
+						// Refresh available labels when opening colors tab
+						this.loadAvailableLabels();
+					}
+				},
+
+				// Form validation
+				isValidColorPreference(pref) {
+					return pref.labelKey.trim() && pref.labelValue.trim() && pref.bgColor && pref.textColor;
+				},
+
+				// Check if a color preference has unsaved changes
+				hasUnsavedChanges(pref) {
+					return pref.isEditing;
+				},
+
+				// Color utility functions
+				generateRandomColor() {
+					const colors = [
+						'#ff9999', '#99ff99', '#9999ff', '#ffff99', '#ff99ff', '#99ffff',
+						'#ffcc99', '#cc99ff', '#99ffcc', '#ccff99', '#ff99cc', '#99ccff'
+					];
+					return colors[Math.floor(Math.random() * colors.length)];
+				},
+
+				// Get contrasting text color for background
+				getContrastingTextColor(bgColor) {
+					// Simple contrast calculation - convert hex to RGB and check luminance
+					const hex = bgColor.replace('#', '');
+					const r = parseInt(hex.substr(0, 2), 16);
+					const g = parseInt(hex.substr(2, 2), 16);
+					const b = parseInt(hex.substr(4, 2), 16);
+					
+					// Calculate luminance
+					const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+					
+					return luminance > 0.5 ? '#000000' : '#ffffff';
+				},
+
+				// Auto-set contrasting text color when background changes
+				onBgColorChange(pref) {
+					pref.textColor = this.getContrastingTextColor(pref.bgColor);
+				}
+			};
+		}
+
+		// Global settings modal reference for dashboard integration
+		window.settingsModalData = settingsModalData;
+	</script>
+}

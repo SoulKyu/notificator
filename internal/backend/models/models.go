@@ -1,6 +1,9 @@
 package models
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -101,6 +104,67 @@ type AcknowledgmentWithUser struct {
 	Acknowledgment
 	Username string `json:"username"`
 }
+
+// JSONB is a custom type for storing JSON data in PostgreSQL/SQLite
+type JSONB json.RawMessage
+
+// Value implements the driver.Valuer interface for database storage
+func (j JSONB) Value() (driver.Value, error) {
+	if len(j) == 0 {
+		return nil, nil
+	}
+	return string(j), nil
+}
+
+// Scan implements the sql.Scanner interface for database retrieval
+func (j *JSONB) Scan(value interface{}) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+	switch v := value.(type) {
+	case []byte:
+		*j = JSONB(v)
+	case string:
+		*j = JSONB(v)
+	default:
+		return fmt.Errorf("cannot scan %T into JSONB", value)
+	}
+	return nil
+}
+
+// ResolvedAlert represents a resolved alert with complete snapshot data
+type ResolvedAlert struct {
+	ID          string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
+	Fingerprint string    `gorm:"not null;size:500;index" json:"fingerprint"`
+	
+	// Complete alert data snapshot as JSON
+	AlertData   JSONB     `gorm:"type:jsonb;not null" json:"alert_data"`
+	
+	// Preserved relationships (denormalized for performance and TTL safety)
+	Comments        JSONB     `gorm:"type:jsonb" json:"comments,omitempty"`
+	Acknowledgments JSONB     `gorm:"type:jsonb" json:"acknowledgments,omitempty"`
+	
+	// Resolution metadata
+	ResolvedAt  time.Time `gorm:"not null;index" json:"resolved_at"`
+	ExpiresAt   time.Time `gorm:"not null;index" json:"expires_at"`
+	Source      string    `gorm:"not null;size:255" json:"source"`
+	
+	// Timestamps
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// BeforeCreate generates a UUID for new resolved alerts
+func (ra *ResolvedAlert) BeforeCreate(tx *gorm.DB) error {
+	if ra.ID == "" {
+		ra.ID = generateID()
+	}
+	return nil
+}
+
+// TableName specifies the table name for ResolvedAlert
+func (ResolvedAlert) TableName() string { return "resolved_alerts" }
 
 // ID generation utility
 func generateID() string {

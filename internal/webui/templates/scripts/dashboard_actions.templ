@@ -1,0 +1,360 @@
+package scripts
+
+templ DashboardActions() {
+	<script>
+		// Alert actions for dashboard (acknowledge, hide, resolve, etc.)
+		window.dashboardActionsMixin = {
+			// Acknowledgment modal functions
+			cancelAcknowledgment() {
+				this.showAckModal = false;
+				this.ackReason = '';
+				this.ackError = '';
+				this.ackSubmitting = false;
+				this.currentAckAlert = null;
+				this.currentGroupName = '';
+			},
+			
+			async submitAcknowledgment() {
+				// Validate reason
+				if (!this.ackReason.trim()) {
+					this.ackError = 'Please provide a reason for the acknowledgment';
+					return;
+				}
+				
+				this.ackSubmitting = true;
+				this.ackError = '';
+				
+				try {
+					let request;
+					let successMessage;
+					
+					switch (this.ackAction) {
+						case 'single':
+							request = {
+								alertFingerprints: [this.currentAckAlert.fingerprint],
+								groupNames: [],
+								action: 'acknowledge',
+								comment: this.ackReason
+							};
+							successMessage = 'Alert acknowledged successfully';
+							break;
+							
+						case 'group':
+							request = {
+								alertFingerprints: [],
+								groupNames: [this.currentGroupName],
+								action: 'acknowledge',
+								comment: this.ackReason
+							};
+							successMessage = `Group "${this.currentGroupName}" acknowledged successfully`;
+							break;
+							
+						case 'bulk':
+							request = {
+								alertFingerprints: this.selectedAlerts,
+								groupNames: this.selectedGroups,
+								action: 'acknowledge',
+								comment: this.ackReason
+							};
+							successMessage = `${this.selectedAlerts.length + this.selectedGroups.length} items acknowledged successfully`;
+							break;
+							
+						default:
+							this.ackError = 'Invalid acknowledgment action';
+							this.ackSubmitting = false;
+							return;
+					}
+					
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', successMessage);
+						this.showAckModal = false;
+						
+						// Clear selection for bulk actions
+						if (this.ackAction === 'bulk') {
+							this.clearSelection();
+						}
+						
+						// Refresh dashboard data
+						this.loadDashboardData();
+					} else {
+						this.ackError = result.error || 'Failed to acknowledge';
+					}
+				} catch (error) {
+					console.error('Error submitting acknowledgment:', error);
+					this.ackError = 'Network error: Failed to submit acknowledgment';
+				} finally {
+					this.ackSubmitting = false;
+				}
+			},
+
+			async hideSelected() {
+				const request = {
+					alertFingerprints: this.selectedAlerts,
+					groupNames: this.selectedGroups,
+					action: 'hide'
+				};
+
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', `Hidden ${result.data.processedCount} alerts`);
+						this.clearSelection();
+						this.loadDashboardData();
+					} else {
+						this.showNotification('error', 'Failed to hide alerts: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error hiding alerts:', error);
+					this.showNotification('error', 'Failed to hide alerts');
+				}
+			},
+
+			acknowledgeAlert(fingerprint) {
+				// Find the alert details
+				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+				this.currentAckAlert = alert;
+				this.ackAction = 'single';
+				this.ackReason = '';
+				this.ackError = '';
+				this.showAckModal = true;
+			},
+
+			acknowledgeGroup(groupName) {
+				this.currentGroupName = groupName;
+				this.ackAction = 'group';
+				this.ackReason = '';
+				this.ackError = '';
+				this.showAckModal = true;
+			},
+
+			acknowledgeSelected() {
+				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
+					this.showNotification('warning', 'Please select alerts or groups to acknowledge');
+					return;
+				}
+				
+				this.ackAction = 'bulk';
+				this.ackReason = '';
+				this.ackError = '';
+				this.showAckModal = true;
+			},
+
+			async hideAlert(fingerprint) {
+				const request = {
+					alertFingerprints: [fingerprint],
+					action: 'hide'
+				};
+
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert hidden');
+						this.loadDashboardData();
+					} else {
+						this.showNotification('error', 'Failed to hide alert: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error hiding alert:', error);
+					this.showNotification('error', 'Failed to hide alert');
+				}
+			},
+
+			// Unacknowledge actions
+			async unacknowledgeSelected() {
+				const request = {
+					alertFingerprints: this.selectedAlerts,
+					groupNames: this.selectedGroups,
+					action: 'unacknowledge',
+					comment: 'Unacknowledged from dashboard'
+				};
+
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', `Unacknowledged ${result.data.processedCount} alerts`);
+						this.clearSelection();
+						this.loadDashboardData();
+					} else {
+						this.showNotification('error', 'Failed to unacknowledge alerts: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error unacknowledging alerts:', error);
+					this.showNotification('error', 'Failed to unacknowledge alerts');
+				}
+			},
+
+			async unacknowledgeAlert(fingerprint) {
+				const request = {
+					alertFingerprints: [fingerprint],
+					action: 'unacknowledge',
+					comment: 'Unacknowledged from dashboard'
+				};
+
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert unacknowledged');
+						this.loadDashboardData();
+					} else {
+						this.showNotification('error', 'Failed to unacknowledge alert: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error unacknowledging alert:', error);
+					this.showNotification('error', 'Failed to unacknowledge alert');
+				}
+			},
+
+			// Resolve actions
+			async resolveSelected() {
+				const request = {
+					alertFingerprints: this.selectedAlerts,
+					groupNames: this.selectedGroups,
+					action: 'resolve',
+					comment: 'Resolved from dashboard'
+				};
+
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', `Resolved ${result.data.processedCount} alerts`);
+						this.clearSelection();
+						this.loadDashboardData();
+					} else {
+						this.showNotification('error', 'Failed to resolve alerts: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error resolving alerts:', error);
+					this.showNotification('error', 'Failed to resolve alerts');
+				}
+			},
+
+			async resolveAlert(fingerprint) {
+				const request = {
+					alertFingerprints: [fingerprint],
+					action: 'resolve',
+					comment: 'Resolved from dashboard'
+				};
+
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert resolved');
+						this.loadDashboardData();
+					} else {
+						this.showNotification('error', 'Failed to resolve alert: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error resolving alert:', error);
+					this.showNotification('error', 'Failed to resolve alert');
+				}
+			},
+
+			// Confirm before removing all resolved alerts
+			confirmRemoveResolvedAlerts() {
+				if (confirm('Are you sure you want to remove all resolved alerts? This action cannot be undone.')) {
+					this.removeAllResolvedAlerts();
+				}
+			},
+
+			// Remove all resolved alerts from backend
+			async removeAllResolvedAlerts() {
+				this.isRemovingResolvedAlerts = true;
+				
+				try {
+					const response = await fetch('/api/v1/dashboard/remove-resolved-alerts', {
+						method: 'DELETE',
+						credentials: 'include'
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'All resolved alerts have been removed successfully');
+						// Refresh dashboard data if we're currently viewing resolved alerts
+						if (this.displayMode === 'resolved') {
+							await this.loadDashboardData();
+						}
+					} else {
+						this.showNotification('error', result.message || 'Failed to remove resolved alerts');
+					}
+				} catch (error) {
+					console.error('Error removing resolved alerts:', error);
+					this.showNotification('error', 'Failed to remove resolved alerts');
+				} finally {
+					this.isRemovingResolvedAlerts = false;
+				}
+			}
+		};
+	</script>
+}

@@ -1,0 +1,277 @@
+package scripts
+
+templ DashboardData() {
+	<script>
+		// Data loading and API functions for dashboard
+		window.dashboardDataMixin = {
+			// Data loading - initial load with full data
+			async loadDashboardData() {
+				this.loading = true;
+				
+				try {
+					const params = new URLSearchParams();
+					
+					// Add current filters to request
+					if (this.searchQuery) params.set('search', this.searchQuery);
+					if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
+					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+					
+					params.set('displayMode', this.displayMode);
+					params.set('viewMode', this.viewMode);
+					params.set('sortField', this.sortField);
+					params.set('sortDirection', this.sortDirection);
+					
+					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
+					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+					
+					const response = await fetch(`/api/v1/dashboard/data?${params.toString()}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						const oldAlerts = this.alerts;
+						this.alerts = result.data.alerts || [];
+						this.groups = result.data.groups || [];
+						this.metadata = result.data.metadata;
+						this.settings = { ...this.settings, ...result.data.settings };
+						this.lastUpdateTime = Date.now();
+						
+						// Check for new alerts for notifications
+						this.checkForNewAlerts(oldAlerts, this.alerts);
+						
+						// Load custom alert colors
+						await this.loadAlertColors();
+						
+						this.updateURL();
+					} else {
+						this.showNotification('error', 'Failed to load alerts: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error loading dashboard data:', error);
+					this.showNotification('error', 'Failed to load dashboard data');
+				} finally {
+					this.loading = false;
+				}
+			},
+
+			// Incremental update - only fetch changes
+			async loadDashboardIncremental() {
+				// Don't show loading spinner for incremental updates
+				try {
+					const params = new URLSearchParams();
+					
+					// Add current filters to request
+					if (this.searchQuery) params.set('search', this.searchQuery);
+					if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
+					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+					
+					params.set('displayMode', this.displayMode);
+					params.set('viewMode', this.viewMode);
+					params.set('sortField', this.sortField);
+					params.set('sortDirection', this.sortDirection);
+					
+					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
+					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+					
+					// Include current alert fingerprints for comparison
+					const currentFingerprints = this.alerts.map(a => a.fingerprint).join(',');
+					if (currentFingerprints) {
+						params.set('clientAlerts', currentFingerprints);
+					}
+					
+					if (this.lastUpdateTime) {
+						params.set('lastUpdate', Math.floor(this.lastUpdateTime / 1000).toString());
+					}
+					
+					const response = await fetch(`/api/v1/dashboard/incremental?${params.toString()}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						this.applyIncrementalUpdate(result.data);
+					} else {
+						// Fallback to full refresh if incremental fails
+						console.warn('Incremental update failed, falling back to full refresh');
+						await this.loadDashboardData();
+					}
+				} catch (error) {
+					console.error('Error loading incremental data:', error);
+					// Fallback to full refresh on error
+					await this.loadDashboardData();
+				}
+			},
+
+			// Load alert colors from user preferences
+			async loadAlertColors(force = false) {
+				// Skip loading if colors are already loaded and not forcing refresh
+				if (!force && Object.keys(this.alertColors).length > 0) {
+					return;
+				}
+				
+				try {
+					console.log('Loading alert colors...');
+					
+					// Build same URL parameters as dashboard data API
+					const params = new URLSearchParams();
+					
+					// Add current filters to request
+					if (this.searchQuery) params.set('search', this.searchQuery);
+					if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
+					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+					
+					params.set('displayMode', this.displayMode);
+					params.set('viewMode', this.viewMode);
+					params.set('sortField', this.sortField);
+					params.set('sortDirection', this.sortDirection);
+					
+					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
+					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+					
+					const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						this.alertColors = result.data.colors || {};
+						this.alertColorsTimestamp = result.data.timestamp || Date.now();
+						console.log(`Loaded colors for ${Object.keys(this.alertColors).length} alerts`);
+					} else {
+						console.warn('Failed to load alert colors:', result.error);
+					}
+				} catch (error) {
+					console.error('Error loading alert colors:', error);
+				}
+			},
+
+			// Invalidate and reload alert colors when preferences change
+			async refreshAlertColors() {
+				console.log('Refreshing alert colors due to preference changes...');
+				await this.loadAlertColors(true);
+				// Trigger UI update by reassigning the object to ensure reactivity
+				this.alertColors = { ...this.alertColors };
+			},
+
+			// Apply incremental changes to the dashboard
+			applyIncrementalUpdate(update) {
+				// Create fingerprint maps for efficient lookups
+				const alertMap = new Map();
+				this.alerts.forEach((alert, index) => {
+					alertMap.set(alert.fingerprint, { alert, index });
+				});
+				
+				// Track if we need to notify about new alerts
+				const oldAlerts = [...this.alerts];
+				
+				// Remove alerts that are no longer present
+				if (update.removedAlerts && update.removedAlerts.length > 0) {
+					this.alerts = this.alerts.filter(alert => 
+						!update.removedAlerts.includes(alert.fingerprint)
+					);
+					// Update selection to remove deleted alerts
+					this.selectedAlerts = this.selectedAlerts.filter(fingerprint => 
+						!update.removedAlerts.includes(fingerprint)
+					);
+				}
+				
+				// Update existing alerts
+				if (update.updatedAlerts && update.updatedAlerts.length > 0) {
+					const newAlertMap = new Map();
+					this.alerts.forEach((alert, index) => {
+						newAlertMap.set(alert.fingerprint, { alert, index });
+					});
+					
+					update.updatedAlerts.forEach(updatedAlert => {
+						const existing = newAlertMap.get(updatedAlert.fingerprint);
+						if (existing) {
+							// Update in place to maintain order
+							this.alerts[existing.index] = updatedAlert;
+						}
+					});
+				}
+				
+				// Add new alerts
+				if (update.newAlerts && update.newAlerts.length > 0) {
+					this.alerts.push(...update.newAlerts);
+					
+					// Sort after adding new alerts to maintain correct order
+					this.alerts = this.sortAlerts(this.alerts);
+				}
+				
+				// Update metadata and settings
+				if (update.metadata) {
+					this.metadata = update.metadata;
+				}
+				if (update.settings) {
+					this.settings = { ...this.settings, ...update.settings };
+				}
+				
+				// Update colors for new and updated alerts
+				if (update.colors && Object.keys(update.colors).length > 0) {
+					// Merge new colors with existing ones
+					this.alertColors = { ...this.alertColors, ...update.colors };
+					this.alertColorsTimestamp = Date.now();
+					console.log(`Updated colors for ${Object.keys(update.colors).length} alerts from incremental update`);
+				}
+				
+				// Update timestamp
+				this.lastUpdateTime = update.lastUpdateTime * 1000; // Convert to milliseconds
+				
+				// Check for new alerts for notifications
+				if (update.newAlerts && update.newAlerts.length > 0) {
+					this.checkForNewAlerts(oldAlerts, this.alerts);
+				}
+			},
+
+			// Sort alerts based on current sorting configuration
+			sortAlerts(alerts) {
+				return [...alerts].sort((a, b) => {
+					let aVal, bVal;
+					
+					switch (this.sortField) {
+						case 'alertName':
+							aVal = a.alertName.toLowerCase();
+							bVal = b.alertName.toLowerCase();
+							break;
+						case 'severity':
+							const severityOrder = { 'critical': 3, 'warning': 2, 'info': 1 };
+							aVal = severityOrder[a.severity] || 0;
+							bVal = severityOrder[b.severity] || 0;
+							break;
+						case 'status':
+							aVal = a.status.toLowerCase();
+							bVal = b.status.toLowerCase();
+							break;
+						case 'instance':
+							aVal = a.instance.toLowerCase();
+							bVal = b.instance.toLowerCase();
+							break;
+						case 'team':
+							aVal = (a.labels.team || '').toLowerCase();
+							bVal = (b.labels.team || '').toLowerCase();
+							break;
+						case 'duration':
+						default:
+							aVal = a.duration;
+							bVal = b.duration;
+							break;
+					}
+					
+					if (this.sortDirection === 'asc') {
+						return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+					} else {
+						return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+					}
+				});
+			}
+		};
+	</script>
+}

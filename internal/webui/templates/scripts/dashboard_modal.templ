@@ -1,0 +1,172 @@
+package scripts
+
+templ DashboardModal() {
+	<script>
+		// Alert details modal and comment management for dashboard
+		window.dashboardModalMixin = {
+			// Alert Details Modal Functions
+			async showAlertDetails(fingerprint) {
+				this.alertDetailsLoading = true;
+				this.showAlertModal = true;
+				this.currentAlertTab = 'overview';
+				this.alertDetails = null;
+
+				// Update URL without page reload
+				const currentPath = window.location.pathname;
+				const newPath = `/dashboard/alert/${fingerprint}`;
+				if (currentPath !== newPath) {
+					window.history.pushState({ alertId: fingerprint }, '', newPath);
+				}
+
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						this.alertDetails = result.data;
+					} else {
+						this.showNotification('error', 'Failed to load alert details: ' + result.error);
+						this.closeAlertModal();
+					}
+				} catch (error) {
+					console.error('Error loading alert details:', error);
+					this.showNotification('error', 'Failed to load alert details');
+					this.closeAlertModal();
+				} finally {
+					this.alertDetailsLoading = false;
+				}
+			},
+
+			closeAlertModal() {
+				this.showAlertModal = false;
+				this.alertDetails = null;
+				this.currentAlertTab = 'overview';
+				
+				// Reset comment state
+				this.newCommentContent = '';
+				this.commentSubmitting = false;
+				this.commentDeleting = {};
+				
+				// Update URL back to dashboard
+				if (window.location.pathname.includes('/alert/')) {
+					window.history.pushState({}, '', '/dashboard');
+				}
+			},
+
+			acknowledgeCurrentAlert() {
+				if (this.alertDetails?.alert) {
+					this.currentAckAlert = this.alertDetails.alert;
+					this.ackAction = 'single';
+					this.ackReason = '';
+					this.ackError = '';
+					this.showAckModal = true;
+				}
+			},
+
+			// Comment Management Functions
+			async addComment() {
+				if (!this.newCommentContent.trim()) {
+					this.showNotification('warning', 'Please enter a comment');
+					return;
+				}
+
+				if (!this.alertDetails?.alert?.fingerprint) {
+					this.showNotification('error', 'Alert information not available');
+					return;
+				}
+
+				this.commentSubmitting = true;
+				
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments`, {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							content: this.newCommentContent.trim()
+						})
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Comment added successfully');
+						this.newCommentContent = '';
+						
+						// Refresh alert details to show the new comment
+						await this.refreshComments();
+					} else {
+						this.showNotification('error', 'Failed to add comment: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error adding comment:', error);
+					this.showNotification('error', 'Failed to add comment');
+				} finally {
+					this.commentSubmitting = false;
+				}
+			},
+
+			async deleteComment(commentId) {
+				if (!commentId || !this.alertDetails?.alert?.fingerprint) {
+					this.showNotification('error', 'Comment information not available');
+					return;
+				}
+
+				// Set deleting state for this specific comment
+				this.commentDeleting[commentId] = true;
+				
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments/${commentId}`, {
+						method: 'DELETE',
+						credentials: 'include'
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Comment deleted successfully');
+						
+						// Refresh alert details to remove the deleted comment
+						await this.refreshComments();
+					} else {
+						this.showNotification('error', 'Failed to delete comment: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error deleting comment:', error);
+					this.showNotification('error', 'Failed to delete comment');
+				} finally {
+					// Remove deleting state for this comment
+					delete this.commentDeleting[commentId];
+				}
+			},
+
+			async refreshComments() {
+				if (!this.alertDetails?.alert?.fingerprint) {
+					return;
+				}
+
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						// Update only the comments and maintain other alert details
+						this.alertDetails.comments = result.data.comments || [];
+						// Update comment count in alert object if it exists
+						if (this.alertDetails.alert) {
+							this.alertDetails.alert.commentCount = this.alertDetails.comments.length;
+						}
+					}
+				} catch (error) {
+					console.error('Error refreshing comments:', error);
+				}
+			}
+		};
+	</script>
+}

@@ -1,0 +1,76 @@
+package layouts
+
+templ Base(title string, content templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>{ title }</title>
+		<link rel="icon" type="image/png" href="/static/notificator_background.png"/>
+		<link href="/static/css/output.css?v=1" rel="stylesheet"/>
+		<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		<script src="https://unpkg.com/alpinejs@3.14.6/dist/cdn.min.js" defer></script>
+	</head>
+	<body class="h-full bg-gray-50 dark:bg-dark-bg-primary">
+		
+		<div class="min-h-full" x-data="darkModeHandler()" x-init="init()">
+			@content
+		</div>
+		
+		<!-- Dark mode toggle script -->
+		<script>
+			// Global dark mode functions
+			window.darkModeState = {
+				darkMode: false,
+				init() {
+					// Force light mode for now
+					this.darkMode = false;
+					console.log('Dark mode disabled - forced to:', this.darkMode);
+					this.updateTheme();
+				},
+				toggle() {
+					this.darkMode = !this.darkMode;
+					console.log('Dark mode toggled to:', this.darkMode);
+					localStorage.setItem('darkMode', this.darkMode.toString());
+					console.log('Dark mode saved to localStorage:', localStorage.getItem('darkMode'));
+					this.updateTheme();
+					// Dispatch event to update all Alpine components
+					window.dispatchEvent(new CustomEvent('darkModeChanged', { detail: this.darkMode }));
+				},
+				updateTheme() {
+					console.log('Updating theme, darkMode:', this.darkMode);
+					if (this.darkMode) {
+						document.documentElement.classList.add('dark');
+						console.log('Added dark class to documentElement');
+					} else {
+						document.documentElement.classList.remove('dark');
+						console.log('Removed dark class from documentElement');
+					}
+				}
+			};
+			
+			// Initialize dark mode immediately (before page load)
+			window.darkModeState.init();
+
+			function darkModeHandler() {
+				return {
+					darkMode: false,
+					init() {
+						// Initialize from global state (without re-initializing global state)
+						this.darkMode = window.darkModeState.darkMode;
+						
+						// Listen for changes
+						window.addEventListener('darkModeChanged', (e) => {
+							this.darkMode = e.detail;
+						});
+					},
+					toggle() {
+						window.darkModeState.toggle();
+					}
+				}
+			}
+		</script>
+	</body>
+	</html>
+}

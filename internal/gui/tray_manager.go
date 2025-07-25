@@ -137,7 +137,7 @@ func (tm *TrayManager) ToggleBackgroundMode() {
 	}
 }
 
-// updateTrayStatus updates the system tray menu to reflect current state
+// updateTrayStatus updates the system tray menu with enhanced visual indicators
 func (tm *TrayManager) updateTrayStatus() {
 	if tm.trayMenu == nil {
 		return
@@ -151,19 +151,57 @@ func (tm *TrayManager) updateTrayStatus() {
 		}
 	}
 
-	// Update status information in the status submenu
+	// Get alert counts for visual indicators
+	totalAlerts := len(tm.alertsWindow.filteredData)
+	activeAlerts := tm.getActiveAlertCount()
+	criticalAlerts := tm.getCriticalAlertCount()
+	warningAlerts := tm.getWarningAlertCount()
+
+	// Update status information with enhanced visual indicators
 	for _, item := range tm.trayMenu.Items {
 		if item.Label == "Status" && item.ChildMenu != nil {
-			// Update status submenu items
+			// Update status submenu items with visual indicators
 			if len(item.ChildMenu.Items) >= 3 {
-				item.ChildMenu.Items[0].Label = fmt.Sprintf("Alerts: %d", len(tm.alertsWindow.filteredData))
-				item.ChildMenu.Items[1].Label = fmt.Sprintf("Active: %d", tm.getActiveAlertCount())
-				item.ChildMenu.Items[2].Label = fmt.Sprintf("Critical: %d", tm.getCriticalAlertCount())
+				// Enhanced status display with icons and colors
+				item.ChildMenu.Items[0].Label = fmt.Sprintf("📊 Total Alerts: %d", totalAlerts)
+				
+				if activeAlerts > 0 {
+					item.ChildMenu.Items[1].Label = fmt.Sprintf("🔔 Active: %d", activeAlerts)
+				} else {
+					item.ChildMenu.Items[1].Label = fmt.Sprintf("✅ Active: %d", activeAlerts)
+				}
+				
+				if criticalAlerts > 0 {
+					item.ChildMenu.Items[2].Label = fmt.Sprintf("🚨 Critical: %d", criticalAlerts)
+				} else {
+					item.ChildMenu.Items[2].Label = fmt.Sprintf("🟢 Critical: %d", criticalAlerts)
+				}
+
+				// Add warning alerts status if we have enough menu items or create new one
+				if len(item.ChildMenu.Items) >= 4 {
+					if warningAlerts > 0 {
+						item.ChildMenu.Items[3].Label = fmt.Sprintf("⚠️ Warnings: %d", warningAlerts)
+					} else {
+						item.ChildMenu.Items[3].Label = fmt.Sprintf("🟡 Warnings: %d", warningAlerts)
+					}
+				} else {
+					// Add warning count item if it doesn't exist
+					warningItem := fyne.NewMenuItem(fmt.Sprintf("⚠️ Warnings: %d", warningAlerts), nil)
+					item.ChildMenu.Items = append(item.ChildMenu.Items, warningItem)
+				}
+
+				// Add health summary if we have more space
+				if len(item.ChildMenu.Items) >= 5 {
+					healthStatus := tm.getSystemHealthStatus()
+					item.ChildMenu.Items[4].Label = healthStatus
+				} else {
+					healthItem := fyne.NewMenuItem(tm.getSystemHealthStatus(), nil)
+					item.ChildMenu.Items = append(item.ChildMenu.Items, healthItem)
+				}
 			}
 			break
 		}
 	}
-
 }
 
 // getActiveAlertCount returns the number of active alerts
@@ -186,6 +224,31 @@ func (tm *TrayManager) getCriticalAlertCount() int {
 		}
 	}
 	return count
+}
+
+// getWarningAlertCount returns the number of warning alerts
+func (tm *TrayManager) getWarningAlertCount() int {
+	count := 0
+	for _, alert := range tm.alertsWindow.filteredData {
+		if alert.GetSeverity() == "warning" && alert.IsActive() {
+			count++
+		}
+	}
+	return count
+}
+
+// getSystemHealthStatus returns a visual health status summary
+func (tm *TrayManager) getSystemHealthStatus() string {
+	criticalCount := tm.getCriticalAlertCount()
+	warningCount := tm.getWarningAlertCount()
+	
+	if criticalCount > 0 {
+		return fmt.Sprintf("🔴 System: CRITICAL (%d)", criticalCount)
+	} else if warningCount > 0 {
+		return fmt.Sprintf("🟡 System: WARNING (%d)", warningCount)
+	} else {
+		return "🟢 System: HEALTHY"
+	}
 }
 
 // IsBackgroundMode returns true if the app is currently in background mode

@@ -1,0 +1,15 @@
+{
+  "name": "notificator-webui",
+  "version": "1.0.0",
+  "description": "WebUI frontend for Notificator",
+  "scripts": {
+    "build-css": "tailwindcss -i ./internal/webui/static/css/input.css -o ./internal/webui/static/css/output.css --watch",
+    "build-css-prod": "tailwindcss -i ./internal/webui/static/css/input.css -o ./internal/webui/static/css/output.css --minify",
+    "dev": "concurrently \"npm run build-css\" \"templ generate --watch --proxy=http://localhost:8080\"",
+    "build": "npm run build-css-prod && templ generate"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "concurrently": "^8.2.0"
+  }
+}

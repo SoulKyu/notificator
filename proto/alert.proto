@@ -17,10 +17,23 @@ service AlertService {
   // Acknowledgments
   rpc AddAcknowledgment(AddAcknowledgmentRequest) returns (AddAcknowledgmentResponse);
   rpc GetAcknowledgments(GetAcknowledgmentsRequest) returns (GetAcknowledgmentsResponse);
+  rpc GetAllAcknowledgedAlerts(GetAllAcknowledgedAlertsRequest) returns (GetAllAcknowledgedAlertsResponse);
   rpc DeleteAcknowledgment(DeleteAcknowledgmentRequest) returns (DeleteAcknowledgmentResponse);
   
   // Real-time Updates
   rpc SubscribeToAlertUpdates(SubscribeToAlertUpdatesRequest) returns (stream AlertUpdate);
+  
+  // Resolved Alerts
+  rpc CreateResolvedAlert(CreateResolvedAlertRequest) returns (CreateResolvedAlertResponse);
+  rpc GetResolvedAlerts(GetResolvedAlertsRequest) returns (GetResolvedAlertsResponse);
+  rpc GetResolvedAlert(GetResolvedAlertRequest) returns (GetResolvedAlertResponse);
+  rpc RemoveAllResolvedAlerts(RemoveAllResolvedAlertsRequest) returns (RemoveAllResolvedAlertsResponse);
+  rpc StreamResolvedAlertUpdates(StreamResolvedAlertUpdatesRequest) returns (stream ResolvedAlertUpdate);
+  
+  // User Color Preferences
+  rpc GetUserColorPreferences(GetUserColorPreferencesRequest) returns (GetUserColorPreferencesResponse);
+  rpc SaveUserColorPreferences(SaveUserColorPreferencesRequest) returns (SaveUserColorPreferencesResponse);
+  rpc DeleteUserColorPreference(DeleteUserColorPreferenceRequest) returns (DeleteUserColorPreferenceResponse);
 }
 
 // Comment Messages
@@ -86,6 +99,15 @@ message GetAcknowledgmentsResponse {
   int32 count = 2;
 }
 
+message GetAllAcknowledgedAlertsRequest {
+  // No parameters needed - returns all acknowledged alerts
+}
+
+message GetAllAcknowledgedAlertsResponse {
+  map<string, Acknowledgment> acknowledged_alerts = 1; // alert_key -> latest acknowledgment
+  int32 count = 2;
+}
+
 message DeleteAcknowledgmentRequest {
   string session_id = 1;
   string alert_key = 2;
@@ -129,4 +151,124 @@ enum UpdateType {
   COMMENT_DELETED = 2;
   ACKNOWLEDGMENT_ADDED = 3;
   ACKNOWLEDGMENT_DELETED = 4;
+}
+
+// User Color Preferences Messages
+message GetUserColorPreferencesRequest {
+  string session_id = 1;
+}
+
+message GetUserColorPreferencesResponse {
+  repeated UserColorPreference preferences = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message SaveUserColorPreferencesRequest {
+  string session_id = 1;
+  repeated UserColorPreference preferences = 2;
+}
+
+message SaveUserColorPreferencesResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteUserColorPreferenceRequest {
+  string session_id = 1;
+  string preference_id = 2;
+}
+
+message DeleteUserColorPreferenceResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UserColorPreference {
+  string id = 1;                                    // Unique ID for the preference
+  string user_id = 2;                              // User who owns this preference
+  map<string, string> label_conditions = 3;       // Key-value pairs: {Team: "team-infrastructure", Severity: "Warning"}
+  string color = 4;                                // Color value (e.g., "GRAY", "#FF5733", "red-500")
+  string color_type = 5;                           // Type: "severity", "custom", "tailwind"
+  int32 priority = 6;                              // Higher numbers = higher priority (for conflicts)
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// Resolved Alert Messages
+message CreateResolvedAlertRequest {
+  string fingerprint = 1;
+  string source = 2;
+  bytes alert_data = 3;        // JSON serialized DashboardAlert
+  bytes comments = 4;          // JSON serialized comments array
+  bytes acknowledgments = 5;   // JSON serialized acknowledgments array
+  int32 ttl_hours = 6;         // TTL in hours (default 24)
+}
+
+message CreateResolvedAlertResponse {
+  bool success = 1;
+  ResolvedAlertInfo resolved_alert = 2;
+  string message = 3;
+}
+
+message GetResolvedAlertsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message GetResolvedAlertsResponse {
+  repeated ResolvedAlertInfo resolved_alerts = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+message GetResolvedAlertRequest {
+  string fingerprint = 1;
+}
+
+message GetResolvedAlertResponse {
+  bool success = 1;
+  ResolvedAlertInfo resolved_alert = 2;
+  string message = 3;
+}
+
+message RemoveAllResolvedAlertsRequest {
+  // No parameters needed - removes all resolved alerts
+}
+
+message RemoveAllResolvedAlertsResponse {
+  bool success = 1;
+  int32 removed_count = 2;
+  string message = 3;
+}
+
+message StreamResolvedAlertUpdatesRequest {
+  string session_id = 1;
+}
+
+message ResolvedAlertUpdate {
+  string fingerprint = 1;
+  ResolvedAlertUpdateType update_type = 2;
+  ResolvedAlertInfo resolved_alert = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message ResolvedAlertInfo {
+  string id = 1;
+  string fingerprint = 2;
+  bytes alert_data = 3;        // JSON serialized DashboardAlert
+  bytes comments = 4;          // JSON serialized comments array
+  bytes acknowledgments = 5;   // JSON serialized acknowledgments array
+  google.protobuf.Timestamp resolved_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  string source = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+enum ResolvedAlertUpdateType {
+  UNKNOWN_RESOLVED_UPDATE = 0;
+  RESOLVED_ALERT_CREATED = 1;
+  RESOLVED_ALERT_EXPIRED = 2;
 }

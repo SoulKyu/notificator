@@ -34,7 +34,7 @@ type Alert struct {
 
 // AlertStatus represents the state of an alert
 type AlertStatus struct {
-	State       string   `json:"state"`       // "firing", "resolved", "suppressed"
+	State       string   `json:"state"`       // "firing", "resolved", "silenced"
 	SilencedBy  []string `json:"silencedBy"`  // IDs of silences that affect this alert
 	InhibitedBy []string `json:"inhibitedBy"` // IDs of alerts that inhibit this alert
 }
@@ -104,7 +104,7 @@ func (a *Alert) Duration() time.Duration {
 
 // IsSilenced returns true if the alert is currently silenced
 func (a *Alert) IsSilenced() bool {
-	return a.Status.State == "suppressed" || len(a.Status.SilencedBy) > 0
+	return a.Status.State == "silenced" || len(a.Status.SilencedBy) > 0
 }
 
 // IsInhibited returns true if the alert is currently inhibited by another alert

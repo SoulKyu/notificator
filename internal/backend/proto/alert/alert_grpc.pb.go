@@ -21,13 +21,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AlertService_AddComment_FullMethodName              = "/notificator.alert.AlertService/AddComment"
-	AlertService_GetComments_FullMethodName             = "/notificator.alert.AlertService/GetComments"
-	AlertService_DeleteComment_FullMethodName           = "/notificator.alert.AlertService/DeleteComment"
-	AlertService_AddAcknowledgment_FullMethodName       = "/notificator.alert.AlertService/AddAcknowledgment"
-	AlertService_GetAcknowledgments_FullMethodName      = "/notificator.alert.AlertService/GetAcknowledgments"
-	AlertService_DeleteAcknowledgment_FullMethodName    = "/notificator.alert.AlertService/DeleteAcknowledgment"
-	AlertService_SubscribeToAlertUpdates_FullMethodName = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
+	AlertService_AddComment_FullMethodName                 = "/notificator.alert.AlertService/AddComment"
+	AlertService_GetComments_FullMethodName                = "/notificator.alert.AlertService/GetComments"
+	AlertService_DeleteComment_FullMethodName              = "/notificator.alert.AlertService/DeleteComment"
+	AlertService_AddAcknowledgment_FullMethodName          = "/notificator.alert.AlertService/AddAcknowledgment"
+	AlertService_GetAcknowledgments_FullMethodName         = "/notificator.alert.AlertService/GetAcknowledgments"
+	AlertService_GetAllAcknowledgedAlerts_FullMethodName   = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
+	AlertService_DeleteAcknowledgment_FullMethodName       = "/notificator.alert.AlertService/DeleteAcknowledgment"
+	AlertService_SubscribeToAlertUpdates_FullMethodName    = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
+	AlertService_CreateResolvedAlert_FullMethodName        = "/notificator.alert.AlertService/CreateResolvedAlert"
+	AlertService_GetResolvedAlerts_FullMethodName          = "/notificator.alert.AlertService/GetResolvedAlerts"
+	AlertService_GetResolvedAlert_FullMethodName           = "/notificator.alert.AlertService/GetResolvedAlert"
+	AlertService_RemoveAllResolvedAlerts_FullMethodName    = "/notificator.alert.AlertService/RemoveAllResolvedAlerts"
+	AlertService_StreamResolvedAlertUpdates_FullMethodName = "/notificator.alert.AlertService/StreamResolvedAlertUpdates"
+	AlertService_GetUserColorPreferences_FullMethodName    = "/notificator.alert.AlertService/GetUserColorPreferences"
+	AlertService_SaveUserColorPreferences_FullMethodName   = "/notificator.alert.AlertService/SaveUserColorPreferences"
+	AlertService_DeleteUserColorPreference_FullMethodName  = "/notificator.alert.AlertService/DeleteUserColorPreference"
 )
 
 // AlertServiceClient is the client API for AlertService service.
@@ -43,9 +52,20 @@ type AlertServiceClient interface {
 	// Acknowledgments
 	AddAcknowledgment(ctx context.Context, in *AddAcknowledgmentRequest, opts ...grpc.CallOption) (*AddAcknowledgmentResponse, error)
 	GetAcknowledgments(ctx context.Context, in *GetAcknowledgmentsRequest, opts ...grpc.CallOption) (*GetAcknowledgmentsResponse, error)
+	GetAllAcknowledgedAlerts(ctx context.Context, in *GetAllAcknowledgedAlertsRequest, opts ...grpc.CallOption) (*GetAllAcknowledgedAlertsResponse, error)
 	DeleteAcknowledgment(ctx context.Context, in *DeleteAcknowledgmentRequest, opts ...grpc.CallOption) (*DeleteAcknowledgmentResponse, error)
 	// Real-time Updates
 	SubscribeToAlertUpdates(ctx context.Context, in *SubscribeToAlertUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AlertUpdate], error)
+	// Resolved Alerts
+	CreateResolvedAlert(ctx context.Context, in *CreateResolvedAlertRequest, opts ...grpc.CallOption) (*CreateResolvedAlertResponse, error)
+	GetResolvedAlerts(ctx context.Context, in *GetResolvedAlertsRequest, opts ...grpc.CallOption) (*GetResolvedAlertsResponse, error)
+	GetResolvedAlert(ctx context.Context, in *GetResolvedAlertRequest, opts ...grpc.CallOption) (*GetResolvedAlertResponse, error)
+	RemoveAllResolvedAlerts(ctx context.Context, in *RemoveAllResolvedAlertsRequest, opts ...grpc.CallOption) (*RemoveAllResolvedAlertsResponse, error)
+	StreamResolvedAlertUpdates(ctx context.Context, in *StreamResolvedAlertUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ResolvedAlertUpdate], error)
+	// User Color Preferences
+	GetUserColorPreferences(ctx context.Context, in *GetUserColorPreferencesRequest, opts ...grpc.CallOption) (*GetUserColorPreferencesResponse, error)
+	SaveUserColorPreferences(ctx context.Context, in *SaveUserColorPreferencesRequest, opts ...grpc.CallOption) (*SaveUserColorPreferencesResponse, error)
+	DeleteUserColorPreference(ctx context.Context, in *DeleteUserColorPreferenceRequest, opts ...grpc.CallOption) (*DeleteUserColorPreferenceResponse, error)
 }
 
 type alertServiceClient struct {
@@ -106,6 +126,16 @@ func (c *alertServiceClient) GetAcknowledgments(ctx context.Context, in *GetAckn
 	return out, nil
 }
 
+func (c *alertServiceClient) GetAllAcknowledgedAlerts(ctx context.Context, in *GetAllAcknowledgedAlertsRequest, opts ...grpc.CallOption) (*GetAllAcknowledgedAlertsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAllAcknowledgedAlertsResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetAllAcknowledgedAlerts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *alertServiceClient) DeleteAcknowledgment(ctx context.Context, in *DeleteAcknowledgmentRequest, opts ...grpc.CallOption) (*DeleteAcknowledgmentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteAcknowledgmentResponse)
@@ -135,6 +165,95 @@ func (c *alertServiceClient) SubscribeToAlertUpdates(ctx context.Context, in *Su
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AlertService_SubscribeToAlertUpdatesClient = grpc.ServerStreamingClient[AlertUpdate]
 
+func (c *alertServiceClient) CreateResolvedAlert(ctx context.Context, in *CreateResolvedAlertRequest, opts ...grpc.CallOption) (*CreateResolvedAlertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateResolvedAlertResponse)
+	err := c.cc.Invoke(ctx, AlertService_CreateResolvedAlert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) GetResolvedAlerts(ctx context.Context, in *GetResolvedAlertsRequest, opts ...grpc.CallOption) (*GetResolvedAlertsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetResolvedAlertsResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetResolvedAlerts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) GetResolvedAlert(ctx context.Context, in *GetResolvedAlertRequest, opts ...grpc.CallOption) (*GetResolvedAlertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetResolvedAlertResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetResolvedAlert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) RemoveAllResolvedAlerts(ctx context.Context, in *RemoveAllResolvedAlertsRequest, opts ...grpc.CallOption) (*RemoveAllResolvedAlertsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveAllResolvedAlertsResponse)
+	err := c.cc.Invoke(ctx, AlertService_RemoveAllResolvedAlerts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) StreamResolvedAlertUpdates(ctx context.Context, in *StreamResolvedAlertUpdatesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ResolvedAlertUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AlertService_ServiceDesc.Streams[1], AlertService_StreamResolvedAlertUpdates_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamResolvedAlertUpdatesRequest, ResolvedAlertUpdate]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AlertService_StreamResolvedAlertUpdatesClient = grpc.ServerStreamingClient[ResolvedAlertUpdate]
+
+func (c *alertServiceClient) GetUserColorPreferences(ctx context.Context, in *GetUserColorPreferencesRequest, opts ...grpc.CallOption) (*GetUserColorPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserColorPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetUserColorPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SaveUserColorPreferences(ctx context.Context, in *SaveUserColorPreferencesRequest, opts ...grpc.CallOption) (*SaveUserColorPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveUserColorPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_SaveUserColorPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) DeleteUserColorPreference(ctx context.Context, in *DeleteUserColorPreferenceRequest, opts ...grpc.CallOption) (*DeleteUserColorPreferenceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteUserColorPreferenceResponse)
+	err := c.cc.Invoke(ctx, AlertService_DeleteUserColorPreference_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AlertServiceServer is the server API for AlertService service.
 // All implementations must embed UnimplementedAlertServiceServer
 // for forward compatibility.
@@ -148,9 +267,20 @@ type AlertServiceServer interface {
 	// Acknowledgments
 	AddAcknowledgment(context.Context, *AddAcknowledgmentRequest) (*AddAcknowledgmentResponse, error)
 	GetAcknowledgments(context.Context, *GetAcknowledgmentsRequest) (*GetAcknowledgmentsResponse, error)
+	GetAllAcknowledgedAlerts(context.Context, *GetAllAcknowledgedAlertsRequest) (*GetAllAcknowledgedAlertsResponse, error)
 	DeleteAcknowledgment(context.Context, *DeleteAcknowledgmentRequest) (*DeleteAcknowledgmentResponse, error)
 	// Real-time Updates
 	SubscribeToAlertUpdates(*SubscribeToAlertUpdatesRequest, grpc.ServerStreamingServer[AlertUpdate]) error
+	// Resolved Alerts
+	CreateResolvedAlert(context.Context, *CreateResolvedAlertRequest) (*CreateResolvedAlertResponse, error)
+	GetResolvedAlerts(context.Context, *GetResolvedAlertsRequest) (*GetResolvedAlertsResponse, error)
+	GetResolvedAlert(context.Context, *GetResolvedAlertRequest) (*GetResolvedAlertResponse, error)
+	RemoveAllResolvedAlerts(context.Context, *RemoveAllResolvedAlertsRequest) (*RemoveAllResolvedAlertsResponse, error)
+	StreamResolvedAlertUpdates(*StreamResolvedAlertUpdatesRequest, grpc.ServerStreamingServer[ResolvedAlertUpdate]) error
+	// User Color Preferences
+	GetUserColorPreferences(context.Context, *GetUserColorPreferencesRequest) (*GetUserColorPreferencesResponse, error)
+	SaveUserColorPreferences(context.Context, *SaveUserColorPreferencesRequest) (*SaveUserColorPreferencesResponse, error)
+	DeleteUserColorPreference(context.Context, *DeleteUserColorPreferenceRequest) (*DeleteUserColorPreferenceResponse, error)
 	mustEmbedUnimplementedAlertServiceServer()
 }
 
@@ -176,11 +306,38 @@ func (UnimplementedAlertServiceServer) AddAcknowledgment(context.Context, *AddAc
 func (UnimplementedAlertServiceServer) GetAcknowledgments(context.Context, *GetAcknowledgmentsRequest) (*GetAcknowledgmentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAcknowledgments not implemented")
 }
+func (UnimplementedAlertServiceServer) GetAllAcknowledgedAlerts(context.Context, *GetAllAcknowledgedAlertsRequest) (*GetAllAcknowledgedAlertsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAllAcknowledgedAlerts not implemented")
+}
 func (UnimplementedAlertServiceServer) DeleteAcknowledgment(context.Context, *DeleteAcknowledgmentRequest) (*DeleteAcknowledgmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAcknowledgment not implemented")
 }
 func (UnimplementedAlertServiceServer) SubscribeToAlertUpdates(*SubscribeToAlertUpdatesRequest, grpc.ServerStreamingServer[AlertUpdate]) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToAlertUpdates not implemented")
+}
+func (UnimplementedAlertServiceServer) CreateResolvedAlert(context.Context, *CreateResolvedAlertRequest) (*CreateResolvedAlertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateResolvedAlert not implemented")
+}
+func (UnimplementedAlertServiceServer) GetResolvedAlerts(context.Context, *GetResolvedAlertsRequest) (*GetResolvedAlertsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetResolvedAlerts not implemented")
+}
+func (UnimplementedAlertServiceServer) GetResolvedAlert(context.Context, *GetResolvedAlertRequest) (*GetResolvedAlertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetResolvedAlert not implemented")
+}
+func (UnimplementedAlertServiceServer) RemoveAllResolvedAlerts(context.Context, *RemoveAllResolvedAlertsRequest) (*RemoveAllResolvedAlertsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveAllResolvedAlerts not implemented")
+}
+func (UnimplementedAlertServiceServer) StreamResolvedAlertUpdates(*StreamResolvedAlertUpdatesRequest, grpc.ServerStreamingServer[ResolvedAlertUpdate]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamResolvedAlertUpdates not implemented")
+}
+func (UnimplementedAlertServiceServer) GetUserColorPreferences(context.Context, *GetUserColorPreferencesRequest) (*GetUserColorPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserColorPreferences not implemented")
+}
+func (UnimplementedAlertServiceServer) SaveUserColorPreferences(context.Context, *SaveUserColorPreferencesRequest) (*SaveUserColorPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveUserColorPreferences not implemented")
+}
+func (UnimplementedAlertServiceServer) DeleteUserColorPreference(context.Context, *DeleteUserColorPreferenceRequest) (*DeleteUserColorPreferenceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserColorPreference not implemented")
 }
 func (UnimplementedAlertServiceServer) mustEmbedUnimplementedAlertServiceServer() {}
 func (UnimplementedAlertServiceServer) testEmbeddedByValue()                      {}
@@ -293,6 +450,24 @@ func _AlertService_GetAcknowledgments_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AlertService_GetAllAcknowledgedAlerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAllAcknowledgedAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetAllAcknowledgedAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetAllAcknowledgedAlerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetAllAcknowledgedAlerts(ctx, req.(*GetAllAcknowledgedAlertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AlertService_DeleteAcknowledgment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteAcknowledgmentRequest)
 	if err := dec(in); err != nil {
@@ -322,6 +497,143 @@ func _AlertService_SubscribeToAlertUpdates_Handler(srv interface{}, stream grpc.
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AlertService_SubscribeToAlertUpdatesServer = grpc.ServerStreamingServer[AlertUpdate]
 
+func _AlertService_CreateResolvedAlert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateResolvedAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateResolvedAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_CreateResolvedAlert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateResolvedAlert(ctx, req.(*CreateResolvedAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_GetResolvedAlerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResolvedAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetResolvedAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetResolvedAlerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetResolvedAlerts(ctx, req.(*GetResolvedAlertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_GetResolvedAlert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResolvedAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetResolvedAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetResolvedAlert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetResolvedAlert(ctx, req.(*GetResolvedAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_RemoveAllResolvedAlerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveAllResolvedAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).RemoveAllResolvedAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_RemoveAllResolvedAlerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).RemoveAllResolvedAlerts(ctx, req.(*RemoveAllResolvedAlertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_StreamResolvedAlertUpdates_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamResolvedAlertUpdatesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AlertServiceServer).StreamResolvedAlertUpdates(m, &grpc.GenericServerStream[StreamResolvedAlertUpdatesRequest, ResolvedAlertUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AlertService_StreamResolvedAlertUpdatesServer = grpc.ServerStreamingServer[ResolvedAlertUpdate]
+
+func _AlertService_GetUserColorPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserColorPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetUserColorPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetUserColorPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetUserColorPreferences(ctx, req.(*GetUserColorPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SaveUserColorPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveUserColorPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SaveUserColorPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SaveUserColorPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SaveUserColorPreferences(ctx, req.(*SaveUserColorPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_DeleteUserColorPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserColorPreferenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).DeleteUserColorPreference(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_DeleteUserColorPreference_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).DeleteUserColorPreference(ctx, req.(*DeleteUserColorPreferenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AlertService_ServiceDesc is the grpc.ServiceDesc for AlertService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -350,14 +662,51 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AlertService_GetAcknowledgments_Handler,
 		},
 		{
+			MethodName: "GetAllAcknowledgedAlerts",
+			Handler:    _AlertService_GetAllAcknowledgedAlerts_Handler,
+		},
+		{
 			MethodName: "DeleteAcknowledgment",
 			Handler:    _AlertService_DeleteAcknowledgment_Handler,
+		},
+		{
+			MethodName: "CreateResolvedAlert",
+			Handler:    _AlertService_CreateResolvedAlert_Handler,
+		},
+		{
+			MethodName: "GetResolvedAlerts",
+			Handler:    _AlertService_GetResolvedAlerts_Handler,
+		},
+		{
+			MethodName: "GetResolvedAlert",
+			Handler:    _AlertService_GetResolvedAlert_Handler,
+		},
+		{
+			MethodName: "RemoveAllResolvedAlerts",
+			Handler:    _AlertService_RemoveAllResolvedAlerts_Handler,
+		},
+		{
+			MethodName: "GetUserColorPreferences",
+			Handler:    _AlertService_GetUserColorPreferences_Handler,
+		},
+		{
+			MethodName: "SaveUserColorPreferences",
+			Handler:    _AlertService_SaveUserColorPreferences_Handler,
+		},
+		{
+			MethodName: "DeleteUserColorPreference",
+			Handler:    _AlertService_DeleteUserColorPreference_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "SubscribeToAlertUpdates",
 			Handler:       _AlertService_SubscribeToAlertUpdates_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamResolvedAlertUpdates",
+			Handler:       _AlertService_StreamResolvedAlertUpdates_Handler,
 			ServerStreams: true,
 		},
 	},

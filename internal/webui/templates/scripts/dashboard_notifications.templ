@@ -1,0 +1,326 @@
+package scripts
+
+templ DashboardNotifications() {
+	<script>
+		// Notification and sound system for dashboard
+		window.dashboardNotificationsMixin = {
+			// Initialize sound objects
+			initializeSounds() {
+				if (this.settings.soundEnabled) {
+					this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+				}
+
+				// Critical alert sound (higher frequency, more urgent)
+				this.criticalSound = {
+					frequency: 800,
+					duration: 200,
+					type: 'square'
+				};
+
+				// Warning alert sound (medium frequency)
+				this.warningSound = {
+					frequency: 600,
+					duration: 150,
+					type: 'sine'
+				};
+
+				// Initialize audio context on first user interaction
+				document.addEventListener('click', () => {
+					if (this.audioContext && this.audioContext.state === 'suspended') {
+						this.audioContext.resume();
+					}
+				}, { once: true });
+			},
+
+			checkForNewAlerts(oldAlerts, newAlerts) {
+				if (!this.settings.notificationsEnabled || oldAlerts.length === 0) {
+					return;
+				}
+
+				const oldFingerprints = new Set(oldAlerts.map(a => a.fingerprint));
+				const newlyArrivedAlerts = newAlerts.filter(alert => !oldFingerprints.has(alert.fingerprint));
+
+				if (newlyArrivedAlerts.length > 0) {
+					console.log(`Found ${newlyArrivedAlerts.length} new alerts`);
+
+					if (this.settings.notificationBatching) {
+						// Batch notifications and sounds
+						this.batchNotifications(newlyArrivedAlerts);
+					} else {
+						// Individual notifications
+						newlyArrivedAlerts.forEach(alert => {
+							this.queueNotification(alert);
+							this.queueSound(alert);
+						});
+					}
+				}
+			},
+
+			batchNotifications(alerts) {
+				// Group by severity for better batching
+				const groupedBySeverity = alerts.reduce((acc, alert) => {
+					if (!acc[alert.severity]) acc[alert.severity] = [];
+					acc[alert.severity].push(alert);
+					return acc;
+				}, {});
+
+				// Handle critical alerts with higher priority
+				if (this.settings.prioritizedNotifications) {
+					// Critical alerts get individual notifications
+					if (groupedBySeverity.critical) {
+						groupedBySeverity.critical.forEach(alert => {
+							this.queueNotification(alert, true); // High priority
+							this.queueSound(alert);
+						});
+						delete groupedBySeverity.critical;
+					}
+				}
+
+				// Batch remaining alerts by severity
+				Object.entries(groupedBySeverity).forEach(([severity, severityAlerts]) => {
+					if (severityAlerts.length === 1) {
+						this.queueNotification(severityAlerts[0]);
+						this.queueSound(severityAlerts[0]);
+					} else {
+						// Create a batch notification
+						const batchNotification = {
+							severity: severity,
+							count: severityAlerts.length,
+							isBatch: true,
+							alerts: severityAlerts
+						};
+						this.queueNotification(batchNotification);
+						this.queueSound(severityAlerts[0]); // Play sound for the first alert of this severity
+					}
+				});
+			},
+
+			queueNotification(alert, highPriority = false) {
+				if (highPriority) {
+					this.notificationQueue.unshift(alert);
+				} else {
+					this.notificationQueue.push(alert);
+				}
+				this.processNotificationQueue();
+			},
+
+			queueSound(alert) {
+				this.audioQueue.push(alert);
+				this.processAudioQueue();
+			},
+
+			async processNotificationQueue() {
+				if (this.isProcessingNotifications || this.notificationQueue.length === 0) {
+					return;
+				}
+
+				// Limit concurrent notifications
+				if (this.activeNotifications.size >= this.maxConcurrentNotifications) {
+					return;
+				}
+
+				this.isProcessingNotifications = true;
+
+				while (this.notificationQueue.length > 0 && this.activeNotifications.size < this.maxConcurrentNotifications) {
+					const alert = this.notificationQueue.shift();
+					await this.displayNotification(alert);
+
+					// Add delay between notifications if there are more queued
+					if (this.notificationQueue.length > 0) {
+						await new Promise(resolve => setTimeout(resolve, this.notificationDelay));
+					}
+				}
+
+				this.isProcessingNotifications = false;
+
+				// Schedule next batch if queue is not empty
+				if (this.notificationQueue.length > 0) {
+					this.notificationProcessingTimer = setTimeout(() => {
+						this.processNotificationQueue();
+					}, this.notificationDelay);
+				}
+			},
+
+			async processAudioQueue() {
+				if (this.isProcessingAudio || this.audioQueue.length === 0 || !this.settings.soundEnabled) {
+					return;
+				}
+
+				this.isProcessingAudio = true;
+
+				while (this.audioQueue.length > 0) {
+					const alert = this.audioQueue.shift();
+					this.playSound(alert.severity);
+
+					// Small delay between sounds
+					if (this.audioQueue.length > 0) {
+						await new Promise(resolve => setTimeout(resolve, 200));
+					}
+				}
+
+				this.isProcessingAudio = false;
+			},
+
+			async displayNotification(alert) {
+				let title, body;
+
+				if (alert.isBatch) {
+					title = `${alert.count} New ${alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)} Alerts`;
+					body = `${alert.count} new ${alert.severity} alerts have been received`;
+				} else {
+					title = `New ${alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)} Alert`;
+					body = alert.alertName + (alert.instance ? ` on ${alert.instance}` : '');
+				}
+
+				// Try browser notification first
+				if ('Notification' in window && Notification.permission === 'granted') {
+					const notification = new Notification(title, {
+						body: body,
+						icon: '/static/images/alert-icon.png',
+						tag: alert.isBatch ? `batch-${alert.severity}` : alert.fingerprint,
+						requireInteraction: alert.severity === 'critical'
+					});
+
+					// Track active notification
+					const notificationId = alert.isBatch ? `batch-${alert.severity}` : alert.fingerprint;
+					this.activeNotifications.add(notificationId);
+
+					// Remove from active when closed
+					notification.onclose = () => {
+						this.activeNotifications.delete(notificationId);
+					};
+
+					// Auto-close after some time for non-critical alerts
+					if (alert.severity !== 'critical') {
+						setTimeout(() => {
+							notification.close();
+						}, 5000);
+					}
+
+					// Handle click - focus window and show alert details
+					notification.onclick = () => {
+						window.focus();
+						if (!alert.isBatch && alert.fingerprint) {
+							this.showAlertDetails(alert.fingerprint);
+						}
+						notification.close();
+					};
+				} else {
+					// Fallback to in-app notification
+					this.showInAppNotification(alert.severity, title + ': ' + body);
+				}
+			},
+
+			showInAppNotification(type, message) {
+				// Create a unique ID for this notification
+				const notificationId = 'notif-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+				this.activeNotifications.add(notificationId);
+
+				const notification = document.createElement('div');
+				notification.id = notificationId;
+				notification.className = `mb-2 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+					type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200' :
+					type === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200' :
+					type === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200' :
+					type === 'critical' ? 'bg-red-200 text-red-900 dark:bg-red-900 dark:text-red-100 border-2 border-red-500' :
+					'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200'
+				}`;
+				
+				notification.innerHTML = `
+					<div class="flex items-center justify-between">
+						<div class="flex items-center">
+							<div class="flex-shrink-0 mr-3">
+								${type === 'success' ? '✓' : type === 'error' || type === 'critical' ? '✕' : type === 'warning' ? '⚠' : 'ℹ'}
+							</div>
+							<div class="text-sm font-medium">${message}</div>
+						</div>
+						<button onclick="this.parentElement.parentElement.remove(); window.dashboardInstance?.activeNotifications?.delete('${notificationId}')" class="ml-4 text-lg leading-none hover:opacity-70">×</button>
+					</div>
+				`;
+
+				// Get or create notification container
+				let container = document.getElementById('notification-container');
+				if (!container) {
+					container = document.createElement('div');
+					container.id = 'notification-container';
+					container.className = 'fixed top-4 right-4 z-50 max-w-sm';
+					document.body.appendChild(container);
+				}
+
+				container.appendChild(notification);
+
+				// Auto-remove after delay
+				const autoRemoveDelay = type === 'critical' ? 10000 : type === 'error' ? 7000 : 5000;
+				setTimeout(() => {
+					if (notification.parentElement) {
+						notification.style.opacity = '0';
+						notification.style.transform = 'translateX(100%)';
+						setTimeout(() => {
+							if (notification.parentElement) {
+								notification.remove();
+								this.activeNotifications.delete(notificationId);
+							}
+						}, 300);
+					}
+				}, autoRemoveDelay);
+			},
+
+			showNotification(type, message) {
+				this.showInAppNotification(type, message);
+			},
+
+			playSound(severity) {
+				if (!this.settings.soundEnabled || !this.audioContext) {
+					return;
+				}
+
+				try {
+					const soundConfig = severity === 'critical' ? this.criticalSound : this.warningSound;
+					
+					const oscillator = this.audioContext.createOscillator();
+					const gainNode = this.audioContext.createGain();
+					
+					oscillator.connect(gainNode);
+					gainNode.connect(this.audioContext.destination);
+					
+					oscillator.frequency.setValueAtTime(soundConfig.frequency, this.audioContext.currentTime);
+					oscillator.type = soundConfig.type;
+					
+					gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+					gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + soundConfig.duration / 1000);
+					
+					oscillator.start(this.audioContext.currentTime);
+					oscillator.stop(this.audioContext.currentTime + soundConfig.duration / 1000);
+				} catch (error) {
+					console.warn('Failed to play sound:', error);
+				}
+			},
+
+			// Apply notification settings (called when settings change)
+			applyNotificationSettings() {
+				this.maxConcurrentNotifications = this.settings.maxConcurrentNotifications || 3;
+				this.notificationDelay = this.settings.notificationDelay || 1500;
+
+				// Clear existing timers
+				if (this.notificationProcessingTimer) {
+					clearTimeout(this.notificationProcessingTimer);
+					this.notificationProcessingTimer = null;
+				}
+				if (this.audioProcessingTimer) {
+					clearTimeout(this.audioProcessingTimer);
+					this.audioProcessingTimer = null;
+				}
+
+				// Request notification permission if notifications are enabled
+				if (this.settings.notificationsEnabled && 'Notification' in window && Notification.permission === 'default') {
+					Notification.requestPermission();
+				}
+
+				// Reinitialize sounds if sound settings changed
+				if (this.settings.soundEnabled && !this.audioContext) {
+					this.initializeSounds();
+				}
+			}
+		};
+	</script>
+}

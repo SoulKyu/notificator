@@ -1,0 +1,235 @@
+package components
+
+// Alerts table for list view
+templ AlertsTable() {
+	<!-- Loading State -->
+	<div x-show="loading" class="p-8">
+		<div class="animate-pulse space-y-4">
+			<template x-for="i in 5" x-key="'loading-' + i">
+				<div class="h-16 bg-gray-200 dark:bg-dark-bg-tertiary rounded"></div>
+			</template>
+		</div>
+	</div>
+
+	<!-- Empty State -->
+	<div x-show="!loading && alerts.length === 0" class="text-center py-12">
+		<svg class="mx-auto h-12 w-12 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+			<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+		</svg>
+		<h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No alerts found</h3>
+		<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Try adjusting your search or filter criteria.</p>
+	</div>
+
+	<!-- Table View -->
+	<div x-show="!loading && alerts.length > 0" class="alert-table-container">
+		<table class="alert-table">
+			<thead class="bg-gray-50 dark:bg-dark-bg-secondary">
+				<tr>
+					<!-- Select All Checkbox -->
+					<th class="px-6 py-3 text-left w-12 min-w-12">
+						<input type="checkbox" 
+							   @change="toggleSelectAll($event)" 
+							   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+					</th>
+					
+					<!-- Sortable Columns -->
+					@SortableHeader("alertName", "Alert Name")
+					@SortableHeader("acknowledge", "Ack")
+					@SortableHeader("instance", "Instance")
+					@SortableHeader("severity", "Severity")
+					@SortableHeader("status", "Status")
+					@ResizableHeader("comments", "Comments")
+					@SortableHeader("team", "Team")
+					@ResizableHeader("summary", "Summary")
+					@SortableHeader("duration", "Duration")
+					@SortableHeader("source", "Alertmanager")
+				</tr>
+			</thead>
+			<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-dark-border-subtle">
+				<template x-for="(alert, index) in alerts" x-key="alert.fingerprint">
+					<!-- Row click opens alert details modal. Selection only happens via checkbox (has @click.stop) -->
+					<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors border-l-4"
+						@click="if (!$event.target.closest('input[type=checkbox]') && !$event.target.closest('button')) showAlertDetails(alert.fingerprint)"
+						:class="{
+							'bg-blue-50 dark:bg-blue-900/20': selectedAlerts.includes(alert.fingerprint)
+						}"
+						:style="`background-color: ${selectedAlerts.includes(alert.fingerprint) ? '' : getAlertColor(alert, 'backgroundColor')}; border-left-color: ${getAlertColor(alert, 'borderColor')};`">
+						
+						<!-- Selection Checkbox - @click.stop prevents row click from firing -->
+						<td class="px-6 py-4 whitespace-nowrap">
+							<input type="checkbox" 
+								   :checked="selectedAlerts.includes(alert.fingerprint)"
+								   @click.stop="toggleAlert(alert.fingerprint)"
+								   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+						</td>
+						
+						<!-- Alert Name -->
+						<td class="px-6 py-4" :style="`width: ${columnWidths.alertName}px`">
+							<div class="alert-cell-container">
+								<div class="text-sm font-medium text-gray-900 dark:text-white alert-cell-text text-tooltip" 
+									 x-text="alert.alertName" 
+									 :title="alert.alertName"></div>
+							</div>
+						</td>
+						
+						<!-- Acknowledge Status -->
+						<td class="px-6 py-4 whitespace-nowrap">
+							<div x-show="alert.isAcknowledged" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200">
+								<svg class="w-3 h-3 mr-1" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+								</svg>
+								ACK
+							</div>
+							<button x-show="!alert.isAcknowledged" @click.stop="acknowledgeAlert(alert.fingerprint)" 
+									class="text-gray-400 hover:text-green-500 transition-colors">
+								<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+								</svg>
+							</button>
+						</td>
+						
+						<!-- Instance -->
+						<td class="px-6 py-4" :style="`width: ${columnWidths.instance}px`">
+							<div class="alert-cell-container">
+								<div class="text-sm text-gray-900 dark:text-white alert-cell-text text-tooltip" 
+									 x-text="alert.instance" 
+									 :title="alert.instance"></div>
+							</div>
+						</td>
+						
+						<!-- Severity -->
+						<td class="px-6 py-4 whitespace-nowrap">
+							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+								  :class="{
+									  'bg-severity-critical-bg-light text-severity-critical-text-light dark:bg-severity-critical-bg-dark dark:text-severity-critical-text-dark': alert.severity === 'critical' || alert.severity === 'CRITICAL',
+									  'bg-severity-critical-daytime-bg-light text-severity-critical-daytime-text-light dark:bg-severity-critical-daytime-bg-dark dark:text-severity-critical-daytime-text-dark': alert.severity === 'critical-daytime',
+									  'bg-severity-warning-bg-light text-severity-warning-text-light dark:bg-severity-warning-bg-dark dark:text-severity-warning-text-dark': alert.severity === 'warning' || alert.severity === 'WARNING',
+									  'bg-severity-info-bg-light text-severity-info-text-light dark:bg-severity-info-bg-dark dark:text-severity-info-text-dark': alert.severity === 'info' || alert.severity === 'INFO' || alert.severity === 'information' || alert.severity === 'INFORMATION',
+									  'bg-gray-100 text-gray-800 dark:bg-dark-bg-tertiary dark:text-gray-200': !['critical', 'CRITICAL', 'critical-daytime', 'CRITICAL-DAYTIME', 'warning', 'WARNING', 'info', 'INFO', 'information', 'INFORMATION'].includes(alert.severity)
+								  }"
+								  x-text="alert.severity?.toUpperCase()">
+							</span>
+						</td>
+						
+						<!-- Status -->
+						<td class="px-6 py-4 whitespace-nowrap">
+							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+								  :class="{
+									  'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': statusMatches(alert.status, 'firing') || statusMatches(alert.status, 'active'),
+									  'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': statusMatches(alert.status, 'resolved'),
+									  'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200': statusMatches(alert.status, 'silenced'),
+									  'bg-gray-100 text-gray-800 dark:bg-dark-bg-tertiary dark:text-gray-200': !['firing', 'active', 'resolved', 'silenced'].includes(getDisplayStatus(alert.status))
+								  }">
+								<!-- Fire emoji for active/firing -->
+								<span x-show="statusMatches(alert.status, 'firing') || statusMatches(alert.status, 'active')" class="mr-1">🔥</span>
+								<!-- Mute emoji for silenced -->
+								<span x-show="statusMatches(alert.status, 'silenced')" class="mr-1">🔇</span>
+								<span x-text="(statusMatches(alert.status, 'firing') || statusMatches(alert.status, 'active')) ? 'Active' : 
+											statusMatches(alert.status, 'silenced') ? 'Silenced' : 
+											statusMatches(alert.status, 'resolved') ? 'Resolved' : 
+											getDisplayStatus(alert.status)?.toUpperCase()"></span>
+							</span>
+						</td>
+						
+						<!-- Comments -->
+						<td class="px-6 py-4 whitespace-nowrap">
+							<div class="flex items-center">
+								<svg x-show="alert.commentCount > 0" class="w-4 h-4 text-blue-500 mr-1" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+								</svg>
+								<span x-show="alert.commentCount > 0" class="text-sm text-gray-900 dark:text-white" x-text="alert.commentCount"></span>
+								<span x-show="alert.commentCount === 0" class="text-sm text-gray-400">-</span>
+							</div>
+						</td>
+						
+						<!-- Team -->
+						<td class="px-6 py-4" :style="`width: ${columnWidths.team}px`">
+							<div class="alert-cell-container">
+								<div class="text-sm text-gray-900 dark:text-white alert-cell-text text-tooltip" 
+									 x-text="alert.team" 
+									 :title="alert.team"></div>
+							</div>
+						</td>
+						
+						<!-- Summary -->
+						<td class="px-6 py-4" :style="`width: ${columnWidths.summary}px`">
+							<div class="alert-cell-container">
+								<div class="text-sm text-gray-500 dark:text-gray-400 alert-cell-text text-tooltip" 
+									 x-text="alert.summary" 
+									 :title="alert.summary"></div>
+							</div>
+						</td>
+						
+						<!-- Duration -->
+						<td class="px-6 py-4 whitespace-nowrap">
+							<div class="text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(alert.duration)"></div>
+						</td>
+						
+						<!-- Alertmanager Source -->
+						<td class="px-6 py-4" :style="`width: ${columnWidths.source}px`">
+							<div class="alert-cell-container">
+								<div class="text-xs text-gray-400 dark:text-gray-500 alert-cell-text text-tooltip" 
+									 x-text="alert.source" 
+									 :title="alert.source"></div>
+							</div>
+						</td>
+					</tr>
+				</template>
+			</tbody>
+		</table>
+	</div>
+}
+
+// Sortable header component
+templ SortableHeader(field, title string) {
+	<th class="text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider select-none relative border-r border-gray-200 dark:border-dark-border-DEFAULT group bg-gray-50 dark:bg-dark-bg-secondary"
+		:class={ "{ 'bg-gray-100 dark:bg-dark-bg-tertiary': sortField === '" + field + "' }" }
+		:style={ "{ width: columnWidths['" + field + "'] + 'px' }" }>
+		<!-- Sortable Header Content -->
+		<div @click={ "sortBy('" + field + "')" }
+			 class="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary transition-colors pr-4">
+			<div class="flex items-center space-x-1">
+				<span>{ title }</span>
+				<div class="flex flex-col">
+					<svg class="h-3 w-3 transition-colors" 
+						 :class={ "sortField === '" + field + "' && sortDirection === 'asc' ? 'text-blue-500' : 'text-gray-400'" }
+						 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+					</svg>
+					<svg class="h-3 w-3 -mt-1 transition-colors" 
+						 :class={ "sortField === '" + field + "' && sortDirection === 'desc' ? 'text-blue-500' : 'text-gray-400'" }
+						 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+					</svg>
+				</div>
+			</div>
+		</div>
+		<!-- Resize Handle -->
+		<div class="absolute top-0 right-0 w-3 h-full cursor-col-resize bg-transparent hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors opacity-50 group-hover:opacity-100 flex items-center justify-center"
+			 @mousedown.stop={ "startResize($event, '" + field + "')" }
+			 @click.stop
+			 title="Drag to resize column">
+			<div class="w-0.5 h-4/5 bg-gray-400 dark:bg-gray-500 hover:bg-white dark:hover:bg-gray-200 transition-colors rounded-sm"></div>
+		</div>
+	</th>
+}
+
+// Non-sortable resizable header component
+templ ResizableHeader(field, title string) {
+	<th class="text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider select-none relative border-r border-gray-200 dark:border-dark-border-DEFAULT group bg-gray-50 dark:bg-dark-bg-secondary"
+		:style={ "{ width: columnWidths['" + field + "'] + 'px' }" }>
+		<!-- Header Content -->
+		<div class="px-6 py-3 pr-4">
+			<div class="flex items-center">
+				<span>{ title }</span>
+			</div>
+		</div>
+		<!-- Resize Handle -->
+		<div class="absolute top-0 right-0 w-3 h-full cursor-col-resize bg-transparent hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors opacity-50 group-hover:opacity-100 flex items-center justify-center"
+			 @mousedown.stop={ "startResize($event, '" + field + "')" }
+			 @click.stop
+			 title="Drag to resize column">
+			<div class="w-0.5 h-4/5 bg-gray-400 dark:bg-gray-500 hover:bg-white dark:hover:bg-gray-200 transition-colors rounded-sm"></div>
+		</div>
+	</th>
+}

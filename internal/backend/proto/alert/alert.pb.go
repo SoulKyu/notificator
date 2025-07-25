@@ -79,6 +79,55 @@ func (UpdateType) EnumDescriptor() ([]byte, []int) {
 	return file_proto_alert_proto_rawDescGZIP(), []int{0}
 }
 
+type ResolvedAlertUpdateType int32
+
+const (
+	ResolvedAlertUpdateType_UNKNOWN_RESOLVED_UPDATE ResolvedAlertUpdateType = 0
+	ResolvedAlertUpdateType_RESOLVED_ALERT_CREATED  ResolvedAlertUpdateType = 1
+	ResolvedAlertUpdateType_RESOLVED_ALERT_EXPIRED  ResolvedAlertUpdateType = 2
+)
+
+// Enum value maps for ResolvedAlertUpdateType.
+var (
+	ResolvedAlertUpdateType_name = map[int32]string{
+		0: "UNKNOWN_RESOLVED_UPDATE",
+		1: "RESOLVED_ALERT_CREATED",
+		2: "RESOLVED_ALERT_EXPIRED",
+	}
+	ResolvedAlertUpdateType_value = map[string]int32{
+		"UNKNOWN_RESOLVED_UPDATE": 0,
+		"RESOLVED_ALERT_CREATED":  1,
+		"RESOLVED_ALERT_EXPIRED":  2,
+	}
+)
+
+func (x ResolvedAlertUpdateType) Enum() *ResolvedAlertUpdateType {
+	p := new(ResolvedAlertUpdateType)
+	*p = x
+	return p
+}
+
+func (x ResolvedAlertUpdateType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResolvedAlertUpdateType) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_alert_proto_enumTypes[1].Descriptor()
+}
+
+func (ResolvedAlertUpdateType) Type() protoreflect.EnumType {
+	return &file_proto_alert_proto_enumTypes[1]
+}
+
+func (x ResolvedAlertUpdateType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ResolvedAlertUpdateType.Descriptor instead.
+func (ResolvedAlertUpdateType) EnumDescriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{1}
+}
+
 // Comment Messages
 type AddCommentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -701,6 +750,94 @@ func (x *GetAcknowledgmentsResponse) GetCount() int32 {
 	return 0
 }
 
+type GetAllAcknowledgedAlertsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAllAcknowledgedAlertsRequest) Reset() {
+	*x = GetAllAcknowledgedAlertsRequest{}
+	mi := &file_proto_alert_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllAcknowledgedAlertsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllAcknowledgedAlertsRequest) ProtoMessage() {}
+
+func (x *GetAllAcknowledgedAlertsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllAcknowledgedAlertsRequest.ProtoReflect.Descriptor instead.
+func (*GetAllAcknowledgedAlertsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{11}
+}
+
+type GetAllAcknowledgedAlertsResponse struct {
+	state              protoimpl.MessageState     `protogen:"open.v1"`
+	AcknowledgedAlerts map[string]*Acknowledgment `protobuf:"bytes,1,rep,name=acknowledged_alerts,json=acknowledgedAlerts,proto3" json:"acknowledged_alerts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // alert_key -> latest acknowledgment
+	Count              int32                      `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *GetAllAcknowledgedAlertsResponse) Reset() {
+	*x = GetAllAcknowledgedAlertsResponse{}
+	mi := &file_proto_alert_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllAcknowledgedAlertsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllAcknowledgedAlertsResponse) ProtoMessage() {}
+
+func (x *GetAllAcknowledgedAlertsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllAcknowledgedAlertsResponse.ProtoReflect.Descriptor instead.
+func (*GetAllAcknowledgedAlertsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetAllAcknowledgedAlertsResponse) GetAcknowledgedAlerts() map[string]*Acknowledgment {
+	if x != nil {
+		return x.AcknowledgedAlerts
+	}
+	return nil
+}
+
+func (x *GetAllAcknowledgedAlertsResponse) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
 type DeleteAcknowledgmentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
@@ -711,7 +848,7 @@ type DeleteAcknowledgmentRequest struct {
 
 func (x *DeleteAcknowledgmentRequest) Reset() {
 	*x = DeleteAcknowledgmentRequest{}
-	mi := &file_proto_alert_proto_msgTypes[11]
+	mi := &file_proto_alert_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +860,7 @@ func (x *DeleteAcknowledgmentRequest) String() string {
 func (*DeleteAcknowledgmentRequest) ProtoMessage() {}
 
 func (x *DeleteAcknowledgmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[11]
+	mi := &file_proto_alert_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +873,7 @@ func (x *DeleteAcknowledgmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAcknowledgmentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAcknowledgmentRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{11}
+	return file_proto_alert_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DeleteAcknowledgmentRequest) GetSessionId() string {
@@ -763,7 +900,7 @@ type DeleteAcknowledgmentResponse struct {
 
 func (x *DeleteAcknowledgmentResponse) Reset() {
 	*x = DeleteAcknowledgmentResponse{}
-	mi := &file_proto_alert_proto_msgTypes[12]
+	mi := &file_proto_alert_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -775,7 +912,7 @@ func (x *DeleteAcknowledgmentResponse) String() string {
 func (*DeleteAcknowledgmentResponse) ProtoMessage() {}
 
 func (x *DeleteAcknowledgmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[12]
+	mi := &file_proto_alert_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -788,7 +925,7 @@ func (x *DeleteAcknowledgmentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAcknowledgmentResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAcknowledgmentResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{12}
+	return file_proto_alert_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DeleteAcknowledgmentResponse) GetSuccess() bool {
@@ -819,7 +956,7 @@ type Acknowledgment struct {
 
 func (x *Acknowledgment) Reset() {
 	*x = Acknowledgment{}
-	mi := &file_proto_alert_proto_msgTypes[13]
+	mi := &file_proto_alert_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -831,7 +968,7 @@ func (x *Acknowledgment) String() string {
 func (*Acknowledgment) ProtoMessage() {}
 
 func (x *Acknowledgment) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[13]
+	mi := &file_proto_alert_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -844,7 +981,7 @@ func (x *Acknowledgment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Acknowledgment.ProtoReflect.Descriptor instead.
 func (*Acknowledgment) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{13}
+	return file_proto_alert_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Acknowledgment) GetId() string {
@@ -900,7 +1037,7 @@ type SubscribeToAlertUpdatesRequest struct {
 
 func (x *SubscribeToAlertUpdatesRequest) Reset() {
 	*x = SubscribeToAlertUpdatesRequest{}
-	mi := &file_proto_alert_proto_msgTypes[14]
+	mi := &file_proto_alert_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -912,7 +1049,7 @@ func (x *SubscribeToAlertUpdatesRequest) String() string {
 func (*SubscribeToAlertUpdatesRequest) ProtoMessage() {}
 
 func (x *SubscribeToAlertUpdatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[14]
+	mi := &file_proto_alert_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -925,7 +1062,7 @@ func (x *SubscribeToAlertUpdatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeToAlertUpdatesRequest.ProtoReflect.Descriptor instead.
 func (*SubscribeToAlertUpdatesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{14}
+	return file_proto_alert_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SubscribeToAlertUpdatesRequest) GetSessionId() string {
@@ -960,7 +1097,7 @@ type AlertUpdate struct {
 
 func (x *AlertUpdate) Reset() {
 	*x = AlertUpdate{}
-	mi := &file_proto_alert_proto_msgTypes[15]
+	mi := &file_proto_alert_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -972,7 +1109,7 @@ func (x *AlertUpdate) String() string {
 func (*AlertUpdate) ProtoMessage() {}
 
 func (x *AlertUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[15]
+	mi := &file_proto_alert_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -985,7 +1122,7 @@ func (x *AlertUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertUpdate.ProtoReflect.Descriptor instead.
 func (*AlertUpdate) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{15}
+	return file_proto_alert_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AlertUpdate) GetAlertKey() string {
@@ -1080,6 +1217,1112 @@ func (*AlertUpdate_DeletedCommentId) isAlertUpdate_UpdateData() {}
 
 func (*AlertUpdate_DeletedAcknowledgmentId) isAlertUpdate_UpdateData() {}
 
+// User Color Preferences Messages
+type GetUserColorPreferencesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserColorPreferencesRequest) Reset() {
+	*x = GetUserColorPreferencesRequest{}
+	mi := &file_proto_alert_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserColorPreferencesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserColorPreferencesRequest) ProtoMessage() {}
+
+func (x *GetUserColorPreferencesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserColorPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*GetUserColorPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GetUserColorPreferencesRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type GetUserColorPreferencesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Preferences   []*UserColorPreference `protobuf:"bytes,1,rep,name=preferences,proto3" json:"preferences,omitempty"`
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserColorPreferencesResponse) Reset() {
+	*x = GetUserColorPreferencesResponse{}
+	mi := &file_proto_alert_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserColorPreferencesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserColorPreferencesResponse) ProtoMessage() {}
+
+func (x *GetUserColorPreferencesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserColorPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*GetUserColorPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *GetUserColorPreferencesResponse) GetPreferences() []*UserColorPreference {
+	if x != nil {
+		return x.Preferences
+	}
+	return nil
+}
+
+func (x *GetUserColorPreferencesResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetUserColorPreferencesResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type SaveUserColorPreferencesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Preferences   []*UserColorPreference `protobuf:"bytes,2,rep,name=preferences,proto3" json:"preferences,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveUserColorPreferencesRequest) Reset() {
+	*x = SaveUserColorPreferencesRequest{}
+	mi := &file_proto_alert_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveUserColorPreferencesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveUserColorPreferencesRequest) ProtoMessage() {}
+
+func (x *SaveUserColorPreferencesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveUserColorPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*SaveUserColorPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *SaveUserColorPreferencesRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SaveUserColorPreferencesRequest) GetPreferences() []*UserColorPreference {
+	if x != nil {
+		return x.Preferences
+	}
+	return nil
+}
+
+type SaveUserColorPreferencesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveUserColorPreferencesResponse) Reset() {
+	*x = SaveUserColorPreferencesResponse{}
+	mi := &file_proto_alert_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveUserColorPreferencesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveUserColorPreferencesResponse) ProtoMessage() {}
+
+func (x *SaveUserColorPreferencesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveUserColorPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*SaveUserColorPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *SaveUserColorPreferencesResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SaveUserColorPreferencesResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type DeleteUserColorPreferenceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PreferenceId  string                 `protobuf:"bytes,2,opt,name=preference_id,json=preferenceId,proto3" json:"preference_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserColorPreferenceRequest) Reset() {
+	*x = DeleteUserColorPreferenceRequest{}
+	mi := &file_proto_alert_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserColorPreferenceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserColorPreferenceRequest) ProtoMessage() {}
+
+func (x *DeleteUserColorPreferenceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserColorPreferenceRequest.ProtoReflect.Descriptor instead.
+func (*DeleteUserColorPreferenceRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *DeleteUserColorPreferenceRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *DeleteUserColorPreferenceRequest) GetPreferenceId() string {
+	if x != nil {
+		return x.PreferenceId
+	}
+	return ""
+}
+
+type DeleteUserColorPreferenceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserColorPreferenceResponse) Reset() {
+	*x = DeleteUserColorPreferenceResponse{}
+	mi := &file_proto_alert_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserColorPreferenceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserColorPreferenceResponse) ProtoMessage() {}
+
+func (x *DeleteUserColorPreferenceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserColorPreferenceResponse.ProtoReflect.Descriptor instead.
+func (*DeleteUserColorPreferenceResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *DeleteUserColorPreferenceResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteUserColorPreferenceResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type UserColorPreference struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                                                                                            // Unique ID for the preference
+	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                                                                                                      // User who owns this preference
+	LabelConditions map[string]string      `protobuf:"bytes,3,rep,name=label_conditions,json=labelConditions,proto3" json:"label_conditions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Key-value pairs: {Team: "team-infrastructure", Severity: "Warning"}
+	Color           string                 `protobuf:"bytes,4,opt,name=color,proto3" json:"color,omitempty"`                                                                                                                      // Color value (e.g., "GRAY", "#FF5733", "red-500")
+	ColorType       string                 `protobuf:"bytes,5,opt,name=color_type,json=colorType,proto3" json:"color_type,omitempty"`                                                                                             // Type: "severity", "custom", "tailwind"
+	Priority        int32                  `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`                                                                                                               // Higher numbers = higher priority (for conflicts)
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *UserColorPreference) Reset() {
+	*x = UserColorPreference{}
+	mi := &file_proto_alert_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserColorPreference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserColorPreference) ProtoMessage() {}
+
+func (x *UserColorPreference) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserColorPreference.ProtoReflect.Descriptor instead.
+func (*UserColorPreference) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *UserColorPreference) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UserColorPreference) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UserColorPreference) GetLabelConditions() map[string]string {
+	if x != nil {
+		return x.LabelConditions
+	}
+	return nil
+}
+
+func (x *UserColorPreference) GetColor() string {
+	if x != nil {
+		return x.Color
+	}
+	return ""
+}
+
+func (x *UserColorPreference) GetColorType() string {
+	if x != nil {
+		return x.ColorType
+	}
+	return ""
+}
+
+func (x *UserColorPreference) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+func (x *UserColorPreference) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *UserColorPreference) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+// Resolved Alert Messages
+type CreateResolvedAlertRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint     string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	Source          string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	AlertData       []byte                 `protobuf:"bytes,3,opt,name=alert_data,json=alertData,proto3" json:"alert_data,omitempty"` // JSON serialized DashboardAlert
+	Comments        []byte                 `protobuf:"bytes,4,opt,name=comments,proto3" json:"comments,omitempty"`                    // JSON serialized comments array
+	Acknowledgments []byte                 `protobuf:"bytes,5,opt,name=acknowledgments,proto3" json:"acknowledgments,omitempty"`      // JSON serialized acknowledgments array
+	TtlHours        int32                  `protobuf:"varint,6,opt,name=ttl_hours,json=ttlHours,proto3" json:"ttl_hours,omitempty"`   // TTL in hours (default 24)
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CreateResolvedAlertRequest) Reset() {
+	*x = CreateResolvedAlertRequest{}
+	mi := &file_proto_alert_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateResolvedAlertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateResolvedAlertRequest) ProtoMessage() {}
+
+func (x *CreateResolvedAlertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateResolvedAlertRequest.ProtoReflect.Descriptor instead.
+func (*CreateResolvedAlertRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *CreateResolvedAlertRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *CreateResolvedAlertRequest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *CreateResolvedAlertRequest) GetAlertData() []byte {
+	if x != nil {
+		return x.AlertData
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertRequest) GetComments() []byte {
+	if x != nil {
+		return x.Comments
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertRequest) GetAcknowledgments() []byte {
+	if x != nil {
+		return x.Acknowledgments
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertRequest) GetTtlHours() int32 {
+	if x != nil {
+		return x.TtlHours
+	}
+	return 0
+}
+
+type CreateResolvedAlertResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ResolvedAlert *ResolvedAlertInfo     `protobuf:"bytes,2,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateResolvedAlertResponse) Reset() {
+	*x = CreateResolvedAlertResponse{}
+	mi := &file_proto_alert_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateResolvedAlertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateResolvedAlertResponse) ProtoMessage() {}
+
+func (x *CreateResolvedAlertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateResolvedAlertResponse.ProtoReflect.Descriptor instead.
+func (*CreateResolvedAlertResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *CreateResolvedAlertResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CreateResolvedAlertResponse) GetResolvedAlert() *ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlert
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type GetResolvedAlertsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertsRequest) Reset() {
+	*x = GetResolvedAlertsRequest{}
+	mi := &file_proto_alert_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertsRequest) ProtoMessage() {}
+
+func (x *GetResolvedAlertsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertsRequest.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *GetResolvedAlertsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetResolvedAlertsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type GetResolvedAlertsResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ResolvedAlerts []*ResolvedAlertInfo   `protobuf:"bytes,1,rep,name=resolved_alerts,json=resolvedAlerts,proto3" json:"resolved_alerts,omitempty"`
+	TotalCount     int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Success        bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Message        string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertsResponse) Reset() {
+	*x = GetResolvedAlertsResponse{}
+	mi := &file_proto_alert_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertsResponse) ProtoMessage() {}
+
+func (x *GetResolvedAlertsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertsResponse.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *GetResolvedAlertsResponse) GetResolvedAlerts() []*ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlerts
+	}
+	return nil
+}
+
+func (x *GetResolvedAlertsResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetResolvedAlertsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetResolvedAlertsResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type GetResolvedAlertRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertRequest) Reset() {
+	*x = GetResolvedAlertRequest{}
+	mi := &file_proto_alert_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertRequest) ProtoMessage() {}
+
+func (x *GetResolvedAlertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertRequest.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *GetResolvedAlertRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+type GetResolvedAlertResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ResolvedAlert *ResolvedAlertInfo     `protobuf:"bytes,2,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertResponse) Reset() {
+	*x = GetResolvedAlertResponse{}
+	mi := &file_proto_alert_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertResponse) ProtoMessage() {}
+
+func (x *GetResolvedAlertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertResponse.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *GetResolvedAlertResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetResolvedAlertResponse) GetResolvedAlert() *ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlert
+	}
+	return nil
+}
+
+func (x *GetResolvedAlertResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type RemoveAllResolvedAlertsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAllResolvedAlertsRequest) Reset() {
+	*x = RemoveAllResolvedAlertsRequest{}
+	mi := &file_proto_alert_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAllResolvedAlertsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAllResolvedAlertsRequest) ProtoMessage() {}
+
+func (x *RemoveAllResolvedAlertsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAllResolvedAlertsRequest.ProtoReflect.Descriptor instead.
+func (*RemoveAllResolvedAlertsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{31}
+}
+
+type RemoveAllResolvedAlertsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	RemovedCount  int32                  `protobuf:"varint,2,opt,name=removed_count,json=removedCount,proto3" json:"removed_count,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAllResolvedAlertsResponse) Reset() {
+	*x = RemoveAllResolvedAlertsResponse{}
+	mi := &file_proto_alert_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAllResolvedAlertsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAllResolvedAlertsResponse) ProtoMessage() {}
+
+func (x *RemoveAllResolvedAlertsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAllResolvedAlertsResponse.ProtoReflect.Descriptor instead.
+func (*RemoveAllResolvedAlertsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *RemoveAllResolvedAlertsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RemoveAllResolvedAlertsResponse) GetRemovedCount() int32 {
+	if x != nil {
+		return x.RemovedCount
+	}
+	return 0
+}
+
+func (x *RemoveAllResolvedAlertsResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type StreamResolvedAlertUpdatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamResolvedAlertUpdatesRequest) Reset() {
+	*x = StreamResolvedAlertUpdatesRequest{}
+	mi := &file_proto_alert_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamResolvedAlertUpdatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamResolvedAlertUpdatesRequest) ProtoMessage() {}
+
+func (x *StreamResolvedAlertUpdatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamResolvedAlertUpdatesRequest.ProtoReflect.Descriptor instead.
+func (*StreamResolvedAlertUpdatesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *StreamResolvedAlertUpdatesRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type ResolvedAlertUpdate struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Fingerprint   string                  `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	UpdateType    ResolvedAlertUpdateType `protobuf:"varint,2,opt,name=update_type,json=updateType,proto3,enum=notificator.alert.ResolvedAlertUpdateType" json:"update_type,omitempty"`
+	ResolvedAlert *ResolvedAlertInfo      `protobuf:"bytes,3,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
+	Timestamp     *timestamppb.Timestamp  `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolvedAlertUpdate) Reset() {
+	*x = ResolvedAlertUpdate{}
+	mi := &file_proto_alert_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedAlertUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedAlertUpdate) ProtoMessage() {}
+
+func (x *ResolvedAlertUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedAlertUpdate.ProtoReflect.Descriptor instead.
+func (*ResolvedAlertUpdate) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ResolvedAlertUpdate) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *ResolvedAlertUpdate) GetUpdateType() ResolvedAlertUpdateType {
+	if x != nil {
+		return x.UpdateType
+	}
+	return ResolvedAlertUpdateType_UNKNOWN_RESOLVED_UPDATE
+}
+
+func (x *ResolvedAlertUpdate) GetResolvedAlert() *ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlert
+	}
+	return nil
+}
+
+func (x *ResolvedAlertUpdate) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+type ResolvedAlertInfo struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Fingerprint     string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AlertData       []byte                 `protobuf:"bytes,3,opt,name=alert_data,json=alertData,proto3" json:"alert_data,omitempty"` // JSON serialized DashboardAlert
+	Comments        []byte                 `protobuf:"bytes,4,opt,name=comments,proto3" json:"comments,omitempty"`                    // JSON serialized comments array
+	Acknowledgments []byte                 `protobuf:"bytes,5,opt,name=acknowledgments,proto3" json:"acknowledgments,omitempty"`      // JSON serialized acknowledgments array
+	ResolvedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	ExpiresAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Source          string                 `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ResolvedAlertInfo) Reset() {
+	*x = ResolvedAlertInfo{}
+	mi := &file_proto_alert_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedAlertInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedAlertInfo) ProtoMessage() {}
+
+func (x *ResolvedAlertInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedAlertInfo.ProtoReflect.Descriptor instead.
+func (*ResolvedAlertInfo) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ResolvedAlertInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ResolvedAlertInfo) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *ResolvedAlertInfo) GetAlertData() []byte {
+	if x != nil {
+		return x.AlertData
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetComments() []byte {
+	if x != nil {
+		return x.Comments
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetAcknowledgments() []byte {
+	if x != nil {
+		return x.Acknowledgments
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetResolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolvedAt
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *ResolvedAlertInfo) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
 var File_proto_alert_proto protoreflect.FileDescriptor
 
 const file_proto_alert_proto_rawDesc = "" +
@@ -1128,7 +2371,14 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\talert_key\x18\x01 \x01(\tR\balertKey\"\x7f\n" +
 	"\x1aGetAcknowledgmentsResponse\x12K\n" +
 	"\x0facknowledgments\x18\x01 \x03(\v2!.notificator.alert.AcknowledgmentR\x0facknowledgments\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x05R\x05count\"Y\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\"!\n" +
+	"\x1fGetAllAcknowledgedAlertsRequest\"\xa0\x02\n" +
+	" GetAllAcknowledgedAlertsResponse\x12|\n" +
+	"\x13acknowledged_alerts\x18\x01 \x03(\v2K.notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntryR\x12acknowledgedAlerts\x12\x14\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\x1ah\n" +
+	"\x17AcknowledgedAlertsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x127\n" +
+	"\x05value\x18\x02 \x01(\v2!.notificator.alert.AcknowledgmentR\x05value:\x028\x01\"Y\n" +
 	"\x1bDeleteAcknowledgmentRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
@@ -1157,23 +2407,130 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x12deleted_comment_id\x18\x05 \x01(\tH\x00R\x10deletedCommentId\x12<\n" +
 	"\x19deleted_acknowledgment_id\x18\x06 \x01(\tH\x00R\x17deletedAcknowledgmentId\x128\n" +
 	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestampB\r\n" +
-	"\vupdate_data*~\n" +
+	"\vupdate_data\"?\n" +
+	"\x1eGetUserColorPreferencesRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\x9f\x01\n" +
+	"\x1fGetUserColorPreferencesResponse\x12H\n" +
+	"\vpreferences\x18\x01 \x03(\v2&.notificator.alert.UserColorPreferenceR\vpreferences\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x8a\x01\n" +
+	"\x1fSaveUserColorPreferencesRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12H\n" +
+	"\vpreferences\x18\x02 \x03(\v2&.notificator.alert.UserColorPreferenceR\vpreferences\"V\n" +
+	" SaveUserColorPreferencesResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"f\n" +
+	" DeleteUserColorPreferenceRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12#\n" +
+	"\rpreference_id\x18\x02 \x01(\tR\fpreferenceId\"W\n" +
+	"!DeleteUserColorPreferenceResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xb1\x03\n" +
+	"\x13UserColorPreference\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12f\n" +
+	"\x10label_conditions\x18\x03 \x03(\v2;.notificator.alert.UserColorPreference.LabelConditionsEntryR\x0flabelConditions\x12\x14\n" +
+	"\x05color\x18\x04 \x01(\tR\x05color\x12\x1d\n" +
+	"\n" +
+	"color_type\x18\x05 \x01(\tR\tcolorType\x12\x1a\n" +
+	"\bpriority\x18\x06 \x01(\x05R\bpriority\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x1aB\n" +
+	"\x14LabelConditionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd8\x01\n" +
+	"\x1aCreateResolvedAlertRequest\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1d\n" +
+	"\n" +
+	"alert_data\x18\x03 \x01(\fR\talertData\x12\x1a\n" +
+	"\bcomments\x18\x04 \x01(\fR\bcomments\x12(\n" +
+	"\x0facknowledgments\x18\x05 \x01(\fR\x0facknowledgments\x12\x1b\n" +
+	"\tttl_hours\x18\x06 \x01(\x05R\bttlHours\"\x9e\x01\n" +
+	"\x1bCreateResolvedAlertResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12K\n" +
+	"\x0eresolved_alert\x18\x02 \x01(\v2$.notificator.alert.ResolvedAlertInfoR\rresolvedAlert\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"H\n" +
+	"\x18GetResolvedAlertsRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\"\xbf\x01\n" +
+	"\x19GetResolvedAlertsResponse\x12M\n" +
+	"\x0fresolved_alerts\x18\x01 \x03(\v2$.notificator.alert.ResolvedAlertInfoR\x0eresolvedAlerts\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\";\n" +
+	"\x17GetResolvedAlertRequest\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\"\x9b\x01\n" +
+	"\x18GetResolvedAlertResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12K\n" +
+	"\x0eresolved_alert\x18\x02 \x01(\v2$.notificator.alert.ResolvedAlertInfoR\rresolvedAlert\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\" \n" +
+	"\x1eRemoveAllResolvedAlertsRequest\"z\n" +
+	"\x1fRemoveAllResolvedAlertsResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
+	"\rremoved_count\x18\x02 \x01(\x05R\fremovedCount\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"B\n" +
+	"!StreamResolvedAlertUpdatesRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\x8b\x02\n" +
+	"\x13ResolvedAlertUpdate\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12K\n" +
+	"\vupdate_type\x18\x02 \x01(\x0e2*.notificator.alert.ResolvedAlertUpdateTypeR\n" +
+	"updateType\x12K\n" +
+	"\x0eresolved_alert\x18\x03 \x01(\v2$.notificator.alert.ResolvedAlertInfoR\rresolvedAlert\x128\n" +
+	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\xb0\x03\n" +
+	"\x11ResolvedAlertInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
+	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\x12\x1d\n" +
+	"\n" +
+	"alert_data\x18\x03 \x01(\fR\talertData\x12\x1a\n" +
+	"\bcomments\x18\x04 \x01(\fR\bcomments\x12(\n" +
+	"\x0facknowledgments\x18\x05 \x01(\fR\x0facknowledgments\x12;\n" +
+	"\vresolved_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"resolvedAt\x129\n" +
+	"\n" +
+	"expires_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x16\n" +
+	"\x06source\x18\b \x01(\tR\x06source\x129\n" +
+	"\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt*~\n" +
 	"\n" +
 	"UpdateType\x12\x12\n" +
 	"\x0eUNKNOWN_UPDATE\x10\x00\x12\x11\n" +
 	"\rCOMMENT_ADDED\x10\x01\x12\x13\n" +
 	"\x0fCOMMENT_DELETED\x10\x02\x12\x18\n" +
 	"\x14ACKNOWLEDGMENT_ADDED\x10\x03\x12\x1a\n" +
-	"\x16ACKNOWLEDGMENT_DELETED\x10\x042\xf7\x05\n" +
+	"\x16ACKNOWLEDGMENT_DELETED\x10\x04*n\n" +
+	"\x17ResolvedAlertUpdateType\x12\x1b\n" +
+	"\x17UNKNOWN_RESOLVED_UPDATE\x10\x00\x12\x1a\n" +
+	"\x16RESOLVED_ALERT_CREATED\x10\x01\x12\x1a\n" +
+	"\x16RESOLVED_ALERT_EXPIRED\x10\x022\xe3\x0e\n" +
 	"\fAlertService\x12Y\n" +
 	"\n" +
 	"AddComment\x12$.notificator.alert.AddCommentRequest\x1a%.notificator.alert.AddCommentResponse\x12\\\n" +
 	"\vGetComments\x12%.notificator.alert.GetCommentsRequest\x1a&.notificator.alert.GetCommentsResponse\x12b\n" +
 	"\rDeleteComment\x12'.notificator.alert.DeleteCommentRequest\x1a(.notificator.alert.DeleteCommentResponse\x12n\n" +
 	"\x11AddAcknowledgment\x12+.notificator.alert.AddAcknowledgmentRequest\x1a,.notificator.alert.AddAcknowledgmentResponse\x12q\n" +
-	"\x12GetAcknowledgments\x12,.notificator.alert.GetAcknowledgmentsRequest\x1a-.notificator.alert.GetAcknowledgmentsResponse\x12w\n" +
+	"\x12GetAcknowledgments\x12,.notificator.alert.GetAcknowledgmentsRequest\x1a-.notificator.alert.GetAcknowledgmentsResponse\x12\x83\x01\n" +
+	"\x18GetAllAcknowledgedAlerts\x122.notificator.alert.GetAllAcknowledgedAlertsRequest\x1a3.notificator.alert.GetAllAcknowledgedAlertsResponse\x12w\n" +
 	"\x14DeleteAcknowledgment\x12..notificator.alert.DeleteAcknowledgmentRequest\x1a/.notificator.alert.DeleteAcknowledgmentResponse\x12n\n" +
-	"\x17SubscribeToAlertUpdates\x121.notificator.alert.SubscribeToAlertUpdatesRequest\x1a\x1e.notificator.alert.AlertUpdate0\x01B*Z(notificator/internal/backend/proto/alertb\x06proto3"
+	"\x17SubscribeToAlertUpdates\x121.notificator.alert.SubscribeToAlertUpdatesRequest\x1a\x1e.notificator.alert.AlertUpdate0\x01\x12t\n" +
+	"\x13CreateResolvedAlert\x12-.notificator.alert.CreateResolvedAlertRequest\x1a..notificator.alert.CreateResolvedAlertResponse\x12n\n" +
+	"\x11GetResolvedAlerts\x12+.notificator.alert.GetResolvedAlertsRequest\x1a,.notificator.alert.GetResolvedAlertsResponse\x12k\n" +
+	"\x10GetResolvedAlert\x12*.notificator.alert.GetResolvedAlertRequest\x1a+.notificator.alert.GetResolvedAlertResponse\x12\x80\x01\n" +
+	"\x17RemoveAllResolvedAlerts\x121.notificator.alert.RemoveAllResolvedAlertsRequest\x1a2.notificator.alert.RemoveAllResolvedAlertsResponse\x12|\n" +
+	"\x1aStreamResolvedAlertUpdates\x124.notificator.alert.StreamResolvedAlertUpdatesRequest\x1a&.notificator.alert.ResolvedAlertUpdate0\x01\x12\x80\x01\n" +
+	"\x17GetUserColorPreferences\x121.notificator.alert.GetUserColorPreferencesRequest\x1a2.notificator.alert.GetUserColorPreferencesResponse\x12\x83\x01\n" +
+	"\x18SaveUserColorPreferences\x122.notificator.alert.SaveUserColorPreferencesRequest\x1a3.notificator.alert.SaveUserColorPreferencesResponse\x12\x86\x01\n" +
+	"\x19DeleteUserColorPreference\x123.notificator.alert.DeleteUserColorPreferenceRequest\x1a4.notificator.alert.DeleteUserColorPreferenceResponseB*Z(notificator/internal/backend/proto/alertb\x06proto3"
 
 var (
 	file_proto_alert_proto_rawDescOnce sync.Once
@@ -1187,58 +2544,116 @@ func file_proto_alert_proto_rawDescGZIP() []byte {
 	return file_proto_alert_proto_rawDescData
 }
 
-var file_proto_alert_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_proto_alert_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_proto_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_proto_alert_proto_goTypes = []any{
-	(UpdateType)(0),                        // 0: notificator.alert.UpdateType
-	(*AddCommentRequest)(nil),              // 1: notificator.alert.AddCommentRequest
-	(*AddCommentResponse)(nil),             // 2: notificator.alert.AddCommentResponse
-	(*GetCommentsRequest)(nil),             // 3: notificator.alert.GetCommentsRequest
-	(*GetCommentsResponse)(nil),            // 4: notificator.alert.GetCommentsResponse
-	(*DeleteCommentRequest)(nil),           // 5: notificator.alert.DeleteCommentRequest
-	(*DeleteCommentResponse)(nil),          // 6: notificator.alert.DeleteCommentResponse
-	(*Comment)(nil),                        // 7: notificator.alert.Comment
-	(*AddAcknowledgmentRequest)(nil),       // 8: notificator.alert.AddAcknowledgmentRequest
-	(*AddAcknowledgmentResponse)(nil),      // 9: notificator.alert.AddAcknowledgmentResponse
-	(*GetAcknowledgmentsRequest)(nil),      // 10: notificator.alert.GetAcknowledgmentsRequest
-	(*GetAcknowledgmentsResponse)(nil),     // 11: notificator.alert.GetAcknowledgmentsResponse
-	(*DeleteAcknowledgmentRequest)(nil),    // 12: notificator.alert.DeleteAcknowledgmentRequest
-	(*DeleteAcknowledgmentResponse)(nil),   // 13: notificator.alert.DeleteAcknowledgmentResponse
-	(*Acknowledgment)(nil),                 // 14: notificator.alert.Acknowledgment
-	(*SubscribeToAlertUpdatesRequest)(nil), // 15: notificator.alert.SubscribeToAlertUpdatesRequest
-	(*AlertUpdate)(nil),                    // 16: notificator.alert.AlertUpdate
-	(*timestamppb.Timestamp)(nil),          // 17: google.protobuf.Timestamp
+	(UpdateType)(0),                           // 0: notificator.alert.UpdateType
+	(ResolvedAlertUpdateType)(0),              // 1: notificator.alert.ResolvedAlertUpdateType
+	(*AddCommentRequest)(nil),                 // 2: notificator.alert.AddCommentRequest
+	(*AddCommentResponse)(nil),                // 3: notificator.alert.AddCommentResponse
+	(*GetCommentsRequest)(nil),                // 4: notificator.alert.GetCommentsRequest
+	(*GetCommentsResponse)(nil),               // 5: notificator.alert.GetCommentsResponse
+	(*DeleteCommentRequest)(nil),              // 6: notificator.alert.DeleteCommentRequest
+	(*DeleteCommentResponse)(nil),             // 7: notificator.alert.DeleteCommentResponse
+	(*Comment)(nil),                           // 8: notificator.alert.Comment
+	(*AddAcknowledgmentRequest)(nil),          // 9: notificator.alert.AddAcknowledgmentRequest
+	(*AddAcknowledgmentResponse)(nil),         // 10: notificator.alert.AddAcknowledgmentResponse
+	(*GetAcknowledgmentsRequest)(nil),         // 11: notificator.alert.GetAcknowledgmentsRequest
+	(*GetAcknowledgmentsResponse)(nil),        // 12: notificator.alert.GetAcknowledgmentsResponse
+	(*GetAllAcknowledgedAlertsRequest)(nil),   // 13: notificator.alert.GetAllAcknowledgedAlertsRequest
+	(*GetAllAcknowledgedAlertsResponse)(nil),  // 14: notificator.alert.GetAllAcknowledgedAlertsResponse
+	(*DeleteAcknowledgmentRequest)(nil),       // 15: notificator.alert.DeleteAcknowledgmentRequest
+	(*DeleteAcknowledgmentResponse)(nil),      // 16: notificator.alert.DeleteAcknowledgmentResponse
+	(*Acknowledgment)(nil),                    // 17: notificator.alert.Acknowledgment
+	(*SubscribeToAlertUpdatesRequest)(nil),    // 18: notificator.alert.SubscribeToAlertUpdatesRequest
+	(*AlertUpdate)(nil),                       // 19: notificator.alert.AlertUpdate
+	(*GetUserColorPreferencesRequest)(nil),    // 20: notificator.alert.GetUserColorPreferencesRequest
+	(*GetUserColorPreferencesResponse)(nil),   // 21: notificator.alert.GetUserColorPreferencesResponse
+	(*SaveUserColorPreferencesRequest)(nil),   // 22: notificator.alert.SaveUserColorPreferencesRequest
+	(*SaveUserColorPreferencesResponse)(nil),  // 23: notificator.alert.SaveUserColorPreferencesResponse
+	(*DeleteUserColorPreferenceRequest)(nil),  // 24: notificator.alert.DeleteUserColorPreferenceRequest
+	(*DeleteUserColorPreferenceResponse)(nil), // 25: notificator.alert.DeleteUserColorPreferenceResponse
+	(*UserColorPreference)(nil),               // 26: notificator.alert.UserColorPreference
+	(*CreateResolvedAlertRequest)(nil),        // 27: notificator.alert.CreateResolvedAlertRequest
+	(*CreateResolvedAlertResponse)(nil),       // 28: notificator.alert.CreateResolvedAlertResponse
+	(*GetResolvedAlertsRequest)(nil),          // 29: notificator.alert.GetResolvedAlertsRequest
+	(*GetResolvedAlertsResponse)(nil),         // 30: notificator.alert.GetResolvedAlertsResponse
+	(*GetResolvedAlertRequest)(nil),           // 31: notificator.alert.GetResolvedAlertRequest
+	(*GetResolvedAlertResponse)(nil),          // 32: notificator.alert.GetResolvedAlertResponse
+	(*RemoveAllResolvedAlertsRequest)(nil),    // 33: notificator.alert.RemoveAllResolvedAlertsRequest
+	(*RemoveAllResolvedAlertsResponse)(nil),   // 34: notificator.alert.RemoveAllResolvedAlertsResponse
+	(*StreamResolvedAlertUpdatesRequest)(nil), // 35: notificator.alert.StreamResolvedAlertUpdatesRequest
+	(*ResolvedAlertUpdate)(nil),               // 36: notificator.alert.ResolvedAlertUpdate
+	(*ResolvedAlertInfo)(nil),                 // 37: notificator.alert.ResolvedAlertInfo
+	nil,                                       // 38: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
+	nil,                                       // 39: notificator.alert.UserColorPreference.LabelConditionsEntry
+	(*timestamppb.Timestamp)(nil),             // 40: google.protobuf.Timestamp
 }
 var file_proto_alert_proto_depIdxs = []int32{
-	7,  // 0: notificator.alert.AddCommentResponse.comment:type_name -> notificator.alert.Comment
-	7,  // 1: notificator.alert.GetCommentsResponse.comments:type_name -> notificator.alert.Comment
-	17, // 2: notificator.alert.Comment.created_at:type_name -> google.protobuf.Timestamp
-	14, // 3: notificator.alert.AddAcknowledgmentResponse.acknowledgment:type_name -> notificator.alert.Acknowledgment
-	14, // 4: notificator.alert.GetAcknowledgmentsResponse.acknowledgments:type_name -> notificator.alert.Acknowledgment
-	17, // 5: notificator.alert.Acknowledgment.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 6: notificator.alert.AlertUpdate.update_type:type_name -> notificator.alert.UpdateType
-	7,  // 7: notificator.alert.AlertUpdate.comment:type_name -> notificator.alert.Comment
-	14, // 8: notificator.alert.AlertUpdate.acknowledgment:type_name -> notificator.alert.Acknowledgment
-	17, // 9: notificator.alert.AlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
-	1,  // 10: notificator.alert.AlertService.AddComment:input_type -> notificator.alert.AddCommentRequest
-	3,  // 11: notificator.alert.AlertService.GetComments:input_type -> notificator.alert.GetCommentsRequest
-	5,  // 12: notificator.alert.AlertService.DeleteComment:input_type -> notificator.alert.DeleteCommentRequest
-	8,  // 13: notificator.alert.AlertService.AddAcknowledgment:input_type -> notificator.alert.AddAcknowledgmentRequest
-	10, // 14: notificator.alert.AlertService.GetAcknowledgments:input_type -> notificator.alert.GetAcknowledgmentsRequest
-	12, // 15: notificator.alert.AlertService.DeleteAcknowledgment:input_type -> notificator.alert.DeleteAcknowledgmentRequest
-	15, // 16: notificator.alert.AlertService.SubscribeToAlertUpdates:input_type -> notificator.alert.SubscribeToAlertUpdatesRequest
-	2,  // 17: notificator.alert.AlertService.AddComment:output_type -> notificator.alert.AddCommentResponse
-	4,  // 18: notificator.alert.AlertService.GetComments:output_type -> notificator.alert.GetCommentsResponse
-	6,  // 19: notificator.alert.AlertService.DeleteComment:output_type -> notificator.alert.DeleteCommentResponse
-	9,  // 20: notificator.alert.AlertService.AddAcknowledgment:output_type -> notificator.alert.AddAcknowledgmentResponse
-	11, // 21: notificator.alert.AlertService.GetAcknowledgments:output_type -> notificator.alert.GetAcknowledgmentsResponse
-	13, // 22: notificator.alert.AlertService.DeleteAcknowledgment:output_type -> notificator.alert.DeleteAcknowledgmentResponse
-	16, // 23: notificator.alert.AlertService.SubscribeToAlertUpdates:output_type -> notificator.alert.AlertUpdate
-	17, // [17:24] is the sub-list for method output_type
-	10, // [10:17] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	8,  // 0: notificator.alert.AddCommentResponse.comment:type_name -> notificator.alert.Comment
+	8,  // 1: notificator.alert.GetCommentsResponse.comments:type_name -> notificator.alert.Comment
+	40, // 2: notificator.alert.Comment.created_at:type_name -> google.protobuf.Timestamp
+	17, // 3: notificator.alert.AddAcknowledgmentResponse.acknowledgment:type_name -> notificator.alert.Acknowledgment
+	17, // 4: notificator.alert.GetAcknowledgmentsResponse.acknowledgments:type_name -> notificator.alert.Acknowledgment
+	38, // 5: notificator.alert.GetAllAcknowledgedAlertsResponse.acknowledged_alerts:type_name -> notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
+	40, // 6: notificator.alert.Acknowledgment.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 7: notificator.alert.AlertUpdate.update_type:type_name -> notificator.alert.UpdateType
+	8,  // 8: notificator.alert.AlertUpdate.comment:type_name -> notificator.alert.Comment
+	17, // 9: notificator.alert.AlertUpdate.acknowledgment:type_name -> notificator.alert.Acknowledgment
+	40, // 10: notificator.alert.AlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	26, // 11: notificator.alert.GetUserColorPreferencesResponse.preferences:type_name -> notificator.alert.UserColorPreference
+	26, // 12: notificator.alert.SaveUserColorPreferencesRequest.preferences:type_name -> notificator.alert.UserColorPreference
+	39, // 13: notificator.alert.UserColorPreference.label_conditions:type_name -> notificator.alert.UserColorPreference.LabelConditionsEntry
+	40, // 14: notificator.alert.UserColorPreference.created_at:type_name -> google.protobuf.Timestamp
+	40, // 15: notificator.alert.UserColorPreference.updated_at:type_name -> google.protobuf.Timestamp
+	37, // 16: notificator.alert.CreateResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	37, // 17: notificator.alert.GetResolvedAlertsResponse.resolved_alerts:type_name -> notificator.alert.ResolvedAlertInfo
+	37, // 18: notificator.alert.GetResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	1,  // 19: notificator.alert.ResolvedAlertUpdate.update_type:type_name -> notificator.alert.ResolvedAlertUpdateType
+	37, // 20: notificator.alert.ResolvedAlertUpdate.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	40, // 21: notificator.alert.ResolvedAlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	40, // 22: notificator.alert.ResolvedAlertInfo.resolved_at:type_name -> google.protobuf.Timestamp
+	40, // 23: notificator.alert.ResolvedAlertInfo.expires_at:type_name -> google.protobuf.Timestamp
+	40, // 24: notificator.alert.ResolvedAlertInfo.created_at:type_name -> google.protobuf.Timestamp
+	40, // 25: notificator.alert.ResolvedAlertInfo.updated_at:type_name -> google.protobuf.Timestamp
+	17, // 26: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry.value:type_name -> notificator.alert.Acknowledgment
+	2,  // 27: notificator.alert.AlertService.AddComment:input_type -> notificator.alert.AddCommentRequest
+	4,  // 28: notificator.alert.AlertService.GetComments:input_type -> notificator.alert.GetCommentsRequest
+	6,  // 29: notificator.alert.AlertService.DeleteComment:input_type -> notificator.alert.DeleteCommentRequest
+	9,  // 30: notificator.alert.AlertService.AddAcknowledgment:input_type -> notificator.alert.AddAcknowledgmentRequest
+	11, // 31: notificator.alert.AlertService.GetAcknowledgments:input_type -> notificator.alert.GetAcknowledgmentsRequest
+	13, // 32: notificator.alert.AlertService.GetAllAcknowledgedAlerts:input_type -> notificator.alert.GetAllAcknowledgedAlertsRequest
+	15, // 33: notificator.alert.AlertService.DeleteAcknowledgment:input_type -> notificator.alert.DeleteAcknowledgmentRequest
+	18, // 34: notificator.alert.AlertService.SubscribeToAlertUpdates:input_type -> notificator.alert.SubscribeToAlertUpdatesRequest
+	27, // 35: notificator.alert.AlertService.CreateResolvedAlert:input_type -> notificator.alert.CreateResolvedAlertRequest
+	29, // 36: notificator.alert.AlertService.GetResolvedAlerts:input_type -> notificator.alert.GetResolvedAlertsRequest
+	31, // 37: notificator.alert.AlertService.GetResolvedAlert:input_type -> notificator.alert.GetResolvedAlertRequest
+	33, // 38: notificator.alert.AlertService.RemoveAllResolvedAlerts:input_type -> notificator.alert.RemoveAllResolvedAlertsRequest
+	35, // 39: notificator.alert.AlertService.StreamResolvedAlertUpdates:input_type -> notificator.alert.StreamResolvedAlertUpdatesRequest
+	20, // 40: notificator.alert.AlertService.GetUserColorPreferences:input_type -> notificator.alert.GetUserColorPreferencesRequest
+	22, // 41: notificator.alert.AlertService.SaveUserColorPreferences:input_type -> notificator.alert.SaveUserColorPreferencesRequest
+	24, // 42: notificator.alert.AlertService.DeleteUserColorPreference:input_type -> notificator.alert.DeleteUserColorPreferenceRequest
+	3,  // 43: notificator.alert.AlertService.AddComment:output_type -> notificator.alert.AddCommentResponse
+	5,  // 44: notificator.alert.AlertService.GetComments:output_type -> notificator.alert.GetCommentsResponse
+	7,  // 45: notificator.alert.AlertService.DeleteComment:output_type -> notificator.alert.DeleteCommentResponse
+	10, // 46: notificator.alert.AlertService.AddAcknowledgment:output_type -> notificator.alert.AddAcknowledgmentResponse
+	12, // 47: notificator.alert.AlertService.GetAcknowledgments:output_type -> notificator.alert.GetAcknowledgmentsResponse
+	14, // 48: notificator.alert.AlertService.GetAllAcknowledgedAlerts:output_type -> notificator.alert.GetAllAcknowledgedAlertsResponse
+	16, // 49: notificator.alert.AlertService.DeleteAcknowledgment:output_type -> notificator.alert.DeleteAcknowledgmentResponse
+	19, // 50: notificator.alert.AlertService.SubscribeToAlertUpdates:output_type -> notificator.alert.AlertUpdate
+	28, // 51: notificator.alert.AlertService.CreateResolvedAlert:output_type -> notificator.alert.CreateResolvedAlertResponse
+	30, // 52: notificator.alert.AlertService.GetResolvedAlerts:output_type -> notificator.alert.GetResolvedAlertsResponse
+	32, // 53: notificator.alert.AlertService.GetResolvedAlert:output_type -> notificator.alert.GetResolvedAlertResponse
+	34, // 54: notificator.alert.AlertService.RemoveAllResolvedAlerts:output_type -> notificator.alert.RemoveAllResolvedAlertsResponse
+	36, // 55: notificator.alert.AlertService.StreamResolvedAlertUpdates:output_type -> notificator.alert.ResolvedAlertUpdate
+	21, // 56: notificator.alert.AlertService.GetUserColorPreferences:output_type -> notificator.alert.GetUserColorPreferencesResponse
+	23, // 57: notificator.alert.AlertService.SaveUserColorPreferences:output_type -> notificator.alert.SaveUserColorPreferencesResponse
+	25, // 58: notificator.alert.AlertService.DeleteUserColorPreference:output_type -> notificator.alert.DeleteUserColorPreferenceResponse
+	43, // [43:59] is the sub-list for method output_type
+	27, // [27:43] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_proto_alert_proto_init() }
@@ -1246,7 +2661,7 @@ func file_proto_alert_proto_init() {
 	if File_proto_alert_proto != nil {
 		return
 	}
-	file_proto_alert_proto_msgTypes[15].OneofWrappers = []any{
+	file_proto_alert_proto_msgTypes[17].OneofWrappers = []any{
 		(*AlertUpdate_Comment)(nil),
 		(*AlertUpdate_Acknowledgment)(nil),
 		(*AlertUpdate_DeletedCommentId)(nil),
@@ -1257,8 +2672,8 @@ func file_proto_alert_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_alert_proto_rawDesc), len(file_proto_alert_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   16,
+			NumEnums:      2,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
