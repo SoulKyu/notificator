@@ -114,6 +114,14 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			auth.POST("/register", handlers.Register)
 		}
 
+		// OAuth routes (public)
+		oauth := api.Group("/oauth")
+		{
+			oauth.GET("/providers", handlers.GetOAuthProviders)
+			oauth.GET("/:provider/login", handlers.OAuthLogin)
+			oauth.GET("/:provider/callback", handlers.OAuthCallback)
+		}
+
 		// Protected auth routes
 		authProtected := api.Group("/auth")
 		authProtected.Use(authMiddleware.RequireAuth())
@@ -121,6 +129,14 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			authProtected.POST("/logout", handlers.Logout)
 			authProtected.GET("/me", handlers.GetCurrentUser)
 			authProtected.GET("/profile", handlers.GetCurrentUser) // Alias for user profile
+		}
+
+		// Protected OAuth routes
+		oauthProtected := api.Group("/oauth")
+		oauthProtected.Use(authMiddleware.RequireAuth())
+		{
+			oauthProtected.GET("/groups", handlers.GetUserGroups)
+			oauthProtected.POST("/sync-groups", handlers.SyncUserGroups)
 		}
 
 		// Protected alert routes
@@ -146,6 +162,8 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.GET("/color-preferences", handlers.GetUserColorPreferences)
 			dashboard.POST("/color-preferences", handlers.SaveUserColorPreferences)
 			dashboard.DELETE("/color-preferences/:id", handlers.DeleteUserColorPreference)
+			dashboard.GET("/notification-preferences", handlers.GetUserNotificationPreferences)
+			dashboard.POST("/notification-preferences", handlers.SaveUserNotificationPreferences)
 			dashboard.GET("/alert-colors", handlers.GetAlertColors)
 			dashboard.GET("/available-labels", handlers.GetAvailableAlertLabels)
 			dashboard.DELETE("/remove-resolved-alerts", handlers.RemoveAllResolvedAlerts)
@@ -169,6 +187,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	{
 		protectedPages.GET("/dashboard", handlers.DashboardPage)
 		protectedPages.GET("/dashboard/alert/:id", handlers.DashboardPage) // Show dashboard with modal
+		protectedPages.GET("/profile", handlers.ProfilePage)
 	}
 
 	return r

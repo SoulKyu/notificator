@@ -21,7 +21,6 @@ type GormDB struct {
 	db *gorm.DB
 }
 
-// NewGormDB creates a new GORM database connection
 func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 	var db *gorm.DB
 	var err error
@@ -39,7 +38,6 @@ func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 			cfg.SQLitePath = "./notificator.db"
 		}
 		
-		// Create directory if it doesn't exist
 		dir := filepath.Dir(cfg.SQLitePath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create database directory %s: %w", dir, err)
@@ -78,7 +76,6 @@ func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 	return &GormDB{db: db}, nil
 }
 
-// AutoMigrate runs database migrations
 func (gdb *GormDB) AutoMigrate() error {
 	log.Println("🔄 Running database migrations...")
 
@@ -285,7 +282,6 @@ func (gdb *GormDB) DeleteAcknowledgment(alertKey, userID string) error {
 	return nil
 }
 
-// GetAllAcknowledgedAlerts returns a map of alert_key to their latest acknowledgment
 func (gdb *GormDB) GetAllAcknowledgedAlerts() (map[string]models.AcknowledgmentWithUser, error) {
 	var acks []models.AcknowledgmentWithUser
 	
@@ -369,7 +365,6 @@ func (gdb *GormDB) GetResolvedAlertsCount() (int64, error) {
 	return count, err
 }
 
-// RemoveAllResolvedAlerts removes all resolved alerts from the database
 func (gdb *GormDB) RemoveAllResolvedAlerts() (int64, error) {
 	result := gdb.db.Delete(&models.ResolvedAlert{}, "1 = 1")
 	if result.Error != nil {

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,24 +12,15 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config holds all configuration for the application
 type Config struct {
-	// Alertmanager configurations, supports multiple instances
 	Alertmanagers []AlertmanagerConfig `json:"alertmanagers"`
-
-	// GUI configuration
 	GUI GUIConfig `json:"gui"`
-
-	// Notification configuration
 	Notifications NotificationConfig `json:"notifications"`
-
-	// Polling configuration
 	Polling PollingConfig `json:"polling"`
-
-	// Column configuration for GUI
 	ColumnWidths    map[string]float32 `json:"column_widths"`
 	Backend         BackendConfig      `json:"backend"`
 	ResolvedAlerts  ResolvedAlertsConfig `json:"resolved_alerts"`
+	OAuth *OAuthPortalConfig `json:"oauth,omitempty"`
 }
 
 type BackendConfig struct {
@@ -50,14 +42,12 @@ type DatabaseConfig struct {
 	SQLitePath string `json:"sqlite_path"`
 }
 
-// ResolvedAlertsConfig contains resolved alerts settings
 type ResolvedAlertsConfig struct {
 	Enabled              bool          `json:"enabled"`                // Enable resolved alerts tracking
 	NotificationsEnabled bool          `json:"notifications_enabled"`  // Send notifications for resolved alerts
 	RetentionDuration    time.Duration `json:"retention_duration"`     // How long to keep resolved alerts
 }
 
-// AlertmanagerConfig contains Alertmanager-specific settings
 type AlertmanagerConfig struct {
 	Name     string            `json:"name"`
 	URL      string            `json:"url"`
@@ -68,13 +58,11 @@ type AlertmanagerConfig struct {
 	OAuth    *OAuthConfig      `json:"oauth,omitempty"`
 }
 
-// OAuthConfig contains OAuth-specific settings
 type OAuthConfig struct {
 	Enabled   bool `json:"enabled"`
 	ProxyMode bool `json:"proxy_mode"` // True for OAuth proxy authentication
 }
 
-// GUIConfig contains GUI-specific settings
 type GUIConfig struct {
 	Width          int               `json:"width"`
 	Height         int               `json:"height"`
@@ -86,7 +74,6 @@ type GUIConfig struct {
 	BackgroundMode bool              `json:"background_mode"`
 }
 
-// FilterStateConfig contains the state of filters
 type FilterStateConfig struct {
 	SearchText            string          `json:"search_text"`
 	SelectedAlertmanagers map[string]bool `json:"selected_alertmanagers"`
@@ -97,7 +84,6 @@ type FilterStateConfig struct {
 	SelectedComments      map[string]bool `json:"selected_comments"`
 }
 
-// NotificationConfig contains notification settings
 type NotificationConfig struct {
 	Enabled           bool            `json:"enabled"`
 	SoundEnabled      bool            `json:"sound_enabled"`
@@ -111,7 +97,6 @@ type NotificationConfig struct {
 	RespectFilters    bool            `json:"respect_filters"`
 }
 
-// PollingConfig contains polling settings
 type PollingConfig struct {
 	Interval time.Duration `json:"interval"`
 }
@@ -192,16 +177,16 @@ func DefaultConfig() *Config {
 			NotificationsEnabled: true,                // Send notifications by default
 			RetentionDuration:    1 * time.Hour,       // Keep for 1 hour by default
 		},
+		
+		// OAuth is disabled by default - must be explicitly configured
+		OAuth: nil,
 	}
 }
 
-// getDefaultSoundPath returns a platform-appropriate default sound path
 func getDefaultSoundPath() string {
-	// This will be empty by default, causing the system to use built-in sounds
 	return ""
 }
 
-// LoadConfig loads configuration from a file, creating it with defaults if it doesn't exist
 func LoadConfig(configPath string) (*Config, error) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		config := DefaultConfig()
@@ -230,7 +215,6 @@ func LoadConfig(configPath string) (*Config, error) {
 		}
 	}
 
-	// Initialize filter state if missing (backward compatibility)
 	if config.GUI.FilterState.SelectedSeverities == nil {
 		config.GUI.FilterState.SelectedSeverities = map[string]bool{"All": true}
 	}
@@ -250,7 +234,6 @@ func LoadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-// SaveToFile saves the configuration to a file
 func (c *Config) SaveToFile(configPath string) error {
 	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -269,7 +252,6 @@ func (c *Config) SaveToFile(configPath string) error {
 	return nil
 }
 
-// GetConfigPath returns the default config file path
 func GetConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -279,25 +261,16 @@ func GetConfigPath() string {
 	return filepath.Join(home, ".config", "notificator", "config.json")
 }
 
-// LoadConfigWithViper loads configuration using Viper with environment variable support
 func LoadConfigWithViper() (*Config, error) {
-	// Create default config
 	cfg := DefaultConfig()
-
-	// Set up Viper defaults from the default config
 	setViperDefaults(cfg)
 	
-	// Debug: Log what Viper sees for alertmanager config
 	fmt.Printf("DEBUG: Viper alertmanagers.0.url = %s\n", viper.GetString("alertmanagers.0.url"))
 	fmt.Printf("DEBUG: Viper alertmanagers.0.name = %s\n", viper.GetString("alertmanagers.0.name"))
-
-	// Unmarshal into config struct
 	if err := viper.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	
-	// Manually handle alertmanager array from environment variables
-	// This is needed because Viper doesn't handle arrays well from env vars
 	alertmanagers := []AlertmanagerConfig{}
 	for i := 0; i < 10; i++ { // Support up to 10 alertmanagers
 		prefix := fmt.Sprintf("alertmanagers.%d", i)
@@ -324,13 +297,11 @@ func LoadConfigWithViper() (*Config, error) {
 		}
 	}
 	
-	// Override alertmanagers if any were found in env vars
 	if len(alertmanagers) > 0 {
 		cfg.Alertmanagers = alertmanagers
 		fmt.Printf("DEBUG: Loaded %d alertmanagers from environment\n", len(alertmanagers))
 	}
 
-	// Post-process configuration
 	if cfg.Notifications.SeverityRules == nil {
 		cfg.Notifications.SeverityRules = map[string]bool{
 			"critical": true,
@@ -340,13 +311,45 @@ func LoadConfigWithViper() (*Config, error) {
 		}
 	}
 
-	// Initialize filter state if missing (backward compatibility)
 	initializeFilterStates(cfg)
+
+	oauthEnabled := viper.GetBool("oauth.enabled")
+	log.Printf("DEBUG: OAuth enabled check: %v", oauthEnabled)
+	if oauthEnabled {
+		log.Printf("DEBUG: OAuth is enabled, loading complete configuration...")
+		// OAuth config should now be populated by viper.Unmarshal above
+		if cfg.OAuth == nil {
+			// If not unmarshaled, create with defaults
+			cfg.OAuth = DefaultOAuthConfig()
+		} else {
+			// Even if OAuth exists, ensure Providers map is initialized
+			// Viper unmarshal might create the struct but leave the map as nil
+			if cfg.OAuth.Providers == nil {
+				cfg.OAuth.Providers = make(map[string]OAuthProvider)
+			}
+		}
+		
+		// Load providers from environment variables
+		if err := loadOAuthProvidersFromEnv(cfg.OAuth); err != nil {
+			log.Printf("DEBUG: Failed to load OAuth providers: %v", err)
+			return nil, fmt.Errorf("failed to load OAuth providers: %w", err)
+		}
+		
+		// Validate configuration
+		if err := cfg.OAuth.Validate(); err != nil {
+			log.Printf("DEBUG: OAuth config validation failed: %v", err)
+			return nil, fmt.Errorf("OAuth config validation failed: %w", err)
+		}
+		
+		log.Printf("DEBUG: OAuth config loaded successfully, providers: %d", len(cfg.OAuth.Providers))
+	} else {
+		log.Printf("DEBUG: OAuth is disabled or not configured")
+		cfg.OAuth = nil
+	}
 
 	return cfg, nil
 }
 
-// setViperDefaults sets default values in Viper from the default config
 func setViperDefaults(cfg *Config) {
 	// Backend defaults
 	viper.SetDefault("backend.enabled", cfg.Backend.Enabled)
@@ -392,6 +395,32 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("resolved_alerts.notifications_enabled", cfg.ResolvedAlerts.NotificationsEnabled)
 	viper.SetDefault("resolved_alerts.retention_duration", cfg.ResolvedAlerts.RetentionDuration)
 
+	// OAuth defaults - use DefaultOAuthConfig for consistent defaults
+	oauthDefaults := DefaultOAuthConfig()
+	viper.SetDefault("oauth.enabled", oauthDefaults.Enabled)
+	viper.SetDefault("oauth.disable_classic_auth", oauthDefaults.DisableClassicAuth)
+	viper.SetDefault("oauth.redirect_url", oauthDefaults.RedirectURL)
+	viper.SetDefault("oauth.session_key", oauthDefaults.SessionKey)
+	viper.SetDefault("oauth.debug", oauthDefaults.Debug)
+	viper.SetDefault("oauth.log_level", oauthDefaults.LogLevel)
+	
+	// Group sync defaults
+	viper.SetDefault("oauth.group_sync.enabled", oauthDefaults.GroupSync.Enabled)
+	viper.SetDefault("oauth.group_sync.sync_on_login", oauthDefaults.GroupSync.SyncOnLogin)
+	viper.SetDefault("oauth.group_sync.cache_timeout", oauthDefaults.GroupSync.CacheTimeout)
+	viper.SetDefault("oauth.group_sync.default_role", oauthDefaults.GroupSync.DefaultRole)
+	viper.SetDefault("oauth.group_sync.validate_groups", oauthDefaults.GroupSync.ValidateGroups)
+	viper.SetDefault("oauth.group_sync.audit_changes", oauthDefaults.GroupSync.AuditChanges)
+	
+	// Security defaults
+	viper.SetDefault("oauth.security.state_timeout", oauthDefaults.Security.StateTimeout)
+	viper.SetDefault("oauth.security.max_auth_attempts", oauthDefaults.Security.MaxAuthAttempts)
+	viper.SetDefault("oauth.security.rate_limit", oauthDefaults.Security.RateLimit)
+	viper.SetDefault("oauth.security.require_https", oauthDefaults.Security.RequireHTTPS)
+	viper.SetDefault("oauth.security.validate_issuer", oauthDefaults.Security.ValidateIssuer)
+	viper.SetDefault("oauth.security.token_encryption", oauthDefaults.Security.TokenEncryption)
+	viper.SetDefault("oauth.security.csrf_protection", oauthDefaults.Security.CSRFProtection)
+
 	// Alertmanager defaults (first one only)
 	if len(cfg.Alertmanagers) > 0 {
 		am := cfg.Alertmanagers[0]
@@ -417,9 +446,35 @@ func setViperDefaults(cfg *Config) {
 	
 	// Support DATABASE_URL for full connection string
 	viper.BindEnv("database_url", "DATABASE_URL")
+	
+	// OAuth environment variable bindings
+	// Support both OAUTH_* and NOTIFICATOR_OAUTH_* patterns for flexibility
+	// Main OAuth settings
+	viper.BindEnv("oauth.enabled", "OAUTH_ENABLED", "NOTIFICATOR_OAUTH_ENABLED")
+	viper.BindEnv("oauth.disable_classic_auth", "OAUTH_DISABLE_CLASSIC_AUTH", "NOTIFICATOR_OAUTH_DISABLE_CLASSIC_AUTH")
+	viper.BindEnv("oauth.redirect_url", "OAUTH_REDIRECT_URL", "NOTIFICATOR_OAUTH_REDIRECT_URL")
+	viper.BindEnv("oauth.session_key", "OAUTH_SESSION_KEY", "NOTIFICATOR_OAUTH_SESSION_KEY")
+	viper.BindEnv("oauth.debug", "OAUTH_DEBUG", "NOTIFICATOR_OAUTH_DEBUG")
+	viper.BindEnv("oauth.log_level", "OAUTH_LOG_LEVEL", "NOTIFICATOR_OAUTH_LOG_LEVEL")
+
+	// Group sync settings
+	viper.BindEnv("oauth.group_sync.enabled", "OAUTH_GROUP_SYNC_ENABLED", "NOTIFICATOR_OAUTH_GROUP_SYNC_ENABLED")
+	viper.BindEnv("oauth.group_sync.sync_on_login", "OAUTH_GROUP_SYNC_ON_LOGIN", "NOTIFICATOR_OAUTH_GROUP_SYNC_ON_LOGIN")
+	viper.BindEnv("oauth.group_sync.cache_timeout", "OAUTH_GROUP_CACHE_TIMEOUT", "NOTIFICATOR_OAUTH_GROUP_CACHE_TIMEOUT")
+	viper.BindEnv("oauth.group_sync.default_role", "OAUTH_DEFAULT_ROLE", "NOTIFICATOR_OAUTH_DEFAULT_ROLE")
+	viper.BindEnv("oauth.group_sync.validate_groups", "OAUTH_VALIDATE_GROUPS", "NOTIFICATOR_OAUTH_VALIDATE_GROUPS")
+	viper.BindEnv("oauth.group_sync.audit_changes", "OAUTH_AUDIT_CHANGES", "NOTIFICATOR_OAUTH_AUDIT_CHANGES")
+
+	// Security settings
+	viper.BindEnv("oauth.security.state_timeout", "OAUTH_STATE_TIMEOUT", "NOTIFICATOR_OAUTH_STATE_TIMEOUT")
+	viper.BindEnv("oauth.security.max_auth_attempts", "OAUTH_MAX_AUTH_ATTEMPTS", "NOTIFICATOR_OAUTH_MAX_AUTH_ATTEMPTS")
+	viper.BindEnv("oauth.security.rate_limit", "OAUTH_RATE_LIMIT", "NOTIFICATOR_OAUTH_RATE_LIMIT")
+	viper.BindEnv("oauth.security.require_https", "OAUTH_REQUIRE_HTTPS", "NOTIFICATOR_OAUTH_REQUIRE_HTTPS")
+	viper.BindEnv("oauth.security.validate_issuer", "OAUTH_VALIDATE_ISSUER", "NOTIFICATOR_OAUTH_VALIDATE_ISSUER")
+	viper.BindEnv("oauth.security.token_encryption", "OAUTH_TOKEN_ENCRYPTION", "NOTIFICATOR_OAUTH_TOKEN_ENCRYPTION")
+	viper.BindEnv("oauth.security.csrf_protection", "OAUTH_CSRF_PROTECTION", "NOTIFICATOR_OAUTH_CSRF_PROTECTION")
 }
 
-// initializeFilterStates initializes filter states for backward compatibility
 func initializeFilterStates(cfg *Config) {
 	if cfg.GUI.FilterState.SelectedSeverities == nil {
 		cfg.GUI.FilterState.SelectedSeverities = map[string]bool{"All": true}
@@ -438,7 +493,6 @@ func initializeFilterStates(cfg *Config) {
 	}
 }
 
-// ParseHeadersFromEnv parses headers from environment variable
 // Format: "key1=value1,key2=value2"
 func ParseHeadersFromEnv(envVar string) map[string]string {
 	headers := make(map[string]string)
@@ -463,12 +517,8 @@ func ParseHeadersFromEnv(envVar string) map[string]string {
 	return headers
 }
 
-// MergeHeaders merges environment headers with config headers
-// Environment headers take precedence
 func (c *Config) MergeHeaders() {
 	envHeaders := ParseHeadersFromEnv("METRICS_PROVIDER_HEADERS")
-
-	// Apply environment headers to all alertmanagers
 	for i := range c.Alertmanagers {
 		if c.Alertmanagers[i].Headers == nil {
 			c.Alertmanagers[i].Headers = make(map[string]string)
@@ -480,7 +530,6 @@ func (c *Config) MergeHeaders() {
 	}
 }
 
-// GetAlertmanagerByName returns an Alertmanager configuration by name
 func (c *Config) GetAlertmanagerByName(name string) *AlertmanagerConfig {
 	for i := range c.Alertmanagers {
 		if c.Alertmanagers[i].Name == name {
@@ -490,7 +539,6 @@ func (c *Config) GetAlertmanagerByName(name string) *AlertmanagerConfig {
 	return nil
 }
 
-// GetAlertmanagerByURL returns an Alertmanager configuration by URL
 func (c *Config) GetAlertmanagerByURL(url string) *AlertmanagerConfig {
 	for i := range c.Alertmanagers {
 		if c.Alertmanagers[i].URL == url {
@@ -500,9 +548,7 @@ func (c *Config) GetAlertmanagerByURL(url string) *AlertmanagerConfig {
 	return nil
 }
 
-// AddAlertmanager adds a new Alertmanager configuration
 func (c *Config) AddAlertmanager(config AlertmanagerConfig) {
-	// Ensure unique name
 	if c.GetAlertmanagerByName(config.Name) != nil {
 		// Find a unique name
 		baseName := config.Name
@@ -515,7 +561,6 @@ func (c *Config) AddAlertmanager(config AlertmanagerConfig) {
 	c.Alertmanagers = append(c.Alertmanagers, config)
 }
 
-// RemoveAlertmanager removes an Alertmanager configuration by name
 func (c *Config) RemoveAlertmanager(name string) bool {
 	for i := range c.Alertmanagers {
 		if c.Alertmanagers[i].Name == name {
@@ -526,7 +571,6 @@ func (c *Config) RemoveAlertmanager(name string) bool {
 	return false
 }
 
-// GetAlertmanagerNames returns a list of all Alertmanager names
 func (c *Config) GetAlertmanagerNames() []string {
 	names := make([]string, len(c.Alertmanagers))
 	for i, am := range c.Alertmanagers {
@@ -535,7 +579,6 @@ func (c *Config) GetAlertmanagerNames() []string {
 	return names
 }
 
-// ValidateAlertmanagers validates all Alertmanager configurations
 func (c *Config) ValidateAlertmanagers() error {
 	if len(c.Alertmanagers) == 0 {
 		return fmt.Errorf("at least one Alertmanager must be configured")

@@ -2,16 +2,13 @@ package scripts
 
 templ DashboardModal() {
 	<script>
-		// Alert details modal and comment management for dashboard
 		window.dashboardModalMixin = {
-			// Alert Details Modal Functions
 			async showAlertDetails(fingerprint) {
 				this.alertDetailsLoading = true;
 				this.showAlertModal = true;
 				this.currentAlertTab = 'overview';
 				this.alertDetails = null;
 
-				// Update URL without page reload
 				const currentPath = window.location.pathname;
 				const newPath = `/dashboard/alert/${fingerprint}`;
 				if (currentPath !== newPath) {
@@ -44,12 +41,10 @@ templ DashboardModal() {
 				this.alertDetails = null;
 				this.currentAlertTab = 'overview';
 				
-				// Reset comment state
 				this.newCommentContent = '';
 				this.commentSubmitting = false;
 				this.commentDeleting = {};
 				
-				// Update URL back to dashboard
 				if (window.location.pathname.includes('/alert/')) {
 					window.history.pushState({}, '', '/dashboard');
 				}
@@ -63,6 +58,71 @@ templ DashboardModal() {
 					this.ackError = '';
 					this.showAckModal = true;
 				}
+			},
+
+			silenceCurrentAlert() {
+				if (this.alertDetails?.alert) {
+					this.currentSilenceAlert = this.alertDetails.alert;
+					this.silenceAction = 'single';
+					this.silenceReason = '';
+					this.silenceError = '';
+					this.silenceDuration = '1h';
+					this.silenceDurationType = 'preset';
+					this.customSilenceDuration = '';
+					this.customDurationError = '';
+					this.showSilenceModal = true;
+				}
+			},
+
+			unsilenceCurrentAlert() {
+				if (this.alertDetails?.alert) {
+					this.processUnsilenceAction(this.alertDetails.alert.fingerprint);
+				}
+			},
+
+			async processUnsilenceAction(fingerprint) {
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							action: 'unsilence',
+							fingerprints: [fingerprint],
+							comment: 'Unsilenced from alert details'
+						})
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert unsilenced successfully');
+						// Refresh alert details to show updated state
+						if (this.alertDetails?.alert?.fingerprint) {
+							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
+						}
+					} else {
+						this.showNotification('error', 'Failed to unsilence alert: ' + (result.error || 'Unknown error'));
+					}
+				} catch (error) {
+					console.error('Error unsilencing alert:', error);
+					this.showNotification('error', 'Failed to unsilence alert');
+				}
+			},
+
+			isAlertSilenced(alert) {
+				if (!alert) return false;
+				return alert.status?.state === 'suppressed' || 
+					   alert.status?.state === 'silenced' || 
+					   (alert.status?.silencedBy && alert.status.silencedBy.length > 0);
+			},
+
+			getSilenceButtonText(alert) {
+				if (!alert) return 'Unsilence';
+				const silenceCount = alert.status?.silencedBy?.length || 0;
+				return silenceCount > 1 ? `Unsilence (${silenceCount})` : 'Unsilence';
 			},
 
 			// Comment Management Functions
@@ -116,7 +176,6 @@ templ DashboardModal() {
 					return;
 				}
 
-				// Set deleting state for this specific comment
 				this.commentDeleting[commentId] = true;
 				
 				try {
@@ -166,6 +225,93 @@ templ DashboardModal() {
 				} catch (error) {
 					console.error('Error refreshing comments:', error);
 				}
+			},
+
+			copyAlertAsIssue() {
+				if (!this.alertDetails?.alert) {
+					this.showNotification('error', 'No alert data available');
+					return;
+				}
+
+				const alert = this.alertDetails.alert;
+				const comments = this.alertDetails.comments || [];
+				
+				const formatDate = (dateStr) => {
+					if (!dateStr) return 'N/A';
+					return new Date(dateStr).toLocaleString();
+				};
+				
+				const calculateDuration = (start, end) => {
+					if (!start) return 'N/A';
+					const startTime = new Date(start);
+					const endTime = end ? new Date(end) : new Date();
+					const diffMs = endTime - startTime;
+					
+					const hours = Math.floor(diffMs / (1000 * 60 * 60));
+					const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+					
+					if (hours > 0) {
+						return `${hours}h ${minutes}m`;
+					}
+					return `${minutes}m`;
+				};
+
+				// Build markdown content
+				let markdown = `# Alert: ${alert.alertname || alert.labels?.alertname || 'Unknown'}\n\n`;
+				
+				// Summary section
+				if (alert.summary) {
+					markdown += `## Summary\n${alert.summary}\n\n`;
+				}
+
+				// Details section
+				markdown += `## Details\n`;
+				markdown += `- **Status**: ${(alert.status?.state || 'unknown').toUpperCase()}\n`;
+				markdown += `- **Severity**: ${(alert.severity || 'unknown').toUpperCase()}\n`;
+				if (alert.instance) {
+					markdown += `- **Instance**: ${alert.instance}\n`;
+				}
+				markdown += `- **Started**: ${formatDate(alert.startsAt)}\n`;
+				if (alert.endsAt) {
+					markdown += `- **Ended**: ${formatDate(alert.endsAt)}\n`;
+				}
+				markdown += `- **Duration**: ${calculateDuration(alert.startsAt, alert.endsAt)}\n\n`;
+
+				// Labels section
+				if (alert.labels && Object.keys(alert.labels).length > 0) {
+					markdown += `## Labels\n`;
+					Object.entries(alert.labels).forEach(([key, value]) => {
+						markdown += `- **${key}**: ${value}\n`;
+					});
+					markdown += '\n';
+				}
+
+				// Annotations section
+				if (alert.annotations && Object.keys(alert.annotations).length > 0) {
+					markdown += `## Annotations\n`;
+					Object.entries(alert.annotations).forEach(([key, value]) => {
+						markdown += `- **${key}**: ${value}\n`;
+					});
+					markdown += '\n';
+				}
+
+				// Comments section
+				if (comments.length > 0) {
+					markdown += `## Comments\n`;
+					comments.forEach(comment => {
+						const commentDate = formatDate(comment.createdAt);
+						markdown += `**${comment.username}** (${commentDate}):\n`;
+						markdown += `${comment.content}\n\n`;
+					});
+				}
+
+				// Alert ID section
+				markdown += `## Alert ID\n`;
+				markdown += `\`${alert.fingerprint}\`\n`;
+
+				// Copy to clipboard
+				this.copyToClipboard(markdown);
+				this.showNotification('success', 'Alert copied as issue template');
 			}
 		};
 	</script>

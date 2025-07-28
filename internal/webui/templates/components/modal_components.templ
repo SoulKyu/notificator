@@ -65,6 +65,20 @@ templ SettingsModal() {
 									</div>
 								</div>
 								
+								<!-- Resolved Alerts Display Limit -->
+								<div>
+									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										Resolved Alerts Display Limit
+									</label>
+									<div class="mt-1">
+										<input type="number" x-model="settings.resolvedAlertsLimit" min="10" max="1000" 
+											   class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
+									</div>
+									<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+										Maximum number of resolved alerts to display in the dashboard (stored locally)
+									</p>
+								</div>
+								
 								<!-- Refresh Interval -->
 								<div>
 									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -115,123 +129,187 @@ templ SettingsModal() {
 									<!-- Enable Notifications -->
 									<div>
 										<label class="flex items-center">
-											<input type="checkbox" x-model="settings.notificationsEnabled" class="form-checkbox text-blue-600">
-											<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable Desktop Notifications</span>
+											<input type="checkbox" x-model="notificationPreferences.enabled" class="form-checkbox text-blue-600">
+											<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable Notifications</span>
 										</label>
-										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Show desktop notifications when new alerts arrive</p>
+										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Show notifications when new alerts arrive</p>
+									</div>
+									
+									<!-- Browser Notifications -->
+									<div>
+										<label class="flex items-center">
+											<input type="checkbox" x-model="notificationPreferences.browserNotifications" class="form-checkbox text-blue-600" :disabled="!notificationPreferences.enabled">
+											<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Browser Notifications</span>
+										</label>
+										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Show desktop notifications through the browser</p>
 									</div>
 									
 									<!-- Enable Sound Alerts -->
 									<div>
 										<label class="flex items-center">
-											<input type="checkbox" x-model="settings.soundEnabled" class="form-checkbox text-blue-600">
+											<input type="checkbox" x-model="notificationPreferences.soundEnabled" class="form-checkbox text-blue-600" :disabled="!notificationPreferences.enabled">
 											<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable Sound Alerts</span>
 										</label>
 										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Play alert sounds for new notifications</p>
 									</div>
-								</div>
-								
-								<!-- Timing Settings -->
-								<div class="space-y-4 border-t border-gray-200 dark:border-dark-border-DEFAULT pt-6">
-									<h4 class="text-sm font-medium text-gray-900 dark:text-white">Queue Management</h4>
 									
-									<!-- Notification Delay -->
+									<!-- Respect Filters -->
 									<div>
-										<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											Delay Between Notifications
+										<label class="flex items-center">
+											<input type="checkbox" x-model="notificationPreferences.respectFilters" class="form-checkbox text-blue-600" :disabled="!notificationPreferences.enabled">
+											<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Respect Dashboard Filters</span>
 										</label>
-										<div class="mt-1">
-											<select x-model="settings.notificationDelay" 
-													class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
-												<option value="500">0.5 seconds (Fast)</option>
-												<option value="1000">1 second</option>
-												<option value="1500">1.5 seconds (Default)</option>
-												<option value="2000">2 seconds</option>
-												<option value="3000">3 seconds</option>
-												<option value="5000">5 seconds</option>
-											</select>
-										</div>
-										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Time to wait between showing notifications when multiple alerts arrive</p>
+										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Only notify for alerts that match current dashboard filters</p>
 									</div>
 									
-									<!-- Max Concurrent Notifications -->
+									<!-- Test Notification Button -->
+									<div class="pt-2">
+										<button @click="testNotification()" :disabled="!notificationPreferences.enabled"
+												class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-secondary hover:bg-gray-50 dark:hover:bg-dark-bg-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+											<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+											</svg>
+											Test Notification
+										</button>
+										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Send a test notification to verify your settings</p>
+									</div>
+								</div>
+								
+								<!-- Timing & Limits Settings -->
+								<div class="space-y-4 border-t border-gray-200 dark:border-dark-border-DEFAULT pt-6">
+									<h4 class="text-sm font-medium text-gray-900 dark:text-white">Timing & Limits</h4>
+									
+									<!-- Cooldown Period -->
 									<div>
 										<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-											Maximum Concurrent Notifications
+											Cooldown Period (seconds)
 										</label>
 										<div class="mt-1">
-											<select x-model="settings.maxConcurrentNotifications" 
-													class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
+											<select x-model="notificationPreferences.cooldownSeconds" :disabled="!notificationPreferences.enabled"
+													class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white disabled:opacity-50">
+												<option value="60">1 minute</option>
+												<option value="300">5 minutes (Default)</option>
+												<option value="600">10 minutes</option>
+												<option value="1800">30 minutes</option>
+												<option value="3600">1 hour</option>
+											</select>
+										</div>
+										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Minimum time between notifications for the same alert</p>
+									</div>
+									
+									<!-- Max Notifications -->
+									<div>
+										<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+											Maximum Queued Notifications
+										</label>
+										<div class="mt-1">
+											<select x-model="notificationPreferences.maxNotifications" :disabled="!notificationPreferences.enabled"
+													class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white disabled:opacity-50">
 												<option value="1">1 notification</option>
-												<option value="2">2 notifications</option>
-												<option value="3">3 notifications (Default)</option>
-												<option value="4">4 notifications</option>
-												<option value="5">5 notifications</option>
+												<option value="3">3 notifications</option>
+												<option value="5">5 notifications (Default)</option>
 												<option value="10">10 notifications</option>
+												<option value="20">20 notifications</option>
 											</select>
 										</div>
-										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum number of notifications that can be shown simultaneously</p>
+										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum number of notifications that can be queued</p>
 									</div>
 								</div>
 								
-								<!-- Advanced Options -->
+								<!-- Severity Rules -->
 								<div class="space-y-4 border-t border-gray-200 dark:border-dark-border-DEFAULT pt-6">
-									<h4 class="text-sm font-medium text-gray-900 dark:text-white">Advanced Options</h4>
+									<h4 class="text-sm font-medium text-gray-900 dark:text-white">Severity Rules</h4>
+									<p class="text-xs text-gray-500 dark:text-gray-400">Choose which alert severities should trigger notifications</p>
 									
-									<!-- Notification Batching -->
-									<div>
-										<label class="flex items-center">
-											<input type="checkbox" x-model="settings.notificationBatching" class="form-checkbox text-blue-600">
-											<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable Smart Batching</span>
-										</label>
-										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Group similar alerts (same team/severity) into batch notifications</p>
+									<div class="grid grid-cols-2 gap-3" x-show="getAvailableSeverities().length > 0">
+										<template x-for="severity in getAvailableSeverities()" x-key="severity">
+											<label class="flex items-center">
+												<input type="checkbox" 
+													   x-model="notificationPreferences.severityRules[severity.toLowerCase()]" 
+													   :disabled="!notificationPreferences.enabled" 
+													   :class="`form-checkbox text-${getSeverityColor(severity)}-600`">
+												<span class="ml-2 text-sm font-medium"
+													  :class="`text-${getSeverityColor(severity)}-700 dark:text-${getSeverityColor(severity)}-400`"
+													  x-text="getSeverityDisplayName(severity)"></span>
+											</label>
+										</template>
 									</div>
 									
-									<!-- Prioritized Critical Notifications -->
-									<div>
-										<label class="flex items-center">
-											<input type="checkbox" x-model="settings.prioritizedNotifications" class="form-checkbox text-blue-600">
-											<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Prioritize Critical Alerts</span>
-										</label>
-										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Show critical alerts immediately, bypassing the queue</p>
-									</div>
-								</div>
-								
-								<!-- Current Settings Preview -->
-								<div class="space-y-4 border-t border-gray-200 dark:border-dark-border-DEFAULT pt-6">
-									<h4 class="text-sm font-medium text-gray-900 dark:text-white">Preview</h4>
-									<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-lg p-4">
-										<div class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-											<div class="flex justify-between">
-												<span>Desktop notifications:</span>
-												<span x-text="settings.notificationsEnabled ? 'Enabled' : 'Disabled'" 
-													  :class="settings.notificationsEnabled ? 'text-green-600' : 'text-red-600'"></span>
-											</div>
-											<div class="flex justify-between">
-												<span>Sound alerts:</span>
-												<span x-text="settings.soundEnabled ? 'Enabled' : 'Disabled'" 
-													  :class="settings.soundEnabled ? 'text-green-600' : 'text-red-600'"></span>
-											</div>
-											<div class="flex justify-between">
-												<span>Notification delay:</span>
-												<span x-text="(settings.notificationDelay / 1000) + 's'"></span>
-											</div>
-											<div class="flex justify-between">
-												<span>Max concurrent:</span>
-												<span x-text="settings.maxConcurrentNotifications"></span>
-											</div>
-											<div class="flex justify-between">
-												<span>Smart batching:</span>
-												<span x-text="settings.notificationBatching ? 'Enabled' : 'Disabled'" 
-													  :class="settings.notificationBatching ? 'text-green-600' : 'text-red-600'"></span>
-											</div>
-											<div class="flex justify-between">
-												<span>Critical priority:</span>
-												<span x-text="settings.prioritizedNotifications ? 'Enabled' : 'Disabled'" 
-													  :class="settings.prioritizedNotifications ? 'text-green-600' : 'text-red-600'"></span>
-											</div>
+									<!-- Loading/Empty state -->
+									<div x-show="getAvailableSeverities().length === 0" class="text-center py-4">
+										<div class="text-sm text-gray-500 dark:text-gray-400">
+											No severity levels detected yet. Severity options will appear once alerts are loaded.
 										</div>
 									</div>
+								</div>
+								
+								<!-- Sound Configuration -->
+								<div x-show="notificationPreferences.soundEnabled" class="space-y-4 border-t border-gray-200 dark:border-dark-border-DEFAULT pt-6">
+									<h4 class="text-sm font-medium text-gray-900 dark:text-white">Sound Configuration</h4>
+									<p class="text-xs text-gray-500 dark:text-gray-400">Configure notification sounds for each alert severity</p>
+									
+									<div x-show="getAvailableSeverities().length > 0" class="space-y-4">
+										<template x-for="severity in getAvailableSeverities()" x-key="`sound-${severity}`">
+											<div class="space-y-2">
+												<label class="block text-sm font-medium"
+													   :class="`text-${getSeverityColor(severity)}-700 dark:text-${getSeverityColor(severity)}-400`"
+													   x-text="`${getSeverityDisplayName(severity)} Alerts`"></label>
+												<div class="grid grid-cols-3 gap-2">
+													<div>
+														<label class="block text-xs text-gray-500 dark:text-gray-400">Frequency (Hz)</label>
+														<input type="number" 
+															   :x-model="`notificationPreferences.soundConfig.${severity.toLowerCase()}_frequency`" 
+															   min="200" max="2000" 
+															   class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm">
+													</div>
+													<div>
+														<label class="block text-xs text-gray-500 dark:text-gray-400">Duration (ms)</label>
+														<input type="number" 
+															   :x-model="`notificationPreferences.soundConfig.${severity.toLowerCase()}_duration`" 
+															   min="50" max="1000" 
+															   class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm">
+													</div>
+													<div>
+														<label class="block text-xs text-gray-500 dark:text-gray-400">Type</label>
+														<select :x-model="`notificationPreferences.soundConfig.${severity.toLowerCase()}_type`" 
+																class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm">
+															<option value="sine">Sine</option>
+															<option value="square">Square</option>
+															<option value="triangle">Triangle</option>
+															<option value="sawtooth">Sawtooth</option>
+														</select>
+													</div>
+												</div>
+												<button @click="testSound(severity)" 
+														class="text-xs hover:opacity-80"
+														:class="`text-${getSeverityColor(severity)}-600 hover:text-${getSeverityColor(severity)}-700 dark:text-${getSeverityColor(severity)}-400 dark:hover:text-${getSeverityColor(severity)}-300`">
+													🔊 Test Sound
+												</button>
+											</div>
+										</template>
+									</div>
+									
+									<!-- Loading/Empty state -->
+									<div x-show="getAvailableSeverities().length === 0" class="text-center py-4">
+										<div class="text-sm text-gray-500 dark:text-gray-400">
+											No severity levels detected yet. Sound configuration will appear once alerts are loaded.
+										</div>
+									</div>
+								</div>
+								
+								<!-- Save Button -->
+								<div class="border-t border-gray-200 dark:border-dark-border-DEFAULT pt-6">
+									<button @click="saveNotificationPreferences()" :disabled="notificationPreferencesSaving"
+											class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+										<span x-show="!notificationPreferencesSaving">💾 Save Notification Preferences</span>
+										<span x-show="notificationPreferencesSaving" class="flex items-center">
+											<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+												<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+												<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+											</svg>
+											Saving...
+										</span>
+									</button>
 								</div>
 							</div>
 							
@@ -289,6 +367,36 @@ templ SettingsModal() {
 															</div>
 														</div>
 													</div>
+													
+													<!-- Lightness Factor Controls (only for custom colors) -->
+													<div x-show="preference.colorType === 'custom'" class="grid grid-cols-2 gap-2 mt-2">
+														<div>
+															<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+																Background Lightness: <span x-text="Math.round((preference.bgLightnessFactor || 0.9) * 100) + '%'"></span>
+															</label>
+															<input type="range" 
+																   x-model.number="preference.bgLightnessFactor" 
+																   min="0.1" max="1.0" step="0.1"
+																   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700">
+														</div>
+														<div>
+															<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+																Text Darkness: <span x-text="Math.round((preference.textDarknessFactor || 0.3) * 100) + '%'"></span>
+															</label>
+															<input type="range" 
+																   x-model.number="preference.textDarknessFactor" 
+																   min="0.1" max="1.0" step="0.1"
+																   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700">
+														</div>
+													</div>
+													
+													<!-- Color Preview -->
+													<div x-show="preference.color" class="mt-2">
+														<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Preview:</label>
+														<div :style="getPreviewStyle(preference)" class="text-center text-xs">
+															Sample Alert
+														</div>
+													</div>
 												</div>
 												<button @click="removeColorPreference(index)" 
 														class="ml-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
@@ -313,7 +421,7 @@ templ SettingsModal() {
 															<!-- Label Key Input with Autocomplete -->
 															<div class="flex-1 relative">
 																<input type="text" :value="key" 
-																	   @input="updateLabelConditionKey(preference, key, $event.target.value)"
+																	   @input="debouncedUpdateLabelConditionKey(preference, key, $event.target.value)"
 																	   @focus="ensureAvailableLabels()"
 																	   :list="'label-keys-' + preference.id + '-' + key"
 																	   placeholder="Label name (e.g., severity)"
@@ -606,7 +714,7 @@ templ AlertDetailsModal() {
 										</div>
 										<!-- Suppressed/Silenced status -->
 										<div x-show="alertDetails?.alert?.status?.state === 'suppressed'" 
-											 class="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/25">
+											 class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/25">
 											<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
@@ -643,9 +751,32 @@ templ AlertDetailsModal() {
 												<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium shadow-sm"
 													  :class="{
 														  'bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800': alertDetails?.alert?.status?.state === 'firing',
+														  'bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800': alertDetails?.alert?.status?.state === 'active',
 														  'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800': alertDetails?.alert?.status?.state === 'resolved',
-														  'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-200 dark:border-yellow-800': alertDetails?.alert?.status?.state === 'suppressed'
+														  'bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-800': alertDetails?.alert?.status?.state === 'suppressed',
+														  'bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-800': alertDetails?.alert?.status?.state === 'silenced'
 													  }">
+													<!-- Status icons -->
+													<template x-if="alertDetails?.alert?.status?.state === 'firing' || alertDetails?.alert?.status?.state === 'active'">
+														<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+														</svg>
+													</template>
+													<template x-if="alertDetails?.alert?.status?.state === 'resolved'">
+														<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+														</svg>
+													</template>
+													<template x-if="alertDetails?.alert?.status?.state === 'suppressed' || alertDetails?.alert?.status?.state === 'silenced'">
+														<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+														</svg>
+													</template>
+													<template x-if="!alertDetails?.alert?.status?.state || (alertDetails?.alert?.status?.state !== 'firing' && alertDetails?.alert?.status?.state !== 'active' && alertDetails?.alert?.status?.state !== 'resolved' && alertDetails?.alert?.status?.state !== 'suppressed' && alertDetails?.alert?.status?.state !== 'silenced')">
+														<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+														</svg>
+													</template>
 													<span x-text="(alertDetails?.alert?.status?.state || 'unknown').toUpperCase()"></span>
 												</span>
 												
@@ -676,16 +807,51 @@ templ AlertDetailsModal() {
 											</div>
 										</div>
 										
-										<!-- Action button -->
+										<!-- Action buttons -->
 										<div class="flex-shrink-0 ml-4">
-											<button @click="acknowledgeCurrentAlert()" 
-													x-show="alertDetails?.alert && !alertDetails?.alert?.isAcknowledged"
-													class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-green-600/25 transition-all duration-200 hover:shadow-green-600/40 hover:scale-105">
-												<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-												</svg>
-												Acknowledge Alert
-											</button>
+											<div class="flex items-center space-x-3">
+												<button @click="acknowledgeCurrentAlert()" 
+														x-show="alertDetails?.alert && !alertDetails?.alert?.isAcknowledged"
+														class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-green-600/25 transition-all duration-200 hover:shadow-green-600/40 hover:scale-105">
+													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+													</svg>
+													Acknowledge
+												</button>
+												
+												<!-- Silence Button (show when not silenced) -->
+												<button @click="silenceCurrentAlert()" 
+														x-show="alertDetails?.alert && !isAlertSilenced(alertDetails?.alert)"
+														class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-purple-600/25 transition-all duration-200 hover:shadow-purple-600/40 hover:scale-105">
+													<!-- Heroicon: speaker-x-mark -->
+													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.59-.79-1.59-1.78V9.51c0-.88.79-1.59 1.78-1.59h1.78Z"/>
+													</svg>
+													Silence
+												</button>
+												
+												<!-- Unsilence Button (show when silenced) -->
+												<button @click="unsilenceCurrentAlert()" 
+														x-show="alertDetails?.alert && isAlertSilenced(alertDetails?.alert)"
+														class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-orange-600/25 transition-all duration-200 hover:shadow-orange-600/40 hover:scale-105">
+													<!-- Heroicon: speaker-wave -->
+													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.59-.79-1.59-1.78V9.51c0-.88.79-1.59 1.78-1.59h1.78Z"/>
+													</svg>
+													<span x-text="getSilenceButtonText(alertDetails?.alert)"></span>
+												</button>
+												
+												<!-- Copy as Issue Button -->
+												<button @click="copyAlertAsIssue()" 
+														x-show="alertDetails?.alert"
+														class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-blue-600/25 transition-all duration-200 hover:shadow-blue-600/40 hover:scale-105">
+													<!-- Heroicon: clipboard-document -->
+													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2V8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+													</svg>
+													Copy as Issue
+												</button>
+											</div>
 										</div>
 									</div>
 								</div>
@@ -1100,6 +1266,219 @@ templ AlertDetailsModal() {
 						</div>
 					</div>
 					</div> <!-- End alertDetails content wrapper -->
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// Silence Modal Component
+templ SilenceModal() {
+	<!-- Silence Dialog -->
+	<div x-show="showSilenceModal" 
+		 x-transition:enter="ease-out duration-300" 
+		 x-transition:enter-start="opacity-0" 
+		 x-transition:enter-end="opacity-100"
+		 x-transition:leave="ease-in duration-200" 
+		 x-transition:leave-start="opacity-100" 
+		 x-transition:leave-end="opacity-0"
+		 class="fixed inset-0 z-60 overflow-y-auto" 
+		 @click.away="showSilenceModal = false">
+		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+			<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+				 x-transition:enter="ease-out duration-300"
+				 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+				 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+				 x-transition:leave="ease-in duration-200"
+				 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+				 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+				
+				<div class="bg-white dark:bg-dark-bg-secondary px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+					<div class="sm:flex sm:items-start">
+						<div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-800 sm:mx-0 sm:h-10 sm:w-10">
+							<svg class="h-6 w-6 text-purple-600 dark:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+							</svg>
+						</div>
+						<div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+							<h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+								Silence Alert
+							</h3>
+							<div class="mt-2">
+								<p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+									<span x-show="silenceAction === 'single'">
+										Silence this alert to temporarily suppress notifications:
+									</span>
+									<span x-show="silenceAction === 'bulk'">
+										Silence <strong x-text="selectedAlerts.length + selectedGroups.length"></strong> alert(s)/group(s):
+									</span>
+									<span x-show="silenceAction === 'group'">
+										Silence the group "<strong x-text="currentGroupName"></strong>":
+									</span>
+								</p>
+								
+								<!-- Alert/Group Information -->
+								<div x-show="silenceAction === 'single' && currentSilenceAlert" class="mb-4 p-3 bg-gray-50 dark:bg-dark-bg-tertiary rounded-md">
+									<div class="flex items-center space-x-2 text-sm">
+										<span class="font-medium text-gray-900 dark:text-white">Alert:</span>
+										<span class="text-gray-600 dark:text-gray-300" x-text="currentSilenceAlert?.alertName"></span>
+									</div>
+									<div class="flex items-center space-x-2 text-sm mt-1">
+										<span class="font-medium text-gray-900 dark:text-white">Instance:</span>
+										<span class="text-gray-600 dark:text-gray-300" x-text="currentSilenceAlert?.instance"></span>
+									</div>
+								</div>
+								
+								<!-- Duration Selection -->
+								<div class="mb-4">
+									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+										Silence Duration <span class="text-red-500">*</span>
+									</label>
+									
+									<!-- Duration Type Selection -->
+									<div class="mb-3">
+										<div class="flex items-center space-x-4">
+											<label class="flex items-center">
+												<input type="radio" x-model="silenceDurationType" value="preset" 
+													   class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-dark-border-DEFAULT">
+												<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Preset</span>
+											</label>
+											<label class="flex items-center">
+												<input type="radio" x-model="silenceDurationType" value="custom" 
+													   class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-dark-border-DEFAULT">
+												<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Custom</span>
+											</label>
+										</div>
+									</div>
+									
+									<!-- Preset Duration Dropdown -->
+									<div x-show="silenceDurationType === 'preset'">
+										<select x-model="silenceDuration" 
+												class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-dark-bg-tertiary dark:text-white">
+											<option value="1h">1 hour</option>
+											<option value="2h">2 hours</option>
+											<option value="4h">4 hours</option>
+											<option value="8h">8 hours</option>
+											<option value="12h">12 hours</option>
+											<option value="24h">24 hours</option>
+											<option value="2d">2 days</option>
+											<option value="7d">7 days</option>
+										</select>
+									</div>
+									
+									<!-- Custom Duration Input -->
+									<div x-show="silenceDurationType === 'custom'">
+										<input type="text" x-model="customSilenceDuration" 
+											   placeholder="e.g., 1h30m, 2h15m30s, 3d12h"
+											   class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-dark-bg-tertiary dark:text-white"
+											   @input="validateCustomDuration()">
+										<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											Supported formats: 1h30m, 2h15m30s, 3d12h (ns, µs, ms, s, m, h combinations)
+										</div>
+										<div x-show="customDurationError" class="mt-1 text-xs text-red-600 dark:text-red-400" x-text="customDurationError"></div>
+									</div>
+								</div>
+								
+								<!-- Reason Input -->
+								<div class="mb-4">
+									<label for="silence-reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+										Silence Reason <span class="text-red-500">*</span>
+									</label>
+									<textarea id="silence-reason" 
+											  x-model="silenceReason" 
+											  rows="3"
+											  placeholder="Describe why you are silencing this alert..."
+											  class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white resize-none"
+											  @keydown.enter.meta.prevent="submitSilence()"
+											  @keydown.enter.ctrl.prevent="submitSilence()"></textarea>
+									<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										Press Ctrl+Enter or Cmd+Enter to submit
+									</div>
+								</div>
+								
+								<!-- Quick Reason Templates -->
+								<div class="mb-4">
+									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+										Quick Templates:
+									</label>
+									<div class="flex flex-wrap gap-2">
+										<button @click="silenceReason = 'Scheduled maintenance'" 
+												class="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-full hover:bg-blue-200 dark:hover:bg-blue-700">
+											Maintenance
+										</button>
+										<button @click="silenceReason = 'Known issue being resolved'" 
+												class="px-3 py-1 text-xs bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full hover:bg-green-200 dark:hover:bg-green-700">
+											Known issue
+										</button>
+										<button @click="silenceReason = 'Temporary expected behavior'" 
+												class="px-3 py-1 text-xs bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 rounded-full hover:bg-yellow-200 dark:hover:bg-yellow-700">
+											Expected
+										</button>
+										<button @click="silenceReason = 'Under investigation'" 
+												class="px-3 py-1 text-xs bg-gray-100 dark:bg-dark-bg-secondary text-gray-800 dark:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-dark-bg-tertiary">
+											Investigating
+										</button>
+									</div>
+								</div>
+								
+								<!-- Info about what will be silenced -->
+								<div class="p-3 bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-md">
+									<div class="flex">
+										<svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+										</svg>
+										<div class="ml-3">
+											<p class="text-sm text-blue-800 dark:text-blue-200">
+												Silencing will suppress notifications for this alert but it will still be visible in the dashboard.
+											</p>
+										</div>
+									</div>
+								</div>
+								
+								<!-- Validation Error -->
+								<div x-show="silenceError" class="mt-4 p-3 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md">
+									<div class="flex">
+										<svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+										</svg>
+										<div class="ml-3">
+											<p class="text-sm text-red-800 dark:text-red-200" x-text="silenceError"></p>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				
+				<div class="bg-gray-50 dark:bg-dark-bg-tertiary px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+					<button type="button" 
+							@click="submitSilence()" 
+							:disabled="!silenceReason.trim() || silenceSubmitting"
+							class="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200"
+							:class="{
+								'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500': silenceReason.trim() && !silenceSubmitting,
+								'bg-gray-400 cursor-not-allowed': !silenceReason.trim() || silenceSubmitting
+							}">
+						<svg x-show="silenceSubmitting" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<span x-show="!silenceSubmitting">Silence</span>
+						<span x-show="silenceSubmitting">Processing...</span>
+					</button>
+					<button type="button" 
+							@click="cancelSilence()" 
+							:disabled="silenceSubmitting"
+							class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-dark-border-DEFAULT shadow-sm px-4 py-2 bg-white dark:bg-dark-bg-secondary text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+							:class="{ 'opacity-50 cursor-not-allowed': silenceSubmitting }">
+						Cancel
+					</button>
 				</div>
 			</div>
 		</div>

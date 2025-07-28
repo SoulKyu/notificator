@@ -2,16 +2,13 @@ package scripts
 
 templ DashboardData() {
 	<script>
-		// Data loading and API functions for dashboard
 		window.dashboardDataMixin = {
-			// Data loading - initial load with full data
 			async loadDashboardData() {
 				this.loading = true;
 				
 				try {
 					const params = new URLSearchParams();
 					
-					// Add current filters to request
 					if (this.searchQuery) params.set('search', this.searchQuery);
 					if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
 					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
@@ -26,23 +23,22 @@ templ DashboardData() {
 					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
 					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
 					
+					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
+						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
+					}
+					
 					const response = await fetch(`/api/v1/dashboard/data?${params.toString()}`, {
 						credentials: 'include'
 					});
 					const result = await response.json();
 					
 					if (result.success) {
-						const oldAlerts = this.alerts;
 						this.alerts = result.data.alerts || [];
 						this.groups = result.data.groups || [];
 						this.metadata = result.data.metadata;
 						this.settings = { ...this.settings, ...result.data.settings };
 						this.lastUpdateTime = Date.now();
 						
-						// Check for new alerts for notifications
-						this.checkForNewAlerts(oldAlerts, this.alerts);
-						
-						// Load custom alert colors
 						await this.loadAlertColors();
 						
 						this.updateURL();
@@ -57,13 +53,11 @@ templ DashboardData() {
 				}
 			},
 
-			// Incremental update - only fetch changes
 			async loadDashboardIncremental() {
 				// Don't show loading spinner for incremental updates
 				try {
 					const params = new URLSearchParams();
 					
-					// Add current filters to request
 					if (this.searchQuery) params.set('search', this.searchQuery);
 					if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
 					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
@@ -77,6 +71,10 @@ templ DashboardData() {
 					
 					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
 					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+					
+					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
+						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
+					}
 					
 					// Include current alert fingerprints for comparison
 					const currentFingerprints = this.alerts.map(a => a.fingerprint).join(',');
@@ -120,7 +118,6 @@ templ DashboardData() {
 					// Build same URL parameters as dashboard data API
 					const params = new URLSearchParams();
 					
-					// Add current filters to request
 					if (this.searchQuery) params.set('search', this.searchQuery);
 					if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
 					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
@@ -134,6 +131,10 @@ templ DashboardData() {
 					
 					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
 					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+					
+					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
+						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
+					}
 					
 					const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
 						credentials: 'include'
@@ -227,6 +228,7 @@ templ DashboardData() {
 				
 				// Check for new alerts for notifications
 				if (update.newAlerts && update.newAlerts.length > 0) {
+					console.log(`Incremental update: Processing ${update.newAlerts.length} new alerts for notifications`);
 					this.checkForNewAlerts(oldAlerts, this.alerts);
 				}
 			},

@@ -22,10 +22,10 @@ import (
 	"notificator/internal/backend/services"
 )
 
-// Server represents the backend server
 type Server struct {
 	authService      *services.AuthServiceGorm
 	alertService     *services.AlertServiceGorm
+	oauthService     *services.OAuthService
 	db               *database.GormDB
 	config           *config.Config
 	dbType           string
@@ -35,7 +35,6 @@ type Server struct {
 	cleanupDone      chan bool
 }
 
-// NewServer creates a new backend server instance
 func NewServer(cfg *config.Config, dbType string) *Server {
 	return &Server{
 		config:      cfg,
@@ -44,7 +43,6 @@ func NewServer(cfg *config.Config, dbType string) *Server {
 	}
 }
 
-// Start starts the backend server
 func (s *Server) Start() error {
 	if err := s.initDatabase(); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
@@ -73,13 +71,12 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// initDatabase initializes the database connection
 func (s *Server) initDatabase() error {
 	var dbConfig config.DatabaseConfig
 	if s.config.Backend.Database.Type != "" {
 		dbConfig = s.config.Backend.Database
 		
-		// Override SQLite path with Viper value if available
+		// Override with Viper configuration if available
 		if s.dbType == "sqlite" {
 			if viperPath := viper.GetString("backend.database.sqlite_path"); viperPath != "" {
 				dbConfig.SQLitePath = viperPath
@@ -108,13 +105,24 @@ func (s *Server) initDatabase() error {
 	return nil
 }
 
-// initServices initializes all gRPC services
 func (s *Server) initServices() {
-	s.authService = services.NewAuthServiceGorm(s.db)
+	if s.config.OAuth != nil && s.config.OAuth.Enabled {
+		oauthService, err := services.NewOAuthService(s.db, s.config.OAuth)
+		if err != nil {
+			log.Printf("⚠️  Failed to initialize OAuth service: %v", err)
+			log.Printf("⚠️  OAuth authentication will be disabled")
+		} else {
+			s.oauthService = oauthService
+			log.Printf("✅ OAuth service initialized successfully")
+		}
+	} else {
+		log.Printf("ℹ️  OAuth is not enabled in configuration")
+	}
+
+	s.authService = services.NewAuthServiceGorm(s.db, s.oauthService)
 	s.alertService = services.NewAlertServiceGorm(s.db)
 }
 
-// startGRPCServer starts the gRPC server
 func (s *Server) startGRPCServer() error {
 	listenAddr := s.config.Backend.GRPCListen
 	if listenAddr == "" {
@@ -148,7 +156,6 @@ func (s *Server) startGRPCServer() error {
 	return nil
 }
 
-// startHTTPServer starts an HTTP server for health checks
 func (s *Server) startHTTPServer() error {
 	mux := http.NewServeMux()
 
@@ -176,7 +183,6 @@ func (s *Server) startHTTPServer() error {
 	return nil
 }
 
-// setupGracefulShutdown sets up graceful shutdown handling
 func (s *Server) setupGracefulShutdown(shutdownChan chan struct{}) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -210,7 +216,6 @@ func (s *Server) setupGracefulShutdown(shutdownChan chan struct{}) {
 	}()
 }
 
-// RunMigrations runs database migrations
 func (s *Server) RunMigrations() error {
 	if err := s.initDatabase(); err != nil {
 		return fmt.Errorf("failed to initialize database for migrations: %w", err)
@@ -223,7 +228,6 @@ func (s *Server) RunMigrations() error {
 	return nil
 }
 
-// Close closes the server and cleans up resources
 func (s *Server) Close() error {
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
@@ -244,7 +248,6 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// loggingUnaryInterceptor logs gRPC requests
 func (s *Server) loggingUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	start := time.Now()
 
@@ -261,7 +264,6 @@ func (s *Server) loggingUnaryInterceptor(ctx context.Context, req interface{}, i
 	return resp, err
 }
 
-// startResolvedAlertCleanup starts the background cleanup job for expired resolved alerts
 func (s *Server) startResolvedAlertCleanup() {
 	s.cleanupTicker = time.NewTicker(1 * time.Hour)
 	
@@ -282,7 +284,6 @@ func (s *Server) startResolvedAlertCleanup() {
 	}()
 }
 
-// performResolvedAlertCleanup removes expired resolved alerts from the database
 func (s *Server) performResolvedAlertCleanup() {
 	if s.db == nil {
 		log.Println("⚠️  Database not initialized, skipping resolved alert cleanup")
@@ -304,7 +305,6 @@ func (s *Server) performResolvedAlertCleanup() {
 	}
 }
 
-// stopResolvedAlertCleanup stops the cleanup job
 func (s *Server) stopResolvedAlertCleanup() {
 	if s.cleanupTicker != nil {
 		s.cleanupTicker.Stop()
@@ -312,7 +312,6 @@ func (s *Server) stopResolvedAlertCleanup() {
 	}
 }
 
-// healthCheckHandler handles health check requests
 func (s *Server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -326,7 +325,6 @@ func (s *Server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `{"status":"healthy","database":"up"}`)
 }
 
-// metricsHandler handles metrics requests
 func (s *Server) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -353,7 +351,6 @@ func getClientIP(ctx context.Context) string {
 }
 
 
-// IsHealthy checks if the server is healthy
 func (s *Server) IsHealthy() bool {
 	if s.db == nil {
 		return false
@@ -361,7 +358,6 @@ func (s *Server) IsHealthy() bool {
 	return s.db.HealthCheck() == nil
 }
 
-// GetStats returns server statistics
 func (s *Server) GetStats() (*ServerStats, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not initialized")
@@ -381,7 +377,6 @@ func (s *Server) GetStats() (*ServerStats, error) {
 	}, nil
 }
 
-// ServerStats represents server statistics
 type ServerStats struct {
 	Users           int64     `json:"users"`
 	ActiveSessions  int64     `json:"active_sessions"`

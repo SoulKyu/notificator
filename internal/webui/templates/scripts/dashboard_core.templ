@@ -4,7 +4,6 @@ templ DashboardCore() {
 	<script>
 		function newDashboard() {
 			return {
-				// Core state
 				loading: true,
 				alerts: [],
 				groups: [],
@@ -30,48 +29,51 @@ templ DashboardCore() {
 				},
 				settings: {
 					theme: 'light',
-					notificationsEnabled: true,
-					soundEnabled: true,
 					resolvedAlertsRetention: 1,
 					refreshInterval: 5,
-					notificationDelay: 1500,
-					maxConcurrentNotifications: 3,
-					notificationBatching: true,
-					prioritizedNotifications: true
+					resolvedAlertsLimit: 100
 				},
 				
-				// Remove resolved alerts state
 				isRemovingResolvedAlerts: false,
 				
-				// UI state
+				hasInitiallyLoaded: false,
+				sessionStorageKey: 'dashboard_notification_state',
+				
 				displayMode: 'classic',
 				viewMode: 'list',
 				sortField: 'duration',
 				sortDirection: 'asc',
 				showSettings: false,
 				
-				// Acknowledgment modal state
 				showAckModal: false,
-				ackAction: 'single', // 'single', 'bulk', or 'group'
+				ackAction: 'single',
 				ackReason: '',
 				ackError: '',
 				ackSubmitting: false,
 				currentAckAlert: null,
 				currentGroupName: '',
 				
-				// Alert details modal state
+				showSilenceModal: false,
+				silenceAction: 'single',
+				silenceReason: '',
+				silenceError: '',
+				silenceSubmitting: false,
+				currentSilenceAlert: null,
+				silenceDuration: '1h',
+				silenceDurationType: 'preset',
+				customSilenceDuration: '',
+				customDurationError: '',
+				
 				showAlertModal: false,
 				alertDetails: null,
 				currentAlertTab: 'overview',
 				alertDetailsLoading: false,
 				
-				// Comment management state
 				newCommentContent: '',
 				commentSubmitting: false,
 				commentDeleting: {},
 				currentUser: null,
 				
-				// Filter state
 				searchQuery: '',
 				filters: {
 					alertmanagers: [],
@@ -82,38 +84,19 @@ templ DashboardCore() {
 				acknowledgmentFilter: null,
 				commentsFilter: null,
 				
-				// Selection state
 				selectedAlerts: [],
 				selectedGroups: [],
 				expandedGroups: [],
 				
-				// Auto-refresh
 				refreshInterval: null,
 				lastUpdateTime: null,
 				
-				// Color preferences
-				alertColors: {}, // fingerprint -> ColorResult
-				alertColorsTimestamp: 0, // when colors were last loaded
+				alertColors: {},
+				alertColorsTimestamp: 0,
 				
-				// Sound objects
-				criticalSound: null,
-				warningSound: null,
-				
-				// Notification queue system
-				notificationQueue: [],
-				audioQueue: [],
-				isProcessingNotifications: false,
-				isProcessingAudio: false,
-				maxConcurrentNotifications: 3,
-				notificationDelay: 1500, // milliseconds between notifications
-				activeNotifications: new Set(),
-				notificationProcessingTimer: null,
-				audioProcessingTimer: null,
-				
-				// Resizable columns
 				columnWidths: {
 					alertName: 300,
-					acknowledge: 75,
+					action: 100,
 					instance: 350,
 					severity: 150,
 					status: 150,
@@ -128,58 +111,54 @@ templ DashboardCore() {
 				startWidth: 0,
 				currentColumn: null,
 
-				// Utility function to map status for display
 				getDisplayStatus(status) {
 					if (!status?.state) return 'unknown';
-					// Map 'suppressed' to 'silenced' for UI display
 					return status.state === 'suppressed' ? 'silenced' : status.state;
 				},
 
-				// Utility function to check if status matches a value (handles suppressed->silenced mapping)
 				statusMatches(status, value) {
 					const displayStatus = this.getDisplayStatus(status);
 					return displayStatus === value;
 				},
 
 				init() {
-					// Merge all mixins into this instance
 					Object.assign(this, window.dashboardDataMixin || {});
 					Object.assign(this, window.dashboardActionsMixin || {});
 					Object.assign(this, window.dashboardNotificationsMixin || {});
 					Object.assign(this, window.dashboardUtilitiesMixin || {});
 					Object.assign(this, window.dashboardModalMixin || {});
 					
-					// Set global reference for other components
 					window.dashboardInstance = this;
+					
+					this.initializeSessionTracking();
 					
 					this.loadSettings();
 					this.loadFiltersFromURL();
-					this.initializeSounds();
 					this.loadColumnWidths();
 					this.loadCurrentUser();
+					
+					if (this.initializeNotificationSystem) {
+						this.initializeNotificationSystem();
+					}
+					
 					this.startAutoRefresh();
 					this.loadDashboardData();
 					
-					// Check if URL contains alert ID and open modal
 					this.checkAlertFromURL();
 					
-					// Listen for visibility changes to pause/resume refresh
 					document.addEventListener('visibilitychange', () => {
 						if (document.hidden) {
 							this.stopAutoRefresh();
 						} else {
 							this.startAutoRefresh();
-							// Use incremental update when coming back from hidden
 							this.loadDashboardIncremental();
 						}
 					});
 					
-					// Add global mouse events for resizing
 					document.addEventListener('mousemove', this.handleMouseMove.bind(this));
 					document.addEventListener('mouseup', this.handleMouseUp.bind(this));
 				},
 
-				// Global functions needed by the template
 				openSettings() {
 					this.showSettings = true;
 				},
@@ -192,7 +171,38 @@ templ DashboardCore() {
 					return 'Ready';
 				},
 
-				// Display modes
+				initializeSessionTracking() {
+					const sessionData = sessionStorage.getItem(this.sessionStorageKey);
+					
+					if (sessionData) {
+						try {
+							const data = JSON.parse(sessionData);
+							this.hasInitiallyLoaded = data.hasInitiallyLoaded || false;
+							console.log('Session tracking restored - hasInitiallyLoaded:', this.hasInitiallyLoaded);
+						} catch (e) {
+							console.warn('Failed to parse session data, treating as fresh session');
+							this.hasInitiallyLoaded = false;
+						}
+					} else {
+						console.log('Fresh session detected');
+						this.hasInitiallyLoaded = false;
+					}
+					
+					this.saveSessionState();
+				},
+
+				saveSessionState() {
+					try {
+						const sessionData = {
+							hasInitiallyLoaded: this.hasInitiallyLoaded,
+							timestamp: Date.now()
+						};
+						sessionStorage.setItem(this.sessionStorageKey, JSON.stringify(sessionData));
+					} catch (e) {
+						console.warn('Failed to save session state:', e);
+					}
+				},
+
 				setDisplayMode(mode) {
 					if (this.displayMode !== mode) {
 						this.displayMode = mode;
@@ -212,11 +222,9 @@ templ DashboardCore() {
 					}
 				},
 
-				// Auto-refresh management
 				startAutoRefresh() {
 					this.stopAutoRefresh();
 					this.refreshInterval = setInterval(() => {
-						// Use incremental updates for auto-refresh
 						this.loadDashboardIncremental();
 					}, this.settings.refreshInterval * 1000);
 				},

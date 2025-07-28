@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Fake Alertmanager for testing
   alertmanager:
-    image: registry-1.docker.io/soulkyu/notificator-backend:alertmanager
+    image: registry-1.docker.io/soulkyu/notificator-alertmanager:latest
     container_name: notificator-alertmanager
     ports:
       - "9093:9093"
@@ -19,7 +19,7 @@ services:
 
   # Notificator Backend Server
   backend:
-    image: registry-1.docker.io/soulkyu/notificator-backend:backend
+    image: registry-1.docker.io/soulkyu/notificator-backend:latest
     container_name: notificator-backend
     ports:
       - "50051:50051"  # gRPC API
@@ -36,7 +36,25 @@ services:
       # Alertmanager configuration
       - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager
       - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093
+
+      # OAuth Configuration
+      - OAUTH_ENABLED=true
+      - OAUTH_DISABLE_CLASSIC_AUTH=true
+      - OAUTH_REDIRECT_URL=https://0a5f1f53b76a.ngrok-free.app/api/v1/oauth
+      - OAUTH_SESSION_KEY=your-secure-session-key-change-me-make-it-long-and-random
+
+      # Group Sync Configuration
+      - OAUTH_GROUP_SYNC_ENABLED=true
+      - OAUTH_GROUP_SYNC_ON_LOGIN=true
+      - OAUTH_GROUP_CACHE_TIMEOUT=1h
+      - OAUTH_DEFAULT_ROLE=viewer
+
+      # GitHub OAuth Provider
+      - OAUTH_GITHUB_CLIENT_ID=Ov23li8tCIe0AsftXBqY
+      - OAUTH_GITHUB_CLIENT_SECRET=3fdcf3dc5bdcc90357d8eaca4e43160e0a7cddb9
+      - OAUTH_GITHUB_SCOPES=user:email,read:org,read:user
       
+
       # Logging
       - NOTIFICATOR_LOG_LEVEL=info
     volumes:
@@ -56,7 +74,7 @@ services:
 
   # Notificator WebUI
   webui:
-    image: registry-1.docker.io/soulkyu/notificator-backend:webui
+    image: registry-1.docker.io/soulkyu/notificator-webui:latest
     container_name: notificator-webui
     ports:
       - "8081:8081"
@@ -72,6 +90,7 @@ services:
       - NOTIFICATOR_ALERTMANAGERS_0_OAUTH_PROXY_MODE=true
       # Logging
       - NOTIFICATOR_LOG_LEVEL=info
+      
     depends_on:
       backend:
         condition: service_healthy

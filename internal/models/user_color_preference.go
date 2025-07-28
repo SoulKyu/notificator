@@ -9,15 +9,17 @@ import (
 
 // UserColorPreference represents a user-defined color preference for alerts
 type UserColorPreference struct {
-	ID               string         `gorm:"primaryKey;type:varchar(36)" json:"id"`
-	UserID           string         `gorm:"index;type:varchar(100);not null" json:"user_id"`
-	LabelConditions  datatypes.JSON `gorm:"type:json" json:"label_conditions"`  // JSON map of label conditions
-	Color            string         `gorm:"type:varchar(50);not null" json:"color"`
-	ColorType        string         `gorm:"type:varchar(20);not null;default:'custom'" json:"color_type"` // "severity", "custom", "tailwind"
-	Priority         int            `gorm:"default:0" json:"priority"`          // Higher numbers = higher priority
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
+	ID                  string         `gorm:"primaryKey;type:varchar(36)" json:"id"`
+	UserID              string         `gorm:"index;type:varchar(100);not null" json:"user_id"`
+	LabelConditions     datatypes.JSON `gorm:"type:json" json:"label_conditions"`  // JSON map of label conditions
+	Color               string         `gorm:"type:varchar(50);not null" json:"color"`
+	ColorType           string         `gorm:"type:varchar(20);not null;default:'custom'" json:"color_type"` // "severity", "custom", "tailwind"
+	Priority            int            `gorm:"default:0" json:"priority"`          // Higher numbers = higher priority
+	BgLightnessFactor   float64        `gorm:"type:decimal(3,2);default:0.9" json:"bg_lightness_factor"`    // Background lightness factor (0.0-1.0)
+	TextDarknessFactor  float64        `gorm:"type:decimal(3,2);default:0.3" json:"text_darkness_factor"`   // Text darkness factor (0.0-1.0)
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	DeletedAt           gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 type LabelConditionsMap map[string]string

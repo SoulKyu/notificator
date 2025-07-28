@@ -3,6 +3,7 @@
 import json
 import random
 import time
+import re
 from datetime import datetime, timedelta, UTC
 from flask import Flask, jsonify, request
 from threading import Thread
@@ -160,6 +161,98 @@ def generate_fingerprint():
     """Generate a unique fingerprint for an alert"""
     return ''.join(random.choices('0123456789abcdef', k=16))
 
+def matches_label(matcher, label_value):
+    """Check if a matcher matches a label value"""
+    if label_value is None:
+        label_value = ""
+    
+    matcher_value = matcher.get('value', '')
+    is_regex = matcher.get('isRegex', False)
+    is_equal = matcher.get('isEqual', True)
+    
+    if is_regex:
+        try:
+            pattern = re.compile(matcher_value)
+            matches = bool(pattern.search(str(label_value)))
+        except re.error:
+            # Invalid regex pattern
+            matches = False
+    else:
+        matches = str(label_value) == matcher_value
+    
+    # Handle isEqual flag (negation)
+    if is_equal:
+        return matches
+    else:
+        return not matches
+
+def match_silence_to_alert(silence, alert):
+    """Check if a silence applies to an alert based on matchers"""
+    # Check if silence is active
+    now = datetime.now(UTC)
+    starts_at = datetime.fromisoformat(silence['startsAt'].replace('Z', '+00:00'))
+    ends_at = datetime.fromisoformat(silence['endsAt'].replace('Z', '+00:00'))
+    
+    # Check if silence is within active time range
+    if now < starts_at or now > ends_at:
+        return False
+    
+    # All matchers must match for the silence to apply
+    for matcher in silence.get('matchers', []):
+        label_name = matcher.get('name', '')
+        label_value = alert['labels'].get(label_name)
+        
+        if not matches_label(matcher, label_value):
+            return False
+    
+    return True
+
+def apply_silences_to_alerts():
+    """Apply all active silences to all alerts"""
+    now = datetime.now(UTC)
+    
+    for alert in alerts:
+        # Reset silence state
+        silenced_by = []
+        
+        # Check each silence against this alert
+        for silence in silences:
+            if match_silence_to_alert(silence, alert):
+                silenced_by.append(silence['id'])
+        
+        # Update alert status based on silences
+        if silenced_by:
+            alert['status']['state'] = 'suppressed'
+            alert['status']['silencedBy'] = silenced_by
+        else:
+            # Only change back to active if it was suppressed
+            if alert['status']['state'] == 'suppressed':
+                alert['status']['state'] = 'active'
+            alert['status']['silencedBy'] = []
+
+def remove_silence_from_alerts(silence_id):
+    """Remove a specific silence from all alerts"""
+    for alert in alerts:
+        if silence_id in alert['status'].get('silencedBy', []):
+            alert['status']['silencedBy'].remove(silence_id)
+            
+            # If no more silences, change state back to active
+            if not alert['status']['silencedBy']:
+                if alert['status']['state'] == 'suppressed':
+                    alert['status']['state'] = 'active'
+
+def check_silence_expiration():
+    """Check for expired silences and update their status"""
+    now = datetime.now(UTC)
+    
+    for silence in silences:
+        ends_at = datetime.fromisoformat(silence['endsAt'].replace('Z', '+00:00'))
+        
+        if now > ends_at and silence['status']['state'] == 'active':
+            silence['status']['state'] = 'expired'
+            # Remove from alerts
+            remove_silence_from_alerts(silence['id'])
+
 def get_weighted_severity():
     """Get a random severity based on weights"""
     severities = list(SEVERITY_WEIGHTS.keys())
@@ -205,11 +298,7 @@ def generate_random_alert():
         }
     }
     
-    # Randomly silence some alerts (reduced probability for more active alerts)
-    if random.random() < 0.05:  # 5% chance to be silenced
-        silence_id = str(uuid.uuid4())
-        alert["status"]["state"] = "suppressed"
-        alert["status"]["silencedBy"] = [silence_id]
+    # Don't randomly silence alerts - let the silence system handle it
     
     return alert
 
@@ -244,6 +333,7 @@ def create_alert_groups():
 def alert_generator():
     """Background thread to generate random alerts and resolve them periodically"""
     last_resolution_time = datetime.now(UTC)
+    last_silence_check = datetime.now(UTC)
     
     while True:
         current_time = datetime.now(UTC)
@@ -266,6 +356,14 @@ def alert_generator():
                 if alert["status"]["state"] == "unprocessed":
                     alert["status"]["state"] = "active"
         
+        # Check and apply silences every 5 seconds
+        if (current_time - last_silence_check).total_seconds() >= 5:
+            # Check for expired silences
+            check_silence_expiration()
+            # Apply all active silences to alerts
+            apply_silences_to_alerts()
+            last_silence_check = current_time
+        
         # Resolve alerts every 30 seconds (for testing resolved alerts feature)
         if (current_time - last_resolution_time).total_seconds() >= 30:
             print(f"[{current_time.strftime('%H:%M:%S')}] Resolving alerts for testing...", flush=True)
@@ -277,7 +375,10 @@ def alert_generator():
                 alerts_to_resolve = random.sample(active_alerts, min(resolve_count, len(active_alerts)))
                 
                 for alert in alerts_to_resolve:
-                    alerts.remove(alert)
+                    # Mark as resolved instead of removing completely
+                    alert["status"]["state"] = "resolved"
+                    alert["endsAt"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                    alert["updatedAt"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                     print(f"  Resolved: {alert['labels']['alertname']} on {alert['labels']['instance']}", flush=True)
                 
                 create_alert_groups()
@@ -287,8 +388,28 @@ def alert_generator():
             
             last_resolution_time = current_time
         
+        # Clean up old resolved alerts (keep resolved alerts for 1 hour, then remove)
+        if alerts and random.random() < 0.1:  # 10% chance to check for cleanup
+            cleanup_count = 0
+            one_hour_ago = current_time - timedelta(hours=1)
+            
+            alerts_to_remove = []
+            for alert in alerts:
+                if alert["status"]["state"] == "resolved":
+                    ends_at = datetime.fromisoformat(alert["endsAt"].replace('Z', '+00:00'))
+                    if ends_at < one_hour_ago:
+                        alerts_to_remove.append(alert)
+            
+            for alert in alerts_to_remove:
+                alerts.remove(alert)
+                cleanup_count += 1
+            
+            if cleanup_count > 0:
+                print(f"  Cleaned up {cleanup_count} old resolved alerts", flush=True)
+                create_alert_groups()
+        
         # Remove some old alerts randomly (less frequently now)
-        if alerts and random.random() < 0.05:  # 5% chance to remove
+        if alerts and random.random() < 0.02:  # 2% chance to remove (reduced from 5%)
             alerts.pop(0)
             create_alert_groups()
         
@@ -512,6 +633,9 @@ def post_silences():
         
         silences.append(silence)
         
+        # Apply the new silence to existing alerts immediately
+        apply_silences_to_alerts()
+        
         return jsonify({"silenceID": silence_id}), 200
         
     except Exception as e:
@@ -532,6 +656,9 @@ def delete_silence(silence_id):
     silence = next((s for s in silences if s["id"] == silence_id), None)
     if not silence:
         return jsonify("Silence not found"), 404
+    
+    # Remove the silence from any alerts before deleting
+    remove_silence_from_alerts(silence_id)
     
     silences.remove(silence)
     return jsonify({"message": "Silence deleted successfully"}), 200
@@ -607,6 +734,9 @@ if __name__ == '__main__':
         silences.append(silence)
     
     create_alert_groups()
+    
+    # Apply any initial silences to the initial alerts
+    apply_silences_to_alerts()
     
     # Start background alert generator
     generator_thread = Thread(target=alert_generator, daemon=True)

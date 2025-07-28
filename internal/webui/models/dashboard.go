@@ -86,6 +86,7 @@ type DashboardFilters struct {
 	HasComments     *bool                 `json:"hasComments,omitempty"`  // nil = all, true = with comments, false = without
 	DisplayMode     DashboardDisplayMode  `json:"displayMode"`
 	ViewMode        DashboardViewMode     `json:"viewMode"`
+	ResolvedAlertsLimit int               `json:"resolvedAlertsLimit,omitempty"` // Client-side limit for resolved alerts display
 }
 
 // DashboardSorting represents sorting configuration
@@ -171,10 +172,13 @@ type DashboardAvailableFilters struct {
 
 // BulkActionRequest represents a request to perform actions on multiple alerts
 type BulkActionRequest struct {
-	AlertFingerprints []string `json:"alertFingerprints"`
-	GroupNames        []string `json:"groupNames,omitempty"` // For group actions
-	Action            string   `json:"action"`               // "acknowledge", "hide", "unhide"
-	Comment           string   `json:"comment,omitempty"`    // Optional comment for acknowledgment
+	AlertFingerprints     []string      `json:"alertFingerprints"`
+	GroupNames            []string      `json:"groupNames,omitempty"` // For group actions
+	Action                string        `json:"action"`               // "acknowledge", "hide", "unhide", "silence"
+	Comment               string        `json:"comment,omitempty"`    // Optional comment for acknowledgment
+	SilenceDuration       time.Duration `json:"silenceDuration,omitempty"` // Duration for silence action (backward compatibility)
+	SilenceDurationType   string        `json:"silenceDurationType,omitempty"` // "preset" or "custom"
+	CustomSilenceDuration string        `json:"customSilenceDuration,omitempty"` // Custom duration string (e.g., "1h30m")
 }
 
 // BulkActionResponse represents the response to a bulk action
@@ -243,12 +247,14 @@ type SilenceStatus struct {
 
 // UserColorPreference represents a user-defined color preference for alerts
 type UserColorPreference struct {
-	ID               string            `json:"id"`
-	UserID           string            `json:"userId"`
-	LabelConditions  map[string]string `json:"labelConditions"`  // Label conditions that must match
-	Color            string            `json:"color"`            // Color value (e.g., "GRAY", "#FF5733", "red-500")
-	ColorType        string            `json:"colorType"`        // Type: "severity", "custom", "tailwind"
-	Priority         int               `json:"priority"`         // Higher numbers = higher priority
-	CreatedAt        time.Time         `json:"createdAt"`
-	UpdatedAt        time.Time         `json:"updatedAt"`
+	ID                  string            `json:"id"`
+	UserID              string            `json:"userId"`
+	LabelConditions     map[string]string `json:"labelConditions"`  // Label conditions that must match
+	Color               string            `json:"color"`            // Color value (e.g., "GRAY", "#FF5733", "red-500")
+	ColorType           string            `json:"colorType"`        // Type: "severity", "custom", "tailwind"
+	Priority            int               `json:"priority"`         // Higher numbers = higher priority
+	BgLightnessFactor   float64           `json:"bgLightnessFactor"`    // Background lightness factor (0.0-1.0)
+	TextDarknessFactor  float64           `json:"textDarknessFactor"`   // Text darkness factor (0.0-1.0)
+	CreatedAt           time.Time         `json:"createdAt"`
+	UpdatedAt           time.Time         `json:"updatedAt"`
 }

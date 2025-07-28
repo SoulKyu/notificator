@@ -13,11 +13,11 @@ import (
 	"notificator/internal/webui/models"
 	"notificator/internal/webui/services"
 	"notificator/internal/webui/templates/pages"
+	"notificator/internal/webui/templates/components"
 
 	"github.com/gin-gonic/gin"
 )
 
-// transformStatus converts Alertmanager status values to UI-friendly values
 func transformStatus(status string) string {
 	switch status {
 	case "suppressed":
@@ -27,7 +27,6 @@ func transformStatus(status string) string {
 	}
 }
 
-// transformSeverity converts Alertmanager severity values to normalized values
 func transformSeverity(severity string) string {
 	switch strings.ToLower(severity) {
 	case "information":
@@ -55,7 +54,49 @@ func SetAlertmanagerClient(client *alertmanager.MultiClient) {
 
 
 
+func getOAuthConfig(c *gin.Context) *pages.OAuthConfig {
+	if backendClient == nil || !backendClient.IsConnected() {
+		return nil
+	}
+	
+	config, err := backendClient.GetOAuthConfig()
+	if err != nil {
+		fmt.Printf("Failed to get OAuth config: %v\n", err)
+		return nil
+	}
+	
+	if !config["enabled"].(bool) {
+		return nil
+	}
+	
+	oauthConfig := &pages.OAuthConfig{
+		Enabled:            config["enabled"].(bool),
+		DisableClassicAuth: config["disable_classic_auth"].(bool),
+		Providers:          make([]components.OAuthProvider, 0),
+	}
+	
+	if providers, ok := config["providers"].([]map[string]interface{}); ok {
+		for _, p := range providers {
+			if enabled, ok := p["enabled"].(bool); ok && enabled {
+				provider := components.OAuthProvider{
+					Name:        p["name"].(string),
+					DisplayName: p["display_name"].(string),
+					Enabled:     enabled,
+				}
+				oauthConfig.Providers = append(oauthConfig.Providers, provider)
+			}
+		}
+	}
+	
+	return oauthConfig
+}
+
 func Login(c *gin.Context) {
+	oauthConfig := getOAuthConfig(c)
+	if oauthConfig != nil && oauthConfig.DisableClassicAuth {
+		c.JSON(http.StatusForbidden, models.ErrorResponse("Username/password authentication is disabled. Please use OAuth authentication."))
+		return
+	}
 	username := strings.TrimSpace(c.PostForm("username"))
 	password := c.PostForm("password")
 	rememberMe := c.PostForm("remember-me") == "on"
@@ -125,6 +166,11 @@ func Login(c *gin.Context) {
 }
 
 func Register(c *gin.Context) {
+	oauthConfig := getOAuthConfig(c)
+	if oauthConfig != nil && oauthConfig.DisableClassicAuth {
+		c.JSON(http.StatusForbidden, models.ErrorResponse("Username/password registration is disabled. Please use OAuth authentication."))
+		return
+	}
 	username := strings.TrimSpace(c.PostForm("username"))
 	email := strings.TrimSpace(c.PostForm("email"))
 	password := c.PostForm("password")
@@ -339,10 +385,23 @@ func IndexPage(c *gin.Context) {
 
 func LoginPage(c *gin.Context) {
 	c.Header("Content-Type", "text/html")
-	pages.Login().Render(context.Background(), c.Writer)
+	
+	oauthConfig := getOAuthConfig(c)
+	
+	if oauthConfig != nil {
+		pages.LoginWithOAuth(oauthConfig).Render(context.Background(), c.Writer)
+	} else {
+		pages.Login().Render(context.Background(), c.Writer)
+	}
 }
 
 func RegisterPage(c *gin.Context) {
+	oauthConfig := getOAuthConfig(c)
+	if oauthConfig != nil && oauthConfig.DisableClassicAuth {
+		c.Redirect(http.StatusFound, "/login")
+		return
+	}
+	
 	c.Header("Content-Type", "text/html")
 	pages.Register().Render(context.Background(), c.Writer)
 }

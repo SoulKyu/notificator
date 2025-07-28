@@ -2,9 +2,7 @@ package scripts
 
 templ DashboardUtilities() {
 	<script>
-		// Utility functions for dashboard
 		window.dashboardUtilitiesMixin = {
-			// URL and state management
 			updateURL() {
 				const params = new URLSearchParams();
 				
@@ -23,7 +21,6 @@ templ DashboardUtilities() {
 				const queryString = params.toString();
 				const newURL = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
 				
-				// Only update if URL has changed to avoid unnecessary history entries
 				if (window.location.href !== window.location.origin + newURL) {
 					window.history.replaceState({}, '', newURL);
 				}
@@ -59,7 +56,6 @@ templ DashboardUtilities() {
 				}
 			},
 
-			// Clipboard operations
 			copyToClipboard(text) {
 				if (navigator.clipboard) {
 					navigator.clipboard.writeText(text).then(() => {
@@ -68,7 +64,6 @@ templ DashboardUtilities() {
 						this.showNotification('error', 'Failed to copy to clipboard');
 					});
 				} else {
-					// Fallback for older browsers
 					const textArea = document.createElement('textarea');
 					textArea.value = text;
 					document.body.appendChild(textArea);
@@ -204,7 +199,26 @@ templ DashboardUtilities() {
 
 			async saveSettings() {
 				try {
-					// Save settings to backend
+					// Get the settings modal instance to check active tab
+					const settingsModal = window.currentSettingsModal;
+					
+					// Check which tab is active and save appropriate settings
+					if (settingsModal && settingsModal.activeTab === 'colors') {
+						// Save color preferences
+						const success = await settingsModal.saveColorPreferences();
+						if (success) {
+							this.showNotification('success', 'Color preferences saved');
+							this.showSettings = false;
+						}
+						return;
+					} else if (settingsModal && settingsModal.activeTab === 'notifications') {
+						// Save notification preferences
+						await settingsModal.saveNotificationPreferences();
+						this.showSettings = false;
+						return;
+					}
+					
+					// Otherwise, save general settings
 					const settingsResponse = await fetch('/api/v1/dashboard/settings', {
 						method: 'POST',
 						credentials: 'include',
@@ -271,6 +285,73 @@ templ DashboardUtilities() {
 				});
 			},
 
+			async testNotification() {
+				// Check if browser notifications are supported
+				if (!('Notification' in window)) {
+					this.showNotification('error', 'Browser notifications are not supported');
+					return;
+				}
+
+				// Check current permission status
+				if (Notification.permission === 'denied') {
+					this.showNotification('error', 'Notifications are blocked. Please enable them in your browser settings.');
+					return;
+				}
+
+				// Request permission if not granted
+				if (Notification.permission !== 'granted') {
+					try {
+						const permission = await Notification.requestPermission();
+						if (permission !== 'granted') {
+							this.showNotification('warning', 'Notification permission denied. Please enable notifications to receive alerts.');
+							return;
+						}
+					} catch (error) {
+						this.showNotification('error', 'Failed to request notification permission');
+						return;
+					}
+				}
+
+				// Create test alert object
+				const testAlert = {
+					fingerprint: 'test-notification',
+					alertname: 'Test Notification',
+					summary: 'This is a test notification from the Notificator dashboard',
+					severity: 'info',
+					status: 'firing',
+					labels: {
+						alertname: 'Test Notification',
+						severity: 'info'
+					},
+					annotations: {
+						summary: 'This is a test notification from the Notificator dashboard'
+					}
+				};
+
+				// Send both in-app and browser notifications
+				this.showInAppNotification(testAlert, 'Test notification sent successfully!');
+				
+				// Send browser notification with heroicon
+				try {
+					const notification = new Notification('Test Notification', {
+						body: 'This is a test notification from the Notificator dashboard',
+						icon: '/static/images/info-icon.png',
+						tag: 'test-notification',
+						requireInteraction: false
+					});
+
+					// Auto-close after 5 seconds
+					setTimeout(() => {
+						notification.close();
+					}, 5000);
+
+					this.showNotification('success', 'Test notification sent! Check your system notifications.');
+				} catch (error) {
+					console.error('Failed to send browser notification:', error);
+					this.showNotification('warning', 'In-app notification sent, but browser notification failed');
+				}
+			},
+
 			// Current user management
 			async loadCurrentUser() {
 				try {
@@ -294,6 +375,23 @@ templ DashboardUtilities() {
 
 			getCurrentUser() {
 				return this.currentUser;
+			},
+
+			getUserInitials() {
+				const currentUser = this.getCurrentUser();
+				if (!currentUser || !currentUser.username) {
+					return 'U'; // Fallback to 'U' if no user data
+				}
+				
+				const username = currentUser.username.trim();
+				if (username.length === 0) {
+					return 'U';
+				} else if (username.length === 1) {
+					return username.toUpperCase();
+				} else {
+					// Get first 2 characters and convert to uppercase
+					return username.substring(0, 2).toUpperCase();
+				}
 			},
 
 			canDeleteComment(comment) {
@@ -463,6 +561,53 @@ templ DashboardUtilities() {
 				if (!colorData || !colorData.textColor) return '';
 				
 				return colorData.textColor;
+			},
+		};
+
+		// Global function to handle logout response
+		window.handleLogoutResponse = function(event) {
+			try {
+				const xhr = event.detail.xhr;
+				
+				if (xhr.status === 200) {
+					// Successful logout
+					const response = JSON.parse(xhr.responseText);
+					if (response.success) {
+						// Clear any cached user data
+						localStorage.removeItem('dashboardSettings');
+						localStorage.removeItem('dashboardColumnWidths');
+						
+						// Show success message briefly before redirect
+						if (window.dashboardInstance && window.dashboardInstance.showNotification) {
+							window.dashboardInstance.showNotification('success', 'Logged out successfully');
+						}
+						
+						// Redirect to login page after a brief delay
+						setTimeout(() => {
+							window.location.href = '/login';
+						}, 500);
+					} else {
+						// Logout failed
+						if (window.dashboardInstance && window.dashboardInstance.showNotification) {
+							window.dashboardInstance.showNotification('error', 'Logout failed: ' + (response.error || 'Unknown error'));
+						}
+					}
+				} else {
+					// HTTP error status
+					if (window.dashboardInstance && window.dashboardInstance.showNotification) {
+						window.dashboardInstance.showNotification('error', 'Logout failed with status: ' + xhr.status);
+					}
+				}
+			} catch (error) {
+				console.error('Error handling logout response:', error);
+				if (window.dashboardInstance && window.dashboardInstance.showNotification) {
+					window.dashboardInstance.showNotification('error', 'Error processing logout response');
+				}
+				
+				// Fallback: redirect to login anyway in case of error
+				setTimeout(() => {
+					window.location.href = '/login';
+				}, 1000);
 			}
 		};
 	</script>

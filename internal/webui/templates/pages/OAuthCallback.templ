@@ -1,0 +1,46 @@
+package pages
+
+import "notificator/internal/webui/templates/layouts"
+
+templ OAuthCallback() {
+	@layouts.Base("OAuth Authentication", OAuthCallbackContent()) {
+	}
+}
+
+templ OAuthCallbackContent() {
+		<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+			<div class="max-w-md w-full space-y-8">
+				<div class="text-center">
+					<div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+						<svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+					</div>
+					<h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+						Completing Authentication
+					</h2>
+					<p class="mt-2 text-sm text-gray-600">
+						Please wait while we complete your OAuth authentication...
+					</p>
+				</div>
+				<div class="mt-8 space-y-4">
+					<div class="w-full bg-gray-200 rounded-full h-2">
+						<div class="bg-blue-600 h-2 rounded-full animate-pulse" style="width: 75%"></div>
+					</div>
+					<p class="text-center text-xs text-gray-500">
+						This should only take a moment
+					</p>
+				</div>
+			</div>
+		</div>
+		
+		<script>
+		// Auto-redirect on error or timeout
+		setTimeout(function() {
+			if (window.location.pathname.includes('/oauth/') && window.location.pathname.includes('/callback')) {
+				window.location.href = '/login?error=timeout';
+			}
+		}, 30000); // 30 second timeout
+		</script>
+}

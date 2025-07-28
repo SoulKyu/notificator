@@ -1,4 +1,4 @@
-.PHONY: help clean webui-setup webui-build webui-dev webui-css webui-css-prod webui-css-build webui-templates webui-full-rebuild go-build go-run-backend go-run-webui go-run-desktop run-all
+.PHONY: help clean webui-setup webui-build webui-dev webui-css webui-css-prod webui-css-build webui-templates webui-full-rebuild go-build go-run-backend go-run-webui go-run-desktop run-all docker-build-webui docker-build-backend docker-build-alertmanager docker-build-all docker-push-webui docker-push-backend docker-push-alertmanager docker-push-all docker test
 
 # Default target
 help: ## Show this help message
@@ -10,6 +10,10 @@ help: ## Show this help message
 WEBUI_CSS_INPUT = ./internal/webui/static/css/input.css
 WEBUI_CSS_OUTPUT = ./internal/webui/static/css/output.css
 GO_MAIN_CMD = .
+DOCKER_REGISTRY = registry-1.docker.io/soulkyu
+WEBUI_IMAGE = $(DOCKER_REGISTRY)/notificator-webui:latest
+BACKEND_IMAGE = $(DOCKER_REGISTRY)/notificator-backend:latest
+ALERTMANAGER_IMAGE = $(DOCKER_REGISTRY)/notificator-alertmanager:latest
 
 # WebUI Setup and Dependencies
 webui-setup: ## Install WebUI dependencies (npm install)
@@ -142,11 +146,6 @@ quick-css: webui-css webui-templates ## Quick CSS rebuild and template generatio
 quick-build: webui-css-prod webui-templates go-build-webui ## Quick production build for webui
 	@echo "Quick webui build completed!"
 
-# Docker support (if needed)
-docker-build: ## Build Docker image
-	@echo "Building Docker image..."
-	docker build -t notificator .
-
 # Development workflow shortcuts
 fix-webui: webui-full-rebuild dev-webui ## Fix WebUI issues by full rebuild and restart
 	@echo "WebUI fix workflow completed!"
@@ -169,3 +168,47 @@ status: ## Check build status and dependencies
 	@echo "CSS Input: $(WEBUI_CSS_INPUT)" $(if $(shell test -f $(WEBUI_CSS_INPUT) && echo "exists"), "✓", "✗")
 	@echo "CSS Output: $(WEBUI_CSS_OUTPUT)" $(if $(shell test -f $(WEBUI_CSS_OUTPUT) && echo "exists"), "✓", "✗")
 	@echo "node_modules:" $(if $(shell test -d node_modules && echo "exists"), "✓", "✗")
+
+# Docker build commands
+docker-build-webui: ## Build WebUI Docker image
+	@echo "Building WebUI Docker image..."
+	docker build -t $(WEBUI_IMAGE) -f Dockerfile.webui .
+
+docker-build-backend: ## Build Backend Docker image
+	@echo "Building Backend Docker image..."
+	docker build -t $(BACKEND_IMAGE) -f Dockerfile.backend .
+
+docker-build-alertmanager: ## Build Alertmanager Docker image
+	@echo "Building Alertmanager Docker image..."
+	cd alertmanager/fake && docker build -t $(ALERTMANAGER_IMAGE) -f Dockerfile .
+
+docker-build-all: docker-build-webui docker-build-backend docker-build-alertmanager ## Build all Docker images
+	@echo "All Docker images built successfully!"
+
+# Docker push commands
+docker-push-webui: ## Push WebUI Docker image to registry
+	@echo "Pushing WebUI Docker image..."
+	docker push $(WEBUI_IMAGE)
+
+docker-push-backend: ## Push Backend Docker image to registry
+	@echo "Pushing Backend Docker image..."
+	docker push $(BACKEND_IMAGE)
+
+docker-push-alertmanager: ## Push Alertmanager Docker image to registry
+	@echo "Pushing Alertmanager Docker image..."
+	docker push $(ALERTMANAGER_IMAGE)
+
+docker-push-all: docker-push-webui docker-push-backend docker-push-alertmanager ## Push all Docker images to registry
+	@echo "All Docker images pushed successfully!"
+
+# Combined build and push
+docker: docker-build-all docker-push-all ## Build and push all Docker images
+	@echo "All Docker images built and pushed successfully!"
+
+# Test command - build all images and restart docker-compose
+test: docker-build-all ## Build all Docker images and restart docker-compose
+	@echo "Stopping docker-compose services..."
+	docker-compose down
+	@echo "Starting docker-compose services..."
+	docker-compose up -d
+	@echo "Test environment is ready!"

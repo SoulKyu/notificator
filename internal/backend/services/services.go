@@ -19,7 +19,6 @@ import (
 	mainmodels "notificator/internal/models"
 )
 
-// AuthServiceGorm implements the AuthService gRPC service
 type AuthServiceGorm struct {
 	authpb.UnimplementedAuthServiceServer
 	db *database.GormDB
@@ -29,9 +28,7 @@ func NewAuthServiceGorm(db *database.GormDB) *AuthServiceGorm {
 	return &AuthServiceGorm{db: db}
 }
 
-// Register implements the Register RPC method
 func (s *AuthServiceGorm) Register(ctx context.Context, req *authpb.RegisterRequest) (*authpb.RegisterResponse, error) {
-	// Basic validation
 	if req.Username == "" || req.Password == "" {
 		return &authpb.RegisterResponse{
 			Success: false,
@@ -100,7 +97,6 @@ func (s *AuthServiceGorm) Login(ctx context.Context, req *authpb.LoginRequest) (
 		}, nil
 	}
 
-	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return &authpb.LoginResponse{
 			Success: false,
@@ -118,7 +114,6 @@ func (s *AuthServiceGorm) Login(ctx context.Context, req *authpb.LoginRequest) (
 		}, nil
 	}
 
-	// Create session (expires in 24 hours)
 	expiresAt := time.Now().Add(24 * time.Hour)
 	if err := s.db.CreateSession(user.ID, sessionID, expiresAt); err != nil {
 		log.Printf("Error creating session: %v", err)
@@ -834,7 +829,6 @@ func (s *AlertServiceGorm) SaveUserColorPreferences(ctx context.Context, req *al
 	}, nil
 }
 
-// DeleteUserColorPreference implements the DeleteUserColorPreference RPC method
 func (s *AlertServiceGorm) DeleteUserColorPreference(ctx context.Context, req *alertpb.DeleteUserColorPreferenceRequest) (*alertpb.DeleteUserColorPreferenceResponse, error) {
 	if req.SessionId == "" {
 		return &alertpb.DeleteUserColorPreferenceResponse{
@@ -1152,7 +1146,6 @@ func generateSessionID() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-// Helper function to generate UUID
 func generateUUID() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)

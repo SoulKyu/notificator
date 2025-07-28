@@ -3,11 +3,21 @@ package pages
 import "notificator/internal/webui/templates/layouts"
 import "notificator/internal/webui/templates/components"
 
-templ Login() {
-	@layouts.Base("Login - Notificator", LoginContent())
+type OAuthConfig struct {
+	Enabled             bool
+	DisableClassicAuth  bool
+	Providers           []components.OAuthProvider
 }
 
-templ LoginContent() {
+templ Login() {
+	@LoginWithOAuth(nil)
+}
+
+templ LoginWithOAuth(oauthConfig *OAuthConfig) {
+	@layouts.Base("Login - Notificator", LoginContent(oauthConfig))
+}
+
+templ LoginContent(oauthConfig *OAuthConfig) {
 	<div class="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
 		<div class="sm:mx-auto sm:w-full sm:max-w-sm">
 			<h2 class="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900 dark:text-white">
@@ -20,7 +30,16 @@ templ LoginContent() {
 		</div>
 
 		<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-			<form class="space-y-6" x-data="loginForm()" @submit.prevent="submitForm">
+			<!-- OAuth Providers -->
+			if oauthConfig != nil && oauthConfig.Enabled && len(oauthConfig.Providers) > 0 {
+				<div class="mb-6">
+					@components.OAuthProviderList(oauthConfig.Providers)
+				</div>
+			}
+			
+			<!-- Classic Login Form (hidden if OAuth-only mode) -->
+			if oauthConfig == nil || !oauthConfig.DisableClassicAuth {
+				<form class="space-y-6" x-data="loginForm()" @submit.prevent="submitForm">
 				<div>
 					<label for="username" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
 						Username
@@ -81,7 +100,17 @@ templ LoginContent() {
 					 :class="message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'">
 					<p class="text-sm" x-text="message.text"></p>
 				</div>
-			</form>
+				</form>
+			}
+			
+			<!-- OAuth-only message -->
+			if oauthConfig != nil && oauthConfig.DisableClassicAuth {
+				<div class="mt-6 text-center">
+					<p class="text-sm text-gray-600 dark:text-gray-400">
+						Username/password authentication is disabled. Please use one of the OAuth providers above.
+					</p>
+				</div>
+			}
 
 			<script>
 				function loginForm() {
@@ -159,12 +188,15 @@ templ LoginContent() {
 				}
 			</script>
 
-			<p class="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
-				Not registered?
-				<a href="/register" class="font-semibold leading-6 text-primary-600 hover:text-primary-500">
-					Create an account
-				</a>
-			</p>
+			<!-- Register link (hidden if OAuth-only mode) -->
+			if oauthConfig == nil || !oauthConfig.DisableClassicAuth {
+				<p class="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
+					Not registered?
+					<a href="/register" class="font-semibold leading-6 text-primary-600 hover:text-primary-500">
+						Create an account
+					</a>
+				</p>
+			}
 
 			<!-- Dark mode toggle -->
 			<div class="mt-8 flex justify-center">

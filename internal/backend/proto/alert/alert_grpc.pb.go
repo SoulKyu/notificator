@@ -21,22 +21,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AlertService_AddComment_FullMethodName                 = "/notificator.alert.AlertService/AddComment"
-	AlertService_GetComments_FullMethodName                = "/notificator.alert.AlertService/GetComments"
-	AlertService_DeleteComment_FullMethodName              = "/notificator.alert.AlertService/DeleteComment"
-	AlertService_AddAcknowledgment_FullMethodName          = "/notificator.alert.AlertService/AddAcknowledgment"
-	AlertService_GetAcknowledgments_FullMethodName         = "/notificator.alert.AlertService/GetAcknowledgments"
-	AlertService_GetAllAcknowledgedAlerts_FullMethodName   = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
-	AlertService_DeleteAcknowledgment_FullMethodName       = "/notificator.alert.AlertService/DeleteAcknowledgment"
-	AlertService_SubscribeToAlertUpdates_FullMethodName    = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
-	AlertService_CreateResolvedAlert_FullMethodName        = "/notificator.alert.AlertService/CreateResolvedAlert"
-	AlertService_GetResolvedAlerts_FullMethodName          = "/notificator.alert.AlertService/GetResolvedAlerts"
-	AlertService_GetResolvedAlert_FullMethodName           = "/notificator.alert.AlertService/GetResolvedAlert"
-	AlertService_RemoveAllResolvedAlerts_FullMethodName    = "/notificator.alert.AlertService/RemoveAllResolvedAlerts"
-	AlertService_StreamResolvedAlertUpdates_FullMethodName = "/notificator.alert.AlertService/StreamResolvedAlertUpdates"
-	AlertService_GetUserColorPreferences_FullMethodName    = "/notificator.alert.AlertService/GetUserColorPreferences"
-	AlertService_SaveUserColorPreferences_FullMethodName   = "/notificator.alert.AlertService/SaveUserColorPreferences"
-	AlertService_DeleteUserColorPreference_FullMethodName  = "/notificator.alert.AlertService/DeleteUserColorPreference"
+	AlertService_AddComment_FullMethodName                      = "/notificator.alert.AlertService/AddComment"
+	AlertService_GetComments_FullMethodName                     = "/notificator.alert.AlertService/GetComments"
+	AlertService_DeleteComment_FullMethodName                   = "/notificator.alert.AlertService/DeleteComment"
+	AlertService_AddAcknowledgment_FullMethodName               = "/notificator.alert.AlertService/AddAcknowledgment"
+	AlertService_GetAcknowledgments_FullMethodName              = "/notificator.alert.AlertService/GetAcknowledgments"
+	AlertService_GetAllAcknowledgedAlerts_FullMethodName        = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
+	AlertService_DeleteAcknowledgment_FullMethodName            = "/notificator.alert.AlertService/DeleteAcknowledgment"
+	AlertService_SubscribeToAlertUpdates_FullMethodName         = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
+	AlertService_CreateResolvedAlert_FullMethodName             = "/notificator.alert.AlertService/CreateResolvedAlert"
+	AlertService_GetResolvedAlerts_FullMethodName               = "/notificator.alert.AlertService/GetResolvedAlerts"
+	AlertService_GetResolvedAlert_FullMethodName                = "/notificator.alert.AlertService/GetResolvedAlert"
+	AlertService_RemoveAllResolvedAlerts_FullMethodName         = "/notificator.alert.AlertService/RemoveAllResolvedAlerts"
+	AlertService_StreamResolvedAlertUpdates_FullMethodName      = "/notificator.alert.AlertService/StreamResolvedAlertUpdates"
+	AlertService_GetUserColorPreferences_FullMethodName         = "/notificator.alert.AlertService/GetUserColorPreferences"
+	AlertService_SaveUserColorPreferences_FullMethodName        = "/notificator.alert.AlertService/SaveUserColorPreferences"
+	AlertService_DeleteUserColorPreference_FullMethodName       = "/notificator.alert.AlertService/DeleteUserColorPreference"
+	AlertService_GetUserNotificationPreferences_FullMethodName  = "/notificator.alert.AlertService/GetUserNotificationPreferences"
+	AlertService_SaveUserNotificationPreferences_FullMethodName = "/notificator.alert.AlertService/SaveUserNotificationPreferences"
 )
 
 // AlertServiceClient is the client API for AlertService service.
@@ -66,6 +68,9 @@ type AlertServiceClient interface {
 	GetUserColorPreferences(ctx context.Context, in *GetUserColorPreferencesRequest, opts ...grpc.CallOption) (*GetUserColorPreferencesResponse, error)
 	SaveUserColorPreferences(ctx context.Context, in *SaveUserColorPreferencesRequest, opts ...grpc.CallOption) (*SaveUserColorPreferencesResponse, error)
 	DeleteUserColorPreference(ctx context.Context, in *DeleteUserColorPreferenceRequest, opts ...grpc.CallOption) (*DeleteUserColorPreferenceResponse, error)
+	// User Notification Preferences
+	GetUserNotificationPreferences(ctx context.Context, in *GetUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*GetUserNotificationPreferencesResponse, error)
+	SaveUserNotificationPreferences(ctx context.Context, in *SaveUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*SaveUserNotificationPreferencesResponse, error)
 }
 
 type alertServiceClient struct {
@@ -254,6 +259,26 @@ func (c *alertServiceClient) DeleteUserColorPreference(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *alertServiceClient) GetUserNotificationPreferences(ctx context.Context, in *GetUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*GetUserNotificationPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserNotificationPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetUserNotificationPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SaveUserNotificationPreferences(ctx context.Context, in *SaveUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*SaveUserNotificationPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveUserNotificationPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_SaveUserNotificationPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AlertServiceServer is the server API for AlertService service.
 // All implementations must embed UnimplementedAlertServiceServer
 // for forward compatibility.
@@ -281,6 +306,9 @@ type AlertServiceServer interface {
 	GetUserColorPreferences(context.Context, *GetUserColorPreferencesRequest) (*GetUserColorPreferencesResponse, error)
 	SaveUserColorPreferences(context.Context, *SaveUserColorPreferencesRequest) (*SaveUserColorPreferencesResponse, error)
 	DeleteUserColorPreference(context.Context, *DeleteUserColorPreferenceRequest) (*DeleteUserColorPreferenceResponse, error)
+	// User Notification Preferences
+	GetUserNotificationPreferences(context.Context, *GetUserNotificationPreferencesRequest) (*GetUserNotificationPreferencesResponse, error)
+	SaveUserNotificationPreferences(context.Context, *SaveUserNotificationPreferencesRequest) (*SaveUserNotificationPreferencesResponse, error)
 	mustEmbedUnimplementedAlertServiceServer()
 }
 
@@ -338,6 +366,12 @@ func (UnimplementedAlertServiceServer) SaveUserColorPreferences(context.Context,
 }
 func (UnimplementedAlertServiceServer) DeleteUserColorPreference(context.Context, *DeleteUserColorPreferenceRequest) (*DeleteUserColorPreferenceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserColorPreference not implemented")
+}
+func (UnimplementedAlertServiceServer) GetUserNotificationPreferences(context.Context, *GetUserNotificationPreferencesRequest) (*GetUserNotificationPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserNotificationPreferences not implemented")
+}
+func (UnimplementedAlertServiceServer) SaveUserNotificationPreferences(context.Context, *SaveUserNotificationPreferencesRequest) (*SaveUserNotificationPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveUserNotificationPreferences not implemented")
 }
 func (UnimplementedAlertServiceServer) mustEmbedUnimplementedAlertServiceServer() {}
 func (UnimplementedAlertServiceServer) testEmbeddedByValue()                      {}
@@ -634,6 +668,42 @@ func _AlertService_DeleteUserColorPreference_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AlertService_GetUserNotificationPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserNotificationPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetUserNotificationPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetUserNotificationPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetUserNotificationPreferences(ctx, req.(*GetUserNotificationPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SaveUserNotificationPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveUserNotificationPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SaveUserNotificationPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SaveUserNotificationPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SaveUserNotificationPreferences(ctx, req.(*SaveUserNotificationPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AlertService_ServiceDesc is the grpc.ServiceDesc for AlertService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -696,6 +766,14 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteUserColorPreference",
 			Handler:    _AlertService_DeleteUserColorPreference_Handler,
+		},
+		{
+			MethodName: "GetUserNotificationPreferences",
+			Handler:    _AlertService_GetUserNotificationPreferences_Handler,
+		},
+		{
+			MethodName: "SaveUserNotificationPreferences",
+			Handler:    _AlertService_SaveUserNotificationPreferences_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

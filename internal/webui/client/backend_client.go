@@ -30,9 +30,16 @@ type AuthResult struct {
 }
 
 type User struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	ID            string  `json:"id"`
+	Username      string  `json:"username"`
+	Email         string  `json:"email"`
+	OAuthProvider *string `json:"oauth_provider,omitempty"`
+	OAuthID       *string `json:"oauth_id,omitempty"`
+}
+
+// IsOAuthUser returns true if the user was created via OAuth
+func (u *User) IsOAuthUser() bool {
+	return u.OAuthProvider != nil && *u.OAuthProvider != ""
 }
 
 func NewBackendClient(address string) *BackendClient {
@@ -215,11 +222,20 @@ func (c *BackendClient) ValidateSession(sessionID string) (*User, error) {
 		return nil, fmt.Errorf("invalid session")
 	}
 
-	return &User{
+	user := &User{
 		ID:       resp.User.Id,
 		Username: resp.User.Username,
 		Email:    resp.User.Email,
-	}, nil
+	}
+	
+	if resp.User.OauthProvider != "" {
+		user.OAuthProvider = &resp.User.OauthProvider
+	}
+	if resp.User.OauthId != "" {
+		user.OAuthID = &resp.User.OauthId
+	}
+	
+	return user, nil
 }
 
 func (c *BackendClient) GetProfile(sessionID string) (*User, error) {
@@ -239,11 +255,20 @@ func (c *BackendClient) GetProfile(sessionID string) (*User, error) {
 		return nil, err
 	}
 
-	return &User{
+	user := &User{
 		ID:       resp.User.Id,
 		Username: resp.User.Username,
 		Email:    resp.User.Email,
-	}, nil
+	}
+	
+	if resp.User.OauthProvider != "" {
+		user.OAuthProvider = &resp.User.OauthProvider
+	}
+	if resp.User.OauthId != "" {
+		user.OAuthID = &resp.User.OauthId
+	}
+	
+	return user, nil
 }
 
 // Alert acknowledgment and resolution methods
@@ -527,12 +552,14 @@ func (c *BackendClient) SaveUserColorPreferences(sessionID string, preferences [
 	var pbPreferences []*alertpb.UserColorPreference
 	for _, pref := range preferences {
 		pbPreferences = append(pbPreferences, &alertpb.UserColorPreference{
-			Id:               pref.ID,
-			UserId:           pref.UserID,
-			LabelConditions:  pref.LabelConditions,
-			Color:            pref.Color,
-			ColorType:        pref.ColorType,
-			Priority:         int32(pref.Priority),
+			Id:                  pref.ID,
+			UserId:              pref.UserID,
+			LabelConditions:     pref.LabelConditions,
+			Color:               pref.Color,
+			ColorType:           pref.ColorType,
+			Priority:            int32(pref.Priority),
+			BgLightnessFactor:   pref.BgLightnessFactor,
+			TextDarknessFactor:  pref.TextDarknessFactor,
 		})
 	}
 
@@ -574,6 +601,59 @@ func (c *BackendClient) DeleteUserColorPreference(sessionID, preferenceID string
 
 	if !resp.Success {
 		return fmt.Errorf("failed to delete color preference: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// Notification Preference methods
+
+// GetUserNotificationPreferences retrieves user notification preferences from the backend
+func (c *BackendClient) GetUserNotificationPreferences(sessionID string) (*alertpb.UserNotificationPreference, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetUserNotificationPreferencesRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.alertClient.GetUserNotificationPreferences(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get notification preferences: %s", resp.Message)
+	}
+
+	return resp.Preference, nil
+}
+
+// SaveUserNotificationPreferences saves user notification preferences to the backend
+func (c *BackendClient) SaveUserNotificationPreferences(sessionID string, preference *alertpb.UserNotificationPreference) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.SaveUserNotificationPreferencesRequest{
+		SessionId:  sessionID,
+		Preference: preference,
+	}
+
+	resp, err := c.alertClient.SaveUserNotificationPreferences(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to save notification preferences: %s", resp.Message)
 	}
 
 	return nil

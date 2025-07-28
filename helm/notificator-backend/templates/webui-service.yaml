@@ -1,0 +1,19 @@
+{{- if .Values.webui.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "notificator-backend.fullname" . }}-webui
+  labels:
+    {{- include "notificator-backend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webui
+spec:
+  type: {{ .Values.webui.service.type }}
+  ports:
+    - port: {{ .Values.webui.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "notificator-backend.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: webui
+{{- end }}

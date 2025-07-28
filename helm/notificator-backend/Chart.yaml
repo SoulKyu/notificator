@@ -1,8 +1,8 @@
 apiVersion: v2
-name: notificator-backend
-description: A Helm chart for Notificator Backend - Collaborative alert management server
+name: notificator
+description: A Helm chart for Notificator - Complete collaborative alert management stack with WebUI, Backend, and optional Alertmanager
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "1.0.0"
 keywords:
   - alertmanager
@@ -10,6 +10,8 @@ keywords:
   - alerts
   - collaboration
   - grpc
+  - webui
+  - dashboard
 home: https://github.com/SoulKyu/notificator
 sources:
   - https://github.com/SoulKyu/notificator
