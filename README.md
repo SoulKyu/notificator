@@ -2,52 +2,95 @@
 
 Ever wanted to hear when your servers are on fire? This is the tool for you!
 
+🚀 **Try it now at [playground.notificator.org](https://playground.notificator.org)** - no installation needed!
+
 ![alt text](img/preview.gif "Preview")
 
 ## What's this?
 
-Notificator is a desktop app that connects to your Prometheus Alertmanager and makes sure you never miss an important alert. I built it because I was tired of constantly checking the Alertmanager web UI, and I wanted something that would literally scream at me when things go wrong.
+So here's the thing - I built Notificator as a desktop app because I was tired of constantly checking the Alertmanager web UI. But then people on my team wanted to check alerts from their phones, tablets, and that one guy who only uses his iPad... So we built a WebUI! 
 
-Here's what it does:
-- Shows all your alerts in a nice GUI (much better than the default one)
-- Plays sounds when critical stuff happens
-- Sends desktop notifications so you notice even if the app is minimized
-- Updates in real-time (no more F5 spam!)
-- Lets you search and filter alerts easily
-- You can create silences directly from the app
-- Resizable columns (drag column borders like in Excel!)
-- Configurable column widths through settings dialog
+Now Notificator is primarily a web app that connects to ALL your Prometheus Alertmanagers in one place.
+
+Here's what the WebUI does:
+- **Connects to multiple Alertmanagers at once** - see prod, staging, and dev alerts together
+- Shows all your alerts in a clean interface (much better than the default Alertmanager UI and Karma)
+- Works on any device - phone, tablet, laptop, whatever (why not a home-assistant integration ?)
+- Real-time updates for everyone (no more "did you see that alert?")
+- Team collaboration built-in - see who's working on what
+- Search, filter, acknowledge, comment - all the good stuff
+- OAuth login support (because security matters)
+- Each alert shows which Alertmanager it's from (no more guessing!)
+- And yes, it still makes noise when things break!
+
+Still prefer the desktop app? It's got:
+- Local notifications that pop up on your screen
+- Sound alerts (configurable, don't worry)
+- System tray integration
+- Works offline with cached data
 
 ## Let's get started
 
-First, build the thing:
+### Quickest start - Try the playground!
+Just head to [playground.notificator.org](https://playground.notificator.org) and see it in action. We've got some fake alerts running so you can click around and see how it works.
+
+### Running your own WebUI
+
+The WebUI needs the backend running (that's what makes all the team features work). Here's the quickest way:
+
 ```bash
+# Clone and build
+git clone https://github.com/soulkyu/notificator
+cd notificator
 go build -o notificator
+
+# Start the backend (required for WebUI)
+./notificator backend
+
+# In another terminal, start the WebUI
+./notificator webui
 ```
 
-Then run it:
+Now open http://localhost:8081 and you're good to go! The WebUI will connect to your Alertmanager at localhost:9093 by default.
+
+### Just want the desktop app?
+
+Cool, that still works:
 ```bash
+go build -o notificator
 ./notificator
 ```
 
-That's it! It will try to connect to localhost:9093 by default. If your Alertmanager is somewhere else, check the configuration section below.
+That's it! The desktop app can run standalone (no backend needed) or connected to a backend for team features.
 
 ## Configuration
 
 The app creates a config file at `~/.config/notificator/config.json` on first run. Here's what you can tweak:
 
-### Basic example
+### Basic example - Multiple Alertmanagers!
+
+This is where it gets good. Got alerts in different places? Connect them all:
 
 ```json
 {
   "alertmanagers": [
     {
-      "name": "production",
-      "url": "http://localhost:9093"
+      "name": "production-us-east",
+      "url": "http://prod-1.alertmanager:9093"
+    },
+    {
+      "name": "production-eu",
+      "url": "http://prod-eu.alertmanager:9093"  
     },
     {
       "name": "staging",
       "url": "http://staging:9093"
+    },
+    {
+      "name": "that-legacy-system",
+      "url": "http://10.0.0.42:9093",
+      "username": "admin",
+      "password": "definitely-change-this"
     }
   ],
   "notifications": {
@@ -60,7 +103,7 @@ The app creates a config file at `~/.config/notificator/config.json` on first ru
 
 ### The important stuff
 
-**Multiple Alertmanagers** - Yeah, you can connect to multiple ones at the same time! Just add them to the list. Each one gets its own name so you know where alerts come from.
+**Multiple Alertmanagers** - Yeah, you can connect to multiple ones at the same time. Just add them to the list. Each alert shows which one it's from, so you'll see things like "[production-us-east] Disk space low" or "[staging] API timeout". Pretty handy when you've got alerts spread across different environments or regions.
 
 **Notifications settings** - This is where you control how annoying the app should be:
 - `sound_enabled`: Want sounds? Keep this true
@@ -76,8 +119,9 @@ The app creates a config file at `~/.config/notificator/config.json` on first ru
 }
 ```
 
-### Quick tip for authentication
+### Authentication tips
 
+**For Alertmanager auth:**
 If your Alertmanager needs auth headers, you can set them like this:
 
 ```bash
@@ -86,7 +130,21 @@ export METRICS_PROVIDER_HEADERS="X-API-Key=your-key"
 export METRICS_PROVIDER_HEADERS="X-API-Key=key1,Authorization=Bearer token123"
 ```
 
-Much easier than putting secrets in config files!
+**For WebUI OAuth login:**
+Want your team to login with Google/GitHub/whatever? Enable OAuth in the backend:
+
+```bash
+# Set these env vars before starting the backend
+export OAUTH_ENABLED=true
+export OAUTH_PROVIDER_GOOGLE_CLIENT_ID="your-client-id"
+export OAUTH_PROVIDER_GOOGLE_CLIENT_SECRET="your-secret"
+export OAUTH_REDIRECT_URL="http://localhost:8081/oauth/callback"
+
+# Now start the backend
+./notificator backend
+```
+
+Check out the [OAuth setup guide](docs/oauth/) for the full story. Or just use classic username/password - that works too!
 
 ## What can it do?
 
@@ -99,53 +157,92 @@ Much easier than putting secrets in config files!
 - Light/dark theme (because we all work at night sometimes)
 - Tracks resolved alerts so you know when things got fixed
 
-### Team features (needs backend)
-So you want to use this with your team? I got you covered:
+### Why you need the backend
+
+Here's the deal - the WebUI **requires** the backend. No backend = no WebUI. Why? Because the backend is what makes everything work:
+
+- Stores all the alert history and team actions
+- Handles user authentication (OAuth or classic login) 
+- Syncs everything in real-time between users
+- Manages acknowledgments and comments
+- Basically, it's the brain of the operation
+
+The desktop app can work without it (just shows alerts), but the WebUI is built for teams, so the backend is mandatory.
+
+### Team features (powered by the backend)
+
+When you've got the backend running, here's what you get:
 
 - **Everyone sees the same thing** - Real-time updates for all connected users
-- **"I got this"** - Acknowledge alerts so others know you're on it
+- **"I got this"** - Acknowledge alerts so others know you're on it  
 - **Leave notes** - Add comments to alerts (super useful during incidents)
 - **Who did what** - Full history of actions on each alert
-- **Secure access** - Login system so not everyone can acknowledge your alerts
+- **OAuth support** - Login with Google, GitHub, whatever you use
+- **Secure access** - Not everyone can acknowledge your production alerts!
 
 📚 **Want to learn more?** Check out the [detailed collaboration guide](docs/notificator-collaboration.md) with screenshots and best practices!
 
 ## Running modes
 
-### Just for me (default)
+### WebUI mode (recommended)
+This is how most people use Notificator now:
+
+```bash
+# Terminal 1: Start the backend (required!)
+./notificator backend
+
+# Terminal 2: Start the WebUI  
+./notificator webui
+```
+
+Then open http://localhost:8081 in your browser. Done! Your whole team can now access it.
+
+### Desktop app - standalone mode
+Just want alerts on your laptop? No problem:
+
 ```bash
 ./notificator
 ```
-Simple. No setup. Just works.
 
-### For the whole team
-First, someone needs to run the backend:
+This runs without a backend - just you and your alerts. Simple.
+
+### Desktop app - team mode
+Want desktop notifications AND team features? Connect the desktop app to a backend:
 
 ```bash
-# Start the backend server
-./notificator --backend
+# First make sure a backend is running somewhere
+# Then add this to your config:
 ```
-
-Then everyone connects to it by setting this in their config:
 ```json
 {
   "backend": {
     "enabled": true,
-    "grpc_client": "where-your-backend-lives:50051"
+    "grpc_client": "your-backend-server:50051"
   }
 }
 ```
 
-### What you get with the backend
+### What each mode gives you
 
-When connected to a backend, you get:
-- Login screen (no more anonymous alerts!)
-- Ack button on each alert
-- Comments section
-- Live updates when your colleague acks something
-- Filters for "show only unacked" and stuff like that
+**WebUI (with backend):**
+- Browser-based access from anywhere
+- Full team collaboration
+- OAuth/SSO login
+- Comments and acknowledgments
+- Real-time sync across all users
+- Works on phones/tablets
 
-The backend runs on port 50051 (gRPC) and 8080 (health checks). It works with SQLite for testing or PostgreSQL for real deployments.
+**Desktop standalone:**
+- Local alerts only
+- System notifications
+- No login required
+- Works offline
+
+**Desktop with backend:**
+- Everything from standalone PLUS
+- Team features (acks, comments)
+- Login required
+- Syncs with WebUI users
 
 ### Backend Configuration
 
@@ -211,44 +308,94 @@ Everyone sees the same alerts, acks, and comments. It's like Slack but for alert
 ## Deployment
 
 ### Local development
-Just run it. Seriously. It works out of the box with fake data if you want to test:
+Want to test everything locally? We've got you covered:
 
 ```bash
 # Start fake alertmanager for testing
 cd alertmanager/fake
 python fake_alertmanager.py
 
-# In another terminal
-./notificator
+# Start the backend
+./notificator backend
+
+# Start the WebUI
+./notificator webui
+
+# Now open http://localhost:8081
 ```
 
-### Production deployment
-Check out the `helm/` folder - there's a Helm chart if you want to deploy the backend on Kubernetes. Or just run it on a VM, it's not picky.
+Or just use the playground at [playground.notificator.org](https://playground.notificator.org) - we keep it running with fake alerts for testing.
 
-### Docker? 
-Not yet, but feel free to make a Dockerfile. I just use `go build` and copy the binary around.
+### Production deployment - The easy way
+
+We've got Docker Compose for quick deployments:
+
+```bash
+# This starts everything: backend, webui, and even a fake alertmanager
+docker-compose up -d
+
+# WebUI will be at http://localhost:8081
+# Backend at localhost:50051
+```
+
+### Production deployment - For real
+
+Check out the `helm/` folder - there's a Helm chart that deploys the whole stack:
+
+```bash
+# Deploy everything on Kubernetes
+helm install notificator ./helm/notificator
+
+# This gives you:
+# - Backend with PostgreSQL
+# - WebUI with ingress
+# - Proper health checks
+# - OAuth ready to configure
+```
+
+Or if you're old school, just run the binaries on a VM:
+
+```bash
+# On your server
+./notificator backend &
+./notificator webui &
+
+# Use systemd, supervisor, whatever you like
+```
 
 ## Troubleshooting
+
+**"WebUI won't start"**
+- Is the backend running? The WebUI needs it! Check with `curl http://localhost:8080/health`
+- Wrong ports? Backend uses 50051 (gRPC) and 8080 (HTTP), WebUI uses 8081
+- Already running? `lsof -i:8081` to check if the port is taken
+
+**"Can't login to WebUI"**  
+- Using OAuth? Make sure OAuth is configured in the backend
+- Classic auth? Did you register an account first?
+- Check backend logs - they usually tell you what's wrong
 
 **"Can't connect to Alertmanager"**
 - Is it running? Check with `curl http://localhost:9093/api/v1/alerts`
 - Using authentication? Set those env vars (see above)
 - Behind a proxy? The app respects HTTP_PROXY and HTTPS_PROXY
+- OAuth proxy? We support that too - check the config section
 
-**"No sound on Linux"**
+**"No sound on Linux"** (desktop app)
 - Install `pulseaudio-utils` or `alsa-utils`
 - The app tries different sound systems until one works
 - Still nothing? Check if other apps can play sound
 
 **"Backend connection failed"**
 - Check if the backend is actually running: `telnet backend-host 50051`
-- Firewall issues? Port 50051 needs to be open
-- Wrong address in config? Double-check the grpc_client setting
+- Firewall issues? Ports 50051 and 8080 need to be open
+- Database issues? Check if PostgreSQL/SQLite is accessible
 
 **"I see nothing!"**
 - Check the logs (they're pretty verbose)
-- Try running with just `./notificator` first, then add complexity
+- Try the playground first: [playground.notificator.org](https://playground.notificator.org)
 - Make sure your Alertmanager actually has alerts
+- WebUI: Check browser console for errors (F12)
 
 ## GUI Scaling
 
@@ -303,10 +450,17 @@ fyne_settings
 ## Contributing
 
 Found a bug? Got an idea? PRs are welcome! The code is pretty straightforward:
-- `internal/gui/` - All the UI stuff (Fyne framework)
+- `internal/webui/` - The web interface (Go + Templ + HTMX + Alpine.js)
+- `internal/gui/` - Desktop app UI (Fyne framework)
 - `internal/alertmanager/` - Talks to Alertmanager API
-- `internal/backend/` - The team collaboration magic
+- `internal/backend/` - The team collaboration magic (gRPC server)
 - `internal/notifier/` - Makes noise and sends notifications
+
+WebUI stack is modern but simple:
+- Backend: Go with Gin
+- Templates: Templ (type-safe HTML templates)
+- Frontend: HTMX for interactions, Alpine.js for state, Tailwind for styling
+- No npm, no webpack, no 10,000 dependencies!
 
 Just fork it, make your changes, and send a PR. I usually merge stuff pretty quick.
 
@@ -318,9 +472,9 @@ I was on-call and kept missing alerts because:
 3. Switching between multiple Alertmanagers was painful
 4. No way to see who was handling what during incidents
 
-So I built this over a weekend. Then my team started using it. Then we added the backend for collaboration. Now we actually respond to alerts on time!
+So I built this over a weekend. Then my team started using it. Then we added the backend for collaboration. Then people wanted to check alerts from their phones, so we built the WebUI. Now everyone can see alerts from anywhere - at home, in a meeting, or yeah, even from the bathroom (we've all been there).
 
-The best part? When an alert fires, everyone knows about it. And when someone acks it, everyone else can relax. No more "are you handling this?" messages.
+The best part? When an alert fires, everyone knows about it instantly - whether they're using the WebUI on their phone or the desktop app on their laptop. And when someone acks it, everyone else can relax. No more "are you handling this?" messages in Mattermost or Slacks as you prefer.
 
 Hope it helps you too. If not, at least it's fun to watch the alerts pop up with sounds 🔔
 
