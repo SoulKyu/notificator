@@ -20,6 +20,23 @@ backend:
     type: ClusterIP
     grpcPort: 50051
     httpPort: 8080
+  # Backend configuration (JSON format)
+  config:
+    alertmanagers: []
+    gui:
+      width: 1920
+      height: 1080
+      title: "Notificator - Alert Dashboard"
+    notifications:
+      enabled: false
+    polling:
+      interval: 30000000000
+    backend:
+      enabled: true
+      grpc_listen: ":50051"
+      grpc_client: "localhost:50051"
+      http_listen: ":8080"
+      # Database configuration will be merged from .database section below
   ingress:
     enabled: false
     className: "nginx"
@@ -89,6 +106,22 @@ webui:
   service:
     type: ClusterIP
     port: 8081
+  # WebUI configuration (JSON format)
+  config:
+    backend:
+      grpc_endpoint: "notificator-backend:50051"
+      http_endpoint: "http://notificator-backend:8080"
+    webui:
+      enabled: true
+      listen: ":8081"
+      title: "Notificator - Web Dashboard"
+    theme:
+      default: "light"
+    features:
+      notifications: true
+      sound: true
+      auto_refresh: true
+      refresh_interval: 5
   ingress:
     enabled: true
     className: "nginx"

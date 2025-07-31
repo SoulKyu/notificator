@@ -16,8 +16,9 @@ spec:
       app.kubernetes.io/component: webui
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/webui-configmap.yaml") . | sha256sum }}
+      {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
@@ -40,8 +41,8 @@ spec:
           command:
             - /notificator-webui
             - webui
-            - --backend-addr
-            - {{ include "notificator-backend.fullname" . }}:{{ .Values.backend.service.grpcPort }}
+            - --config
+            - /config/config.json
           ports:
             - name: http
               containerPort: 8081
@@ -60,6 +61,10 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.webui.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
           {{- with .Values.env }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -68,6 +73,10 @@ spec:
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "notificator-backend.fullname" . }}-webui
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
