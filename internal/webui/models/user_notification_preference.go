@@ -115,12 +115,7 @@ func GetDefaultNotificationPreference() *UserNotificationPreference {
 		MaxNotifications:     5,
 		RespectFilters:       true,
 		SeverityRules: map[string]bool{
-			"critical": true,
-			"major":    true,
-			"warning":  true,
-			"minor":    false,
-			"info":     false,
-			"unknown":  false,
+			// Empty map - let frontend populate with dynamic severities from GetAvailableAlertLabels
 		},
 		SoundConfig: &SoundConfig{},
 	}

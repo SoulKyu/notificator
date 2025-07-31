@@ -1,0 +1,2103 @@
+package scripts
+
+templ DashboardScript() {
+	<script>
+		function newDashboard() {
+			return {
+				// Core state
+				loading: true,
+				alerts: [],
+				groups: [],
+				metadata: {
+					totalAlerts: 0,
+					filteredCount: 0,
+					lastUpdate: null,
+					counters: {
+						critical: 0,
+						warning: 0,
+						info: 0,
+						firing: 0,
+						resolved: 0,
+						acknowledged: 0,
+						withComments: 0
+					},
+					availableFilters: {
+						alertmanagers: [],
+						severities: [],
+						statuses: [],
+						teams: []
+					}
+				},
+				settings: {
+					theme: 'light',
+					notificationsEnabled: true,
+					soundEnabled: true,
+					resolvedAlertsRetention: 1,
+					refreshInterval: 5,
+					notificationDelay: 1500,
+					maxConcurrentNotifications: 3,
+					notificationBatching: true,
+					prioritizedNotifications: true
+				},
+				
+				// UI state
+				displayMode: 'classic',
+				viewMode: 'list',
+				sortField: 'duration',
+				sortDirection: 'asc',
+				showSettings: false,
+				
+				// Acknowledgment modal state
+				showAckModal: false,
+				ackAction: 'single', // 'single', 'bulk', or 'group'
+				ackReason: '',
+				ackError: '',
+				ackSubmitting: false,
+				currentAckAlert: null,
+				currentGroupName: '',
+				
+				// Alert details modal state
+				showAlertModal: false,
+				alertDetails: null,
+				currentAlertTab: 'overview',
+				alertDetailsLoading: false,
+				
+				// Comment management state
+				newCommentContent: '',
+				commentSubmitting: false,
+				commentDeleting: {},
+				currentUser: null,
+				
+				// Filter state
+				searchQuery: '',
+				filters: {
+					alertmanagers: [],
+					severities: [],
+					statuses: [],
+					teams: []
+				},
+				acknowledgmentFilter: null,
+				commentsFilter: null,
+				
+				// Selection state
+				selectedAlerts: [],
+				selectedGroups: [],
+				expandedGroups: [],
+				
+				// Auto-refresh
+				refreshInterval: null,
+				lastUpdateTime: null,
+				
+				// Color preferences
+				alertColors: {}, // fingerprint -> ColorResult
+				alertColorsTimestamp: 0, // when colors were last loaded
+				
+				// Sound objects
+				criticalSound: null,
+				warningSound: null,
+				
+				// Simple notification system
+				lastNotificationTime: 0,
+				notificationDelay: 1500, // milliseconds between notifications
+				
+				// Resizable columns
+				columnWidths: {
+					alertName: 300,
+					acknowledge: 75,
+					instance: 350,
+					severity: 150,
+					status: 150,
+					comments: 130,
+					team: 200,
+					summary: 400,
+					duration: 150,
+					source: 180
+				},
+				isResizing: false,
+				startX: 0,
+				startWidth: 0,
+				currentColumn: null,
+
+				// Utility function to map status for display
+				getDisplayStatus(status) {
+					if (!status?.state) return 'unknown';
+					// Map 'suppressed' to 'silenced' for UI display
+					return status.state === 'suppressed' ? 'silenced' : status.state;
+				},
+
+				// Utility function to check if status matches a value (handles suppressed->silenced mapping)
+				statusMatches(status, value) {
+					const displayStatus = this.getDisplayStatus(status);
+					return displayStatus === value;
+				},
+
+				init() {
+					this.loadSettings();
+					this.loadFiltersFromURL();
+					this.initializeSounds();
+					this.loadColumnWidths();
+					this.loadCurrentUser();
+					this.startAutoRefresh();
+					this.loadDashboardData();
+					
+					// Check if URL contains alert ID and open modal
+					this.checkAlertFromURL();
+					
+					// Listen for visibility changes to pause/resume refresh
+					document.addEventListener('visibilitychange', () => {
+						if (document.hidden) {
+							this.stopAutoRefresh();
+						} else {
+							this.startAutoRefresh();
+							// Use incremental update when coming back from hidden
+							this.loadDashboardIncremental();
+						}
+					});
+					
+					// Add global mouse events for resizing
+					document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+					document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+				},
+
+				// Data loading - initial load with full data
+				async loadDashboardData() {
+					this.loading = true;
+					
+					try {
+						const params = new URLSearchParams();
+						
+						// Add current filters to request
+						if (this.searchQuery) params.set('search', this.searchQuery);
+						if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+						if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+						if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
+						if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+						
+						params.set('displayMode', this.displayMode);
+						params.set('viewMode', this.viewMode);
+						params.set('sortField', this.sortField);
+						params.set('sortDirection', this.sortDirection);
+						
+						if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
+						if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+						
+						const response = await fetch(`/api/v1/dashboard/data?${params.toString()}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						
+						if (result.success) {
+							const oldAlerts = this.alerts;
+							this.alerts = result.data.alerts || [];
+							this.groups = result.data.groups || [];
+							this.metadata = result.data.metadata;
+							this.settings = { ...this.settings, ...result.data.settings };
+							this.lastUpdateTime = Date.now();
+							
+							// Check for new alerts for notifications
+							this.checkForNewAlerts(oldAlerts, this.alerts);
+							
+							// Load custom alert colors
+							await this.loadAlertColors();
+							
+							this.updateURL();
+						} else {
+							this.showNotification('error', 'Failed to load alerts: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error loading dashboard data:', error);
+						this.showNotification('error', 'Failed to load dashboard data');
+					} finally {
+						this.loading = false;
+					}
+				},
+
+				// Incremental update - only fetch changes
+				async loadDashboardIncremental() {
+					// Don't show loading spinner for incremental updates
+					try {
+						const params = new URLSearchParams();
+						
+						// Add current filters to request
+						if (this.searchQuery) params.set('search', this.searchQuery);
+						if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+						if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+						if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
+						if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+						
+						params.set('displayMode', this.displayMode);
+						params.set('viewMode', this.viewMode);
+						params.set('sortField', this.sortField);
+						params.set('sortDirection', this.sortDirection);
+						
+						if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
+						if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+						
+						// Include current alert fingerprints for comparison
+						const currentFingerprints = this.alerts.map(a => a.fingerprint).join(',');
+						if (currentFingerprints) {
+							params.set('clientAlerts', currentFingerprints);
+						}
+						
+						if (this.lastUpdateTime) {
+							params.set('lastUpdate', Math.floor(this.lastUpdateTime / 1000).toString());
+						}
+						
+						const response = await fetch(`/api/v1/dashboard/incremental?${params.toString()}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						
+						if (result.success) {
+							this.applyIncrementalUpdate(result.data);
+						} else {
+							// Fallback to full refresh if incremental fails
+							console.warn('Incremental update failed, falling back to full refresh');
+							await this.loadDashboardData();
+						}
+					} catch (error) {
+						console.error('Error loading incremental data:', error);
+						// Fallback to full refresh on error
+						await this.loadDashboardData();
+					}
+				},
+
+				// Load alert colors from user preferences
+				async loadAlertColors(force = false) {
+					// Skip loading if colors are already loaded and not forcing refresh
+					if (!force && Object.keys(this.alertColors).length > 0) {
+						return;
+					}
+					
+					try {
+						console.log('Loading alert colors...');
+						
+						// Build same URL parameters as dashboard data API
+						const params = new URLSearchParams();
+						
+						// Add current filters to request
+						if (this.searchQuery) params.set('search', this.searchQuery);
+						if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+						if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+						if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
+						if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+						
+						params.set('displayMode', this.displayMode);
+						params.set('viewMode', this.viewMode);
+						params.set('sortField', this.sortField);
+						params.set('sortDirection', this.sortDirection);
+						
+						if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
+						if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
+						
+						const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						
+						if (result.success) {
+							this.alertColors = result.data.colors || {};
+							this.alertColorsTimestamp = result.data.timestamp || Date.now();
+							console.log(`Loaded colors for ${Object.keys(this.alertColors).length} alerts`);
+						} else {
+							console.warn('Failed to load alert colors:', result.error);
+						}
+					} catch (error) {
+						console.error('Error loading alert colors:', error);
+					}
+				},
+
+				// Invalidate and reload alert colors when preferences change
+				async refreshAlertColors() {
+					console.log('Refreshing alert colors due to preference changes...');
+					await this.loadAlertColors(true);
+					// Trigger UI update by reassigning the object to ensure reactivity
+					this.alertColors = { ...this.alertColors };
+				},
+
+				// Get color for an alert
+				getAlertColor(alert, colorType = 'backgroundColor') {
+					const fingerprint = alert.fingerprint;
+					if (this.alertColors[fingerprint]) {
+						const colorResult = this.alertColors[fingerprint];
+						switch (colorType) {
+							case 'backgroundColor': return colorResult.backgroundColor;
+							case 'textColor': return colorResult.textColor;
+							case 'borderColor': return colorResult.borderColor;
+							case 'badgeColor': return colorResult.badgeColor;
+							default: return colorResult.backgroundColor;
+						}
+					}
+					
+					// Fallback to default severity colors
+					return this.getDefaultSeverityColor(alert, colorType);
+				},
+
+				// Get default severity color (fallback)
+				getDefaultSeverityColor(alert, colorType = 'backgroundColor') {
+					const severity = alert.severity || 'default';
+					const colorMap = {
+						critical: {
+							backgroundColor: '#fee2e2', // red-100
+							textColor: '#991b1b',       // red-800
+							borderColor: '#dc2626',     // red-600
+							badgeColor: '#dc2626'       // red-600
+						},
+						'critical-daytime': {
+							backgroundColor: '#ffe4e6', // rose-100
+							textColor: '#9f1239',       // rose-800
+							borderColor: '#be123c',     // rose-700
+							badgeColor: '#be123c'       // rose-700
+						},
+						warning: {
+							backgroundColor: '#fef3c7', // amber-100
+							textColor: '#92400e',       // amber-800
+							borderColor: '#d97706',     // amber-600
+							badgeColor: '#d97706'       // amber-600
+						},
+						info: {
+							backgroundColor: '#dbeafe', // blue-100
+							textColor: '#1e40af',       // blue-800
+							borderColor: '#2563eb',     // blue-600
+							badgeColor: '#2563eb'       // blue-600
+						},
+						default: {
+							backgroundColor: '#f3f4f6', // gray-100
+							textColor: '#374151',       // gray-700
+							borderColor: '#6b7280',     // gray-500
+							badgeColor: '#6b7280'       // gray-500
+						}
+					};
+					
+					const colors = colorMap[severity] || colorMap.default;
+					return colors[colorType] || colors.backgroundColor;
+				},
+
+				// Apply incremental changes to the dashboard
+				applyIncrementalUpdate(update) {
+					// Create fingerprint maps for efficient lookups
+					const alertMap = new Map();
+					this.alerts.forEach((alert, index) => {
+						alertMap.set(alert.fingerprint, { alert, index });
+					});
+					
+					// Track if we need to notify about new alerts
+					const oldAlerts = [...this.alerts];
+					
+					// Remove alerts that are no longer present
+					if (update.removedAlerts && update.removedAlerts.length > 0) {
+						this.alerts = this.alerts.filter(alert => 
+							!update.removedAlerts.includes(alert.fingerprint)
+						);
+						// Update selection to remove deleted alerts
+						this.selectedAlerts = this.selectedAlerts.filter(fingerprint => 
+							!update.removedAlerts.includes(fingerprint)
+						);
+					}
+					
+					// Update existing alerts
+					if (update.updatedAlerts && update.updatedAlerts.length > 0) {
+						const newAlertMap = new Map();
+						this.alerts.forEach((alert, index) => {
+							newAlertMap.set(alert.fingerprint, { alert, index });
+						});
+						
+						update.updatedAlerts.forEach(updatedAlert => {
+							const existing = newAlertMap.get(updatedAlert.fingerprint);
+							if (existing) {
+								// Update in place to maintain order
+								this.alerts[existing.index] = updatedAlert;
+							}
+						});
+					}
+					
+					// Add new alerts
+					if (update.newAlerts && update.newAlerts.length > 0) {
+						this.alerts.push(...update.newAlerts);
+						
+						// Sort after adding new alerts to maintain correct order
+						this.alerts = this.sortAlerts(this.alerts);
+					}
+					
+					// Update metadata and settings
+					if (update.metadata) {
+						this.metadata = update.metadata;
+					}
+					if (update.settings) {
+						this.settings = { ...this.settings, ...update.settings };
+					}
+					
+					// Update colors for new and updated alerts
+					if (update.colors && Object.keys(update.colors).length > 0) {
+						// Merge new colors with existing ones
+						this.alertColors = { ...this.alertColors, ...update.colors };
+						this.alertColorsTimestamp = Date.now();
+						console.log(`Updated colors for ${Object.keys(update.colors).length} alerts from incremental update`);
+					}
+					
+					// Update timestamp
+					this.lastUpdateTime = update.lastUpdateTime * 1000; // Convert to milliseconds
+					
+					// Check for new alerts for notifications
+					if (update.newAlerts && update.newAlerts.length > 0) {
+						this.checkForNewAlerts(oldAlerts, this.alerts);
+					}
+				},
+
+				// Sort alerts based on current sorting configuration
+				sortAlerts(alerts) {
+					return [...alerts].sort((a, b) => {
+						let aVal, bVal;
+						
+						switch (this.sortField) {
+							case 'alertName':
+								aVal = a.alertName.toLowerCase();
+								bVal = b.alertName.toLowerCase();
+								break;
+							case 'severity':
+								const severityOrder = { 'critical': 3, 'warning': 2, 'info': 1 };
+								aVal = severityOrder[a.severity] || 0;
+								bVal = severityOrder[b.severity] || 0;
+								break;
+							case 'status':
+								aVal = a.status.toLowerCase();
+								bVal = b.status.toLowerCase();
+								break;
+							case 'instance':
+								aVal = a.instance.toLowerCase();
+								bVal = b.instance.toLowerCase();
+								break;
+							case 'team':
+								aVal = (a.labels.team || '').toLowerCase();
+								bVal = (b.labels.team || '').toLowerCase();
+								break;
+							case 'duration':
+							default:
+								aVal = a.duration;
+								bVal = b.duration;
+								break;
+						}
+						
+						if (this.sortDirection === 'asc') {
+							return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+						} else {
+							return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+						}
+					});
+				},
+
+				// Auto-refresh management
+				startAutoRefresh() {
+					this.stopAutoRefresh();
+					this.refreshInterval = setInterval(() => {
+						// Use incremental updates for auto-refresh
+						this.loadDashboardIncremental();
+					}, this.settings.refreshInterval * 1000);
+				},
+
+				stopAutoRefresh() {
+					if (this.refreshInterval) {
+						clearInterval(this.refreshInterval);
+						this.refreshInterval = null;
+					}
+				},
+
+				// Display modes
+				setDisplayMode(mode) {
+					if (this.displayMode !== mode) {
+						this.displayMode = mode;
+						this.clearSelection();
+						this.loadDashboardData();
+					}
+				},
+
+				setViewMode(mode) {
+					if (this.viewMode !== mode) {
+						this.viewMode = mode;
+						this.clearSelection();
+						if (mode === 'group') {
+							this.expandedGroups = this.groups.map(g => g.groupName);
+						}
+						this.loadDashboardData();
+					}
+				},
+
+				// Sorting
+				sortBy(field) {
+					if (this.sortField === field) {
+						this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+					} else {
+						this.sortField = field;
+						this.sortDirection = 'asc';
+					}
+					this.loadDashboardData();
+				},
+
+				// Filtering
+				applyFilters() {
+					// Debounced filter application happens automatically via data loading
+					this.loadDashboardData();
+				},
+
+				clearAllFilters() {
+					this.searchQuery = '';
+					this.filters = {
+						alertmanagers: [],
+						severities: [],
+						statuses: [],
+						teams: []
+					};
+					this.acknowledgmentFilter = null;
+					this.commentsFilter = null;
+					this.loadDashboardData();
+				},
+
+				clearFilter(filterType) {
+					this.filters[filterType] = [];
+					this.applyFilters();
+				},
+
+				removeFilter(filterType, value) {
+					const index = this.filters[filterType].indexOf(value);
+					if (index > -1) {
+						this.filters[filterType].splice(index, 1);
+						this.applyFilters();
+					}
+				},
+
+				hasActiveFilters() {
+					return this.searchQuery.length > 0 ||
+						   this.filters.alertmanagers.length > 0 ||
+						   this.filters.severities.length > 0 ||
+						   this.filters.statuses.length > 0 ||
+						   this.filters.teams.length > 0 ||
+						   this.acknowledgmentFilter !== null ||
+						   this.commentsFilter !== null;
+				},
+
+				// Selection management
+				toggleAlert(fingerprint) {
+					const index = this.selectedAlerts.indexOf(fingerprint);
+					if (index > -1) {
+						this.selectedAlerts.splice(index, 1);
+					} else {
+						this.selectedAlerts.push(fingerprint);
+					}
+				},
+
+				toggleGroup(groupName) {
+					const index = this.selectedGroups.indexOf(groupName);
+					if (index > -1) {
+						this.selectedGroups.splice(index, 1);
+					} else {
+						this.selectedGroups.push(groupName);
+					}
+				},
+
+				selectAll() {
+					if (this.viewMode === 'list') {
+						this.selectedAlerts = this.alerts.map(a => a.fingerprint);
+					} else {
+						this.selectedGroups = this.groups.map(g => g.groupName);
+					}
+				},
+
+				clearSelection() {
+					this.selectedAlerts = [];
+					this.selectedGroups = [];
+				},
+
+				toggleSelectAll(event) {
+					if (event.target.checked) {
+						this.selectAll();
+					} else {
+						this.clearSelection();
+					}
+				},
+
+				// Removed selectAlert function - selection should only happen via checkbox click
+
+				// Group expansion
+				toggleGroupExpanded(groupName) {
+					const index = this.expandedGroups.indexOf(groupName);
+					if (index > -1) {
+						this.expandedGroups.splice(index, 1);
+					} else {
+						this.expandedGroups.push(groupName);
+					}
+				},
+
+				// Actions
+				acknowledgeSelected() {
+					if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
+						this.showNotification('warning', 'Please select alerts or groups to acknowledge');
+						return;
+					}
+					
+					this.ackAction = 'bulk';
+					this.ackReason = '';
+					this.ackError = '';
+					this.showAckModal = true;
+				},
+				
+				// Acknowledgment modal functions
+				cancelAcknowledgment() {
+					this.showAckModal = false;
+					this.ackReason = '';
+					this.ackError = '';
+					this.ackSubmitting = false;
+					this.currentAckAlert = null;
+					this.currentGroupName = '';
+				},
+				
+				async submitAcknowledgment() {
+					// Validate reason
+					if (!this.ackReason.trim()) {
+						this.ackError = 'Please provide a reason for the acknowledgment';
+						return;
+					}
+					
+					this.ackSubmitting = true;
+					this.ackError = '';
+					
+					try {
+						let request;
+						let successMessage;
+						
+						switch (this.ackAction) {
+							case 'single':
+								request = {
+									alertFingerprints: [this.currentAckAlert.fingerprint],
+									groupNames: [],
+									action: 'acknowledge',
+									comment: this.ackReason
+								};
+								successMessage = 'Alert acknowledged successfully';
+								break;
+								
+							case 'group':
+								request = {
+									alertFingerprints: [],
+									groupNames: [this.currentGroupName],
+									action: 'acknowledge',
+									comment: this.ackReason
+								};
+								successMessage = `Group "${this.currentGroupName}" acknowledged successfully`;
+								break;
+								
+							case 'bulk':
+								request = {
+									alertFingerprints: this.selectedAlerts,
+									groupNames: this.selectedGroups,
+									action: 'acknowledge',
+									comment: this.ackReason
+								};
+								successMessage = `${this.selectedAlerts.length + this.selectedGroups.length} items acknowledged successfully`;
+								break;
+								
+							default:
+								this.ackError = 'Invalid acknowledgment action';
+								this.ackSubmitting = false;
+								return;
+						}
+						
+						const response = await fetch('/api/v1/dashboard/bulk-action', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(request)
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', successMessage);
+							this.showAckModal = false;
+							
+							// Clear selection for bulk actions
+							if (this.ackAction === 'bulk') {
+								this.clearSelection();
+							}
+							
+							// Refresh dashboard data
+							this.loadDashboardData();
+						} else {
+							this.ackError = result.error || 'Failed to acknowledge';
+						}
+					} catch (error) {
+						console.error('Error submitting acknowledgment:', error);
+						this.ackError = 'Network error: Failed to submit acknowledgment';
+					} finally {
+						this.ackSubmitting = false;
+					}
+				},
+
+				async hideSelected() {
+					const request = {
+						alertFingerprints: this.selectedAlerts,
+						groupNames: this.selectedGroups,
+						action: 'hide'
+					};
+
+					try {
+						const response = await fetch('/api/v1/dashboard/bulk-action', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(request)
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', `Hidden ${result.data.processedCount} alerts`);
+							this.clearSelection();
+							this.loadDashboardData();
+						} else {
+							this.showNotification('error', 'Failed to hide alerts: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error hiding alerts:', error);
+						this.showNotification('error', 'Failed to hide alerts');
+					}
+				},
+
+				acknowledgeAlert(fingerprint) {
+					// Find the alert details
+					const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+					this.currentAckAlert = alert;
+					this.ackAction = 'single';
+					this.ackReason = '';
+					this.ackError = '';
+					this.showAckModal = true;
+				},
+
+				acknowledgeGroup(groupName) {
+					this.currentGroupName = groupName;
+					this.ackAction = 'group';
+					this.ackReason = '';
+					this.ackError = '';
+					this.showAckModal = true;
+				},
+
+				async hideAlert(fingerprint) {
+					const request = {
+						alertFingerprints: [fingerprint],
+						action: 'hide'
+					};
+
+					try {
+						const response = await fetch('/api/v1/dashboard/bulk-action', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(request)
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', 'Alert hidden');
+							this.loadDashboardData();
+						} else {
+							this.showNotification('error', 'Failed to hide alert: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error hiding alert:', error);
+						this.showNotification('error', 'Failed to hide alert');
+					}
+				},
+
+				// Unacknowledge actions
+				async unacknowledgeSelected() {
+					const request = {
+						alertFingerprints: this.selectedAlerts,
+						groupNames: this.selectedGroups,
+						action: 'unacknowledge',
+						comment: 'Unacknowledged from dashboard'
+					};
+
+					try {
+						const response = await fetch('/api/v1/dashboard/bulk-action', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(request)
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', `Unacknowledged ${result.data.processedCount} alerts`);
+							this.clearSelection();
+							this.loadDashboardData();
+						} else {
+							this.showNotification('error', 'Failed to unacknowledge alerts: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error unacknowledging alerts:', error);
+						this.showNotification('error', 'Failed to unacknowledge alerts');
+					}
+				},
+
+				async unacknowledgeAlert(fingerprint) {
+					const request = {
+						alertFingerprints: [fingerprint],
+						action: 'unacknowledge',
+						comment: 'Unacknowledged from dashboard'
+					};
+
+					try {
+						const response = await fetch('/api/v1/dashboard/bulk-action', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(request)
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', 'Alert unacknowledged');
+							this.loadDashboardData();
+						} else {
+							this.showNotification('error', 'Failed to unacknowledge alert: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error unacknowledging alert:', error);
+						this.showNotification('error', 'Failed to unacknowledge alert');
+					}
+				},
+
+				// Resolve actions
+				async resolveSelected() {
+					const request = {
+						alertFingerprints: this.selectedAlerts,
+						groupNames: this.selectedGroups,
+						action: 'resolve',
+						comment: 'Resolved from dashboard'
+					};
+
+					try {
+						const response = await fetch('/api/v1/dashboard/bulk-action', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(request)
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', `Resolved ${result.data.processedCount} alerts`);
+							this.clearSelection();
+							this.loadDashboardData();
+						} else {
+							this.showNotification('error', 'Failed to resolve alerts: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error resolving alerts:', error);
+						this.showNotification('error', 'Failed to resolve alerts');
+					}
+				},
+
+				async resolveAlert(fingerprint) {
+					const request = {
+						alertFingerprints: [fingerprint],
+						action: 'resolve',
+						comment: 'Resolved from dashboard'
+					};
+
+					try {
+						const response = await fetch('/api/v1/dashboard/bulk-action', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(request)
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', 'Alert resolved');
+							this.loadDashboardData();
+						} else {
+							this.showNotification('error', 'Failed to resolve alert: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error resolving alert:', error);
+						this.showNotification('error', 'Failed to resolve alert');
+					}
+				},
+
+				// Settings
+				async openSettings() {
+					this.showSettings = true;
+					// Trigger color preferences reload in the settings modal
+					setTimeout(() => {
+						if (window.currentSettingsModal && window.currentSettingsModal.loadColorPreferences) {
+							window.currentSettingsModal.loadColorPreferences();
+						}
+					}, 100); // Small delay to ensure modal is initialized
+				},
+
+				async saveSettings() {
+					try {
+						// Save regular settings
+						const settingsResponse = await fetch('/api/v1/dashboard/settings', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify(this.settings)
+						});
+
+						const settingsResult = await settingsResponse.json();
+						
+						if (!settingsResult.success) {
+							this.showNotification('error', 'Failed to save settings: ' + settingsResult.error);
+							return;
+						}
+
+						// Save color preferences from the settings modal
+						// First try to use the modal's save method if available
+						let colorSaved = false;
+						if (window.currentSettingsModal && window.currentSettingsModal.saveColorPreferences) {
+							colorSaved = await window.currentSettingsModal.saveColorPreferences();
+						}
+						
+						// If modal method not available or failed, log a message
+						if (!colorSaved && window.currentSettingsModal && window.currentSettingsModal.colorPreferences && window.currentSettingsModal.colorPreferences.length > 0) {
+							console.log('Color preferences exist but could not be saved via modal method');
+						}
+						
+						// Always refresh alert colors to apply preference changes
+						await this.refreshAlertColors();
+
+						// Apply notification queue settings
+						this.applyNotificationSettings();
+
+						this.showNotification('success', 'Settings saved');
+						this.showSettings = false;
+						
+						// Apply theme change
+						if (this.settings.theme === 'dark') {
+							document.documentElement.classList.add('dark');
+						} else {
+							document.documentElement.classList.remove('dark');
+						}
+						
+						// Update auto-refresh interval
+						this.startAutoRefresh();
+					} catch (error) {
+						console.error('Error saving settings:', error);
+						this.showNotification('error', 'Failed to save settings');
+					}
+				},
+
+				// Apply notification queue settings when settings are saved
+				applyNotificationSettings() {
+					// Update notification delay from settings
+					this.notificationDelay = this.settings.notificationDelay || 1500;
+					
+					// Update max concurrent notifications from settings  
+					this.maxConcurrentNotifications = this.settings.maxConcurrentNotifications || 3;
+					
+					// Log the updated settings for debugging
+					console.log('Notification settings applied:', {
+						notificationDelay: this.notificationDelay,
+						maxConcurrentNotifications: this.maxConcurrentNotifications,
+						notificationBatching: this.settings.notificationBatching,
+						prioritizedNotifications: this.settings.prioritizedNotifications
+					});
+				},
+
+				loadSettings() {
+					// Load settings from localStorage as fallback
+					const saved = localStorage.getItem('dashboard-settings');
+					if (saved) {
+						this.settings = { ...this.settings, ...JSON.parse(saved) };
+					}
+					
+					// Apply notification settings after loading
+					this.applyNotificationSettings();
+				},
+
+				// Load current user information for comment ownership checks
+				async loadCurrentUser() {
+					try {
+						const response = await fetch('/api/v1/auth/profile', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success && result.data) {
+								this.currentUser = {
+									id: result.data.id,
+									username: result.data.username,
+									email: result.data.email
+								};
+							}
+						}
+					} catch (error) {
+						console.error('Error loading current user:', error);
+					}
+				},
+
+				// Notifications and sounds
+				initializeSounds() {
+					if (this.settings.soundEnabled) {
+						this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+					}
+				},
+				
+				createBeep(frequency, duration, type = 'sine') {
+					if (!this.audioContext) return Promise.resolve();
+					
+					const oscillator = this.audioContext.createOscillator();
+					const gainNode = this.audioContext.createGain();
+					
+					oscillator.connect(gainNode);
+					gainNode.connect(this.audioContext.destination);
+					
+					oscillator.frequency.value = frequency;
+					oscillator.type = type;
+					
+					gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+					gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + 0.01);
+					gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+					
+					oscillator.start(this.audioContext.currentTime);
+					oscillator.stop(this.audioContext.currentTime + duration);
+					
+					return new Promise(resolve => {
+						oscillator.onended = resolve;
+					});
+				},
+
+				checkForNewAlerts(oldAlerts, newAlerts) {
+					if (!this.settings.notificationsEnabled || oldAlerts.length === 0) {
+						return;
+					}
+
+					const oldFingerprints = new Set(oldAlerts.map(a => a.fingerprint));
+					const newFingerprints = newAlerts.filter(a => !oldFingerprints.has(a.fingerprint));
+
+					// Simple notification system with delay
+					newFingerprints.forEach((alert, index) => {
+						// Skip notifications for silenced/suppressed alerts
+						const alertStatus = this.getDisplayStatus(alert.status);
+						if (alertStatus === 'silenced' || alertStatus === 'suppressed') {
+							return; // Skip notification for silenced/suppressed alerts
+						}
+
+						// Calculate delay based on notification timing
+						const now = Date.now();
+						const timeSinceLastNotification = now - this.lastNotificationTime;
+						const delay = Math.max(0, (this.settings.notificationDelay * index) - timeSinceLastNotification);
+
+						// Show notification with delay
+						setTimeout(() => {
+							this.showAlertNotification(alert);
+							if (this.settings.soundEnabled) {
+								this.playAlertSound(alert);
+							}
+							this.lastNotificationTime = Date.now();
+						}, delay);
+					});
+				},
+
+				showAlertNotification(alert) {
+					if (!('Notification' in window)) {
+						return;
+					}
+
+					if (Notification.permission === 'granted') {
+						// Enhanced title with visual severity indicators
+						let title = '';
+						let icon = '';
+						switch (alert.severity) {
+							case 'critical':
+								title = '🚨 CRITICAL ALERT';
+								icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#dc2626" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>');
+								break;
+							case 'warning':
+								title = '⚠️ WARNING ALERT';
+								icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#d97706" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>');
+								break;
+							case 'info':
+								title = 'ℹ️ INFO ALERT';
+								icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2563eb" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>');
+								break;
+							default:
+								title = '❓ ALERT';
+								icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#6b7280" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>');
+								break;
+						}
+
+						// Build rich notification content with context
+						let body = `🎯 Alert: ${alert.alertName}`;
+						
+						if (alert.instance && alert.instance !== alert.alertName) {
+							body += `\n🖥️ Instance: ${alert.instance}`;
+						}
+						
+						if (alert.labels && alert.labels.team) {
+							body += `\n👥 Team: ${alert.labels.team}`;
+						}
+						
+						if (alert.summary) {
+							body += `\n📋 Summary: ${alert.summary}`;
+						}
+
+						// Add timing information
+						if (alert.startsAt) {
+							const startTime = new Date(alert.startsAt);
+							const duration = Math.floor((Date.now() - startTime.getTime()) / (1000 * 60));
+							body += `\n⏰ Duration: ${duration}m`;
+						}
+
+						// Add source information
+						if (alert.labels) {
+							if (alert.labels.job) {
+								body += `\n🔧 Job: ${alert.labels.job}`;
+							}
+							if (alert.labels.alertmanager) {
+								body += `\n📡 Source: ${alert.labels.alertmanager}`;
+							}
+						}
+
+						// Smart truncation for browser notification limits
+						if (body.length > 300) {
+							const lines = body.split('\n');
+							let truncatedBody = '';
+							for (const line of lines) {
+								if ((truncatedBody + line + '\n').length > 280) {
+									truncatedBody += '\n⋯ (view in dashboard for full details)';
+									break;
+								}
+								truncatedBody += line + '\n';
+							}
+							body = truncatedBody.trim();
+						}
+
+						const notification = new Notification(title, {
+							body: body,
+							icon: icon,
+							tag: alert.fingerprint,
+							badge: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#3b82f6" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>'),
+							requireInteraction: alert.severity === 'critical', // Keep critical alerts visible
+							silent: false,
+							timestamp: alert.startsAt ? new Date(alert.startsAt).getTime() : Date.now()
+						});
+
+						// Track active notification for queue management
+						const notificationId = alert.fingerprint + '_' + Date.now();
+						this.activeNotifications.add(notificationId);
+
+						// Enhanced notification interaction
+						notification.onclick = () => {
+							window.focus();
+							// Optionally scroll to or highlight the alert
+							const alertElement = document.querySelector(`[data-fingerprint="${alert.fingerprint}"]`);
+							if (alertElement) {
+								alertElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+								alertElement.classList.add('highlight-alert');
+								setTimeout(() => alertElement.classList.remove('highlight-alert'), 3000);
+							}
+							notification.close();
+							this.activeNotifications.delete(notificationId);
+						};
+
+						// Auto-close with different timeouts based on severity
+						const timeout = alert.severity === 'critical' ? 10000 : 
+									   alert.severity === 'warning' ? 7000 : 5000;
+						setTimeout(() => {
+							notification.close();
+							this.activeNotifications.delete(notificationId);
+						}, timeout);
+					} else if (Notification.permission !== 'denied') {
+						Notification.requestPermission();
+					}
+				},
+
+				async playAlertSound(alert) {
+					if (!this.settings.soundEnabled || !this.audioContext) {
+						return;
+					}
+
+					try {
+						if (alert.severity === 'critical') {
+							// High-pitched urgent beep pattern for critical alerts
+							await this.createBeep(800, 0.2);
+							await new Promise(resolve => setTimeout(resolve, 100));
+							await this.createBeep(1000, 0.2);
+							await new Promise(resolve => setTimeout(resolve, 100));
+							await this.createBeep(800, 0.2);
+						} else if (alert.severity === 'warning') {
+							// Medium pitch single beep for warning alerts
+							await this.createBeep(500, 0.3);
+						}
+					} catch (error) {
+						console.error('Error playing alert sound:', error);
+					}
+				},
+
+					// Skip notifications for silenced/suppressed alerts (additional safety check)
+					const alertStatus = this.getDisplayStatus(alert.status);
+					if (alertStatus === 'silenced' || alertStatus === 'suppressed') {
+						return; // Skip notification for silenced/suppressed alerts
+					}
+
+					// Determine priority based on severity if not provided
+					const alertPriority = priority || this.getNotificationPriority(alert.severity);
+					
+					const queueItem = {
+						alert: alert,
+						priority: alertPriority,
+						timestamp: Date.now(),
+						id: alert.fingerprint + '_' + Date.now()
+					};
+
+					// Add to queue and sort by priority (higher number = higher priority)
+					this.notificationQueue.push(queueItem);
+					this.sortNotificationQueue();
+
+					// Start processing if not already running
+					if (!this.isProcessingNotifications) {
+						this.processNotificationQueue();
+					}
+				},
+
+				getNotificationPriority(severity) {
+					switch (severity) {
+						case 'critical': return 3;
+						case 'warning': return 2;
+						case 'info': return 1;
+						default: return 0;
+					}
+				},
+
+				sortNotificationQueue() {
+					this.notificationQueue.sort((a, b) => {
+						// First sort by priority (higher first)
+						if (a.priority !== b.priority) {
+							return b.priority - a.priority;
+						}
+						// Then by timestamp (older first)
+						return a.timestamp - b.timestamp;
+					});
+				},
+
+				async processNotificationQueue() {
+					if (this.isProcessingNotifications || this.notificationQueue.length === 0) {
+						return;
+					}
+
+					this.isProcessingNotifications = true;
+
+					while (this.notificationQueue.length > 0) {
+						// Check if we've reached the concurrent notification limit
+						if (this.activeNotifications.size >= this.settings.maxConcurrentNotifications) {
+							// Wait a bit and check again
+							await new Promise(resolve => setTimeout(resolve, 500));
+							continue;
+						}
+
+						// Get the highest priority notification
+						const queueItem = this.notificationQueue.shift();
+						if (!queueItem) break;
+
+						// Show the notification
+						try {
+							await this.showQueuedNotification(queueItem);
+						} catch (error) {
+							console.error('Error showing queued notification:', error);
+						}
+
+						// Add to audio queue
+						this.addToAudioQueue(queueItem.alert);
+
+						// Wait for the configured delay before processing next notification
+						if (this.notificationQueue.length > 0) {
+							await new Promise(resolve => setTimeout(resolve, this.settings.notificationDelay));
+						}
+					}
+
+					this.isProcessingNotifications = false;
+				},
+
+				async showQueuedNotification(queueItem) {
+					const alert = queueItem.alert;
+
+					// If batching is enabled and we have similar alerts, create a batched notification
+					if (this.settings.notificationBatching) {
+						const similarAlerts = this.findSimilarAlertsInQueue(alert);
+						if (similarAlerts.length > 0) {
+							return this.showBatchedNotification(alert, similarAlerts);
+						}
+					}
+
+					// Show individual notification
+					this.showAlertNotification(alert);
+				},
+
+				findSimilarAlertsInQueue(alert) {
+					const similar = [];
+					const alertTeam = alert.labels?.team || 'unknown';
+					const alertJob = alert.labels?.job || 'unknown';
+
+					// Look for alerts with same team or job in the queue
+					for (let i = this.notificationQueue.length - 1; i >= 0; i--) {
+						const queueItem = this.notificationQueue[i];
+						const queueAlert = queueItem.alert;
+
+						const isSimilar = (
+							queueAlert.severity === alert.severity &&
+							(queueAlert.labels?.team === alertTeam || queueAlert.labels?.job === alertJob)
+						);
+
+						if (isSimilar && similar.length < 5) { // Limit batch size
+							similar.push(queueItem);
+							this.notificationQueue.splice(i, 1); // Remove from queue
+						}
+					}
+
+					return similar;
+				},
+
+				showBatchedNotification(primaryAlert, similarAlerts) {
+					if (!('Notification' in window) || Notification.permission !== 'granted') {
+						return;
+					}
+
+					const totalCount = similarAlerts.length + 1;
+					const severity = primaryAlert.severity;
+					const team = primaryAlert.labels?.team || 'Unknown';
+					
+					// Create batched notification title and content
+					let title = '';
+					let icon = '';
+					
+					switch (severity) {
+						case 'critical':
+							title = `🚨 ${totalCount} CRITICAL ALERTS`;
+							icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#dc2626" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>');
+							break;
+						case 'warning':
+							title = `⚠️ ${totalCount} WARNING ALERTS`;
+							icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#d97706" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>');
+							break;
+						default:
+							title = `ℹ️ ${totalCount} ALERTS`;
+							icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2563eb" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>');
+							break;
+					}
+
+					let body = `📊 Team: ${team}\n🎯 Primary Alert: ${primaryAlert.alertName}`;
+					if (totalCount > 1) {
+						body += `\n📝 +${totalCount - 1} similar alerts`;
+					}
+					body += `\n\n🖱️ Click to view all alerts in dashboard`;
+
+					const notification = new Notification(title, {
+						body: body,
+						icon: icon,
+						tag: `batch_${severity}_${team}_${Date.now()}`,
+						requireInteraction: severity === 'critical',
+						silent: false,
+						timestamp: Date.now()
+					});
+
+					// Track active notification
+					const notificationId = `batch_${Date.now()}`;
+					this.activeNotifications.add(notificationId);
+
+					notification.onclick = () => {
+						window.focus();
+						// Could open dashboard with filters for this team/severity
+						notification.close();
+					};
+
+					// Auto-close with timeout based on severity
+					const timeout = severity === 'critical' ? 10000 : 
+								   severity === 'warning' ? 7000 : 5000;
+					
+					setTimeout(() => {
+						notification.close();
+						this.activeNotifications.delete(notificationId);
+					}, timeout);
+				},
+
+				// Audio Queue System Functions
+				
+				addToAudioQueue(alert) {
+					if (!this.settings.soundEnabled) {
+						return;
+					}
+
+					const audioItem = {
+						alert: alert,
+						priority: this.getNotificationPriority(alert.severity),
+						timestamp: Date.now()
+					};
+
+					this.audioQueue.push(audioItem);
+					this.sortAudioQueue();
+
+					// Start processing if not already running
+					if (!this.isProcessingAudio) {
+						this.processAudioQueue();
+					}
+				},
+
+				sortAudioQueue() {
+					this.audioQueue.sort((a, b) => {
+						// First sort by priority (higher first)
+						if (a.priority !== b.priority) {
+							return b.priority - a.priority;
+						}
+						// Then by timestamp (older first)
+						return a.timestamp - b.timestamp;
+					});
+				},
+
+				async processAudioQueue() {
+					if (this.isProcessingAudio || this.audioQueue.length === 0) {
+						return;
+					}
+
+					this.isProcessingAudio = true;
+
+					while (this.audioQueue.length > 0) {
+						const audioItem = this.audioQueue.shift();
+						if (!audioItem) break;
+
+						try {
+							await this.playAlertSound(audioItem.alert);
+							
+							// Add a small delay between sounds to prevent overlap
+							if (this.audioQueue.length > 0) {
+								await new Promise(resolve => setTimeout(resolve, 300));
+							}
+						} catch (error) {
+							console.error('Error playing queued sound:', error);
+						}
+					}
+
+					this.isProcessingAudio = false;
+				},
+
+				// Clear notification queues
+				clearNotificationQueues() {
+					this.notificationQueue = [];
+					this.audioQueue = [];
+					this.isProcessingNotifications = false;
+					this.isProcessingAudio = false;
+					
+					if (this.notificationProcessingTimer) {
+						clearTimeout(this.notificationProcessingTimer);
+						this.notificationProcessingTimer = null;
+					}
+					
+					if (this.audioProcessingTimer) {
+						clearTimeout(this.audioProcessingTimer);
+						this.audioProcessingTimer = null;
+					}
+				},
+
+				showNotification(type, message) {
+					const notification = document.createElement('div');
+					notification.className = `mb-2 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+						type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200' :
+						type === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200' :
+						'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200'
+					}`;
+					notification.innerHTML = `
+						<div class="flex items-center justify-between">
+							<span>${message}</span>
+							<button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-sm opacity-70 hover:opacity-100">&times;</button>
+						</div>
+					`;
+
+					document.getElementById('notifications').appendChild(notification);
+
+					// Auto-remove after 5 seconds
+					setTimeout(() => {
+						if (notification.parentElement) {
+							notification.remove();
+						}
+					}, 5000);
+				},
+
+				// URL management
+				updateURL() {
+					const params = new URLSearchParams();
+
+					if (this.searchQuery) params.set('search', this.searchQuery);
+					if (this.filters.alertmanagers.length > 0) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
+					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+
+					if (this.displayMode !== 'classic') params.set('displayMode', this.displayMode);
+					if (this.viewMode !== 'list') params.set('viewMode', this.viewMode);
+					if (this.sortField !== 'duration') params.set('sortField', this.sortField);
+					if (this.sortDirection !== 'asc') params.set('sortDirection', this.sortDirection);
+
+					if (this.acknowledgmentFilter) params.set('acknowledgment', this.acknowledgmentFilter);
+					if (this.commentsFilter) params.set('comments', this.commentsFilter);
+
+					const newURL = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+					window.history.replaceState({}, '', newURL);
+				},
+
+				loadFiltersFromURL() {
+					const params = new URLSearchParams(window.location.search);
+
+					this.searchQuery = params.get('search') || '';
+					
+					const alertmanagers = params.get('alertmanagers');
+					if (alertmanagers) this.filters.alertmanagers = alertmanagers.split(',');
+					
+					const severities = params.get('severities');
+					if (severities) this.filters.severities = severities.split(',');
+					
+					const statuses = params.get('statuses');
+					if (statuses) this.filters.statuses = statuses.split(',');
+					
+					const teams = params.get('teams');
+					if (teams) this.filters.teams = teams.split(',');
+
+					this.displayMode = params.get('displayMode') || 'classic';
+					this.viewMode = params.get('viewMode') || 'list';
+					this.sortField = params.get('sortField') || 'duration';
+					this.sortDirection = params.get('sortDirection') || 'asc';
+
+					this.acknowledgmentFilter = params.get('acknowledgment') || null;
+					this.commentsFilter = params.get('comments') || null;
+				},
+
+				// Utility functions
+				formatDuration(seconds) {
+					if (seconds < 60) return `${seconds}s`;
+					if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+					if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+					return `${Math.floor(seconds / 86400)}d`;
+				},
+
+				getStatusText() {
+					const now = new Date();
+					const lastUpdate = this.metadata.lastUpdate ? new Date(this.metadata.lastUpdate) : null;
+					
+					if (this.loading) {
+						return 'Loading...';
+					}
+					
+					if (!lastUpdate) {
+						return 'Ready';
+					}
+					
+					const secondsAgo = Math.floor((now - lastUpdate) / 1000);
+					
+					if (secondsAgo < 10) {
+						return 'Just updated';
+					} else if (secondsAgo < 60) {
+						return `Updated ${secondsAgo}s ago`;
+					} else {
+						return `Updated ${Math.floor(secondsAgo / 60)}m ago`;
+					}
+				},
+
+				// Column resizing methods
+				loadColumnWidths() {
+					const savedWidths = localStorage.getItem('dashboardColumnWidths');
+					if (savedWidths) {
+						try {
+							const parsedWidths = JSON.parse(savedWidths);
+							this.columnWidths = { ...this.columnWidths, ...parsedWidths };
+						} catch (error) {
+							console.warn('Failed to load saved column widths:', error);
+						}
+					}
+				},
+
+				startResize(event, columnField) {
+					event.preventDefault();
+					event.stopPropagation();
+					
+					this.isResizing = true;
+					this.currentColumn = columnField;
+					this.startX = event.clientX;
+					this.startWidth = this.columnWidths[columnField];
+					
+					// Add visual feedback
+					document.body.style.cursor = 'col-resize';
+					document.body.style.userSelect = 'none';
+					
+					// Add a visual indicator
+					event.target.style.backgroundColor = '#3b82f6';
+					event.target.style.opacity = '0.8';
+				},
+
+				handleMouseMove(event) {
+					if (!this.isResizing || !this.currentColumn) return;
+					
+					event.preventDefault();
+					event.stopPropagation();
+					
+					const deltaX = event.clientX - this.startX;
+					const newWidth = Math.max(30, this.startWidth + deltaX); // Lower minimum width
+					
+					this.columnWidths[this.currentColumn] = newWidth;
+				},
+
+				handleMouseUp(event) {
+					if (!this.isResizing) return;
+					
+					this.isResizing = false;
+					this.currentColumn = null;
+					
+					// Remove visual feedback
+					document.body.style.cursor = '';
+					document.body.style.userSelect = '';
+					
+					// Reset resize handle appearance
+					const resizeHandles = document.querySelectorAll('[title="Drag to resize column"]');
+					resizeHandles.forEach(handle => {
+						handle.style.backgroundColor = '';
+						handle.style.opacity = '';
+					});
+					
+					// Save column widths to localStorage
+					this.saveColumnWidths();
+				},
+
+				saveColumnWidths() {
+					try {
+						localStorage.setItem('dashboardColumnWidths', JSON.stringify(this.columnWidths));
+					} catch (error) {
+						console.warn('Failed to save column widths:', error);
+					}
+				},
+
+				resetColumnWidths() {
+					// Reset to default widths
+					this.columnWidths = {
+						alertName: 300,
+						acknowledge: 75,
+						instance: 350,
+						severity: 150,
+						status: 150,
+						comments: 130,
+						team: 200,
+						summary: 400,
+						duration: 150,
+						source: 180
+					};
+					
+					// Clear saved widths
+					localStorage.removeItem('dashboardColumnWidths');
+				},
+
+				// Alert Details Modal Functions
+				async showAlertDetails(fingerprint) {
+					this.alertDetailsLoading = true;
+					this.showAlertModal = true;
+					this.currentAlertTab = 'overview';
+					this.alertDetails = null;
+
+					// Update URL without page reload
+					const currentPath = window.location.pathname;
+					const newPath = `/dashboard/alert/${fingerprint}`;
+					if (currentPath !== newPath) {
+						window.history.pushState({ alertId: fingerprint }, '', newPath);
+					}
+
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						
+						if (result.success) {
+							this.alertDetails = result.data;
+						} else {
+							this.showNotification('error', 'Failed to load alert details: ' + result.error);
+							this.closeAlertModal();
+						}
+					} catch (error) {
+						console.error('Error loading alert details:', error);
+						this.showNotification('error', 'Failed to load alert details');
+						this.closeAlertModal();
+					} finally {
+						this.alertDetailsLoading = false;
+					}
+				},
+
+				closeAlertModal() {
+					this.showAlertModal = false;
+					this.alertDetails = null;
+					this.currentAlertTab = 'overview';
+					
+					// Reset comment state
+					this.newCommentContent = '';
+					this.commentSubmitting = false;
+					this.commentDeleting = {};
+					
+					// Update URL back to dashboard
+					if (window.location.pathname.includes('/alert/')) {
+						window.history.pushState({}, '', '/dashboard');
+					}
+				},
+
+				acknowledgeCurrentAlert() {
+					if (this.alertDetails?.alert) {
+						this.currentAckAlert = this.alertDetails.alert;
+						this.ackAction = 'single';
+						this.ackReason = '';
+						this.ackError = '';
+						this.showAckModal = true;
+					}
+				},
+
+				copyToClipboard(text) {
+					if (navigator.clipboard) {
+						navigator.clipboard.writeText(text).then(() => {
+							this.showNotification('success', 'Copied to clipboard');
+						}).catch(() => {
+							this.showNotification('error', 'Failed to copy to clipboard');
+						});
+					} else {
+						// Fallback for older browsers
+						const textArea = document.createElement('textarea');
+						textArea.value = text;
+						document.body.appendChild(textArea);
+						textArea.select();
+						try {
+							document.execCommand('copy');
+							this.showNotification('success', 'Copied to clipboard');
+						} catch (err) {
+							this.showNotification('error', 'Failed to copy to clipboard');
+						}
+						document.body.removeChild(textArea);
+					}
+				},
+
+				checkAlertFromURL() {
+					// Check if URL contains an alert ID and open modal
+					const pathParts = window.location.pathname.split('/');
+					if (pathParts.length >= 4 && pathParts[1] === 'dashboard' && pathParts[2] === 'alert') {
+						const alertId = pathParts[3];
+						if (alertId) {
+							// Wait a bit for initial data to load, then show alert details
+							setTimeout(() => {
+								this.showAlertDetails(alertId);
+							}, 500);
+						}
+					}
+				},
+
+				// Comment Management Functions
+				async addComment() {
+					if (!this.newCommentContent.trim()) {
+						this.showNotification('warning', 'Please enter a comment');
+						return;
+					}
+
+					if (!this.alertDetails?.alert?.fingerprint) {
+						this.showNotification('error', 'Alert information not available');
+						return;
+					}
+
+					this.commentSubmitting = true;
+					
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments`, {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								content: this.newCommentContent.trim()
+							})
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', 'Comment added successfully');
+							this.newCommentContent = '';
+							
+							// Refresh alert details to show the new comment
+							await this.refreshComments();
+						} else {
+							this.showNotification('error', 'Failed to add comment: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error adding comment:', error);
+						this.showNotification('error', 'Failed to add comment');
+					} finally {
+						this.commentSubmitting = false;
+					}
+				},
+
+				async deleteComment(commentId) {
+					if (!commentId || !this.alertDetails?.alert?.fingerprint) {
+						this.showNotification('error', 'Comment information not available');
+						return;
+					}
+
+					// Set deleting state for this specific comment
+					this.commentDeleting[commentId] = true;
+					
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments/${commentId}`, {
+							method: 'DELETE',
+							credentials: 'include'
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', 'Comment deleted successfully');
+							
+							// Refresh alert details to remove the deleted comment
+							await this.refreshComments();
+						} else {
+							this.showNotification('error', 'Failed to delete comment: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error deleting comment:', error);
+						this.showNotification('error', 'Failed to delete comment');
+					} finally {
+						// Remove deleting state for this comment
+						delete this.commentDeleting[commentId];
+					}
+				},
+
+				async refreshComments() {
+					if (!this.alertDetails?.alert?.fingerprint) {
+						return;
+					}
+
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						
+						if (result.success) {
+							// Update only the comments and maintain other alert details
+							this.alertDetails.comments = result.data.comments || [];
+							// Update comment count in alert object if it exists
+							if (this.alertDetails.alert) {
+								this.alertDetails.alert.commentCount = this.alertDetails.comments.length;
+							}
+						}
+					} catch (error) {
+						console.error('Error refreshing comments:', error);
+					}
+				},
+
+				// Get current user info (used for comment ownership checks)
+				getCurrentUser() {
+					// This should be populated during initialization
+					// For now, return a placeholder - this would typically come from session data
+					return this.currentUser;
+				},
+
+				// Check if current user can delete a comment
+				canDeleteComment(comment) {
+					const currentUser = this.getCurrentUser();
+					return currentUser && comment && (
+						currentUser.id === comment.userId || 
+						currentUser.username === comment.username
+					);
+				}
+			}
+		}
+
+		// Settings Modal Data Handler
+		function settingsModalData() {
+			return {
+				activeTab: 'general',
+				colorPreferences: [],
+				availableLabels: {}, // labelKey -> [values]
+				availableLabelsLastLoaded: null, // timestamp for cache expiry
+				
+				async init() {
+					console.log('Settings modal initializing...');
+					await this.loadColorPreferences();
+					await this.loadAvailableLabels();
+					// Ensure the global reference is set
+					window.currentSettingsModal = this;
+					console.log('Settings modal initialized, window.currentSettingsModal set:', !!window.currentSettingsModal);
+				},
+
+				async loadColorPreferences() {
+					try {
+						const response = await fetch('/api/v1/dashboard/color-preferences', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success) {
+								this.colorPreferences = (result.data.preferences || []).map(pref => ({
+									...pref,
+									labelConditions: pref.label_conditions || {}
+								}));
+							}
+						}
+					} catch (error) {
+						console.error('Error loading color preferences:', error);
+					}
+				},
+
+				async loadAvailableLabels() {
+					// Check if we already have cached labels and they're not too old (cache for 5 minutes)
+					if (this.availableLabels && Object.keys(this.availableLabels).length > 0 && 
+						this.availableLabelsLastLoaded && 
+						(Date.now() - this.availableLabelsLastLoaded) < 300000) {
+						console.log('Using cached available labels');
+						return;
+					}
+
+					try {
+						console.log('Fetching available labels from API...');
+						const response = await fetch('/api/v1/dashboard/available-labels', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success) {
+								this.availableLabels = result.data.labels || {};
+								this.availableLabelsLastLoaded = Date.now();
+								console.log('Loaded available labels:', Object.keys(this.availableLabels).length, 'label types');
+							}
+						}
+					} catch (error) {
+						console.error('Error loading available labels:', error);
+						// Fallback to empty object if fetch fails
+						this.availableLabels = {};
+					}
+				},
+
+				// Load available labels only once when needed
+				ensureAvailableLabels() {
+					if (!this.availableLabels || Object.keys(this.availableLabels).length === 0) {
+						this.loadAvailableLabels();
+					}
+				},
+
+				async saveColorPreferences() {
+					console.log('saveColorPreferences called with preferences:', this.colorPreferences);
+					try {
+						const response = await fetch('/api/v1/dashboard/color-preferences', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								preferences: this.colorPreferences
+							})
+						});
+
+						const result = await response.json();
+						console.log('Color preferences save response:', result);
+						if (result.success) {
+							// Reload color preferences to show saved state in modal
+							await this.loadColorPreferences();
+							return true;
+						} else {
+							console.error('Failed to save color preferences:', result.error);
+							return false;
+						}
+					} catch (error) {
+						console.error('Error saving color preferences:', error);
+						return false;
+					}
+				},
+
+				addColorPreference() {
+					this.colorPreferences.push({
+						id: '',
+						userId: '',
+						labelConditions: {},
+						color: '#3b82f6',
+						colorType: 'custom',
+						priority: 10,
+						createdAt: new Date(),
+						updatedAt: new Date()
+					});
+				},
+
+				removeColorPreference(index) {
+					this.colorPreferences.splice(index, 1);
+				},
+
+				addLabelCondition(preference) {
+					// Add a new empty condition
+					if (!preference.labelConditions) {
+						preference.labelConditions = {};
+					}
+					const key = 'label' + Object.keys(preference.labelConditions).length;
+					preference.labelConditions[key] = '';
+				},
+
+				removeLabelCondition(preference, key) {
+					delete preference.labelConditions[key];
+				},
+
+				updateLabelConditionKey(preference, oldKey, newKey) {
+					if (oldKey !== newKey && newKey.trim() !== '') {
+						const value = preference.labelConditions[oldKey];
+						delete preference.labelConditions[oldKey];
+						preference.labelConditions[newKey] = value;
+					}
+				}
+			};
+		}
+		
+		// Global function to handle logout response
+		function handleLogoutResponse(event) {
+			if (event.detail.successful) {
+				try {
+					const response = JSON.parse(event.detail.xhr.responseText);
+					if (response.success && response.data && response.data.redirect) {
+						// Redirect to the specified URL
+						window.location.href = response.data.redirect;
+					} else {
+						// Fallback to home page
+						window.location.href = '/';
+					}
+				} catch (e) {
+					console.error('Error parsing logout response:', e);
+					// Fallback to home page on error
+					window.location.href = '/';
+				}
+			} else {
+				console.error('Logout request failed');
+				// Optionally show an error notification
+				// You could call a notification function here if you have one
+			}
+		}
+	</script>
+}

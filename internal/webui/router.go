@@ -50,6 +50,37 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	// Set backend client for handlers
 	handlers.SetBackendClient(backendClient)
 
+	// Fetch OAuth configuration from backend and update local config
+	oauthEnabled, err := backendClient.IsOAuthEnabled()
+	if err != nil {
+		log.Printf("Warning: Failed to get OAuth config from backend: %v", err)
+		oauthEnabled = false
+	}
+	log.Printf("DEBUG: OAuth enabled check: %v", oauthEnabled)
+
+	if oauthEnabled {
+		log.Printf("DEBUG: OAuth is enabled on backend, updating local config")
+		// Ensure OAuth config exists
+		if cfg.OAuth == nil {
+			cfg.OAuth = config.DefaultOAuthConfig()
+		}
+		cfg.OAuth.Enabled = true
+		
+		// Get full OAuth configuration from backend
+		oauthConfig, err := backendClient.GetOAuthConfig()
+		if err != nil {
+			log.Printf("Warning: Failed to get full OAuth config from backend: %v", err)
+		} else {
+			log.Printf("DEBUG: Retrieved OAuth config from backend: enabled=%v, providers=%d", 
+				oauthConfig["enabled"], len(oauthConfig["providers"].([]map[string]interface{})))
+		}
+	} else {
+		log.Printf("DEBUG: OAuth is disabled on backend")
+		if cfg.OAuth != nil {
+			cfg.OAuth.Enabled = false
+		}
+	}
+
 	// Initialize alert cache for new dashboard
 	alertCache := services.NewAlertCache(amClient, backendClient)
 	handlers.SetAlertCache(alertCache)
@@ -171,7 +202,12 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	}
 
 	// Web routes (HTML pages)
-	r.GET("/", authMiddleware.OptionalAuth(), handlers.IndexPage)
+	// Conditionally serve playground or index page based on config
+	if cfg.WebUI.Playground {
+		r.GET("/", authMiddleware.OptionalAuth(), handlers.PlaygroundPage)
+	} else {
+		r.GET("/", authMiddleware.OptionalAuth(), handlers.IndexPage)
+	}
 
 	// Public pages (redirect if already authenticated)
 	publicPages := r.Group("/")

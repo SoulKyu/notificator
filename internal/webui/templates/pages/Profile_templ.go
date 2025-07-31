@@ -9,9 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"fmt"
+	"notificator/internal/webui/templates"
 	"notificator/internal/webui/templates/layouts"
-	"strings"
 	"time"
 )
 
@@ -100,9 +99,9 @@ func ProfileContent(data ProfileData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(getInitials(data.User.Username))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(templates.GetInitials(data.User.Username))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 82, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 81, Col: 97}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -115,7 +114,7 @@ func ProfileContent(data ProfileData) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(data.User.Username)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 89, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 88, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -128,7 +127,7 @@ func ProfileContent(data ProfileData) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(data.User.Email)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 92, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 91, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -170,7 +169,7 @@ func ProfileContent(data ProfileData) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(data.User.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 140, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 139, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -183,7 +182,7 @@ func ProfileContent(data ProfileData) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(data.User.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 140, Col: 120}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 139, Col: 120}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -194,9 +193,9 @@ func ProfileContent(data ProfileData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formatDate(data.User.CreatedAt))
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(templates.FormatDate(data.User.CreatedAt))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 144, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 143, Col: 107}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -212,9 +211,9 @@ func ProfileContent(data ProfileData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formatDate(*data.User.LastLogin))
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(templates.FormatDate(*data.User.LastLogin))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 149, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 148, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -233,7 +232,7 @@ func ProfileContent(data ProfileData) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(*data.User.OAuthID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 155, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 154, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -251,7 +250,7 @@ func ProfileContent(data ProfileData) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(data.SessionInfo.SessionID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 174, Col: 111}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 173, Col: 111}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -262,9 +261,9 @@ func ProfileContent(data ProfileData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(formatDate(data.SessionInfo.CreatedAt))
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(templates.FormatDate(data.SessionInfo.CreatedAt))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 178, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 177, Col: 114}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -275,9 +274,9 @@ func ProfileContent(data ProfileData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(formatDate(data.SessionInfo.ExpiresAt))
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(templates.FormatDate(data.SessionInfo.ExpiresAt))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 182, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 181, Col: 114}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -288,9 +287,9 @@ func ProfileContent(data ProfileData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var14 string
-		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(time.Since(data.SessionInfo.CreatedAt)))
+		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(templates.FormatDuration(time.Since(data.SessionInfo.CreatedAt)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 190, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 189, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -363,7 +362,7 @@ func OAuthProviderBadge(provider string) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(provider)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 331, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Profile.templ`, Line: 330, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -380,32 +379,6 @@ func OAuthProviderBadge(provider string) templ.Component {
 		}
 		return nil
 	})
-}
-
-// Helper functions
-func getInitials(username string) string {
-	parts := strings.Fields(username)
-	if len(parts) >= 2 {
-		return strings.ToUpper(string(parts[0][0]) + string(parts[1][0]))
-	}
-	if len(username) >= 2 {
-		return strings.ToUpper(username[:2])
-	}
-	return strings.ToUpper(username)
-}
-
-func formatDate(t time.Time) string {
-	return t.Format("Jan 2, 2006 at 3:04 PM")
-}
-
-func formatDuration(d time.Duration) string {
-	hours := int(d.Hours())
-	minutes := int(d.Minutes()) % 60
-
-	if hours > 0 {
-		return fmt.Sprintf("%dh %dm", hours, minutes)
-	}
-	return fmt.Sprintf("%dm", minutes)
 }
 
 var _ = templruntime.GeneratedTemplate

@@ -558,8 +558,8 @@ func (c *BackendClient) SaveUserColorPreferences(sessionID string, preferences [
 			Color:               pref.Color,
 			ColorType:           pref.ColorType,
 			Priority:            int32(pref.Priority),
-			BgLightnessFactor:   pref.BgLightnessFactor,
-			TextDarknessFactor:  pref.TextDarknessFactor,
+			BgLightnessFactor:   float32(pref.BgLightnessFactor),
+			TextDarknessFactor:  float32(pref.TextDarknessFactor),
 		})
 	}
 
@@ -654,6 +654,206 @@ func (c *BackendClient) SaveUserNotificationPreferences(sessionID string, prefer
 
 	if !resp.Success {
 		return fmt.Errorf("failed to save notification preferences: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// OAuth methods
+
+// GetOAuthAuthURL gets the OAuth authorization URL for a provider
+func (c *BackendClient) GetOAuthAuthURL(provider, state string) (string, error) {
+	if c.authClient == nil {
+		return "", fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &authpb.OAuthAuthURLRequest{
+		Provider: provider,
+		State:    state,
+	}
+
+	resp, err := c.authClient.GetOAuthAuthURL(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	if !resp.Success {
+		return "", fmt.Errorf("failed to get OAuth auth URL: %s", resp.Error)
+	}
+
+	return resp.AuthUrl, nil
+}
+
+// OAuthCallback handles the OAuth callback
+func (c *BackendClient) OAuthCallback(provider, code, state string) (*AuthResult, error) {
+	if c.authClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req := &authpb.OAuthCallbackRequest{
+		Provider: provider,
+		Code:     code,
+		State:    state,
+	}
+
+	resp, err := c.authClient.OAuthCallback(ctx, req)
+	if err != nil {
+		return &AuthResult{
+			Success: false,
+			Error:   fmt.Sprintf("OAuth callback failed: %v", err),
+		}, nil
+	}
+
+	return &AuthResult{
+		Success:   resp.Success,
+		SessionID: resp.SessionId,
+		UserID:    resp.UserId,
+		Username:  resp.Username,
+		Email:     resp.Email,
+		Error:     resp.Error,
+	}, nil
+}
+
+// GetOAuthProviders retrieves the list of available OAuth providers
+func (c *BackendClient) GetOAuthProviders() ([]map[string]interface{}, error) {
+	if c.authClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &authpb.GetOAuthProvidersRequest{}
+
+	resp, err := c.authClient.GetOAuthProviders(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var providers []map[string]interface{}
+	for _, provider := range resp.Providers {
+		providers = append(providers, map[string]interface{}{
+			"name":         provider.Name,
+			"display_name": provider.DisplayName,
+			"enabled":      provider.Enabled,
+		})
+	}
+
+	return providers, nil
+}
+
+// IsOAuthEnabled checks if OAuth is enabled
+func (c *BackendClient) IsOAuthEnabled() (bool, error) {
+	if c.authClient == nil {
+		return false, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &authpb.GetOAuthProvidersRequest{}
+
+	resp, err := c.authClient.GetOAuthProviders(ctx, req)
+	if err != nil {
+		return false, err
+	}
+
+	return len(resp.Providers) > 0, nil
+}
+
+// GetOAuthConfig retrieves OAuth configuration
+func (c *BackendClient) GetOAuthConfig() (map[string]interface{}, error) {
+	if c.authClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &authpb.GetOAuthConfigRequest{}
+
+	resp, err := c.authClient.GetOAuthConfig(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert providers to []map[string]interface{}
+	var providers []map[string]interface{}
+	for _, provider := range resp.Providers {
+		providers = append(providers, map[string]interface{}{
+			"name":         provider.Name,
+			"display_name": provider.DisplayName,
+			"enabled":      provider.Enabled,
+		})
+	}
+
+	config := map[string]interface{}{
+		"enabled":               resp.Enabled,
+		"disable_classic_auth":  resp.DisableClassicAuth,
+		"providers":            providers,
+	}
+
+	return config, nil
+}
+
+// GetUserGroups retrieves user groups
+func (c *BackendClient) GetUserGroups(userID string) ([]map[string]interface{}, error) {
+	if c.authClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &authpb.GetUserGroupsRequest{
+		UserId: userID,
+	}
+
+	resp, err := c.authClient.GetUserGroups(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var groups []map[string]interface{}
+	for _, group := range resp.Groups {
+		groups = append(groups, map[string]interface{}{
+			"id":       group.Id,
+			"name":     group.Name,
+			"provider": group.Provider,
+			"type":     group.Type,
+		})
+	}
+
+	return groups, nil
+}
+
+// SyncUserGroups synchronizes user groups with OAuth provider
+func (c *BackendClient) SyncUserGroups(userID, provider string) error {
+	if c.authClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req := &authpb.SyncUserGroupsRequest{
+		UserId:   userID,
+		Provider: provider,
+	}
+
+	resp, err := c.authClient.SyncUserGroups(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to sync user groups: %s", resp.Error)
 	}
 
 	return nil

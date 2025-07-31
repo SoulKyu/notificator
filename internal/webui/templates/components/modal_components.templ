@@ -2,7 +2,7 @@ package components
 
 // Settings modal
 templ SettingsModal() {
-	<div x-show="showSettings" x-data="settingsModalData()" x-init="init()" class="fixed inset-0 z-50 overflow-y-auto" x-transition>
+	<div x-show="showSettings" x-data="settingsModalData()" x-init="init()" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
 			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showSettings = false"></div>
 			
@@ -297,20 +297,6 @@ templ SettingsModal() {
 									</div>
 								</div>
 								
-								<!-- Save Button -->
-								<div class="border-t border-gray-200 dark:border-dark-border-DEFAULT pt-6">
-									<button @click="saveNotificationPreferences()" :disabled="notificationPreferencesSaving"
-											class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
-										<span x-show="!notificationPreferencesSaving">💾 Save Notification Preferences</span>
-										<span x-show="notificationPreferencesSaving" class="flex items-center">
-											<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-												<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-												<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-											</svg>
-											Saving...
-										</span>
-									</button>
-								</div>
 							</div>
 							
 							<!-- Color Preferences Tab -->
@@ -477,11 +463,23 @@ templ SettingsModal() {
 				
 				<div class="bg-gray-50 dark:bg-dark-bg-tertiary px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
 					<button type="button" @click="saveSettings()" 
-							class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
-						Save
+							:disabled="settingsSaving"
+							class="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200"
+							:class="{
+								'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500': !settingsSaving,
+								'bg-gray-400 cursor-not-allowed': settingsSaving
+							}">
+						<svg x-show="settingsSaving" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<span x-show="!settingsSaving">💾 Save All Settings</span>
+						<span x-show="settingsSaving">Saving...</span>
 					</button>
 					<button type="button" @click="showSettings = false" 
-							class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-dark-border-DEFAULT shadow-sm px-4 py-2 bg-white dark:bg-dark-bg-secondary text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+							:disabled="settingsSaving"
+							class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-dark-border-DEFAULT shadow-sm px-4 py-2 bg-white dark:bg-dark-bg-secondary text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+							:class="{ 'opacity-50 cursor-not-allowed': settingsSaving }">
 						Cancel
 					</button>
 				</div>
@@ -501,7 +499,8 @@ templ AcknowledgmentModal() {
 		 x-transition:leave-start="opacity-100" 
 		 x-transition:leave-end="opacity-0"
 		 class="fixed inset-0 z-60 overflow-y-auto" 
-		 @click.away="showAckModal = false">
+		 @click.away="showAckModal = false"
+		 style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
 			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
 
@@ -651,7 +650,8 @@ templ AlertDetailsModal() {
 		 class="relative z-50" 
 		 aria-labelledby="modal-title" 
 		 role="dialog" 
-		 aria-modal="true">
+		 aria-modal="true"
+		 style="display: none;">
 		
 		<!-- Background backdrop with modern blur effect -->
 		<div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300"></div>
@@ -817,6 +817,16 @@ templ AlertDetailsModal() {
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 													</svg>
 													Acknowledge
+												</button>
+												
+												<!-- Unacknowledge Button (show when acknowledged) -->
+												<button @click="unacknowledgeCurrentAlert()" 
+														x-show="alertDetails?.alert && alertDetails?.alert?.isAcknowledged"
+														class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-orange-600/25 transition-all duration-200 hover:shadow-orange-600/40 hover:scale-105">
+													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+													</svg>
+													Unacknowledge
 												</button>
 												
 												<!-- Silence Button (show when not silenced) -->
@@ -1283,7 +1293,8 @@ templ SilenceModal() {
 		 x-transition:leave-start="opacity-100" 
 		 x-transition:leave-end="opacity-0"
 		 class="fixed inset-0 z-60 overflow-y-auto" 
-		 @click.away="showSilenceModal = false">
+		 @click.away="showSilenceModal = false"
+		 style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
 			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
 

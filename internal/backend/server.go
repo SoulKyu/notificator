@@ -23,16 +23,16 @@ import (
 )
 
 type Server struct {
-	authService      *services.AuthServiceGorm
-	alertService     *services.AlertServiceGorm
-	oauthService     *services.OAuthService
-	db               *database.GormDB
-	config           *config.Config
-	dbType           string
-	grpcServer       *grpc.Server
-	httpServer       *http.Server
-	cleanupTicker    *time.Ticker
-	cleanupDone      chan bool
+	authService   *services.AuthServiceGorm
+	alertService  *services.AlertServiceGorm
+	oauthService  *services.OAuthService
+	db            *database.GormDB
+	config        *config.Config
+	dbType        string
+	grpcServer    *grpc.Server
+	httpServer    *http.Server
+	cleanupTicker *time.Ticker
+	cleanupDone   chan bool
 }
 
 func NewServer(cfg *config.Config, dbType string) *Server {
@@ -75,7 +75,7 @@ func (s *Server) initDatabase() error {
 	var dbConfig config.DatabaseConfig
 	if s.config.Backend.Database.Type != "" {
 		dbConfig = s.config.Backend.Database
-		
+
 		// Override with Viper configuration if available
 		if s.dbType == "sqlite" {
 			if viperPath := viper.GetString("backend.database.sqlite_path"); viperPath != "" {
@@ -266,12 +266,12 @@ func (s *Server) loggingUnaryInterceptor(ctx context.Context, req interface{}, i
 
 func (s *Server) startResolvedAlertCleanup() {
 	s.cleanupTicker = time.NewTicker(1 * time.Hour)
-	
+
 	log.Println("🧹 Starting resolved alert cleanup job (runs every hour)")
-	
+
 	go func() {
 		s.performResolvedAlertCleanup()
-		
+
 		for {
 			select {
 			case <-s.cleanupTicker.C:
@@ -289,15 +289,15 @@ func (s *Server) performResolvedAlertCleanup() {
 		log.Println("⚠️  Database not initialized, skipping resolved alert cleanup")
 		return
 	}
-	
+
 	log.Println("🧹 Running resolved alert cleanup...")
-	
+
 	deletedCount, err := s.db.CleanupExpiredResolvedAlerts()
 	if err != nil {
 		log.Printf("❌ Error during resolved alert cleanup: %v", err)
 		return
 	}
-	
+
 	if deletedCount > 0 {
 		log.Printf("✅ Cleaned up %d expired resolved alerts", deletedCount)
 	} else {
@@ -349,7 +349,6 @@ func (s *Server) metricsHandler(w http.ResponseWriter, r *http.Request) {
 func getClientIP(ctx context.Context) string {
 	return "unknown"
 }
-
 
 func (s *Server) IsHealthy() bool {
 	if s.db == nil {

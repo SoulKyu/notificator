@@ -137,8 +137,8 @@ func (cs *ColorService) getUserColorCache(sessionID string) (*ColorPreferenceCac
 			Color:              pref.Color,
 			ColorType:          pref.ColorType,
 			Priority:           int(pref.Priority),
-			BgLightnessFactor:  pref.BgLightnessFactor,
-			TextDarknessFactor: pref.TextDarknessFactor,
+			BgLightnessFactor:  float64(pref.BgLightnessFactor),
+			TextDarknessFactor: float64(pref.TextDarknessFactor),
 			CreatedAt:          pref.CreatedAt.AsTime(),
 			UpdatedAt:          pref.UpdatedAt.AsTime(),
 		}

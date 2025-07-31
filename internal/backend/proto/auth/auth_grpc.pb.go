@@ -47,11 +47,12 @@ type AuthServiceClient interface {
 	ValidateSession(ctx context.Context, in *ValidateSessionRequest, opts ...grpc.CallOption) (*ValidateSessionResponse, error)
 	GetProfile(ctx context.Context, in *GetProfileRequest, opts ...grpc.CallOption) (*GetProfileResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
-	// OAuth methods
+	// OAuth Methods
 	GetOAuthAuthURL(ctx context.Context, in *OAuthAuthURLRequest, opts ...grpc.CallOption) (*OAuthAuthURLResponse, error)
 	OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	GetOAuthProviders(ctx context.Context, in *GetOAuthProvidersRequest, opts ...grpc.CallOption) (*GetOAuthProvidersResponse, error)
 	GetOAuthConfig(ctx context.Context, in *GetOAuthConfigRequest, opts ...grpc.CallOption) (*GetOAuthConfigResponse, error)
+	// User Groups
 	GetUserGroups(ctx context.Context, in *GetUserGroupsRequest, opts ...grpc.CallOption) (*GetUserGroupsResponse, error)
 	SyncUserGroups(ctx context.Context, in *SyncUserGroupsRequest, opts ...grpc.CallOption) (*SyncUserGroupsResponse, error)
 }
@@ -196,11 +197,12 @@ type AuthServiceServer interface {
 	ValidateSession(context.Context, *ValidateSessionRequest) (*ValidateSessionResponse, error)
 	GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
-	// OAuth methods
+	// OAuth Methods
 	GetOAuthAuthURL(context.Context, *OAuthAuthURLRequest) (*OAuthAuthURLResponse, error)
 	OAuthCallback(context.Context, *OAuthCallbackRequest) (*LoginResponse, error)
 	GetOAuthProviders(context.Context, *GetOAuthProvidersRequest) (*GetOAuthProvidersResponse, error)
 	GetOAuthConfig(context.Context, *GetOAuthConfigRequest) (*GetOAuthConfigResponse, error)
+	// User Groups
 	GetUserGroups(context.Context, *GetUserGroupsRequest) (*GetUserGroupsResponse, error)
 	SyncUserGroups(context.Context, *SyncUserGroupsRequest) (*SyncUserGroupsResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()

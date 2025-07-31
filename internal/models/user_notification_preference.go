@@ -86,14 +86,8 @@ func (u *UserNotificationPreference) GetSoundConfig() (SoundConfigMap, error) {
 }
 
 func GetDefaultSeverityRules() SeverityRulesMap {
-	return SeverityRulesMap{
-		"critical": true,
-		"major":    true,
-		"warning":  true,
-		"minor":    false,
-		"info":     false,
-		"unknown":  false,
-	}
+	// Return empty map - let frontend handle dynamic severities using GetAvailableAlertLabels
+	return SeverityRulesMap{}
 }
 
 func GetDefaultSoundConfig() SoundConfigMap {

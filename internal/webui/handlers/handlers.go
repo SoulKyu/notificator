@@ -383,6 +383,18 @@ func IndexPage(c *gin.Context) {
 	pages.Index().Render(context.Background(), c.Writer)
 }
 
+func PlaygroundPage(c *gin.Context) {
+	c.Header("Content-Type", "text/html")
+	
+	oauthConfig := getOAuthConfig(c)
+	
+	if oauthConfig != nil {
+		pages.PlaygroundWithOAuth(oauthConfig).Render(context.Background(), c.Writer)
+	} else {
+		pages.Playground().Render(context.Background(), c.Writer)
+	}
+}
+
 func LoginPage(c *gin.Context) {
 	c.Header("Content-Type", "text/html")
 	

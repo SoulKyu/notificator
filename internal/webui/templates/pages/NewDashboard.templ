@@ -88,7 +88,7 @@ templ NewDashboardContent() {
 						<div class="relative" x-data="{ open: false }">
 							<button @click="open = !open" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary transition-all duration-200 ease-in-out group">
 								<div class="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:shadow-xl transition-all duration-200 ease-in-out">
-									<span class="text-sm font-semibold tracking-wide text-white" x-text="getUserInitials()">U</span>
+									<span class="text-sm font-semibold tracking-wide text-white" x-text="getInitials(data.User.Username)">U</span>
 								</div>
 								<svg class="h-4 w-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300 transition-colors duration-200" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
 									<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />

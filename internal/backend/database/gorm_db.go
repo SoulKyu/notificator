@@ -1,6 +1,7 @@
 package database
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log"
 	"os"
@@ -86,6 +87,14 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.Acknowledgment{},
 		&models.ResolvedAlert{},
 		&mainmodels.UserColorPreference{},
+		&mainmodels.UserNotificationPreference{},
+		// OAuth tables
+		&models.UserGroup{},
+		&models.OAuthToken{},
+		&models.OAuthState{},
+		&models.OAuthSession{},
+		&models.OAuthAuditLog{},
+		&models.OAuthGroupCache{},
 	)
 
 	if err != nil {
@@ -423,4 +432,61 @@ func (gdb *GormDB) DeleteUserColorPreference(userID, preferenceID string) error 
 		return fmt.Errorf("color preference not found or not authorized")
 	}
 	return nil
+}
+
+// GetUserNotificationPreference gets the notification preference for a user
+func (gdb *GormDB) GetUserNotificationPreference(userID string) (*mainmodels.UserNotificationPreference, error) {
+	var preference mainmodels.UserNotificationPreference
+	err := gdb.db.Where("user_id = ?", userID).First(&preference).Error
+	
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Return nil, nil to indicate no preference exists (not an error)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user notification preference: %w", err)
+	}
+	
+	return &preference, nil
+}
+
+// SaveUserNotificationPreference saves or updates a user's notification preference
+func (gdb *GormDB) SaveUserNotificationPreference(userID string, pref *mainmodels.UserNotificationPreference) error {
+	// Set the user ID
+	pref.UserID = userID
+	
+	// Generate ID if not set
+	if pref.ID == "" {
+		pref.ID = generateUUID()
+	}
+	
+	// Try to find existing preference
+	var existing mainmodels.UserNotificationPreference
+	err := gdb.db.Where("user_id = ?", userID).First(&existing).Error
+	
+	if err == gorm.ErrRecordNotFound {
+		// Create new preference
+		if err := gdb.db.Create(pref).Error; err != nil {
+			return fmt.Errorf("failed to create user notification preference: %w", err)
+		}
+		log.Printf("Created new notification preference for user %s", userID)
+	} else if err != nil {
+		return fmt.Errorf("failed to query existing preference: %w", err)
+	} else {
+		// Update existing preference (keep the original ID)
+		pref.ID = existing.ID
+		if err := gdb.db.Where("user_id = ?", userID).Updates(pref).Error; err != nil {
+			return fmt.Errorf("failed to update user notification preference: %w", err)
+		}
+		log.Printf("Updated notification preference for user %s", userID)
+	}
+	
+	return nil
+}
+
+// generateUUID generates a simple UUID for database records
+func generateUUID() string {
+	bytes := make([]byte, 16)
+	rand.Read(bytes)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", bytes[0:4], bytes[4:6], bytes[6:8], bytes[8:10], bytes[10:16])
 }

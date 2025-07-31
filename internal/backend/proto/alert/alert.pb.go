@@ -1538,10 +1538,10 @@ type UserColorPreference struct {
 	Color              string                 `protobuf:"bytes,4,opt,name=color,proto3" json:"color,omitempty"`                                                                                                                      // Color value (e.g., "GRAY", "#FF5733", "red-500")
 	ColorType          string                 `protobuf:"bytes,5,opt,name=color_type,json=colorType,proto3" json:"color_type,omitempty"`                                                                                             // Type: "severity", "custom", "tailwind"
 	Priority           int32                  `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`                                                                                                               // Higher numbers = higher priority (for conflicts)
-	BgLightnessFactor  float64                `protobuf:"fixed64,7,opt,name=bg_lightness_factor,json=bgLightnessFactor,proto3" json:"bg_lightness_factor,omitempty"`                                                                 // Background lightness factor (0.0-1.0, default 0.9)
-	TextDarknessFactor float64                `protobuf:"fixed64,8,opt,name=text_darkness_factor,json=textDarknessFactor,proto3" json:"text_darkness_factor,omitempty"`                                                              // Text darkness factor (0.0-1.0, default 0.3)
-	CreatedAt          *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt          *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CreatedAt          *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt          *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	BgLightnessFactor  float32                `protobuf:"fixed32,9,opt,name=bg_lightness_factor,json=bgLightnessFactor,proto3" json:"bg_lightness_factor,omitempty"`     // Background lightness adjustment factor
+	TextDarknessFactor float32                `protobuf:"fixed32,10,opt,name=text_darkness_factor,json=textDarknessFactor,proto3" json:"text_darkness_factor,omitempty"` // Text darkness adjustment factor
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1618,20 +1618,6 @@ func (x *UserColorPreference) GetPriority() int32 {
 	return 0
 }
 
-func (x *UserColorPreference) GetBgLightnessFactor() float64 {
-	if x != nil {
-		return x.BgLightnessFactor
-	}
-	return 0
-}
-
-func (x *UserColorPreference) GetTextDarknessFactor() float64 {
-	if x != nil {
-		return x.TextDarknessFactor
-	}
-	return 0
-}
-
 func (x *UserColorPreference) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
@@ -1640,6 +1626,713 @@ func (x *UserColorPreference) GetCreatedAt() *timestamppb.Timestamp {
 }
 
 func (x *UserColorPreference) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *UserColorPreference) GetBgLightnessFactor() float32 {
+	if x != nil {
+		return x.BgLightnessFactor
+	}
+	return 0
+}
+
+func (x *UserColorPreference) GetTextDarknessFactor() float32 {
+	if x != nil {
+		return x.TextDarknessFactor
+	}
+	return 0
+}
+
+// Resolved Alert Messages
+type CreateResolvedAlertRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint     string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	Source          string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	AlertData       []byte                 `protobuf:"bytes,3,opt,name=alert_data,json=alertData,proto3" json:"alert_data,omitempty"` // JSON serialized DashboardAlert
+	Comments        []byte                 `protobuf:"bytes,4,opt,name=comments,proto3" json:"comments,omitempty"`                    // JSON serialized comments array
+	Acknowledgments []byte                 `protobuf:"bytes,5,opt,name=acknowledgments,proto3" json:"acknowledgments,omitempty"`      // JSON serialized acknowledgments array
+	TtlHours        int32                  `protobuf:"varint,6,opt,name=ttl_hours,json=ttlHours,proto3" json:"ttl_hours,omitempty"`   // TTL in hours (default 24)
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CreateResolvedAlertRequest) Reset() {
+	*x = CreateResolvedAlertRequest{}
+	mi := &file_proto_alert_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateResolvedAlertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateResolvedAlertRequest) ProtoMessage() {}
+
+func (x *CreateResolvedAlertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateResolvedAlertRequest.ProtoReflect.Descriptor instead.
+func (*CreateResolvedAlertRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *CreateResolvedAlertRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *CreateResolvedAlertRequest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *CreateResolvedAlertRequest) GetAlertData() []byte {
+	if x != nil {
+		return x.AlertData
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertRequest) GetComments() []byte {
+	if x != nil {
+		return x.Comments
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertRequest) GetAcknowledgments() []byte {
+	if x != nil {
+		return x.Acknowledgments
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertRequest) GetTtlHours() int32 {
+	if x != nil {
+		return x.TtlHours
+	}
+	return 0
+}
+
+type CreateResolvedAlertResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ResolvedAlert *ResolvedAlertInfo     `protobuf:"bytes,2,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateResolvedAlertResponse) Reset() {
+	*x = CreateResolvedAlertResponse{}
+	mi := &file_proto_alert_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateResolvedAlertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateResolvedAlertResponse) ProtoMessage() {}
+
+func (x *CreateResolvedAlertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateResolvedAlertResponse.ProtoReflect.Descriptor instead.
+func (*CreateResolvedAlertResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *CreateResolvedAlertResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CreateResolvedAlertResponse) GetResolvedAlert() *ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlert
+	}
+	return nil
+}
+
+func (x *CreateResolvedAlertResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type GetResolvedAlertsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertsRequest) Reset() {
+	*x = GetResolvedAlertsRequest{}
+	mi := &file_proto_alert_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertsRequest) ProtoMessage() {}
+
+func (x *GetResolvedAlertsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertsRequest.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *GetResolvedAlertsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetResolvedAlertsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type GetResolvedAlertsResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ResolvedAlerts []*ResolvedAlertInfo   `protobuf:"bytes,1,rep,name=resolved_alerts,json=resolvedAlerts,proto3" json:"resolved_alerts,omitempty"`
+	TotalCount     int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Success        bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Message        string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertsResponse) Reset() {
+	*x = GetResolvedAlertsResponse{}
+	mi := &file_proto_alert_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertsResponse) ProtoMessage() {}
+
+func (x *GetResolvedAlertsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertsResponse.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *GetResolvedAlertsResponse) GetResolvedAlerts() []*ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlerts
+	}
+	return nil
+}
+
+func (x *GetResolvedAlertsResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetResolvedAlertsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetResolvedAlertsResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type GetResolvedAlertRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertRequest) Reset() {
+	*x = GetResolvedAlertRequest{}
+	mi := &file_proto_alert_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertRequest) ProtoMessage() {}
+
+func (x *GetResolvedAlertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertRequest.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *GetResolvedAlertRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+type GetResolvedAlertResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ResolvedAlert *ResolvedAlertInfo     `protobuf:"bytes,2,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResolvedAlertResponse) Reset() {
+	*x = GetResolvedAlertResponse{}
+	mi := &file_proto_alert_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResolvedAlertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResolvedAlertResponse) ProtoMessage() {}
+
+func (x *GetResolvedAlertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetResolvedAlertResponse.ProtoReflect.Descriptor instead.
+func (*GetResolvedAlertResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *GetResolvedAlertResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetResolvedAlertResponse) GetResolvedAlert() *ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlert
+	}
+	return nil
+}
+
+func (x *GetResolvedAlertResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type RemoveAllResolvedAlertsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAllResolvedAlertsRequest) Reset() {
+	*x = RemoveAllResolvedAlertsRequest{}
+	mi := &file_proto_alert_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAllResolvedAlertsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAllResolvedAlertsRequest) ProtoMessage() {}
+
+func (x *RemoveAllResolvedAlertsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAllResolvedAlertsRequest.ProtoReflect.Descriptor instead.
+func (*RemoveAllResolvedAlertsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{31}
+}
+
+type RemoveAllResolvedAlertsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	RemovedCount  int32                  `protobuf:"varint,2,opt,name=removed_count,json=removedCount,proto3" json:"removed_count,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveAllResolvedAlertsResponse) Reset() {
+	*x = RemoveAllResolvedAlertsResponse{}
+	mi := &file_proto_alert_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveAllResolvedAlertsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveAllResolvedAlertsResponse) ProtoMessage() {}
+
+func (x *RemoveAllResolvedAlertsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveAllResolvedAlertsResponse.ProtoReflect.Descriptor instead.
+func (*RemoveAllResolvedAlertsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *RemoveAllResolvedAlertsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RemoveAllResolvedAlertsResponse) GetRemovedCount() int32 {
+	if x != nil {
+		return x.RemovedCount
+	}
+	return 0
+}
+
+func (x *RemoveAllResolvedAlertsResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type StreamResolvedAlertUpdatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamResolvedAlertUpdatesRequest) Reset() {
+	*x = StreamResolvedAlertUpdatesRequest{}
+	mi := &file_proto_alert_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamResolvedAlertUpdatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamResolvedAlertUpdatesRequest) ProtoMessage() {}
+
+func (x *StreamResolvedAlertUpdatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamResolvedAlertUpdatesRequest.ProtoReflect.Descriptor instead.
+func (*StreamResolvedAlertUpdatesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *StreamResolvedAlertUpdatesRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type ResolvedAlertUpdate struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Fingerprint   string                  `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	UpdateType    ResolvedAlertUpdateType `protobuf:"varint,2,opt,name=update_type,json=updateType,proto3,enum=notificator.alert.ResolvedAlertUpdateType" json:"update_type,omitempty"`
+	ResolvedAlert *ResolvedAlertInfo      `protobuf:"bytes,3,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
+	Timestamp     *timestamppb.Timestamp  `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolvedAlertUpdate) Reset() {
+	*x = ResolvedAlertUpdate{}
+	mi := &file_proto_alert_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedAlertUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedAlertUpdate) ProtoMessage() {}
+
+func (x *ResolvedAlertUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedAlertUpdate.ProtoReflect.Descriptor instead.
+func (*ResolvedAlertUpdate) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ResolvedAlertUpdate) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *ResolvedAlertUpdate) GetUpdateType() ResolvedAlertUpdateType {
+	if x != nil {
+		return x.UpdateType
+	}
+	return ResolvedAlertUpdateType_UNKNOWN_RESOLVED_UPDATE
+}
+
+func (x *ResolvedAlertUpdate) GetResolvedAlert() *ResolvedAlertInfo {
+	if x != nil {
+		return x.ResolvedAlert
+	}
+	return nil
+}
+
+func (x *ResolvedAlertUpdate) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+type ResolvedAlertInfo struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Fingerprint     string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AlertData       []byte                 `protobuf:"bytes,3,opt,name=alert_data,json=alertData,proto3" json:"alert_data,omitempty"` // JSON serialized DashboardAlert
+	Comments        []byte                 `protobuf:"bytes,4,opt,name=comments,proto3" json:"comments,omitempty"`                    // JSON serialized comments array
+	Acknowledgments []byte                 `protobuf:"bytes,5,opt,name=acknowledgments,proto3" json:"acknowledgments,omitempty"`      // JSON serialized acknowledgments array
+	ResolvedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	ExpiresAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Source          string                 `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ResolvedAlertInfo) Reset() {
+	*x = ResolvedAlertInfo{}
+	mi := &file_proto_alert_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedAlertInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedAlertInfo) ProtoMessage() {}
+
+func (x *ResolvedAlertInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedAlertInfo.ProtoReflect.Descriptor instead.
+func (*ResolvedAlertInfo) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ResolvedAlertInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ResolvedAlertInfo) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *ResolvedAlertInfo) GetAlertData() []byte {
+	if x != nil {
+		return x.AlertData
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetComments() []byte {
+	if x != nil {
+		return x.Comments
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetAcknowledgments() []byte {
+	if x != nil {
+		return x.Acknowledgments
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetResolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolvedAt
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *ResolvedAlertInfo) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ResolvedAlertInfo) GetUpdatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UpdatedAt
 	}
@@ -1656,7 +2349,7 @@ type GetUserNotificationPreferencesRequest struct {
 
 func (x *GetUserNotificationPreferencesRequest) Reset() {
 	*x = GetUserNotificationPreferencesRequest{}
-	mi := &file_proto_alert_proto_msgTypes[25]
+	mi := &file_proto_alert_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1668,7 +2361,7 @@ func (x *GetUserNotificationPreferencesRequest) String() string {
 func (*GetUserNotificationPreferencesRequest) ProtoMessage() {}
 
 func (x *GetUserNotificationPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[25]
+	mi := &file_proto_alert_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1681,7 +2374,7 @@ func (x *GetUserNotificationPreferencesRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use GetUserNotificationPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*GetUserNotificationPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{25}
+	return file_proto_alert_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *GetUserNotificationPreferencesRequest) GetSessionId() string {
@@ -1702,7 +2395,7 @@ type GetUserNotificationPreferencesResponse struct {
 
 func (x *GetUserNotificationPreferencesResponse) Reset() {
 	*x = GetUserNotificationPreferencesResponse{}
-	mi := &file_proto_alert_proto_msgTypes[26]
+	mi := &file_proto_alert_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1714,7 +2407,7 @@ func (x *GetUserNotificationPreferencesResponse) String() string {
 func (*GetUserNotificationPreferencesResponse) ProtoMessage() {}
 
 func (x *GetUserNotificationPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[26]
+	mi := &file_proto_alert_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1727,7 +2420,7 @@ func (x *GetUserNotificationPreferencesResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GetUserNotificationPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*GetUserNotificationPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{26}
+	return file_proto_alert_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *GetUserNotificationPreferencesResponse) GetPreference() *UserNotificationPreference {
@@ -1761,7 +2454,7 @@ type SaveUserNotificationPreferencesRequest struct {
 
 func (x *SaveUserNotificationPreferencesRequest) Reset() {
 	*x = SaveUserNotificationPreferencesRequest{}
-	mi := &file_proto_alert_proto_msgTypes[27]
+	mi := &file_proto_alert_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1773,7 +2466,7 @@ func (x *SaveUserNotificationPreferencesRequest) String() string {
 func (*SaveUserNotificationPreferencesRequest) ProtoMessage() {}
 
 func (x *SaveUserNotificationPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[27]
+	mi := &file_proto_alert_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1786,7 +2479,7 @@ func (x *SaveUserNotificationPreferencesRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use SaveUserNotificationPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*SaveUserNotificationPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{27}
+	return file_proto_alert_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *SaveUserNotificationPreferencesRequest) GetSessionId() string {
@@ -1813,7 +2506,7 @@ type SaveUserNotificationPreferencesResponse struct {
 
 func (x *SaveUserNotificationPreferencesResponse) Reset() {
 	*x = SaveUserNotificationPreferencesResponse{}
-	mi := &file_proto_alert_proto_msgTypes[28]
+	mi := &file_proto_alert_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1825,7 +2518,7 @@ func (x *SaveUserNotificationPreferencesResponse) String() string {
 func (*SaveUserNotificationPreferencesResponse) ProtoMessage() {}
 
 func (x *SaveUserNotificationPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[28]
+	mi := &file_proto_alert_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1838,7 +2531,7 @@ func (x *SaveUserNotificationPreferencesResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use SaveUserNotificationPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*SaveUserNotificationPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{28}
+	return file_proto_alert_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *SaveUserNotificationPreferencesResponse) GetSuccess() bool {
@@ -1876,7 +2569,7 @@ type UserNotificationPreference struct {
 
 func (x *UserNotificationPreference) Reset() {
 	*x = UserNotificationPreference{}
-	mi := &file_proto_alert_proto_msgTypes[29]
+	mi := &file_proto_alert_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1888,7 +2581,7 @@ func (x *UserNotificationPreference) String() string {
 func (*UserNotificationPreference) ProtoMessage() {}
 
 func (x *UserNotificationPreference) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[29]
+	mi := &file_proto_alert_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1901,7 +2594,7 @@ func (x *UserNotificationPreference) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserNotificationPreference.ProtoReflect.Descriptor instead.
 func (*UserNotificationPreference) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{29}
+	return file_proto_alert_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *UserNotificationPreference) GetId() string {
@@ -2012,7 +2705,7 @@ type SoundConfig struct {
 
 func (x *SoundConfig) Reset() {
 	*x = SoundConfig{}
-	mi := &file_proto_alert_proto_msgTypes[30]
+	mi := &file_proto_alert_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2024,7 +2717,7 @@ func (x *SoundConfig) String() string {
 func (*SoundConfig) ProtoMessage() {}
 
 func (x *SoundConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[30]
+	mi := &file_proto_alert_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2037,7 +2730,7 @@ func (x *SoundConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SoundConfig.ProtoReflect.Descriptor instead.
 func (*SoundConfig) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{30}
+	return file_proto_alert_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *SoundConfig) GetCriticalFrequency() int32 {
@@ -2101,699 +2794,6 @@ func (x *SoundConfig) GetInfoType() string {
 		return x.InfoType
 	}
 	return ""
-}
-
-// Resolved Alert Messages
-type CreateResolvedAlertRequest struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Fingerprint     string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	Source          string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
-	AlertData       []byte                 `protobuf:"bytes,3,opt,name=alert_data,json=alertData,proto3" json:"alert_data,omitempty"` // JSON serialized DashboardAlert
-	Comments        []byte                 `protobuf:"bytes,4,opt,name=comments,proto3" json:"comments,omitempty"`                    // JSON serialized comments array
-	Acknowledgments []byte                 `protobuf:"bytes,5,opt,name=acknowledgments,proto3" json:"acknowledgments,omitempty"`      // JSON serialized acknowledgments array
-	TtlHours        int32                  `protobuf:"varint,6,opt,name=ttl_hours,json=ttlHours,proto3" json:"ttl_hours,omitempty"`   // TTL in hours (default 24)
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *CreateResolvedAlertRequest) Reset() {
-	*x = CreateResolvedAlertRequest{}
-	mi := &file_proto_alert_proto_msgTypes[31]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateResolvedAlertRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateResolvedAlertRequest) ProtoMessage() {}
-
-func (x *CreateResolvedAlertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[31]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateResolvedAlertRequest.ProtoReflect.Descriptor instead.
-func (*CreateResolvedAlertRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{31}
-}
-
-func (x *CreateResolvedAlertRequest) GetFingerprint() string {
-	if x != nil {
-		return x.Fingerprint
-	}
-	return ""
-}
-
-func (x *CreateResolvedAlertRequest) GetSource() string {
-	if x != nil {
-		return x.Source
-	}
-	return ""
-}
-
-func (x *CreateResolvedAlertRequest) GetAlertData() []byte {
-	if x != nil {
-		return x.AlertData
-	}
-	return nil
-}
-
-func (x *CreateResolvedAlertRequest) GetComments() []byte {
-	if x != nil {
-		return x.Comments
-	}
-	return nil
-}
-
-func (x *CreateResolvedAlertRequest) GetAcknowledgments() []byte {
-	if x != nil {
-		return x.Acknowledgments
-	}
-	return nil
-}
-
-func (x *CreateResolvedAlertRequest) GetTtlHours() int32 {
-	if x != nil {
-		return x.TtlHours
-	}
-	return 0
-}
-
-type CreateResolvedAlertResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	ResolvedAlert *ResolvedAlertInfo     `protobuf:"bytes,2,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreateResolvedAlertResponse) Reset() {
-	*x = CreateResolvedAlertResponse{}
-	mi := &file_proto_alert_proto_msgTypes[32]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateResolvedAlertResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateResolvedAlertResponse) ProtoMessage() {}
-
-func (x *CreateResolvedAlertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[32]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateResolvedAlertResponse.ProtoReflect.Descriptor instead.
-func (*CreateResolvedAlertResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{32}
-}
-
-func (x *CreateResolvedAlertResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *CreateResolvedAlertResponse) GetResolvedAlert() *ResolvedAlertInfo {
-	if x != nil {
-		return x.ResolvedAlert
-	}
-	return nil
-}
-
-func (x *CreateResolvedAlertResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-type GetResolvedAlertsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetResolvedAlertsRequest) Reset() {
-	*x = GetResolvedAlertsRequest{}
-	mi := &file_proto_alert_proto_msgTypes[33]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetResolvedAlertsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetResolvedAlertsRequest) ProtoMessage() {}
-
-func (x *GetResolvedAlertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[33]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetResolvedAlertsRequest.ProtoReflect.Descriptor instead.
-func (*GetResolvedAlertsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{33}
-}
-
-func (x *GetResolvedAlertsRequest) GetLimit() int32 {
-	if x != nil {
-		return x.Limit
-	}
-	return 0
-}
-
-func (x *GetResolvedAlertsRequest) GetOffset() int32 {
-	if x != nil {
-		return x.Offset
-	}
-	return 0
-}
-
-type GetResolvedAlertsResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ResolvedAlerts []*ResolvedAlertInfo   `protobuf:"bytes,1,rep,name=resolved_alerts,json=resolvedAlerts,proto3" json:"resolved_alerts,omitempty"`
-	TotalCount     int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
-	Success        bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
-	Message        string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *GetResolvedAlertsResponse) Reset() {
-	*x = GetResolvedAlertsResponse{}
-	mi := &file_proto_alert_proto_msgTypes[34]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetResolvedAlertsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetResolvedAlertsResponse) ProtoMessage() {}
-
-func (x *GetResolvedAlertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[34]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetResolvedAlertsResponse.ProtoReflect.Descriptor instead.
-func (*GetResolvedAlertsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{34}
-}
-
-func (x *GetResolvedAlertsResponse) GetResolvedAlerts() []*ResolvedAlertInfo {
-	if x != nil {
-		return x.ResolvedAlerts
-	}
-	return nil
-}
-
-func (x *GetResolvedAlertsResponse) GetTotalCount() int32 {
-	if x != nil {
-		return x.TotalCount
-	}
-	return 0
-}
-
-func (x *GetResolvedAlertsResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *GetResolvedAlertsResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-type GetResolvedAlertRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetResolvedAlertRequest) Reset() {
-	*x = GetResolvedAlertRequest{}
-	mi := &file_proto_alert_proto_msgTypes[35]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetResolvedAlertRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetResolvedAlertRequest) ProtoMessage() {}
-
-func (x *GetResolvedAlertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[35]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetResolvedAlertRequest.ProtoReflect.Descriptor instead.
-func (*GetResolvedAlertRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{35}
-}
-
-func (x *GetResolvedAlertRequest) GetFingerprint() string {
-	if x != nil {
-		return x.Fingerprint
-	}
-	return ""
-}
-
-type GetResolvedAlertResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	ResolvedAlert *ResolvedAlertInfo     `protobuf:"bytes,2,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetResolvedAlertResponse) Reset() {
-	*x = GetResolvedAlertResponse{}
-	mi := &file_proto_alert_proto_msgTypes[36]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetResolvedAlertResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetResolvedAlertResponse) ProtoMessage() {}
-
-func (x *GetResolvedAlertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[36]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetResolvedAlertResponse.ProtoReflect.Descriptor instead.
-func (*GetResolvedAlertResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{36}
-}
-
-func (x *GetResolvedAlertResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *GetResolvedAlertResponse) GetResolvedAlert() *ResolvedAlertInfo {
-	if x != nil {
-		return x.ResolvedAlert
-	}
-	return nil
-}
-
-func (x *GetResolvedAlertResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-type RemoveAllResolvedAlertsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemoveAllResolvedAlertsRequest) Reset() {
-	*x = RemoveAllResolvedAlertsRequest{}
-	mi := &file_proto_alert_proto_msgTypes[37]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemoveAllResolvedAlertsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemoveAllResolvedAlertsRequest) ProtoMessage() {}
-
-func (x *RemoveAllResolvedAlertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[37]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemoveAllResolvedAlertsRequest.ProtoReflect.Descriptor instead.
-func (*RemoveAllResolvedAlertsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{37}
-}
-
-type RemoveAllResolvedAlertsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	RemovedCount  int32                  `protobuf:"varint,2,opt,name=removed_count,json=removedCount,proto3" json:"removed_count,omitempty"`
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemoveAllResolvedAlertsResponse) Reset() {
-	*x = RemoveAllResolvedAlertsResponse{}
-	mi := &file_proto_alert_proto_msgTypes[38]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemoveAllResolvedAlertsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemoveAllResolvedAlertsResponse) ProtoMessage() {}
-
-func (x *RemoveAllResolvedAlertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[38]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemoveAllResolvedAlertsResponse.ProtoReflect.Descriptor instead.
-func (*RemoveAllResolvedAlertsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{38}
-}
-
-func (x *RemoveAllResolvedAlertsResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *RemoveAllResolvedAlertsResponse) GetRemovedCount() int32 {
-	if x != nil {
-		return x.RemovedCount
-	}
-	return 0
-}
-
-func (x *RemoveAllResolvedAlertsResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-type StreamResolvedAlertUpdatesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *StreamResolvedAlertUpdatesRequest) Reset() {
-	*x = StreamResolvedAlertUpdatesRequest{}
-	mi := &file_proto_alert_proto_msgTypes[39]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *StreamResolvedAlertUpdatesRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*StreamResolvedAlertUpdatesRequest) ProtoMessage() {}
-
-func (x *StreamResolvedAlertUpdatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[39]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StreamResolvedAlertUpdatesRequest.ProtoReflect.Descriptor instead.
-func (*StreamResolvedAlertUpdatesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{39}
-}
-
-func (x *StreamResolvedAlertUpdatesRequest) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
-	}
-	return ""
-}
-
-type ResolvedAlertUpdate struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
-	Fingerprint   string                  `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	UpdateType    ResolvedAlertUpdateType `protobuf:"varint,2,opt,name=update_type,json=updateType,proto3,enum=notificator.alert.ResolvedAlertUpdateType" json:"update_type,omitempty"`
-	ResolvedAlert *ResolvedAlertInfo      `protobuf:"bytes,3,opt,name=resolved_alert,json=resolvedAlert,proto3" json:"resolved_alert,omitempty"`
-	Timestamp     *timestamppb.Timestamp  `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResolvedAlertUpdate) Reset() {
-	*x = ResolvedAlertUpdate{}
-	mi := &file_proto_alert_proto_msgTypes[40]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResolvedAlertUpdate) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResolvedAlertUpdate) ProtoMessage() {}
-
-func (x *ResolvedAlertUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[40]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResolvedAlertUpdate.ProtoReflect.Descriptor instead.
-func (*ResolvedAlertUpdate) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{40}
-}
-
-func (x *ResolvedAlertUpdate) GetFingerprint() string {
-	if x != nil {
-		return x.Fingerprint
-	}
-	return ""
-}
-
-func (x *ResolvedAlertUpdate) GetUpdateType() ResolvedAlertUpdateType {
-	if x != nil {
-		return x.UpdateType
-	}
-	return ResolvedAlertUpdateType_UNKNOWN_RESOLVED_UPDATE
-}
-
-func (x *ResolvedAlertUpdate) GetResolvedAlert() *ResolvedAlertInfo {
-	if x != nil {
-		return x.ResolvedAlert
-	}
-	return nil
-}
-
-func (x *ResolvedAlertUpdate) GetTimestamp() *timestamppb.Timestamp {
-	if x != nil {
-		return x.Timestamp
-	}
-	return nil
-}
-
-type ResolvedAlertInfo struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Fingerprint     string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	AlertData       []byte                 `protobuf:"bytes,3,opt,name=alert_data,json=alertData,proto3" json:"alert_data,omitempty"` // JSON serialized DashboardAlert
-	Comments        []byte                 `protobuf:"bytes,4,opt,name=comments,proto3" json:"comments,omitempty"`                    // JSON serialized comments array
-	Acknowledgments []byte                 `protobuf:"bytes,5,opt,name=acknowledgments,proto3" json:"acknowledgments,omitempty"`      // JSON serialized acknowledgments array
-	ResolvedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
-	ExpiresAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	Source          string                 `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`
-	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *ResolvedAlertInfo) Reset() {
-	*x = ResolvedAlertInfo{}
-	mi := &file_proto_alert_proto_msgTypes[41]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResolvedAlertInfo) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResolvedAlertInfo) ProtoMessage() {}
-
-func (x *ResolvedAlertInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[41]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResolvedAlertInfo.ProtoReflect.Descriptor instead.
-func (*ResolvedAlertInfo) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{41}
-}
-
-func (x *ResolvedAlertInfo) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *ResolvedAlertInfo) GetFingerprint() string {
-	if x != nil {
-		return x.Fingerprint
-	}
-	return ""
-}
-
-func (x *ResolvedAlertInfo) GetAlertData() []byte {
-	if x != nil {
-		return x.AlertData
-	}
-	return nil
-}
-
-func (x *ResolvedAlertInfo) GetComments() []byte {
-	if x != nil {
-		return x.Comments
-	}
-	return nil
-}
-
-func (x *ResolvedAlertInfo) GetAcknowledgments() []byte {
-	if x != nil {
-		return x.Acknowledgments
-	}
-	return nil
-}
-
-func (x *ResolvedAlertInfo) GetResolvedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ResolvedAt
-	}
-	return nil
-}
-
-func (x *ResolvedAlertInfo) GetExpiresAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ExpiresAt
-	}
-	return nil
-}
-
-func (x *ResolvedAlertInfo) GetSource() string {
-	if x != nil {
-		return x.Source
-	}
-	return ""
-}
-
-func (x *ResolvedAlertInfo) GetCreatedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return nil
-}
-
-func (x *ResolvedAlertInfo) GetUpdatedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.UpdatedAt
-	}
-	return nil
 }
 
 var File_proto_alert_proto protoreflect.FileDescriptor
@@ -2909,65 +2909,17 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x05color\x18\x04 \x01(\tR\x05color\x12\x1d\n" +
 	"\n" +
 	"color_type\x18\x05 \x01(\tR\tcolorType\x12\x1a\n" +
-	"\bpriority\x18\x06 \x01(\x05R\bpriority\x12.\n" +
-	"\x13bg_lightness_factor\x18\a \x01(\x01R\x11bgLightnessFactor\x120\n" +
-	"\x14text_darkness_factor\x18\b \x01(\x01R\x12textDarknessFactor\x129\n" +
+	"\bpriority\x18\x06 \x01(\x05R\bpriority\x129\n" +
 	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x1aB\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12.\n" +
+	"\x13bg_lightness_factor\x18\t \x01(\x02R\x11bgLightnessFactor\x120\n" +
+	"\x14text_darkness_factor\x18\n" +
+	" \x01(\x02R\x12textDarknessFactor\x1aB\n" +
 	"\x14LabelConditionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"F\n" +
-	"%GetUserNotificationPreferencesRequest\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"\xab\x01\n" +
-	"&GetUserNotificationPreferencesResponse\x12M\n" +
-	"\n" +
-	"preference\x18\x01 \x01(\v2-.notificator.alert.UserNotificationPreferenceR\n" +
-	"preference\x12\x18\n" +
-	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\x96\x01\n" +
-	"&SaveUserNotificationPreferencesRequest\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\x12M\n" +
-	"\n" +
-	"preference\x18\x02 \x01(\v2-.notificator.alert.UserNotificationPreferenceR\n" +
-	"preference\"]\n" +
-	"'SaveUserNotificationPreferencesResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xca\x05\n" +
-	"\x1aUserNotificationPreference\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
-	"\aenabled\x18\x03 \x01(\bR\aenabled\x12#\n" +
-	"\rsound_enabled\x18\x04 \x01(\bR\fsoundEnabled\x123\n" +
-	"\x15browser_notifications\x18\x05 \x01(\bR\x14browserNotifications\x12)\n" +
-	"\x10cooldown_seconds\x18\x06 \x01(\x05R\x0fcooldownSeconds\x12+\n" +
-	"\x11max_notifications\x18\a \x01(\x05R\x10maxNotifications\x12'\n" +
-	"\x0frespect_filters\x18\b \x01(\bR\x0erespectFilters\x12g\n" +
-	"\x0eseverity_rules\x18\t \x03(\v2@.notificator.alert.UserNotificationPreference.SeverityRulesEntryR\rseverityRules\x12A\n" +
-	"\fsound_config\x18\n" +
-	" \x01(\v2\x1e.notificator.alert.SoundConfigR\vsoundConfig\x12*\n" +
-	"\x11sound_config_json\x18\v \x01(\tR\x0fsoundConfigJson\x129\n" +
-	"\n" +
-	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
-	"\n" +
-	"updated_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x1a@\n" +
-	"\x12SeverityRulesEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"\xf2\x02\n" +
-	"\vSoundConfig\x12-\n" +
-	"\x12critical_frequency\x18\x01 \x01(\x05R\x11criticalFrequency\x12+\n" +
-	"\x11critical_duration\x18\x02 \x01(\x05R\x10criticalDuration\x12#\n" +
-	"\rcritical_type\x18\x03 \x01(\tR\fcriticalType\x12+\n" +
-	"\x11warning_frequency\x18\x04 \x01(\x05R\x10warningFrequency\x12)\n" +
-	"\x10warning_duration\x18\x05 \x01(\x05R\x0fwarningDuration\x12!\n" +
-	"\fwarning_type\x18\x06 \x01(\tR\vwarningType\x12%\n" +
-	"\x0einfo_frequency\x18\a \x01(\x05R\rinfoFrequency\x12#\n" +
-	"\rinfo_duration\x18\b \x01(\x05R\finfoDuration\x12\x1b\n" +
-	"\tinfo_type\x18\t \x01(\tR\binfoType\"\xd8\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd8\x01\n" +
 	"\x1aCreateResolvedAlertRequest\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1d\n" +
@@ -3025,7 +2977,55 @@ const file_proto_alert_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt*~\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"F\n" +
+	"%GetUserNotificationPreferencesRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\xab\x01\n" +
+	"&GetUserNotificationPreferencesResponse\x12M\n" +
+	"\n" +
+	"preference\x18\x01 \x01(\v2-.notificator.alert.UserNotificationPreferenceR\n" +
+	"preference\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x96\x01\n" +
+	"&SaveUserNotificationPreferencesRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12M\n" +
+	"\n" +
+	"preference\x18\x02 \x01(\v2-.notificator.alert.UserNotificationPreferenceR\n" +
+	"preference\"]\n" +
+	"'SaveUserNotificationPreferencesResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xca\x05\n" +
+	"\x1aUserNotificationPreference\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
+	"\aenabled\x18\x03 \x01(\bR\aenabled\x12#\n" +
+	"\rsound_enabled\x18\x04 \x01(\bR\fsoundEnabled\x123\n" +
+	"\x15browser_notifications\x18\x05 \x01(\bR\x14browserNotifications\x12)\n" +
+	"\x10cooldown_seconds\x18\x06 \x01(\x05R\x0fcooldownSeconds\x12+\n" +
+	"\x11max_notifications\x18\a \x01(\x05R\x10maxNotifications\x12'\n" +
+	"\x0frespect_filters\x18\b \x01(\bR\x0erespectFilters\x12g\n" +
+	"\x0eseverity_rules\x18\t \x03(\v2@.notificator.alert.UserNotificationPreference.SeverityRulesEntryR\rseverityRules\x12A\n" +
+	"\fsound_config\x18\n" +
+	" \x01(\v2\x1e.notificator.alert.SoundConfigR\vsoundConfig\x12*\n" +
+	"\x11sound_config_json\x18\v \x01(\tR\x0fsoundConfigJson\x129\n" +
+	"\n" +
+	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x1a@\n" +
+	"\x12SeverityRulesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"\xf2\x02\n" +
+	"\vSoundConfig\x12-\n" +
+	"\x12critical_frequency\x18\x01 \x01(\x05R\x11criticalFrequency\x12+\n" +
+	"\x11critical_duration\x18\x02 \x01(\x05R\x10criticalDuration\x12#\n" +
+	"\rcritical_type\x18\x03 \x01(\tR\fcriticalType\x12+\n" +
+	"\x11warning_frequency\x18\x04 \x01(\x05R\x10warningFrequency\x12)\n" +
+	"\x10warning_duration\x18\x05 \x01(\x05R\x0fwarningDuration\x12!\n" +
+	"\fwarning_type\x18\x06 \x01(\tR\vwarningType\x12%\n" +
+	"\x0einfo_frequency\x18\a \x01(\x05R\rinfoFrequency\x12#\n" +
+	"\rinfo_duration\x18\b \x01(\x05R\finfoDuration\x12\x1b\n" +
+	"\tinfo_type\x18\t \x01(\tR\binfoType*~\n" +
 	"\n" +
 	"UpdateType\x12\x12\n" +
 	"\x0eUNKNOWN_UPDATE\x10\x00\x12\x11\n" +
@@ -3100,23 +3100,23 @@ var file_proto_alert_proto_goTypes = []any{
 	(*DeleteUserColorPreferenceRequest)(nil),        // 24: notificator.alert.DeleteUserColorPreferenceRequest
 	(*DeleteUserColorPreferenceResponse)(nil),       // 25: notificator.alert.DeleteUserColorPreferenceResponse
 	(*UserColorPreference)(nil),                     // 26: notificator.alert.UserColorPreference
-	(*GetUserNotificationPreferencesRequest)(nil),   // 27: notificator.alert.GetUserNotificationPreferencesRequest
-	(*GetUserNotificationPreferencesResponse)(nil),  // 28: notificator.alert.GetUserNotificationPreferencesResponse
-	(*SaveUserNotificationPreferencesRequest)(nil),  // 29: notificator.alert.SaveUserNotificationPreferencesRequest
-	(*SaveUserNotificationPreferencesResponse)(nil), // 30: notificator.alert.SaveUserNotificationPreferencesResponse
-	(*UserNotificationPreference)(nil),              // 31: notificator.alert.UserNotificationPreference
-	(*SoundConfig)(nil),                             // 32: notificator.alert.SoundConfig
-	(*CreateResolvedAlertRequest)(nil),              // 33: notificator.alert.CreateResolvedAlertRequest
-	(*CreateResolvedAlertResponse)(nil),             // 34: notificator.alert.CreateResolvedAlertResponse
-	(*GetResolvedAlertsRequest)(nil),                // 35: notificator.alert.GetResolvedAlertsRequest
-	(*GetResolvedAlertsResponse)(nil),               // 36: notificator.alert.GetResolvedAlertsResponse
-	(*GetResolvedAlertRequest)(nil),                 // 37: notificator.alert.GetResolvedAlertRequest
-	(*GetResolvedAlertResponse)(nil),                // 38: notificator.alert.GetResolvedAlertResponse
-	(*RemoveAllResolvedAlertsRequest)(nil),          // 39: notificator.alert.RemoveAllResolvedAlertsRequest
-	(*RemoveAllResolvedAlertsResponse)(nil),         // 40: notificator.alert.RemoveAllResolvedAlertsResponse
-	(*StreamResolvedAlertUpdatesRequest)(nil),       // 41: notificator.alert.StreamResolvedAlertUpdatesRequest
-	(*ResolvedAlertUpdate)(nil),                     // 42: notificator.alert.ResolvedAlertUpdate
-	(*ResolvedAlertInfo)(nil),                       // 43: notificator.alert.ResolvedAlertInfo
+	(*CreateResolvedAlertRequest)(nil),              // 27: notificator.alert.CreateResolvedAlertRequest
+	(*CreateResolvedAlertResponse)(nil),             // 28: notificator.alert.CreateResolvedAlertResponse
+	(*GetResolvedAlertsRequest)(nil),                // 29: notificator.alert.GetResolvedAlertsRequest
+	(*GetResolvedAlertsResponse)(nil),               // 30: notificator.alert.GetResolvedAlertsResponse
+	(*GetResolvedAlertRequest)(nil),                 // 31: notificator.alert.GetResolvedAlertRequest
+	(*GetResolvedAlertResponse)(nil),                // 32: notificator.alert.GetResolvedAlertResponse
+	(*RemoveAllResolvedAlertsRequest)(nil),          // 33: notificator.alert.RemoveAllResolvedAlertsRequest
+	(*RemoveAllResolvedAlertsResponse)(nil),         // 34: notificator.alert.RemoveAllResolvedAlertsResponse
+	(*StreamResolvedAlertUpdatesRequest)(nil),       // 35: notificator.alert.StreamResolvedAlertUpdatesRequest
+	(*ResolvedAlertUpdate)(nil),                     // 36: notificator.alert.ResolvedAlertUpdate
+	(*ResolvedAlertInfo)(nil),                       // 37: notificator.alert.ResolvedAlertInfo
+	(*GetUserNotificationPreferencesRequest)(nil),   // 38: notificator.alert.GetUserNotificationPreferencesRequest
+	(*GetUserNotificationPreferencesResponse)(nil),  // 39: notificator.alert.GetUserNotificationPreferencesResponse
+	(*SaveUserNotificationPreferencesRequest)(nil),  // 40: notificator.alert.SaveUserNotificationPreferencesRequest
+	(*SaveUserNotificationPreferencesResponse)(nil), // 41: notificator.alert.SaveUserNotificationPreferencesResponse
+	(*UserNotificationPreference)(nil),              // 42: notificator.alert.UserNotificationPreference
+	(*SoundConfig)(nil),                             // 43: notificator.alert.SoundConfig
 	nil,                                             // 44: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
 	nil,                                             // 45: notificator.alert.UserColorPreference.LabelConditionsEntry
 	nil,                                             // 46: notificator.alert.UserNotificationPreference.SeverityRulesEntry
@@ -3139,22 +3139,22 @@ var file_proto_alert_proto_depIdxs = []int32{
 	45, // 13: notificator.alert.UserColorPreference.label_conditions:type_name -> notificator.alert.UserColorPreference.LabelConditionsEntry
 	47, // 14: notificator.alert.UserColorPreference.created_at:type_name -> google.protobuf.Timestamp
 	47, // 15: notificator.alert.UserColorPreference.updated_at:type_name -> google.protobuf.Timestamp
-	31, // 16: notificator.alert.GetUserNotificationPreferencesResponse.preference:type_name -> notificator.alert.UserNotificationPreference
-	31, // 17: notificator.alert.SaveUserNotificationPreferencesRequest.preference:type_name -> notificator.alert.UserNotificationPreference
-	46, // 18: notificator.alert.UserNotificationPreference.severity_rules:type_name -> notificator.alert.UserNotificationPreference.SeverityRulesEntry
-	32, // 19: notificator.alert.UserNotificationPreference.sound_config:type_name -> notificator.alert.SoundConfig
-	47, // 20: notificator.alert.UserNotificationPreference.created_at:type_name -> google.protobuf.Timestamp
-	47, // 21: notificator.alert.UserNotificationPreference.updated_at:type_name -> google.protobuf.Timestamp
-	43, // 22: notificator.alert.CreateResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
-	43, // 23: notificator.alert.GetResolvedAlertsResponse.resolved_alerts:type_name -> notificator.alert.ResolvedAlertInfo
-	43, // 24: notificator.alert.GetResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
-	1,  // 25: notificator.alert.ResolvedAlertUpdate.update_type:type_name -> notificator.alert.ResolvedAlertUpdateType
-	43, // 26: notificator.alert.ResolvedAlertUpdate.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
-	47, // 27: notificator.alert.ResolvedAlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
-	47, // 28: notificator.alert.ResolvedAlertInfo.resolved_at:type_name -> google.protobuf.Timestamp
-	47, // 29: notificator.alert.ResolvedAlertInfo.expires_at:type_name -> google.protobuf.Timestamp
-	47, // 30: notificator.alert.ResolvedAlertInfo.created_at:type_name -> google.protobuf.Timestamp
-	47, // 31: notificator.alert.ResolvedAlertInfo.updated_at:type_name -> google.protobuf.Timestamp
+	37, // 16: notificator.alert.CreateResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	37, // 17: notificator.alert.GetResolvedAlertsResponse.resolved_alerts:type_name -> notificator.alert.ResolvedAlertInfo
+	37, // 18: notificator.alert.GetResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	1,  // 19: notificator.alert.ResolvedAlertUpdate.update_type:type_name -> notificator.alert.ResolvedAlertUpdateType
+	37, // 20: notificator.alert.ResolvedAlertUpdate.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	47, // 21: notificator.alert.ResolvedAlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	47, // 22: notificator.alert.ResolvedAlertInfo.resolved_at:type_name -> google.protobuf.Timestamp
+	47, // 23: notificator.alert.ResolvedAlertInfo.expires_at:type_name -> google.protobuf.Timestamp
+	47, // 24: notificator.alert.ResolvedAlertInfo.created_at:type_name -> google.protobuf.Timestamp
+	47, // 25: notificator.alert.ResolvedAlertInfo.updated_at:type_name -> google.protobuf.Timestamp
+	42, // 26: notificator.alert.GetUserNotificationPreferencesResponse.preference:type_name -> notificator.alert.UserNotificationPreference
+	42, // 27: notificator.alert.SaveUserNotificationPreferencesRequest.preference:type_name -> notificator.alert.UserNotificationPreference
+	46, // 28: notificator.alert.UserNotificationPreference.severity_rules:type_name -> notificator.alert.UserNotificationPreference.SeverityRulesEntry
+	43, // 29: notificator.alert.UserNotificationPreference.sound_config:type_name -> notificator.alert.SoundConfig
+	47, // 30: notificator.alert.UserNotificationPreference.created_at:type_name -> google.protobuf.Timestamp
+	47, // 31: notificator.alert.UserNotificationPreference.updated_at:type_name -> google.protobuf.Timestamp
 	17, // 32: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry.value:type_name -> notificator.alert.Acknowledgment
 	2,  // 33: notificator.alert.AlertService.AddComment:input_type -> notificator.alert.AddCommentRequest
 	4,  // 34: notificator.alert.AlertService.GetComments:input_type -> notificator.alert.GetCommentsRequest
@@ -3164,16 +3164,16 @@ var file_proto_alert_proto_depIdxs = []int32{
 	13, // 38: notificator.alert.AlertService.GetAllAcknowledgedAlerts:input_type -> notificator.alert.GetAllAcknowledgedAlertsRequest
 	15, // 39: notificator.alert.AlertService.DeleteAcknowledgment:input_type -> notificator.alert.DeleteAcknowledgmentRequest
 	18, // 40: notificator.alert.AlertService.SubscribeToAlertUpdates:input_type -> notificator.alert.SubscribeToAlertUpdatesRequest
-	33, // 41: notificator.alert.AlertService.CreateResolvedAlert:input_type -> notificator.alert.CreateResolvedAlertRequest
-	35, // 42: notificator.alert.AlertService.GetResolvedAlerts:input_type -> notificator.alert.GetResolvedAlertsRequest
-	37, // 43: notificator.alert.AlertService.GetResolvedAlert:input_type -> notificator.alert.GetResolvedAlertRequest
-	39, // 44: notificator.alert.AlertService.RemoveAllResolvedAlerts:input_type -> notificator.alert.RemoveAllResolvedAlertsRequest
-	41, // 45: notificator.alert.AlertService.StreamResolvedAlertUpdates:input_type -> notificator.alert.StreamResolvedAlertUpdatesRequest
+	27, // 41: notificator.alert.AlertService.CreateResolvedAlert:input_type -> notificator.alert.CreateResolvedAlertRequest
+	29, // 42: notificator.alert.AlertService.GetResolvedAlerts:input_type -> notificator.alert.GetResolvedAlertsRequest
+	31, // 43: notificator.alert.AlertService.GetResolvedAlert:input_type -> notificator.alert.GetResolvedAlertRequest
+	33, // 44: notificator.alert.AlertService.RemoveAllResolvedAlerts:input_type -> notificator.alert.RemoveAllResolvedAlertsRequest
+	35, // 45: notificator.alert.AlertService.StreamResolvedAlertUpdates:input_type -> notificator.alert.StreamResolvedAlertUpdatesRequest
 	20, // 46: notificator.alert.AlertService.GetUserColorPreferences:input_type -> notificator.alert.GetUserColorPreferencesRequest
 	22, // 47: notificator.alert.AlertService.SaveUserColorPreferences:input_type -> notificator.alert.SaveUserColorPreferencesRequest
 	24, // 48: notificator.alert.AlertService.DeleteUserColorPreference:input_type -> notificator.alert.DeleteUserColorPreferenceRequest
-	27, // 49: notificator.alert.AlertService.GetUserNotificationPreferences:input_type -> notificator.alert.GetUserNotificationPreferencesRequest
-	29, // 50: notificator.alert.AlertService.SaveUserNotificationPreferences:input_type -> notificator.alert.SaveUserNotificationPreferencesRequest
+	38, // 49: notificator.alert.AlertService.GetUserNotificationPreferences:input_type -> notificator.alert.GetUserNotificationPreferencesRequest
+	40, // 50: notificator.alert.AlertService.SaveUserNotificationPreferences:input_type -> notificator.alert.SaveUserNotificationPreferencesRequest
 	3,  // 51: notificator.alert.AlertService.AddComment:output_type -> notificator.alert.AddCommentResponse
 	5,  // 52: notificator.alert.AlertService.GetComments:output_type -> notificator.alert.GetCommentsResponse
 	7,  // 53: notificator.alert.AlertService.DeleteComment:output_type -> notificator.alert.DeleteCommentResponse
@@ -3182,16 +3182,16 @@ var file_proto_alert_proto_depIdxs = []int32{
 	14, // 56: notificator.alert.AlertService.GetAllAcknowledgedAlerts:output_type -> notificator.alert.GetAllAcknowledgedAlertsResponse
 	16, // 57: notificator.alert.AlertService.DeleteAcknowledgment:output_type -> notificator.alert.DeleteAcknowledgmentResponse
 	19, // 58: notificator.alert.AlertService.SubscribeToAlertUpdates:output_type -> notificator.alert.AlertUpdate
-	34, // 59: notificator.alert.AlertService.CreateResolvedAlert:output_type -> notificator.alert.CreateResolvedAlertResponse
-	36, // 60: notificator.alert.AlertService.GetResolvedAlerts:output_type -> notificator.alert.GetResolvedAlertsResponse
-	38, // 61: notificator.alert.AlertService.GetResolvedAlert:output_type -> notificator.alert.GetResolvedAlertResponse
-	40, // 62: notificator.alert.AlertService.RemoveAllResolvedAlerts:output_type -> notificator.alert.RemoveAllResolvedAlertsResponse
-	42, // 63: notificator.alert.AlertService.StreamResolvedAlertUpdates:output_type -> notificator.alert.ResolvedAlertUpdate
+	28, // 59: notificator.alert.AlertService.CreateResolvedAlert:output_type -> notificator.alert.CreateResolvedAlertResponse
+	30, // 60: notificator.alert.AlertService.GetResolvedAlerts:output_type -> notificator.alert.GetResolvedAlertsResponse
+	32, // 61: notificator.alert.AlertService.GetResolvedAlert:output_type -> notificator.alert.GetResolvedAlertResponse
+	34, // 62: notificator.alert.AlertService.RemoveAllResolvedAlerts:output_type -> notificator.alert.RemoveAllResolvedAlertsResponse
+	36, // 63: notificator.alert.AlertService.StreamResolvedAlertUpdates:output_type -> notificator.alert.ResolvedAlertUpdate
 	21, // 64: notificator.alert.AlertService.GetUserColorPreferences:output_type -> notificator.alert.GetUserColorPreferencesResponse
 	23, // 65: notificator.alert.AlertService.SaveUserColorPreferences:output_type -> notificator.alert.SaveUserColorPreferencesResponse
 	25, // 66: notificator.alert.AlertService.DeleteUserColorPreference:output_type -> notificator.alert.DeleteUserColorPreferenceResponse
-	28, // 67: notificator.alert.AlertService.GetUserNotificationPreferences:output_type -> notificator.alert.GetUserNotificationPreferencesResponse
-	30, // 68: notificator.alert.AlertService.SaveUserNotificationPreferences:output_type -> notificator.alert.SaveUserNotificationPreferencesResponse
+	39, // 67: notificator.alert.AlertService.GetUserNotificationPreferences:output_type -> notificator.alert.GetUserNotificationPreferencesResponse
+	41, // 68: notificator.alert.AlertService.SaveUserNotificationPreferences:output_type -> notificator.alert.SaveUserNotificationPreferencesResponse
 	51, // [51:69] is the sub-list for method output_type
 	33, // [33:51] is the sub-list for method input_type
 	33, // [33:33] is the sub-list for extension type_name

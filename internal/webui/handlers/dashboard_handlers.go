@@ -111,7 +111,15 @@ func GetDashboardData(c *gin.Context) {
 	}
 	
 	// Build metadata
-	response.Metadata = buildDashboardMetadata(allAlerts, filteredAlerts, filters, userID)
+	// For classic mode, we need to pass ALL alerts (including acknowledged) to buildDashboardMetadata
+	// so it can properly count acknowledged alerts in its special logic
+	var metadataAllAlerts []*webuimodels.DashboardAlert
+	if filters.DisplayMode == webuimodels.DisplayModeClassic {
+		metadataAllAlerts = alertCache.GetAllAlerts()
+	} else {
+		metadataAllAlerts = allAlerts
+	}
+	response.Metadata = buildDashboardMetadata(metadataAllAlerts, filteredAlerts, filters, userID)
 	response.Settings = *settings
 	
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(response))
@@ -475,6 +483,17 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		}
 	}
 	
+	// Fix acknowledged counter for classic mode - count from all alerts since they're excluded from filtered
+	if filters.DisplayMode == webuimodels.DisplayModeClassic {
+		// Reset acknowledged counter and count from all alerts
+		counters.Acknowledged = 0
+		for _, alert := range allAlerts {
+			if alert.IsAcknowledged && !alert.IsResolved {
+				counters.Acknowledged++
+			}
+		}
+	}
+	
 	// Always include resolved alerts in statistics, even if not displayed (for Classic view)
 	// Only do this if we're not already in DisplayModeResolved or DisplayModeFull to avoid double counting
 	if filters.DisplayMode == webuimodels.DisplayModeClassic || filters.DisplayMode == webuimodels.DisplayModeAcknowledge {
@@ -811,7 +830,9 @@ func getDashboardMetadata(alerts []*webuimodels.DashboardAlert, filters webuimod
 		}
 		allAlerts = append(activeAlerts, resolvedAlerts...)
 	default: // DisplayModeClassic
-		allAlerts = getStandardAlerts()
+		// For classic mode, use all alerts for metadata counting (not just standard alerts)
+		// This ensures we can count acknowledged alerts properly in the statistics
+		allAlerts = alertCache.GetAllAlerts()
 	}
 	
 	return buildDashboardMetadata(allAlerts, alerts, filters, userID)
@@ -1154,8 +1175,8 @@ func GetUserColorPreferences(c *gin.Context) {
 			Color:              pbPref.Color,
 			ColorType:          pbPref.ColorType,
 			Priority:           int(pbPref.Priority),
-			BgLightnessFactor:  pbPref.BgLightnessFactor,
-			TextDarknessFactor: pbPref.TextDarknessFactor,
+			BgLightnessFactor:  float64(pbPref.BgLightnessFactor),
+			TextDarknessFactor: float64(pbPref.TextDarknessFactor),
 		}
 		
 		// Convert timestamps if available

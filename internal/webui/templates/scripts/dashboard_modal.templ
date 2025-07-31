@@ -312,6 +312,45 @@ templ DashboardModal() {
 				// Copy to clipboard
 				this.copyToClipboard(markdown);
 				this.showNotification('success', 'Alert copied as issue template');
+			},
+
+			async unacknowledgeCurrentAlert() {
+				if (!this.alertDetails?.alert?.fingerprint) {
+					this.showNotification('error', 'No alert information available');
+					return;
+				}
+				
+				try {
+					const request = {
+						alertFingerprints: [this.alertDetails.alert.fingerprint],
+						action: 'unacknowledge',
+						comment: 'Unacknowledged from alert details'
+					};
+
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert unacknowledged successfully');
+						// Refresh alert details to show updated state
+						if (this.alertDetails?.alert?.fingerprint) {
+							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
+						}
+					} else {
+						this.showNotification('error', 'Failed to unacknowledge alert: ' + (result.error || 'Unknown error'));
+					}
+				} catch (error) {
+					console.error('Error unacknowledging alert:', error);
+					this.showNotification('error', 'Failed to unacknowledge alert');
+				}
 			}
 		};
 	</script>

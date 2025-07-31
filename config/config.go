@@ -20,6 +20,7 @@ type Config struct {
 	ColumnWidths    map[string]float32 `json:"column_widths"`
 	Backend         BackendConfig      `json:"backend"`
 	ResolvedAlerts  ResolvedAlertsConfig `json:"resolved_alerts"`
+	WebUI          WebUIConfig          `json:"webui"`
 	OAuth *OAuthPortalConfig `json:"oauth,omitempty"`
 }
 
@@ -101,6 +102,10 @@ type PollingConfig struct {
 	Interval time.Duration `json:"interval"`
 }
 
+type WebUIConfig struct {
+	Playground bool `json:"playground"`
+}
+
 func DefaultConfig() *Config {
 	headers := make(map[string]string)
 
@@ -176,6 +181,9 @@ func DefaultConfig() *Config {
 			Enabled:              true,                // Enable by default
 			NotificationsEnabled: true,                // Send notifications by default
 			RetentionDuration:    1 * time.Hour,       // Keep for 1 hour by default
+		},
+		WebUI: WebUIConfig{
+			Playground: false,     // Playground mode disabled by default
 		},
 		
 		// OAuth is disabled by default - must be explicitly configured
@@ -315,8 +323,17 @@ func LoadConfigWithViper() (*Config, error) {
 
 	oauthEnabled := viper.GetBool("oauth.enabled")
 	log.Printf("DEBUG: OAuth enabled check: %v", oauthEnabled)
-	if oauthEnabled {
-		log.Printf("DEBUG: OAuth is enabled, loading complete configuration...")
+	
+	// Check if we have OAuth environment variables (indicates this is a backend/OAuth-enabled service)
+	hasOAuthEnvVars := viper.IsSet("oauth.session_key") || 
+		os.Getenv("OAUTH_GITHUB_CLIENT_ID") != "" || 
+		os.Getenv("OAUTH_GOOGLE_CLIENT_ID") != "" ||
+		os.Getenv("OAUTH_MICROSOFT_CLIENT_ID") != ""
+	
+	log.Printf("DEBUG: Has OAuth env vars: %v", hasOAuthEnvVars)
+	
+	if oauthEnabled && hasOAuthEnvVars {
+		log.Printf("DEBUG: OAuth is enabled with providers, loading complete configuration...")
 		// OAuth config should now be populated by viper.Unmarshal above
 		if cfg.OAuth == nil {
 			// If not unmarshaled, create with defaults
@@ -342,6 +359,22 @@ func LoadConfigWithViper() (*Config, error) {
 		}
 		
 		log.Printf("DEBUG: OAuth config loaded successfully, providers: %d", len(cfg.OAuth.Providers))
+	} else if oauthEnabled && !hasOAuthEnvVars {
+		log.Printf("DEBUG: OAuth enabled but no local config - will use backend for OAuth info")
+		// For webui or services that don't have OAuth environment variables,
+		// we still set up a minimal OAuth config so OAuth handlers can function
+		// The actual OAuth configuration will be retrieved from backend at runtime
+		cfg.OAuth = DefaultOAuthConfig()
+		cfg.OAuth.Enabled = true // Allow OAuth handlers to be active
+		log.Printf("DEBUG: Created minimal OAuth config for runtime backend lookup")
+	} else if !oauthEnabled && !hasOAuthEnvVars {
+		log.Printf("DEBUG: No OAuth config locally - creating minimal config for potential backend OAuth")
+		// For webui that doesn't have any OAuth environment variables at all,
+		// we create a minimal config that allows OAuth handlers to function
+		// The handlers will determine at runtime if OAuth is available via backend
+		cfg.OAuth = DefaultOAuthConfig()
+		cfg.OAuth.Enabled = false // Will be determined at runtime from backend
+		log.Printf("DEBUG: Created minimal OAuth config for runtime backend detection")
 	} else {
 		log.Printf("DEBUG: OAuth is disabled or not configured")
 		cfg.OAuth = nil
@@ -395,6 +428,9 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("resolved_alerts.notifications_enabled", cfg.ResolvedAlerts.NotificationsEnabled)
 	viper.SetDefault("resolved_alerts.retention_duration", cfg.ResolvedAlerts.RetentionDuration)
 
+	// WebUI defaults
+	viper.SetDefault("webui.playground", cfg.WebUI.Playground)
+
 	// OAuth defaults - use DefaultOAuthConfig for consistent defaults
 	oauthDefaults := DefaultOAuthConfig()
 	viper.SetDefault("oauth.enabled", oauthDefaults.Enabled)
@@ -446,6 +482,9 @@ func setViperDefaults(cfg *Config) {
 	
 	// Support DATABASE_URL for full connection string
 	viper.BindEnv("database_url", "DATABASE_URL")
+	
+	// WebUI environment variable bindings
+	viper.BindEnv("webui.playground", "WEBUI_PLAYGROUND", "NOTIFICATOR_WEBUI_PLAYGROUND")
 	
 	// OAuth environment variable bindings
 	// Support both OAUTH_* and NOTIFICATOR_OAUTH_* patterns for flexibility

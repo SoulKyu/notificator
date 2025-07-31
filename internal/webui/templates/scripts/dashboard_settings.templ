@@ -10,6 +10,13 @@ templ DashboardSettings() {
 				availableLabelsLastLoaded: null,
 				labelKeyTimeouts: {},
 				
+				settings: {
+					theme: 'light',
+					resolvedAlertsRetention: 7,
+					resolvedAlertsLimit: 100,
+					refreshInterval: 30
+				},
+				
 				notificationPreferences: {
 					enabled: true,
 					soundEnabled: true,
@@ -28,14 +35,36 @@ templ DashboardSettings() {
 					soundConfig: {}
 				},
 				notificationPreferencesSaving: false,
+				settingsSaving: false,
 				
 				async init() {
 					console.log('Settings modal initializing...');
+					await this.loadSettings();
 					await this.loadColorPreferences();
 					await this.loadAvailableLabels();
 					await this.loadNotificationPreferences();
 					window.currentSettingsModal = this;
 					console.log('Settings modal initialized, window.currentSettingsModal set:', !!window.currentSettingsModal);
+				},
+
+				async loadSettings() {
+					try {
+						// Load settings from localStorage for now (can be extended to backend later)
+						const savedSettings = localStorage.getItem('dashboardSettings');
+						if (savedSettings) {
+							const parsedSettings = JSON.parse(savedSettings);
+							this.settings = { ...this.settings, ...parsedSettings };
+						}
+						
+						// Also check for theme preference from dashboard instance
+						if (window.dashboardInstance && window.dashboardInstance.currentTheme) {
+							this.settings.theme = window.dashboardInstance.currentTheme;
+						}
+						
+						console.log('Loaded general settings:', this.settings);
+					} catch (error) {
+						console.error('Error loading general settings:', error);
+					}
 				},
 
 				async loadColorPreferences() {
@@ -666,7 +695,7 @@ templ DashboardSettings() {
 							if (window.dashboardInstance && window.dashboardInstance.showNotification) {
 								window.dashboardInstance.showNotification('error', 'Invalid sound configuration data. Please check your settings.');
 							}
-							return;
+							return false;
 						}
 						
 						// Clean up the payload and convert frontend format to backend format
@@ -694,23 +723,17 @@ templ DashboardSettings() {
 							const result = await response.json();
 							if (result.success) {
 								console.log('Notification preferences saved successfully');
-								
-								// Show success message
-								if (window.dashboardInstance && window.dashboardInstance.showNotification) {
-									window.dashboardInstance.showNotification('success', 'Notification preferences saved successfully');
-								}
+								return true;
 							} else {
 								console.error('Failed to save notification preferences:', result.error);
-								if (window.dashboardInstance && window.dashboardInstance.showNotification) {
-									window.dashboardInstance.showNotification('error', 'Failed to save notification preferences: ' + result.error);
-								}
+								return false;
 							}
+						} else {
+							return false;
 						}
 					} catch (error) {
 						console.error('Error saving notification preferences:', error);
-						if (window.dashboardInstance && window.dashboardInstance.showNotification) {
-							window.dashboardInstance.showNotification('error', 'Error saving notification preferences');
-						}
+						return false;
 					} finally {
 						this.notificationPreferencesSaving = false;
 					}
@@ -724,6 +747,50 @@ templ DashboardSettings() {
 					// Also test sound if enabled
 					if (this.notificationPreferences.sound_enabled && window.dashboardInstance && window.dashboardInstance.playNotificationSound) {
 						window.dashboardInstance.playNotificationSound('info');
+					}
+				},
+
+				async saveSettings() {
+					console.log('Starting unified settings save...');
+					this.settingsSaving = true;
+					
+					try {
+						// Save general settings to localStorage
+						localStorage.setItem('dashboardSettings', JSON.stringify(this.settings));
+						
+						// Apply theme change immediately if changed
+						if (window.dashboardInstance && typeof window.dashboardInstance.setTheme === 'function') {
+							window.dashboardInstance.setTheme(this.settings.theme);
+						}
+						
+						console.log('General settings saved:', this.settings);
+						
+						// Save notification preferences
+						const notificationResult = await this.saveNotificationPreferences();
+						if (!notificationResult) {
+							throw new Error('Failed to save notification preferences');
+						}
+						
+						// Save color preferences (save all existing preferences)
+						const colorResult = await this.saveColorPreferences();
+						if (!colorResult) {
+							throw new Error('Failed to save color preferences');
+						}
+						
+						// Show unified success message
+						if (window.dashboardInstance && window.dashboardInstance.showNotification) {
+							window.dashboardInstance.showNotification('success', 'All settings saved successfully');
+						}
+						
+						console.log('All settings saved successfully');
+						
+					} catch (error) {
+						console.error('Error saving settings:', error);
+						if (window.dashboardInstance && window.dashboardInstance.showNotification) {
+							window.dashboardInstance.showNotification('error', 'Failed to save some settings: ' + error.message);
+						}
+					} finally {
+						this.settingsSaving = false;
 					}
 				},
 

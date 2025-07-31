@@ -34,6 +34,8 @@ Still prefer the desktop app? It's got:
 ### Quickest start - Try the playground!
 Just head to [playground.notificator.org](https://playground.notificator.org) and see it in action. We've got some fake alerts running so you can click around and see how it works.
 
+You can register a new user if you wan't, or use the default one : `admin` : `admin`
+
 ### Running your own WebUI
 
 The WebUI needs the backend running (that's what makes all the team features work). Here's the quickest way:
