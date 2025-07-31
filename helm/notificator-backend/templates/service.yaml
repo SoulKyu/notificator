@@ -5,13 +5,13 @@ metadata:
   labels:
     {{- include "notificator-backend.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
+  type: {{ .Values.backend.service.type }}
   ports:
-    - port: {{ .Values.service.grpcPort }}
+    - port: {{ .Values.backend.service.grpcPort }}
       targetPort: grpc
       protocol: TCP
       name: grpc
-    - port: {{ .Values.service.httpPort }}
+    - port: {{ .Values.backend.service.httpPort }}
       targetPort: http
       protocol: TCP
       name: http
