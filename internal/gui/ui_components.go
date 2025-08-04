@@ -559,7 +559,7 @@ func (aw *AlertsWindow) createFlatTable() fyne.CanvasObject {
 				// Regular column headers
 				button.SetText(aw.columns[id.Col].Name)
 				button.Importance = widget.MediumImportance
-				
+
 				// Set sort indicator icon
 				if aw.sortColumn == id.Col {
 					if aw.sortAscending {
@@ -570,7 +570,7 @@ func (aw *AlertsWindow) createFlatTable() fyne.CanvasObject {
 				} else {
 					button.Icon = nil
 				}
-				
+
 				// Set up click handler for sorting
 				button.OnTapped = func() {
 					aw.handleColumnSort(id.Col)
@@ -642,7 +642,7 @@ func (aw *AlertsWindow) createGroupedTable() fyne.CanvasObject {
 				// Regular column headers
 				button.SetText(aw.columns[id.Col].Name)
 				button.Importance = widget.MediumImportance
-				
+
 				// Set sort indicator icon
 				if aw.sortColumn == id.Col {
 					if aw.sortAscending {
@@ -653,7 +653,7 @@ func (aw *AlertsWindow) createGroupedTable() fyne.CanvasObject {
 				} else {
 					button.Icon = nil
 				}
-				
+
 				// Set up click handler for sorting
 				button.OnTapped = func() {
 					aw.handleColumnSort(id.Col)

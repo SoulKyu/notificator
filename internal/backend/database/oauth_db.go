@@ -247,7 +247,7 @@ func (gdb *GormDB) CreateOAuthState(provider, state, sessionID string, expiresAt
 
 func (gdb *GormDB) ValidateAndDeleteOAuthState(provider, state string) (*models.OAuthState, error) {
 	var oauthState models.OAuthState
-	
+
 	tx := gdb.db.Begin()
 	if tx.Error != nil {
 		return nil, tx.Error
@@ -354,7 +354,7 @@ func (gdb *GormDB) CleanupExpiredGroupCache() (int64, error) {
 
 func (gdb *GormDB) LogOAuthActivity(userID *string, provider, action string, success bool, errorMsg, ipAddress, userAgent string, metadata map[string]interface{}) error {
 	metadataJSON, _ := json.Marshal(metadata)
-	
+
 	auditLog := &models.OAuthAuditLog{
 		UserID:    userID,
 		Provider:  provider,
@@ -371,33 +371,32 @@ func (gdb *GormDB) LogOAuthActivity(userID *string, provider, action string, suc
 
 func (gdb *GormDB) GetOAuthAuditLogs(limit, offset int, provider string, userID *string) ([]models.OAuthAuditLog, error) {
 	var logs []models.OAuthAuditLog
-	
+
 	query := gdb.db.Model(&models.OAuthAuditLog{}).Order("created_at DESC")
-	
+
 	if provider != "" {
 		query = query.Where("provider = ?", provider)
 	}
-	
+
 	if userID != nil {
 		query = query.Where("user_id = ?", *userID)
 	}
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	if offset > 0 {
 		query = query.Offset(offset)
 	}
-	
+
 	err := query.Find(&logs).Error
 	return logs, err
 }
 
 func (gdb *GormDB) GetOAuthProviderStats() ([]models.OAuthProviderStats, error) {
 	var stats []models.OAuthProviderStats
-	
-	
+
 	rows, err := gdb.db.Raw(`
 		SELECT 
 			o_auth_provider as provider,
@@ -407,25 +406,25 @@ func (gdb *GormDB) GetOAuthProviderStats() ([]models.OAuthProviderStats, error) 
 		WHERE o_auth_provider IS NOT NULL 
 		GROUP BY o_auth_provider
 	`, time.Now().AddDate(0, -1, 0)).Rows()
-	
+
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var stat models.OAuthProviderStats
 		if err := rows.Scan(&stat.Provider, &stat.TotalUsers, &stat.ActiveUsers); err != nil {
 			continue
 		}
-		
+
 		gdb.db.Raw("SELECT COUNT(*) FROM user_groups WHERE provider = ?", stat.Provider).Row().Scan(&stat.TotalGroups)
-		
+
 		gdb.db.Raw("SELECT AVG(group_count) FROM (SELECT COUNT(*) as group_count FROM user_groups WHERE provider = ? GROUP BY user_id) as subq", stat.Provider).Row().Scan(&stat.AverageGroups)
-		
+
 		stats = append(stats, stat)
 	}
-	
+
 	return stats, nil
 }
 
@@ -433,7 +432,7 @@ func generateUsernameFromEmail(email string) string {
 	if email == "" {
 		return fmt.Sprintf("user_%d", time.Now().Unix())
 	}
-	
+
 	parts := []rune(email)
 	var username []rune
 	for _, r := range parts {
@@ -444,37 +443,37 @@ func generateUsernameFromEmail(email string) string {
 			username = append(username, r)
 		}
 	}
-	
+
 	result := string(username)
 	if result == "" {
 		return fmt.Sprintf("user_%d", time.Now().Unix())
 	}
-	
+
 	return result
 }
 
 func (gdb *GormDB) ensureUniqueUsername(user *models.User) error {
 	originalUsername := user.Username
 	counter := 1
-	
+
 	for {
 		var count int64
 		err := gdb.db.Model(&models.User{}).Where("username = ?", user.Username).Count(&count).Error
 		if err != nil {
 			return err
 		}
-		
+
 		if count == 0 {
 			break
 		}
-		
+
 		user.Username = fmt.Sprintf("%s_%d", originalUsername, counter)
 		counter++
-		
+
 		if counter > 1000 {
 			return fmt.Errorf("unable to generate unique username for: %s", originalUsername)
 		}
 	}
-	
+
 	return nil
 }

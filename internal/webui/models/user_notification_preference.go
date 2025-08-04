@@ -3,24 +3,24 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	alertpb "notificator/internal/backend/proto/alert"
 	"strconv"
 	"strings"
-	alertpb "notificator/internal/backend/proto/alert"
 )
 
 type UserNotificationPreference struct {
-	ID                   string                    `json:"id"`
-	UserID               string                    `json:"user_id"`
-	Enabled              bool                      `json:"enabled"`
-	SoundEnabled         bool                      `json:"sound_enabled"`
-	BrowserNotifications bool                      `json:"browser_notifications"`
-	CooldownSeconds      int                       `json:"cooldown_seconds"`
-	MaxNotifications     int                       `json:"max_notifications"`
-	RespectFilters       bool                      `json:"respect_filters"`
-	SeverityRules        map[string]bool           `json:"severity_rules"`
-	SoundConfig          *SoundConfig              `json:"sound_config"`
-	CreatedAt            string                    `json:"created_at,omitempty"`
-	UpdatedAt            string                    `json:"updated_at,omitempty"`
+	ID                   string          `json:"id"`
+	UserID               string          `json:"user_id"`
+	Enabled              bool            `json:"enabled"`
+	SoundEnabled         bool            `json:"sound_enabled"`
+	BrowserNotifications bool            `json:"browser_notifications"`
+	CooldownSeconds      int             `json:"cooldown_seconds"`
+	MaxNotifications     int             `json:"max_notifications"`
+	RespectFilters       bool            `json:"respect_filters"`
+	SeverityRules        map[string]bool `json:"severity_rules"`
+	SoundConfig          *SoundConfig    `json:"sound_config"`
+	CreatedAt            string          `json:"created_at,omitempty"`
+	UpdatedAt            string          `json:"updated_at,omitempty"`
 }
 
 type SoundConfig map[string]interface{}
@@ -41,7 +41,7 @@ func (p *UserNotificationPreference) ToProtobuf() *alertpb.UserNotificationPrefe
 	// Convert sound config if present
 	if p.SoundConfig != nil {
 		sanitizedConfig := sanitizeSoundConfig(*p.SoundConfig)
-		
+
 		if soundConfigJSON, err := json.Marshal(sanitizedConfig); err == nil {
 			pbPref.SoundConfigJson = string(soundConfigJSON)
 		} else {
@@ -49,7 +49,7 @@ func (p *UserNotificationPreference) ToProtobuf() *alertpb.UserNotificationPrefe
 			println("Original data:", fmt.Sprintf("%+v", *p.SoundConfig))
 			println("Sanitized data:", fmt.Sprintf("%+v", sanitizedConfig))
 		}
-		
+
 		pbPref.SoundConfig = &alertpb.SoundConfig{
 			CriticalFrequency: getIntFromSoundConfig(*p.SoundConfig, "critical_frequency", 800),
 			CriticalDuration:  getIntFromSoundConfig(*p.SoundConfig, "critical_duration", 200),
@@ -114,7 +114,7 @@ func GetDefaultNotificationPreference() *UserNotificationPreference {
 		CooldownSeconds:      300,
 		MaxNotifications:     5,
 		RespectFilters:       true,
-		SeverityRules: map[string]bool{
+		SeverityRules:        map[string]bool{
 			// Empty map - let frontend populate with dynamic severities from GetAvailableAlertLabels
 		},
 		SoundConfig: &SoundConfig{},
@@ -152,7 +152,7 @@ func parseSoundConfigFromStaticFields(pbSoundConfig *alertpb.SoundConfig) *Sound
 	if pbSoundConfig == nil {
 		return nil
 	}
-	
+
 	soundConfig := make(SoundConfig)
 	soundConfig["critical_frequency"] = int(pbSoundConfig.CriticalFrequency)
 	soundConfig["critical_duration"] = int(pbSoundConfig.CriticalDuration)
@@ -163,49 +163,49 @@ func parseSoundConfigFromStaticFields(pbSoundConfig *alertpb.SoundConfig) *Sound
 	soundConfig["info_frequency"] = int(pbSoundConfig.InfoFrequency)
 	soundConfig["info_duration"] = int(pbSoundConfig.InfoDuration)
 	soundConfig["info_type"] = pbSoundConfig.InfoType
-	
+
 	return &soundConfig
 }
 
 func sanitizeSoundConfig(config SoundConfig) SoundConfig {
 	sanitized := make(SoundConfig)
 	validTypes := map[string]bool{"sine": true, "square": true, "triangle": true, "sawtooth": true}
-	
+
 	for key, value := range config {
 		switch {
 		case key == "" || value == nil:
 			continue
-			
+
 		case strings.HasSuffix(key, "_frequency"):
 			if freq, ok := sanitizeInt(value, 100, 2000, 500); ok {
 				sanitized[key] = freq
 			}
-			
+
 		case strings.HasSuffix(key, "_duration"):
 			if dur, ok := sanitizeInt(value, 50, 5000, 150); ok {
 				sanitized[key] = dur
 			}
-			
+
 		case strings.HasSuffix(key, "_type"):
 			if typeStr, ok := value.(string); ok && validTypes[typeStr] {
 				sanitized[key] = typeStr
 			} else {
 				sanitized[key] = "sine"
 			}
-			
+
 		default:
 			if isSerializable(value) {
 				sanitized[key] = value
 			}
 		}
 	}
-	
+
 	return sanitized
 }
 
 func sanitizeInt(value interface{}, min, max, defaultVal int) (int, bool) {
 	var intVal int
-	
+
 	switch v := value.(type) {
 	case int:
 		intVal = v
@@ -226,11 +226,11 @@ func sanitizeInt(value interface{}, min, max, defaultVal int) (int, bool) {
 	default:
 		return defaultVal, true
 	}
-	
+
 	if intVal < min || intVal > max {
 		return defaultVal, true
 	}
-	
+
 	return intVal, true
 }
 

@@ -3,8 +3,8 @@ package gui
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/widget"
 	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 )
 
 // DynamicLabel is a label that automatically truncates text based on available width
@@ -44,7 +44,7 @@ func (dl *DynamicLabel) updateText() {
 		dl.SetText("")
 		return
 	}
-	
+
 	// Add some padding to account for margins
 	availableWidth := dl.maxWidth - 8.0 // More generous padding
 	if availableWidth <= 20 {
@@ -52,28 +52,28 @@ func (dl *DynamicLabel) updateText() {
 		dl.SetText("...")
 		return
 	}
-	
+
 	// Get text size using theme's text size
 	textSize := theme.TextSize()
 	textStyle := fyne.TextStyle{}
-	
+
 	// Check if the original text fits
 	originalSize := fyne.MeasureText(dl.originalText, textSize, textStyle)
 	if originalSize.Width <= availableWidth {
 		dl.SetText(dl.originalText)
 		return
 	}
-	
+
 	// Text is too long, need to truncate
 	ellipsis := "..."
 	ellipsisSize := fyne.MeasureText(ellipsis, textSize, textStyle)
 	availableForText := availableWidth - ellipsisSize.Width
-	
+
 	if availableForText <= 0 {
 		dl.SetText(ellipsis)
 		return
 	}
-	
+
 	// Use a more efficient approach: estimate initial position and then adjust
 	// Start with a reasonable estimate (6 pixels per character)
 	estimatedChars := int(availableForText / 6.0)
@@ -83,18 +83,18 @@ func (dl *DynamicLabel) updateText() {
 	if estimatedChars < 1 {
 		estimatedChars = 1
 	}
-	
+
 	// Test the estimated position
 	for i := estimatedChars; i >= 1; i-- {
 		subtext := dl.originalText[:i]
 		subtextSize := fyne.MeasureText(subtext, textSize, textStyle)
-		
+
 		if subtextSize.Width <= availableForText {
 			dl.SetText(subtext + ellipsis)
 			return
 		}
 	}
-	
+
 	// Fallback to just ellipsis if nothing fits
 	dl.SetText(ellipsis)
 }
@@ -120,25 +120,25 @@ func truncateTextForColumn(text string, columnWidth float32) string {
 	if text == "" {
 		return text
 	}
-	
+
 	// Estimate characters per pixel (rough approximation)
 	const avgCharWidth = 8.0
 	maxChars := int(columnWidth / avgCharWidth)
-	
+
 	// Minimum characters to show
 	if maxChars < 5 {
 		maxChars = 5
 	}
-	
+
 	// Maximum characters to prevent extremely long text
 	if maxChars > 100 {
 		maxChars = 100
 	}
-	
+
 	if len(text) <= maxChars {
 		return text
 	}
-	
+
 	// Truncate and add ellipsis
 	return text[:maxChars-3] + "..."
 }
@@ -159,4 +159,3 @@ func createDynamicLabel(text string, columnWidth float32) *DynamicLabel {
 	dl.ExtendBaseWidget(dl)
 	return dl
 }
-

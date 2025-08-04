@@ -36,34 +36,34 @@ func transformSeverity(severity string) string {
 }
 
 type AlertCache struct {
-	mu                    sync.RWMutex
-	alerts                map[string]*webuimodels.DashboardAlert // fingerprint -> alert
-	userHiddenAlerts      map[string]map[string]bool             // userID -> fingerprint -> hidden
-	alertmanagerClient    *alertmanager.MultiClient
-	backendClient         *client.BackendClient
-	colorService          *ColorService
-	
+	mu                 sync.RWMutex
+	alerts             map[string]*webuimodels.DashboardAlert // fingerprint -> alert
+	userHiddenAlerts   map[string]map[string]bool             // userID -> fingerprint -> hidden
+	alertmanagerClient *alertmanager.MultiClient
+	backendClient      *client.BackendClient
+	colorService       *ColorService
+
 	// Configuration
-	refreshInterval       time.Duration
-	
+	refreshInterval time.Duration
+
 	// Change tracking
-	newAlerts             []string // fingerprints of new alerts since last fetch
-	resolvedAlertsSince   []string // fingerprints of recently resolved alerts
-	
+	newAlerts           []string // fingerprints of new alerts since last fetch
+	resolvedAlertsSince []string // fingerprints of recently resolved alerts
+
 	// Control channels
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	refreshTicker         *time.Ticker
-	
+	ctx           context.Context
+	cancel        context.CancelFunc
+	refreshTicker *time.Ticker
+
 	// Callbacks for notifications
-	onNewAlert            func(alert *webuimodels.DashboardAlert)
-	onResolvedAlert       func(alert *webuimodels.DashboardAlert)
-	onAlertChanged        func(alert *webuimodels.DashboardAlert)
+	onNewAlert      func(alert *webuimodels.DashboardAlert)
+	onResolvedAlert func(alert *webuimodels.DashboardAlert)
+	onAlertChanged  func(alert *webuimodels.DashboardAlert)
 }
 
 func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient) *AlertCache {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &AlertCache{
 		alerts:              make(map[string]*webuimodels.DashboardAlert),
 		userHiddenAlerts:    make(map[string]map[string]bool),
@@ -80,7 +80,7 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 
 func (ac *AlertCache) Start() {
 	ac.refreshAlerts()
-	
+
 	ac.refreshTicker = time.NewTicker(ac.refreshInterval)
 	go ac.backgroundRefresh()
 }
@@ -97,14 +97,13 @@ func (ac *AlertCache) Stop() {
 func (ac *AlertCache) SetRefreshInterval(interval time.Duration) {
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
-	
+
 	ac.refreshInterval = interval
 	if ac.refreshTicker != nil {
 		ac.refreshTicker.Stop()
 		ac.refreshTicker = time.NewTicker(interval)
 	}
 }
-
 
 func (ac *AlertCache) SetNotificationCallbacks(
 	onNew func(alert *webuimodels.DashboardAlert),
@@ -113,7 +112,7 @@ func (ac *AlertCache) SetNotificationCallbacks(
 ) {
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
-	
+
 	ac.onNewAlert = onNew
 	ac.onResolvedAlert = onResolved
 	ac.onAlertChanged = onChange
@@ -140,7 +139,7 @@ func (ac *AlertCache) refreshAlerts() {
 		log.Printf("Failed to fetch alerts: %v", err)
 		return
 	}
-	
+
 	log.Printf("Alert cache refresh: fetched %d alerts from Alertmanager", len(alertsWithSource))
 
 	ac.mu.Lock()
@@ -150,25 +149,25 @@ func (ac *AlertCache) refreshAlerts() {
 	ac.resolvedAlertsSince = make([]string, 0)
 
 	currentFingerprints := make(map[string]bool)
-	
+
 	for _, alertWithSource := range alertsWithSource {
 		dashAlert := ac.convertToDashboardAlert(alertWithSource.Alert, alertWithSource.Source)
 		fingerprint := dashAlert.Fingerprint
-		
+
 		currentFingerprints[fingerprint] = true
-		
+
 		if existingAlert, exists := ac.alerts[fingerprint]; !exists {
 			ac.alerts[fingerprint] = dashAlert
 			ac.newAlerts = append(ac.newAlerts, fingerprint)
-			
+
 			if ac.onNewAlert != nil {
 				go ac.onNewAlert(dashAlert)
 			}
 		} else {
 			hasChanged := ac.alertHasChanged(existingAlert, dashAlert)
-			
+
 			ac.updateExistingAlert(existingAlert, dashAlert)
-			
+
 			if hasChanged && ac.onAlertChanged != nil {
 				go ac.onAlertChanged(dashAlert)
 			}
@@ -183,23 +182,23 @@ func (ac *AlertCache) refreshAlerts() {
 			alert.ResolvedAt = time.Now()
 			alert.Status.State = "resolved"
 			alert.EndsAt = alert.ResolvedAt
-			
+
 			// Capture complete alert data with comments and acknowledgments for backend storage
 			go ac.storeResolvedAlertInBackend(alert)
-			
+
 			delete(ac.alerts, fingerprint)
-			
+
 			ac.resolvedAlertsSince = append(ac.resolvedAlertsSince, fingerprint)
 			resolvedCount++
-			
+
 			if ac.onResolvedAlert != nil {
 				go ac.onResolvedAlert(alert)
 			}
 		}
 	}
-	
+
 	log.Printf("Alert cache refresh complete: %d active alerts, %d newly resolved", len(ac.alerts), resolvedCount)
-	
+
 	ac.loadBackendData()
 }
 
@@ -212,7 +211,7 @@ func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string)
 			transformedLabels[key] = value
 		}
 	}
-	
+
 	// Create a normalized alert for consistent fingerprint generation
 	// This ensures fingerprints are always calculated from normalized labels
 	normalizedAlert := models.Alert{
@@ -224,9 +223,9 @@ func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string)
 		Status:       alert.Status,
 		Source:       alert.Source,
 	}
-	
+
 	transformedStatus := transformStatus(alert.Status.State)
-	
+
 	dashAlert := &webuimodels.DashboardAlert{
 		Fingerprint:  normalizedAlert.GetFingerprint(), // Use normalized alert for fingerprint
 		Labels:       transformedLabels,
@@ -240,36 +239,36 @@ func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string)
 			SilencedBy:  alert.Status.SilencedBy,
 			InhibitedBy: alert.Status.InhibitedBy,
 		},
-		UpdatedAt:    time.Now(),
-		
-		AlertName:    alert.GetAlertName(),
-		Severity:     transformSeverity(alert.GetSeverity()),
-		Instance:     alert.GetInstance(),
-		Team:         alert.GetTeam(),
-		Summary:      alert.GetSummary(),
-		IsResolved:   transformedStatus == "resolved",
+		UpdatedAt: time.Now(),
+
+		AlertName:  alert.GetAlertName(),
+		Severity:   transformSeverity(alert.GetSeverity()),
+		Instance:   alert.GetInstance(),
+		Team:       alert.GetTeam(),
+		Summary:    alert.GetSummary(),
+		IsResolved: transformedStatus == "resolved",
 	}
-	
+
 	if dashAlert.IsResolved {
 		dashAlert.Duration = int64(alert.EndsAt.Sub(alert.StartsAt).Seconds())
 	} else {
 		dashAlert.Duration = int64(time.Since(alert.StartsAt).Seconds())
 	}
-	
+
 	if groupName, exists := alert.Labels["group"]; exists {
 		dashAlert.GroupName = groupName
 	} else if alertName, exists := alert.Labels["alertname"]; exists {
 		dashAlert.GroupName = alertName
 	}
-	
+
 	return dashAlert
 }
 
 func (ac *AlertCache) alertHasChanged(old, new *webuimodels.DashboardAlert) bool {
 	return old.Status.State != new.Status.State ||
-		   len(old.Status.SilencedBy) != len(new.Status.SilencedBy) ||
-		   len(old.Status.InhibitedBy) != len(new.Status.InhibitedBy) ||
-		   !old.EndsAt.Equal(new.EndsAt)
+		len(old.Status.SilencedBy) != len(new.Status.SilencedBy) ||
+		len(old.Status.InhibitedBy) != len(new.Status.InhibitedBy) ||
+		!old.EndsAt.Equal(new.EndsAt)
 }
 
 func (ac *AlertCache) updateExistingAlert(existing, new *webuimodels.DashboardAlert) {
@@ -278,7 +277,7 @@ func (ac *AlertCache) updateExistingAlert(existing, new *webuimodels.DashboardAl
 	existing.UpdatedAt = new.UpdatedAt
 	existing.Duration = new.Duration
 	existing.IsResolved = new.IsResolved
-	
+
 	existing.Annotations = new.Annotations
 }
 
@@ -293,21 +292,21 @@ func (ac *AlertCache) loadBackendData() {
 		return
 	}
 	log.Printf("Backend client is connected - proceeding with acknowledgment loading")
-	
+
 	go ac.loadAcknowledgmentsEfficiently()
 }
 
 func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 	log.Printf("Loading all acknowledged alerts from backend...")
-	
+
 	acknowledgedAlerts, err := ac.backendClient.GetAllAcknowledgedAlerts()
 	if err != nil {
 		log.Printf("Failed to load acknowledged alerts from backend: %v", err)
 		return
 	}
-	
+
 	log.Printf("Received %d acknowledged alerts from backend", len(acknowledgedAlerts))
-	
+
 	ac.mu.Lock()
 	for fingerprint, acknowledgment := range acknowledgedAlerts {
 		if alert, exists := ac.alerts[fingerprint]; exists {
@@ -319,21 +318,19 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 		}
 	}
 	ac.mu.Unlock()
-	
+
 	log.Printf("Successfully updated %d alerts with acknowledgment data", len(acknowledgedAlerts))
 }
-
-
 
 func (ac *AlertCache) GetAllAlerts() []*webuimodels.DashboardAlert {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
-	
+
 	alerts := make([]*webuimodels.DashboardAlert, 0, len(ac.alerts))
 	for _, alert := range ac.alerts {
 		alerts = append(alerts, alert)
 	}
-	
+
 	return alerts
 }
 
@@ -381,33 +378,33 @@ func (ac *AlertCache) GetResolvedAlertsWithPagination(limit, offset int) []*webu
 
 func (ac *AlertCache) GetAlert(fingerprint string) (*webuimodels.DashboardAlert, bool) {
 	ac.mu.RLock()
-	
+
 	if alert, exists := ac.alerts[fingerprint]; exists {
 		ac.mu.RUnlock()
 		return alert, true
 	}
-	
+
 	ac.mu.RUnlock()
-	
+
 	if ac.backendClient != nil && ac.backendClient.IsConnected() {
 		if resolvedInfo, err := ac.backendClient.GetResolvedAlert(fingerprint); err == nil {
-				var dashAlert webuimodels.DashboardAlert
+			var dashAlert webuimodels.DashboardAlert
 			if err := json.Unmarshal(resolvedInfo.AlertData, &dashAlert); err == nil {
-						dashAlert.ResolvedAt = resolvedInfo.ResolvedAt.AsTime()
+				dashAlert.ResolvedAt = resolvedInfo.ResolvedAt.AsTime()
 				dashAlert.IsResolved = true
 				dashAlert.Status.State = "resolved"
 				return &dashAlert, true
 			}
 		}
 	}
-	
+
 	return nil, false
 }
 
 func (ac *AlertCache) GetNewAlertsSinceLastFetch() []string {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
-	
+
 	result := make([]string, len(ac.newAlerts))
 	copy(result, ac.newAlerts)
 	return result
@@ -416,7 +413,7 @@ func (ac *AlertCache) GetNewAlertsSinceLastFetch() []string {
 func (ac *AlertCache) GetResolvedAlertsSinceLastFetch() []string {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
-	
+
 	result := make([]string, len(ac.resolvedAlertsSince))
 	copy(result, ac.resolvedAlertsSince)
 	return result
@@ -425,17 +422,17 @@ func (ac *AlertCache) GetResolvedAlertsSinceLastFetch() []string {
 func (ac *AlertCache) SetAlertHidden(userID, fingerprint string, hidden bool) {
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
-	
+
 	if ac.userHiddenAlerts[userID] == nil {
 		ac.userHiddenAlerts[userID] = make(map[string]bool)
 	}
-	
+
 	if hidden {
 		ac.userHiddenAlerts[userID][fingerprint] = true
 	} else {
 		delete(ac.userHiddenAlerts[userID], fingerprint)
 	}
-	
+
 	// Update the alert if it exists
 	if alert, exists := ac.alerts[fingerprint]; exists {
 		alert.IsHidden = hidden
@@ -449,11 +446,11 @@ func (ac *AlertCache) SetAlertHidden(userID, fingerprint string, hidden bool) {
 func (ac *AlertCache) IsAlertHidden(userID, fingerprint string) bool {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
-	
+
 	if userHidden, exists := ac.userHiddenAlerts[userID]; exists {
 		return userHidden[fingerprint]
 	}
-	
+
 	return false
 }
 
@@ -555,7 +552,6 @@ func (ac *AlertCache) storeResolvedAlertInBackend(alert *webuimodels.DashboardAl
 		}
 	}
 
-  
 	var acknowledgments []byte
 	if ac.backendClient != nil {
 		if acksData, err := ac.backendClient.GetAcknowledgments(alert.Fingerprint); err == nil {
@@ -589,7 +585,7 @@ func (ac *AlertCache) RemoveAllResolvedAlerts() error {
 	}
 
 	log.Printf("Removing all resolved alerts from backend")
-	
+
 	if err := ac.backendClient.RemoveAllResolvedAlerts(); err != nil {
 		log.Printf("Error removing all resolved alerts from backend: %v", err)
 		return err

@@ -2,9 +2,9 @@ package models
 
 import (
 	"encoding/json"
-	"time"
-	"gorm.io/gorm"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
+	"time"
 )
 
 type UserNotificationPreference struct {
@@ -55,7 +55,7 @@ func (u *UserNotificationPreference) GetSeverityRules() (SeverityRulesMap, error
 	if u.SeverityRules == nil {
 		return GetDefaultSeverityRules(), nil
 	}
-	
+
 	jsonBytes := []byte(u.SeverityRules)
 	if err := json.Unmarshal(jsonBytes, &rules); err != nil {
 		return GetDefaultSeverityRules(), err
@@ -77,7 +77,7 @@ func (u *UserNotificationPreference) GetSoundConfig() (SoundConfigMap, error) {
 	if u.SoundConfig == nil {
 		return GetDefaultSoundConfig(), nil
 	}
-	
+
 	jsonBytes := []byte(u.SoundConfig)
 	if err := json.Unmarshal(jsonBytes, &config); err != nil {
 		return GetDefaultSoundConfig(), err
@@ -114,19 +114,19 @@ func CreateDefaultUserNotificationPreference(userID string) *UserNotificationPre
 		MaxNotifications:     5,
 		RespectFilters:       true,
 	}
-	
+
 	pref.SetSeverityRules(GetDefaultSeverityRules())
-	
+
 	pref.SetSoundConfig(GetDefaultSoundConfig())
-	
+
 	return pref
 }
 
 type NotificationPreferenceCache struct {
 	Preference *UserNotificationPreference `json:"preference"`
-	UserID     string                       `json:"user_id"`
-	CachedAt   time.Time                    `json:"cached_at"`
-	TTL        time.Duration                `json:"ttl"`
+	UserID     string                      `json:"user_id"`
+	CachedAt   time.Time                   `json:"cached_at"`
+	TTL        time.Duration               `json:"ttl"`
 }
 
 func (c *NotificationPreferenceCache) IsExpired() bool {
@@ -137,12 +137,12 @@ func (c *NotificationPreferenceCache) ShouldNotifyForSeverity(severity string) b
 	if c.Preference == nil {
 		return false
 	}
-	
+
 	rules, err := c.Preference.GetSeverityRules()
 	if err != nil {
 		return false
 	}
-	
+
 	enabled, exists := rules[severity]
 	return exists && enabled
 }

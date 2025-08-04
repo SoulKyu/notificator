@@ -76,17 +76,19 @@ templ DashboardData() {
 						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
 					}
 					
-					// Include current alert fingerprints for comparison
-					const currentFingerprints = this.alerts.map(a => a.fingerprint).join(',');
-					if (currentFingerprints) {
-						params.set('clientAlerts', currentFingerprints);
-					}
-					
 					if (this.lastUpdateTime) {
 						params.set('lastUpdate', Math.floor(this.lastUpdateTime / 1000).toString());
 					}
 					
+					// Prepare request body with client alert fingerprints
+					const clientAlerts = this.alerts.map(a => a.fingerprint);
+					
 					const response = await fetch(`/api/v1/dashboard/incremental?${params.toString()}`, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify({ clientAlerts: clientAlerts }),
 						credentials: 'include'
 					});
 					const result = await response.json();

@@ -76,7 +76,7 @@ func (bc *BackendClient) tryConnect() {
 	defer cancel()
 
 	log.Printf("Attempting to connect to backend at %s...", bc.address)
-	
+
 	// Check if address is empty or malformed
 	if bc.address == "" {
 		log.Printf("ERROR: Backend address is empty!")
@@ -190,7 +190,6 @@ func (bc *BackendClient) startHealthMonitoring() {
 	}()
 }
 
-
 func (bc *BackendClient) IsConnected() bool {
 	bc.healthMutex.RLock()
 	defer bc.healthMutex.RUnlock()
@@ -216,7 +215,6 @@ func (bc *BackendClient) SetConnectionStateCallback(callback func(connected bool
 func (bc *BackendClient) SetAuthStateCallback(callback func(authenticated bool)) {
 	bc.onAuthStateChange = callback
 }
-
 
 func (bc *BackendClient) Register(username, password, email string) (*authpb.RegisterResponse, error) {
 	if !bc.IsConnected() {
@@ -297,7 +295,6 @@ func (bc *BackendClient) DeleteAcknowledgment(alertKey string) (*alertpb.DeleteA
 	})
 }
 
-
 func (bc *BackendClient) GetConnectionStatus() ConnectionStatus {
 	bc.healthMutex.RLock()
 	defer bc.healthMutex.RUnlock()
@@ -371,7 +368,6 @@ func (bc *BackendClient) Close() {
 	log.Printf("Backend client closed")
 }
 
-
 func NewBackendClientForAlertsWindow(address string, alertsWindow *AlertsWindow) *BackendClient {
 	bc := NewBackendClient(address)
 
@@ -435,7 +431,6 @@ func (bm *BackendManager) Close() {
 		bm.client = nil
 	}
 }
-
 
 func (aw *AlertsWindow) updateBackendConnectionStatus(connected bool) {
 	if aw.backendClient == nil {
@@ -507,7 +502,6 @@ func (aw *AlertsWindow) getAlertKey(alert interface{}) string {
 	// For now, return a placeholder
 	return "alert_key_placeholder"
 }
-
 
 type BackendHealthChecker struct {
 	client   *BackendClient
@@ -621,7 +615,6 @@ func (bms BackendMetricsSnapshot) String() string {
 		bms.AcknowledgmentsAdded)
 }
 
-
 func (bc *BackendClient) EnableMetrics() {
 	if bc.metrics == nil {
 		bc.metrics = NewBackendMetrics()
@@ -641,9 +634,6 @@ type BackendClientWithMetrics struct {
 	*BackendClient
 	metrics *BackendMetrics
 }
-
-
-
 
 type BackendConfig struct {
 	Address           string
@@ -678,7 +668,6 @@ func NewBackendClientFromConfig(config BackendConfig) *BackendClient {
 
 	return bc
 }
-
 
 func (aw *AlertsWindow) setupBackendIntegration(config BackendConfig) {
 	if !config.Enabled {
@@ -744,7 +733,6 @@ func (aw *AlertsWindow) showBackendMetrics() {
 
 	log.Printf("Backend metrics: %s", metrics.String())
 }
-
 
 type BackendError struct {
 	Code    int
@@ -827,8 +815,6 @@ func (aw *AlertsWindow) initializeBackend(config BackendConfig) {
 	}
 }
 
-
-
 // hasBackendSupport checks if backend support is available
 func (aw *AlertsWindow) hasBackendSupport() bool {
 	return aw.backendClient != nil && aw.backendClient.IsConnected()
@@ -858,7 +844,6 @@ func (aw *AlertsWindow) withBackendOperation(operation func() error) error {
 
 	return operation()
 }
-
 
 // addAlertComment adds a comment to an alert
 func (aw *AlertsWindow) addAlertComment(alertKey, content string) error {
@@ -903,7 +888,6 @@ func (aw *AlertsWindow) getAlertAcknowledgments(alertKey string) ([]*alertpb.Ack
 
 	return resp.Acknowledgments, nil
 }
-
 
 // getBackendDiagnostics returns diagnostic information about backend
 func (aw *AlertsWindow) getBackendDiagnostics() map[string]interface{} {
@@ -1104,7 +1088,6 @@ func (bc *BackendClient) SearchUsers(query string, limit int32) (*authpb.SearchU
 		Limit: limit,
 	})
 }
-
 
 func (bc *BackendClient) AddComment(alertKey, content string) (*alertpb.AddCommentResponse, error) {
 	if !bc.IsConnected() {

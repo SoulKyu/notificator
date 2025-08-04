@@ -327,11 +327,11 @@ func (n *Notifier) sendSystemNotification(alert models.Alert) {
 	alertName := alert.GetAlertName()
 	instance := alert.GetInstance()
 	team := alert.GetTeam()
-	
+
 	switch alert.GetSeverity() {
 	case "critical":
 		title = "🚨 CRITICAL ALERT"
-	case "warning":  
+	case "warning":
 		title = "⚠️ WARNING ALERT"
 	case "info":
 		title = "ℹ️ INFO ALERT"
@@ -341,15 +341,15 @@ func (n *Notifier) sendSystemNotification(alert models.Alert) {
 
 	// Build structured message with rich context and visual indicators
 	messageBuilder := fmt.Sprintf("🎯 Alert: %s", alertName)
-	
+
 	if instance != "" && instance != alertName {
 		messageBuilder += fmt.Sprintf("\n🖥️ Instance: %s", instance)
 	}
-	
+
 	if team != "" {
 		messageBuilder += fmt.Sprintf("\n👥 Team: %s", team)
 	}
-	
+
 	summary := alert.GetSummary()
 	if summary != "" {
 		messageBuilder += fmt.Sprintf("\n📋 Summary: %s", summary)

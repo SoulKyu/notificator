@@ -12,8 +12,8 @@ import (
 	"notificator/internal/webui/middleware"
 	"notificator/internal/webui/models"
 	"notificator/internal/webui/services"
-	"notificator/internal/webui/templates/pages"
 	"notificator/internal/webui/templates/components"
+	"notificator/internal/webui/templates/pages"
 
 	"github.com/gin-gonic/gin"
 )
@@ -52,29 +52,27 @@ func SetAlertmanagerClient(client *alertmanager.MultiClient) {
 	alertmanagerClient = client
 }
 
-
-
 func getOAuthConfig(c *gin.Context) *pages.OAuthConfig {
 	if backendClient == nil || !backendClient.IsConnected() {
 		return nil
 	}
-	
+
 	config, err := backendClient.GetOAuthConfig()
 	if err != nil {
 		fmt.Printf("Failed to get OAuth config: %v\n", err)
 		return nil
 	}
-	
+
 	if !config["enabled"].(bool) {
 		return nil
 	}
-	
+
 	oauthConfig := &pages.OAuthConfig{
 		Enabled:            config["enabled"].(bool),
 		DisableClassicAuth: config["disable_classic_auth"].(bool),
 		Providers:          make([]components.OAuthProvider, 0),
 	}
-	
+
 	if providers, ok := config["providers"].([]map[string]interface{}); ok {
 		for _, p := range providers {
 			if enabled, ok := p["enabled"].(bool); ok && enabled {
@@ -87,7 +85,7 @@ func getOAuthConfig(c *gin.Context) *pages.OAuthConfig {
 			}
 		}
 	}
-	
+
 	return oauthConfig
 }
 
@@ -273,7 +271,7 @@ func GetAlerts(c *gin.Context) {
 	var allAlerts []map[string]interface{}
 	for _, alertWithSource := range alertsWithSource {
 		alert := alertWithSource.Alert
-		
+
 		transformedLabels := make(map[string]string)
 		for key, value := range alert.Labels {
 			if key == "severity" {
@@ -282,13 +280,13 @@ func GetAlerts(c *gin.Context) {
 				transformedLabels[key] = value
 			}
 		}
-		
+
 		webAlert := map[string]interface{}{
 			"fingerprint": generateFingerprint(alert.Labels),
 			"status": map[string]interface{}{
-				"state":        transformStatus(alert.Status.State),
-				"silencedBy":   alert.Status.SilencedBy,
-				"inhibitedBy":  alert.Status.InhibitedBy,
+				"state":       transformStatus(alert.Status.State),
+				"silencedBy":  alert.Status.SilencedBy,
+				"inhibitedBy": alert.Status.InhibitedBy,
 			},
 			"labels":       transformedLabels,
 			"annotations":  alert.Annotations,
@@ -298,7 +296,7 @@ func GetAlerts(c *gin.Context) {
 			"generatorURL": alert.GeneratorURL,
 			"source":       alertWithSource.Source,
 		}
-		
+
 		allAlerts = append(allAlerts, webAlert)
 	}
 
@@ -312,8 +310,6 @@ func GetAlerts(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.SuccessResponse(filteredAlerts))
 }
-
-
 
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, models.SuccessResponse(gin.H{
@@ -377,7 +373,6 @@ func AlertmanagerHealthCheck(c *gin.Context) {
 	}))
 }
 
-
 func IndexPage(c *gin.Context) {
 	c.Header("Content-Type", "text/html")
 	pages.Index().Render(context.Background(), c.Writer)
@@ -385,9 +380,9 @@ func IndexPage(c *gin.Context) {
 
 func PlaygroundPage(c *gin.Context) {
 	c.Header("Content-Type", "text/html")
-	
+
 	oauthConfig := getOAuthConfig(c)
-	
+
 	if oauthConfig != nil {
 		pages.PlaygroundWithOAuth(oauthConfig).Render(context.Background(), c.Writer)
 	} else {
@@ -397,9 +392,9 @@ func PlaygroundPage(c *gin.Context) {
 
 func LoginPage(c *gin.Context) {
 	c.Header("Content-Type", "text/html")
-	
+
 	oauthConfig := getOAuthConfig(c)
-	
+
 	if oauthConfig != nil {
 		pages.LoginWithOAuth(oauthConfig).Render(context.Background(), c.Writer)
 	} else {
@@ -413,7 +408,7 @@ func RegisterPage(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/login")
 		return
 	}
-	
+
 	c.Header("Content-Type", "text/html")
 	pages.Register().Render(context.Background(), c.Writer)
 }
@@ -422,7 +417,6 @@ func DashboardPage(c *gin.Context) {
 	c.Header("Content-Type", "text/html")
 	pages.NewDashboard().Render(context.Background(), c.Writer)
 }
-
 
 func generateFingerprint(labels map[string]string) string {
 	fingerprint := ""

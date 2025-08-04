@@ -181,7 +181,7 @@ type AlertsWindow struct {
 	hiddenAlertsCache *HiddenAlertsCache
 	showHiddenAlerts  bool
 	showHiddenBtn     *widget.Button
-	
+
 	// Resolved alerts functionality
 	showResolvedBtn    *widget.Button
 	showResolvedAlerts bool
@@ -224,16 +224,16 @@ type StatusBarMetrics struct {
 // getDefaultColumns returns the default column configuration
 func getDefaultColumns() []ColumnConfig {
 	return []ColumnConfig{
-		{Name: "✓", Width: 35, MinWidth: 30, MaxWidth: 50},        // 0: Checkbox
-		{Name: "Alert", Width: 200, MinWidth: 100, MaxWidth: 400},     // 1: Alert name
-		{Name: "Ack", Width: 80, MinWidth: 60, MaxWidth: 120},        // 2: Acknowledgment
-		{Name: "Instance", Width: 200, MinWidth: 100, MaxWidth: 400}, // 3: Instance
-		{Name: "Severity", Width: 120, MinWidth: 100, MaxWidth: 150}, // 4: Severity
-		{Name: "Status", Width: 120, MinWidth: 100, MaxWidth: 150},   // 5: Status
-		{Name: "Comments", Width: 80, MinWidth: 60, MaxWidth: 120},   // 6: Comments
-		{Name: "Team", Width: 120, MinWidth: 80, MaxWidth: 200},      // 7: Team
-		{Name: "Summary", Width: 600, MinWidth: 200, MaxWidth: 900},  // 8: Summary
-		{Name: "Duration", Width: 120, MinWidth: 80, MaxWidth: 200},  // 9: Duration
+		{Name: "✓", Width: 35, MinWidth: 30, MaxWidth: 50},               // 0: Checkbox
+		{Name: "Alert", Width: 200, MinWidth: 100, MaxWidth: 400},        // 1: Alert name
+		{Name: "Ack", Width: 80, MinWidth: 60, MaxWidth: 120},            // 2: Acknowledgment
+		{Name: "Instance", Width: 200, MinWidth: 100, MaxWidth: 400},     // 3: Instance
+		{Name: "Severity", Width: 120, MinWidth: 100, MaxWidth: 150},     // 4: Severity
+		{Name: "Status", Width: 120, MinWidth: 100, MaxWidth: 150},       // 5: Status
+		{Name: "Comments", Width: 80, MinWidth: 60, MaxWidth: 120},       // 6: Comments
+		{Name: "Team", Width: 120, MinWidth: 80, MaxWidth: 200},          // 7: Team
+		{Name: "Summary", Width: 600, MinWidth: 200, MaxWidth: 900},      // 8: Summary
+		{Name: "Duration", Width: 120, MinWidth: 80, MaxWidth: 200},      // 9: Duration
 		{Name: "Alertmanager", Width: 150, MinWidth: 100, MaxWidth: 300}, // 10: Alertmanager
 	}
 }
@@ -440,29 +440,29 @@ func NewAlertsWindow(client interface{}, configPath string, initialConfig interf
 	}
 
 	aw := &AlertsWindow{
-		app:                myApp,
-		window:             window,
-		alerts:             []models.Alert{},
-		previousAlerts:     []models.Alert{},
-		filteredData:       []models.Alert{},
-		data:               binding.NewUntypedList(),
-		autoRefresh:        true,
-		refreshInterval:    30 * time.Second,
-		lastActivity:       time.Now(),
-		connectionHealth:   &ConnectionHealth{LastSuccessful: time.Now(), IsHealthy: true},
-		updateChan:         make(chan func(), 1000),
-		columns:            getDefaultColumns(),
-		notificationConfig: notifConfig,
-		configPath:         configPath,
-		fullConfig:         initialConfig,
-		themeVariant:       "light",
-		selectedAlerts:     make(map[int]bool),
-		showHiddenAlerts:   false,
-		groupedMode:        false, // Start in flat mode
+		app:                           myApp,
+		window:                        window,
+		alerts:                        []models.Alert{},
+		previousAlerts:                []models.Alert{},
+		filteredData:                  []models.Alert{},
+		data:                          binding.NewUntypedList(),
+		autoRefresh:                   true,
+		refreshInterval:               30 * time.Second,
+		lastActivity:                  time.Now(),
+		connectionHealth:              &ConnectionHealth{LastSuccessful: time.Now(), IsHealthy: true},
+		updateChan:                    make(chan func(), 1000),
+		columns:                       getDefaultColumns(),
+		notificationConfig:            notifConfig,
+		configPath:                    configPath,
+		fullConfig:                    initialConfig,
+		themeVariant:                  "light",
+		selectedAlerts:                make(map[int]bool),
+		showHiddenAlerts:              false,
+		groupedMode:                   false, // Start in flat mode
 		activeCollaborationContainers: make(map[string]*fyne.Container),
-		ackCountCache:     make(map[string]int),
-		commentCountCache: make(map[string]int),
-		resolvedAlertsCache: NewResolvedAlertsCache(1 * time.Hour), // Will be updated from config
+		ackCountCache:                 make(map[string]int),
+		commentCountCache:             make(map[string]int),
+		resolvedAlertsCache:           NewResolvedAlertsCache(1 * time.Hour), // Will be updated from config
 	}
 	// Initialize resolved alerts configuration
 	if cfg, ok := initialConfig.(*config.Config); ok {
@@ -471,7 +471,7 @@ func NewAlertsWindow(client interface{}, configPath string, initialConfig interf
 		// Initialize resolved alerts config
 		aw.resolvedAlertsConfig = cfg.ResolvedAlerts
 	}
-	
+
 	// Initialize backend client if backend is enabled
 	if cfg, ok := initialConfig.(*config.Config); ok && cfg.Backend.Enabled {
 		aw.backendClient = NewBackendClient(cfg.Backend.GRPCClient)
@@ -1189,7 +1189,7 @@ func (aw *AlertsWindow) applyFilters() {
 
 	// Determine which alerts to process based on view mode
 	var alertsToProcess []models.Alert
-	
+
 	if aw.showResolvedAlerts {
 		// When showing resolved alerts, get them from the cache
 		resolvedAlerts := aw.resolvedAlertsCache.GetResolvedAlerts()
@@ -1249,10 +1249,10 @@ func (aw *AlertsWindow) applyFilters() {
 			if alertKey == "" {
 				alertKey = fmt.Sprintf("%s_%s", alert.GetAlertName(), alert.GetInstance())
 			}
-			
+
 			// Check acknowledgment status
 			isAcknowledged := aw.isAlertAcknowledged(alertKey)
-			
+
 			if selectedAcks["Acknowledged"] && !isAcknowledged {
 				continue
 			}
@@ -1267,10 +1267,10 @@ func (aw *AlertsWindow) applyFilters() {
 			if alertKey == "" {
 				alertKey = fmt.Sprintf("%s_%s", alert.GetAlertName(), alert.GetInstance())
 			}
-			
+
 			// Check comment status
 			hasComments := aw.alertHasComments(alertKey)
-			
+
 			if selectedComments["Has Comments"] && !hasComments {
 				continue
 			}
@@ -1295,8 +1295,8 @@ func (aw *AlertsWindow) applyFilters() {
 	if aw.table != nil {
 		fyne.Do(func() {
 			fyne.Do(func() {
-			aw.table.Refresh()
-		})
+				aw.table.Refresh()
+			})
 		})
 	}
 }
@@ -1463,8 +1463,8 @@ func (aw *AlertsWindow) toggleGroupExpansion(groupIndex int) {
 		// Refresh table
 		if aw.table != nil {
 			fyne.Do(func() {
-			aw.table.Refresh()
-		})
+				aw.table.Refresh()
+			})
 		}
 	}
 }
@@ -1729,7 +1729,6 @@ func (aw *AlertsWindow) setupKeyboardShortcuts() {
 			}
 		}
 
-
 	})
 }
 
@@ -1753,10 +1752,10 @@ func (aw *AlertsWindow) handleColumnSort(column int) {
 
 	// Update count caches for new data
 	aw.updateCountCaches()
-	
+
 	// Re-apply filters which will trigger sorting
 	aw.safeApplyFilters()
-	
+
 	// Refresh the table to update header indicators
 	if aw.table != nil {
 		fyne.Do(func() {
@@ -1801,7 +1800,7 @@ func (aw *AlertsWindow) sortFilteredData() {
 			// Sort by comment count
 			commentCountI := aw.getCommentCountForSort(aw.filteredData[i])
 			commentCountJ := aw.getCommentCountForSort(aw.filteredData[j])
-			result = commentCountI > commentCountJ // More comments = higher priority  
+			result = commentCountI > commentCountJ // More comments = higher priority
 		case 7: // Team
 			result = strings.Compare(aw.filteredData[i].GetTeam(), aw.filteredData[j].GetTeam()) < 0
 		case 8: // Summary
@@ -1842,17 +1841,17 @@ func (aw *AlertsWindow) detectResolvedAlerts(newAlerts []models.Alert) {
 	if cfg, ok := aw.fullConfig.(*config.Config); ok && !cfg.ResolvedAlerts.Enabled {
 		return
 	}
-	
+
 	// Create a map of current alert fingerprints for quick lookup
 	currentAlerts := make(map[string]bool)
 	for _, alert := range newAlerts {
 		currentAlerts[alert.GetFingerprint()] = true
 	}
-	
+
 	// Check previous alerts to find resolved ones
 	for _, prevAlert := range aw.alerts {
 		fingerprint := prevAlert.GetFingerprint()
-		
+
 		// If alert is not in current alerts and not already in resolved cache, it's resolved
 		if !currentAlerts[fingerprint] {
 			if _, exists := aw.resolvedAlertsCache.Get(fingerprint); !exists {
@@ -1870,7 +1869,7 @@ func (aw *AlertsWindow) sendResolvedAlertNotification(alert models.Alert) {
 	if !aw.getResolvedNotificationsEnabled() {
 		return
 	}
-	
+
 	// Send system notification directly
 	title := "Alert Resolved"
 	message := fmt.Sprintf("🟢 %s has been resolved", alert.GetAlertName())
@@ -2183,7 +2182,6 @@ func (aw *AlertsWindow) updateBackendUI() {
 	if aw.backendStatusBtn == nil {
 		return
 	}
-	
 
 	if aw.backendClient == nil {
 		// Backend not configured
@@ -2232,7 +2230,7 @@ func (aw *AlertsWindow) showBackendDropdownMenu() {
 
 	// Create menu items based on connection state
 	var menuItems []*fyne.MenuItem
-	
+
 	// Add Login/Logout based on authentication state
 	if aw.backendAuthenticated {
 		menuItems = append(menuItems, fyne.NewMenuItem("Logout", func() {
@@ -2243,25 +2241,24 @@ func (aw *AlertsWindow) showBackendDropdownMenu() {
 			aw.showAuthDialog()
 		}))
 	}
-	
+
 	// Add separator
 	menuItems = append(menuItems, fyne.NewMenuItemSeparator())
-	
+
 	// Add Connection Status
 	menuItems = append(menuItems, fyne.NewMenuItem("Connection Status", func() {
 		status := aw.backendClient.GetConnectionStatus()
 		dialog.ShowInformation("Backend Status", status.String(), aw.window)
 	}))
-	
+
 	// Add Reconnect
 	menuItems = append(menuItems, fyne.NewMenuItem("Reconnect", func() {
 		aw.backendClient.Reconnect()
 	}))
-	
+
 	menu := fyne.NewMenu("Backend", menuItems...)
 	widget.ShowPopUpMenuAtPosition(menu, aw.window.Canvas(), fyne.CurrentApp().Driver().AbsolutePositionForObject(aw.backendStatusBtn))
 }
-
 
 func (aw *AlertsWindow) updateHiddenCountDisplay() {
 	if aw.showHiddenBtn == nil || aw.hiddenAlertsCache == nil {
@@ -2269,7 +2266,7 @@ func (aw *AlertsWindow) updateHiddenCountDisplay() {
 	}
 
 	count := aw.hiddenAlertsCache.GetHiddenCount()
-	
+
 	if aw.showHiddenAlerts {
 		// When viewing hidden alerts, show "Show Normal Alerts"
 		aw.showHiddenBtn.SetText("Show Normal Alerts")
@@ -2288,7 +2285,7 @@ func (aw *AlertsWindow) updateResolvedCountDisplay() {
 	if aw.showResolvedBtn == nil {
 		return
 	}
-	
+
 	if aw.showResolvedAlerts {
 		// When showing resolved alerts, button should say "Show Normal Alerts"
 		aw.showResolvedBtn.SetText("Show Normal Alerts")
@@ -2608,12 +2605,12 @@ func (aw *AlertsWindow) isAlertAcknowledged(alertKey string) bool {
 	if !aw.isUserAuthenticated() {
 		return false
 	}
-	
+
 	acknowledgments, err := aw.getAlertAcknowledgments(alertKey)
 	if err != nil {
 		return false
 	}
-	
+
 	return len(acknowledgments) > 0
 }
 
@@ -2622,12 +2619,12 @@ func (aw *AlertsWindow) alertHasComments(alertKey string) bool {
 	if !aw.isUserAuthenticated() {
 		return false
 	}
-	
+
 	comments, err := aw.getAlertComments(alertKey)
 	if err != nil {
 		return false
 	}
-	
+
 	return len(comments) > 0
 }
 
@@ -2656,7 +2653,7 @@ func (aw *AlertsWindow) tryAutoLogin() {
 
 	if credentials != nil && credentials.RememberMe {
 		log.Printf("Attempting auto-login for user: %s", credentials.Username)
-		
+
 		// Perform auto-login
 		resp, err := aw.backendClient.Login(credentials.Username, credentials.Password)
 		if err != nil {
@@ -2670,7 +2667,7 @@ func (aw *AlertsWindow) tryAutoLogin() {
 		}
 
 		log.Printf("Auto-login successful for user: %s", resp.User.Username)
-		
+
 		// Update UI on main thread
 		fyne.Do(func() {
 			aw.updateUserInterface()

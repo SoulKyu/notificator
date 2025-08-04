@@ -48,13 +48,13 @@ func GetSessionID(c *gin.Context) string {
 
 func GetCurrentUser(c *gin.Context) map[string]interface{} {
 	userID := GetSessionValue(c, "user_id")
-	username := GetSessionValue(c, "username") 
+	username := GetSessionValue(c, "username")
 	email := GetSessionValue(c, "email")
-	
+
 	if userID == nil || username == nil {
 		return nil
 	}
-	
+
 	return map[string]interface{}{
 		"id":       userID,
 		"username": username,

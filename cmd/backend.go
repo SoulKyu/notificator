@@ -50,13 +50,13 @@ func runBackend(cmd *cobra.Command, args []string) {
 	if dbType == "" {
 		dbType = cfg.Backend.Database.Type
 	}
-	
+
 	fmt.Println("🚀 Starting Notificator Backend Server...")
 	fmt.Printf("   Config file: %s\n", viper.ConfigFileUsed())
 	fmt.Printf("   gRPC Listen: %s\n", cfg.Backend.GRPCListen)
 	fmt.Printf("   HTTP Listen: %s\n", cfg.Backend.HTTPListen)
 	fmt.Printf("   Database: %s\n", dbType)
-	
+
 	server := backend.NewServer(cfg, dbType)
 
 	// Run migrations if enabled

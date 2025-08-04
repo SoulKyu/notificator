@@ -28,7 +28,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			Alertmanagers: []config.AlertmanagerConfig{},
 		}
 	}
-	
+
 	// Log the loaded configuration for debugging
 	log.Printf("Loaded %d alertmanagers", len(cfg.Alertmanagers))
 	for i, am := range cfg.Alertmanagers {
@@ -65,13 +65,13 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			cfg.OAuth = config.DefaultOAuthConfig()
 		}
 		cfg.OAuth.Enabled = true
-		
+
 		// Get full OAuth configuration from backend
 		oauthConfig, err := backendClient.GetOAuthConfig()
 		if err != nil {
 			log.Printf("Warning: Failed to get full OAuth config from backend: %v", err)
 		} else {
-			log.Printf("DEBUG: Retrieved OAuth config from backend: enabled=%v, providers=%d", 
+			log.Printf("DEBUG: Retrieved OAuth config from backend: enabled=%v, providers=%d",
 				oauthConfig["enabled"], len(oauthConfig["providers"].([]map[string]interface{})))
 		}
 	} else {
@@ -116,7 +116,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
 		staticPath = filepath.Join(projectRoot, "internal", "webui", "static")
 	}
-	
+
 	log.Printf("Serving static files from: %s", staticPath)
 	r.Static("/static", staticPath)
 
@@ -124,7 +124,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	r.GET("/health", handlers.HealthCheck)
 	r.GET("/health/backend", handlers.BackendHealthCheck)
 	r.GET("/health/alertmanager", handlers.AlertmanagerHealthCheck)
-	
+
 	// Static file health check
 	r.GET("/health/static", func(c *gin.Context) {
 		cssPath := filepath.Join(staticPath, "css", "output.css")
@@ -184,6 +184,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		{
 			dashboard.GET("/data", handlers.GetDashboardData)
 			dashboard.GET("/incremental", handlers.GetDashboardIncremental)
+			dashboard.POST("/incremental", handlers.PostDashboardIncremental)
 			dashboard.POST("/bulk-action", handlers.BulkActionAlerts)
 			dashboard.GET("/settings", handlers.GetDashboardSettings)
 			dashboard.POST("/settings", handlers.SaveDashboardSettings)

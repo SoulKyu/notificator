@@ -6,8 +6,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 
 	authpb "notificator/internal/backend/proto/auth"
 )
@@ -28,29 +28,29 @@ type MentionEntry struct {
 
 func NewMentionEntry(backendClient *BackendClient, parentWindow fyne.Window) *MentionEntry {
 	entry := &MentionEntry{
-		backendClient: backendClient,
-		parentWindow:  parentWindow,
-		selectedIndex: -1,
+		backendClient:   backendClient,
+		parentWindow:    parentWindow,
+		selectedIndex:   -1,
 		mentionStartPos: -1,
 	}
-	
+
 	entry.ExtendBaseWidget(entry)
 	entry.MultiLine = true
 	entry.Wrapping = fyne.TextWrapWord
-	
+
 	// Set up the user list
 	entry.setupUserList()
-	
+
 	// Override the OnChanged callback
 	entry.Entry.OnChanged = entry.handleTextChange
-	
+
 	// Handle key events
 	entry.Entry.OnSubmitted = func(text string) {
 		if entry.mentionPopup != nil && entry.mentionPopup.Visible() {
 			entry.selectCurrentUser()
 		}
 	}
-	
+
 	return entry
 }
 
@@ -71,7 +71,7 @@ func (m *MentionEntry) setupUserList() {
 				hbox := item.(*fyne.Container)
 				label := hbox.Objects[1].(*widget.Label)
 				label.SetText(user.Username)
-				
+
 				// Highlight selected item
 				if id == m.selectedIndex {
 					label.Importance = widget.HighImportance
@@ -81,7 +81,7 @@ func (m *MentionEntry) setupUserList() {
 			}
 		},
 	)
-	
+
 	// Handle list selection
 	m.userList.OnSelected = func(id widget.ListItemID) {
 		m.selectedIndex = id
@@ -92,7 +92,7 @@ func (m *MentionEntry) setupUserList() {
 func (m *MentionEntry) handleTextChange(text string) {
 	// Find the cursor position (simplified - assumes cursor is at end)
 	cursorPos := len(text)
-	
+
 	// Look for @ symbol before cursor
 	mentionPos := -1
 	for i := cursorPos - 1; i >= 0; i-- {
@@ -107,25 +107,25 @@ func (m *MentionEntry) handleTextChange(text string) {
 			break
 		}
 	}
-	
+
 	if mentionPos != -1 {
 		// Extract the query after @
-		query := text[mentionPos+1:cursorPos]
-		
+		query := text[mentionPos+1 : cursorPos]
+
 		// Check if query contains spaces (end of mention)
 		if strings.Contains(query, " ") || strings.Contains(query, "\n") {
 			m.hidePopup()
 			return
 		}
-		
+
 		m.currentQuery = query
 		m.mentionStartPos = mentionPos
-		
+
 		// Debounce search requests
 		if m.debounceTimer != nil {
 			m.debounceTimer.Stop()
 		}
-		
+
 		m.debounceTimer = time.AfterFunc(300*time.Millisecond, func() {
 			m.searchUsers(query)
 		})
@@ -138,23 +138,23 @@ func (m *MentionEntry) searchUsers(query string) {
 	if m.backendClient == nil || !m.backendClient.IsLoggedIn() {
 		return
 	}
-	
+
 	// Don't search for empty queries
 	if query == "" {
 		return
 	}
-	
+
 	go func() {
 		resp, err := m.backendClient.SearchUsers(query, 10)
 		if err != nil {
 			return
 		}
-		
+
 		// Update UI on main thread
 		fyne.Do(func() {
 			m.users = resp.Users
 			m.selectedIndex = 0
-			
+
 			if len(m.users) > 0 {
 				m.showPopup()
 			} else {
@@ -169,18 +169,18 @@ func (m *MentionEntry) showPopup() {
 		m.mentionPopup = widget.NewPopUp(m.userList, m.parentWindow.Canvas())
 		m.mentionPopup.Resize(fyne.NewSize(200, 150))
 	}
-	
+
 	m.userList.Refresh()
-	
+
 	// Position popup near the entry
 	entryPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(m)
 	entrySize := m.Size()
-	
+
 	popupPos := fyne.NewPos(
 		entryPos.X,
-		entryPos.Y + entrySize.Height,
+		entryPos.Y+entrySize.Height,
 	)
-	
+
 	m.mentionPopup.Move(popupPos)
 	m.mentionPopup.Show()
 }
@@ -206,16 +206,16 @@ func (m *MentionEntry) insertMention(user *authpb.User) {
 	if m.mentionStartPos == -1 {
 		return
 	}
-	
+
 	currentText := m.Text
-	
+
 	// Replace @query with @username
 	beforeMention := currentText[:m.mentionStartPos]
 	afterMention := currentText[m.mentionStartPos+len(m.currentQuery)+1:] // +1 for @
-	
+
 	newText := beforeMention + "@" + user.Username + " " + afterMention
 	m.SetText(newText)
-	
+
 	// Call callback if set
 	if m.onMentionSelected != nil {
 		m.onMentionSelected(user)
@@ -249,7 +249,7 @@ func (m *MentionEntry) TypedKey(key *fyne.KeyEvent) {
 			return
 		}
 	}
-	
+
 	// Pass through to base widget
 	m.Entry.TypedKey(key)
 }

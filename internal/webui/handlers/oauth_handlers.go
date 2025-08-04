@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 
 	"notificator/internal/webui/middleware"
 	"notificator/internal/webui/models"
@@ -17,7 +17,7 @@ import (
 
 func OAuthLogin(c *gin.Context) {
 	provider := c.Param("provider")
-	
+
 	if !isOAuthEnabled() {
 		c.JSON(http.StatusServiceUnavailable, models.ErrorResponse("OAuth authentication is not enabled"))
 		return
@@ -34,7 +34,7 @@ func OAuthLogin(c *gin.Context) {
 	}
 
 	state := generateSecureState()
-	
+
 	if err := middleware.SetSessionValue(c, "oauth_state", state); err != nil {
 		log.Printf("Failed to store OAuth state in session: %v", err)
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse("Failed to initialize OAuth flow"))
@@ -75,9 +75,9 @@ func OAuthCallback(c *gin.Context) {
 		if errorDescription != "" {
 			errorMsg = fmt.Sprintf("%s - %s", errorMsg, errorDescription)
 		}
-		
+
 		logOAuthActivity(nil, provider, "callback_error", false, errorMsg, getClientIP(c), c.GetHeader("User-Agent"))
-		
+
 		c.Redirect(http.StatusFound, fmt.Sprintf("/login?error=%s", errorParam))
 		return
 	}
@@ -90,7 +90,7 @@ func OAuthCallback(c *gin.Context) {
 
 	sessionState := middleware.GetSessionValue(c, "oauth_state")
 	sessionProvider := middleware.GetSessionValue(c, "oauth_provider")
-	
+
 	if sessionState == "" || sessionProvider == "" || sessionState != state || sessionProvider != provider {
 		logOAuthActivity(nil, provider, "callback_csrf", false, "Invalid or mismatched state parameter", getClientIP(c), c.GetHeader("User-Agent"))
 		c.Redirect(http.StatusFound, "/login?error=invalid_state")
@@ -285,7 +285,6 @@ func SyncUserGroups(c *gin.Context) {
 	}))
 }
 
-
 func generateSecureState() string {
 	return fmt.Sprintf("state_%d_%s", getCurrentTimestamp(), generateRandomString(16))
 }
@@ -294,13 +293,13 @@ func isOAuthEnabled() bool {
 	if backendClient == nil {
 		return false
 	}
-	
+
 	enabled, err := backendClient.IsOAuthEnabled()
 	if err != nil {
 		log.Printf("Failed to check OAuth enabled status: %v", err)
 		return false
 	}
-	
+
 	return enabled
 }
 
@@ -308,18 +307,18 @@ func isProviderEnabled(provider string) bool {
 	if backendClient == nil {
 		return false
 	}
-	
+
 	providers, err := backendClient.GetOAuthProviders()
 	if err != nil {
 		return false
 	}
-	
+
 	for _, p := range providers {
 		if p["name"] == provider && p["enabled"] == true {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -329,11 +328,11 @@ func getClientIP(c *gin.Context) string {
 			return strings.TrimSpace(ips[0])
 		}
 	}
-	
+
 	if realIP := c.GetHeader("X-Real-Ip"); realIP != "" {
 		return realIP
 	}
-	
+
 	return c.ClientIP()
 }
 
@@ -341,7 +340,7 @@ func logOAuthActivity(userID *string, provider, action string, success bool, err
 	if backendClient == nil {
 		return
 	}
-	
+
 	metadata := map[string]interface{}{
 		"provider":   provider,
 		"action":     action,
@@ -349,11 +348,11 @@ func logOAuthActivity(userID *string, provider, action string, success bool, err
 		"ip_address": ipAddress,
 		"user_agent": userAgent,
 	}
-	
+
 	if errorMsg != "" {
 		metadata["error"] = errorMsg
 	}
-	
+
 	log.Printf("OAuth Activity: user=%v, provider=%s, action=%s, success=%t", userID, provider, action, success)
 }
 
@@ -361,7 +360,7 @@ func isValidReturnURL(url string) bool {
 	if strings.HasPrefix(url, "/") && !strings.HasPrefix(url, "//") {
 		return true
 	}
-	
+
 	return false
 }
 

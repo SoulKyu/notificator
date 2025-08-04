@@ -25,7 +25,7 @@ notifications, and alert management capabilities.`,
 func Execute() {
 	// Determine the default command based on the binary name or lack of subcommand
 	binaryName := filepath.Base(os.Args[0])
-	
+
 	// If no subcommand is provided, determine what to run
 	if len(os.Args) == 1 || (len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "-")) {
 		switch binaryName {
@@ -38,7 +38,7 @@ func Execute() {
 			os.Args = append([]string{os.Args[0], "desktop"}, os.Args[1:]...)
 		}
 	}
-	
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -51,7 +51,7 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/notificator/config.json)")
 	rootCmd.PersistentFlags().String("log-level", "info", "log level (debug, info, warn, error)")
-	
+
 	// Bind flags to viper
 	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 }

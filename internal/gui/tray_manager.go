@@ -164,13 +164,13 @@ func (tm *TrayManager) updateTrayStatus() {
 			if len(item.ChildMenu.Items) >= 3 {
 				// Enhanced status display with icons and colors
 				item.ChildMenu.Items[0].Label = fmt.Sprintf("📊 Total Alerts: %d", totalAlerts)
-				
+
 				if activeAlerts > 0 {
 					item.ChildMenu.Items[1].Label = fmt.Sprintf("🔔 Active: %d", activeAlerts)
 				} else {
 					item.ChildMenu.Items[1].Label = fmt.Sprintf("✅ Active: %d", activeAlerts)
 				}
-				
+
 				if criticalAlerts > 0 {
 					item.ChildMenu.Items[2].Label = fmt.Sprintf("🚨 Critical: %d", criticalAlerts)
 				} else {
@@ -241,7 +241,7 @@ func (tm *TrayManager) getWarningAlertCount() int {
 func (tm *TrayManager) getSystemHealthStatus() string {
 	criticalCount := tm.getCriticalAlertCount()
 	warningCount := tm.getWarningAlertCount()
-	
+
 	if criticalCount > 0 {
 		return fmt.Sprintf("🔴 System: CRITICAL (%d)", criticalCount)
 	} else if warningCount > 0 {

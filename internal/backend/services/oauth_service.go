@@ -135,7 +135,7 @@ func (s *OAuthService) GetAuthURL(provider, state string) (string, error) {
 	}
 
 	authURL := client.AuthCodeURL(state, oauth2.AccessTypeOffline)
-	
+
 	log.Printf("📝 Generated OAuth URL for provider %s", provider)
 	return authURL, nil
 }
@@ -204,7 +204,7 @@ func (s *OAuthService) GetUserInfo(provider string, token *oauth2.Token) (*model
 	}
 
 	userInfo.Provider = provider
-	
+
 	log.Printf("✅ Retrieved user info for %s (provider: %s)", userInfo.Username, provider)
 	return userInfo, nil
 }
@@ -388,10 +388,10 @@ func (s *OAuthService) getGitHubGroups(token *oauth2.Token, client *http.Client)
 	}
 
 	var orgs []struct {
-		ID       int    `json:"id"`
-		Login    string `json:"login"`
-		Name     string `json:"name"`
-		Role     string `json:"role"`
+		ID        int    `json:"id"`
+		Login     string `json:"login"`
+		Name      string `json:"name"`
+		Role      string `json:"role"`
 		AvatarURL string `json:"avatar_url"`
 	}
 
@@ -473,8 +473,8 @@ func (s *OAuthService) getMicrosoftGroups(token *oauth2.Token, client *http.Clie
 
 	var groupsResp struct {
 		Value []struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"displayName"`
+			ID          string   `json:"id"`
+			DisplayName string   `json:"displayName"`
 			GroupTypes  []string `json:"groupTypes"`
 		} `json:"value"`
 	}
@@ -503,7 +503,7 @@ func (s *OAuthService) getMicrosoftGroups(token *oauth2.Token, client *http.Clie
 
 func (s *OAuthService) getGenericGroups(provider string, token *oauth2.Token, client *http.Client) ([]models.OAuthGroupInfo, error) {
 	providerConfig := s.config.Providers[provider]
-	
+
 	resp, err := client.Get(providerConfig.GroupsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get groups from %s: %w", provider, err)
@@ -525,7 +525,7 @@ func (s *OAuthService) getGenericGroups(provider string, token *oauth2.Token, cl
 		if err2 := json.Unmarshal(body, &groupNames); err2 != nil {
 			return nil, fmt.Errorf("failed to parse groups: %w", err)
 		}
-		
+
 		for _, name := range groupNames {
 			groups = append(groups, models.OAuthGroupInfo{
 				Name: name,
@@ -590,7 +590,6 @@ func (s *OAuthService) ValidateConfiguration() error {
 func (s *OAuthService) Cleanup() error {
 	log.Println("🧹 Running OAuth cleanup...")
 
-	
 	log.Println("✅ OAuth cleanup completed")
 	return nil
 }

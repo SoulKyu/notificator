@@ -37,7 +37,7 @@ func runWebUI(cmd *cobra.Command, args []string) {
 	// Get configuration from Viper
 	listenAddr := viper.GetString("webui.listen")
 	backendAddr := viper.GetString("webui.backend")
-	
+
 	// Override with environment variable if set
 	if envBackend := viper.GetString("backend_address"); envBackend != "" {
 		backendAddr = envBackend
@@ -47,11 +47,11 @@ func runWebUI(cmd *cobra.Command, args []string) {
 	fmt.Printf("   Config file: %s\n", viper.ConfigFileUsed())
 	fmt.Printf("   Listen: %s\n", listenAddr)
 	fmt.Printf("   Backend: %s\n", backendAddr)
-	
+
 	router := webui.SetupRouter(backendAddr)
-	
+
 	fmt.Printf("Visit http://localhost%s to view the WebUI\n", listenAddr)
-	
+
 	if err := router.Run(listenAddr); err != nil {
 		log.Fatal("Failed to start WebUI server:", err)
 	}

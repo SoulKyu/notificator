@@ -46,7 +46,7 @@ func runDesktop(cmd *cobra.Command, args []string) {
 
 	fmt.Println("🖥️  Starting Notificator Desktop Client...")
 	fmt.Printf("   Config file: %s\n", viper.ConfigFileUsed())
-	
+
 	runFrontendMode(cfg, viper.ConfigFileUsed())
 }
 

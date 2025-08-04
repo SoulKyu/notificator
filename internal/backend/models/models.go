@@ -145,19 +145,19 @@ func (j *JSONB) Scan(value interface{}) error {
 }
 
 type ResolvedAlert struct {
-	ID          string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	Fingerprint string    `gorm:"not null;size:500;index" json:"fingerprint"`
-	
-	AlertData   JSONB     `gorm:"type:jsonb;not null" json:"alert_data"`
-	
+	ID          string `gorm:"primaryKey;type:varchar(32)" json:"id"`
+	Fingerprint string `gorm:"not null;size:500;index" json:"fingerprint"`
+
+	AlertData JSONB `gorm:"type:jsonb;not null" json:"alert_data"`
+
 	// Preserved relationships
-	Comments        JSONB     `gorm:"type:jsonb" json:"comments,omitempty"`
-	Acknowledgments JSONB     `gorm:"type:jsonb" json:"acknowledgments,omitempty"`
-	
-	ResolvedAt  time.Time `gorm:"not null;index" json:"resolved_at"`
-	ExpiresAt   time.Time `gorm:"not null;index" json:"expires_at"`
-	Source      string    `gorm:"not null;size:255" json:"source"`
-	
+	Comments        JSONB `gorm:"type:jsonb" json:"comments,omitempty"`
+	Acknowledgments JSONB `gorm:"type:jsonb" json:"acknowledgments,omitempty"`
+
+	ResolvedAt time.Time `gorm:"not null;index" json:"resolved_at"`
+	ExpiresAt  time.Time `gorm:"not null;index" json:"expires_at"`
+	Source     string    `gorm:"not null;size:255" json:"source"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

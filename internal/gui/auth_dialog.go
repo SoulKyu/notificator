@@ -549,10 +549,10 @@ func (aw *AlertsWindow) performLogout() {
 
 // StoredCredentials represents stored user credentials
 type StoredCredentials struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	RememberMe  bool   `json:"remember_me"`
-	LastLogin   int64  `json:"last_login"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	RememberMe bool   `json:"remember_me"`
+	LastLogin  int64  `json:"last_login"`
 }
 
 // getCredentialsPath returns the path to the stored credentials file
@@ -616,7 +616,7 @@ func (ad *AuthDialog) saveCredentials(username, password string, rememberMe bool
 // loadCredentials loads stored credentials
 func (ad *AuthDialog) loadCredentials() (*StoredCredentials, error) {
 	credPath := ad.getCredentialsPath()
-	
+
 	// Check if file exists
 	if _, err := os.Stat(credPath); os.IsNotExist(err) {
 		return nil, nil // No credentials stored
@@ -655,7 +655,7 @@ func (ad *AuthDialog) deleteCredentials() error {
 // encryptData encrypts data using AES-GCM
 func (ad *AuthDialog) encryptData(data []byte) ([]byte, error) {
 	key := ad.generateKey()
-	
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -678,7 +678,7 @@ func (ad *AuthDialog) encryptData(data []byte) ([]byte, error) {
 // decryptData decrypts data using AES-GCM
 func (ad *AuthDialog) decryptData(encryptedData []byte) ([]byte, error) {
 	key := ad.generateKey()
-	
+
 	// Decode from base64
 	ciphertext, err := base64.StdEncoding.DecodeString(string(encryptedData))
 	if err != nil {
@@ -722,10 +722,10 @@ func (ad *AuthDialog) loadAndFillCredentials() {
 		ad.loginUsernameEntry.SetText(credentials.Username)
 		ad.loginPasswordEntry.SetText(credentials.Password)
 		ad.rememberMeCheck.SetChecked(true)
-		
+
 		// Update button state
 		ad.updateLoginButtonState()
-		
+
 		log.Printf("Loaded credentials for user: %s", credentials.Username)
 	}
 }

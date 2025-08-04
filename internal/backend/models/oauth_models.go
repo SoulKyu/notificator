@@ -9,11 +9,11 @@ import (
 
 type OAuthUser struct {
 	User
-	OAuthProvider   *string   `gorm:"size:50" json:"oauth_provider,omitempty"`
-	OAuthID         *string   `gorm:"size:255;index" json:"oauth_id,omitempty"`
-	OAuthEmail      *string   `gorm:"size:255" json:"oauth_email,omitempty"`
-	EmailVerified   bool      `gorm:"default:false" json:"email_verified"`
-	Groups          []UserGroup `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"groups,omitempty"`
+	OAuthProvider *string     `gorm:"size:50" json:"oauth_provider,omitempty"`
+	OAuthID       *string     `gorm:"size:255;index" json:"oauth_id,omitempty"`
+	OAuthEmail    *string     `gorm:"size:255" json:"oauth_email,omitempty"`
+	EmailVerified bool        `gorm:"default:false" json:"email_verified"`
+	Groups        []UserGroup `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"groups,omitempty"`
 }
 
 type UserGroup struct {
@@ -40,16 +40,16 @@ func (ug *UserGroup) BeforeCreate(tx *gorm.DB) error {
 func (UserGroup) TableName() string { return "user_groups" }
 
 type OAuthToken struct {
-	ID           string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	UserID       string    `gorm:"not null;size:32;index" json:"user_id"`
-	Provider     string    `gorm:"not null;size:50" json:"provider"`
-	AccessToken  string    `gorm:"not null;type:text" json:"-"`
-	RefreshToken string    `gorm:"type:text" json:"-"`
-	TokenType    string    `gorm:"size:50" json:"token_type"`
+	ID           string     `gorm:"primaryKey;type:varchar(32)" json:"id"`
+	UserID       string     `gorm:"not null;size:32;index" json:"user_id"`
+	Provider     string     `gorm:"not null;size:50" json:"provider"`
+	AccessToken  string     `gorm:"not null;type:text" json:"-"`
+	RefreshToken string     `gorm:"type:text" json:"-"`
+	TokenType    string     `gorm:"size:50" json:"token_type"`
 	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	Scopes       string    `gorm:"type:text" json:"scopes"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Scopes       string     `gorm:"type:text" json:"scopes"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }
@@ -127,11 +127,11 @@ type OAuthGroupInfo struct {
 }
 
 type GroupMembership struct {
-	UserID      string                 `json:"user_id"`
-	Provider    string                 `json:"provider"`
-	Groups      []OAuthGroupInfo       `json:"groups"`
-	SyncedAt    time.Time             `json:"synced_at"`
-	CustomData  map[string]interface{} `json:"custom_data,omitempty"`
+	UserID     string                 `json:"user_id"`
+	Provider   string                 `json:"provider"`
+	Groups     []OAuthGroupInfo       `json:"groups"`
+	SyncedAt   time.Time              `json:"synced_at"`
+	CustomData map[string]interface{} `json:"custom_data,omitempty"`
 }
 
 type UserGroupWithDetails struct {
@@ -141,27 +141,27 @@ type UserGroupWithDetails struct {
 }
 
 type OAuthProviderStats struct {
-	Provider        string    `json:"provider"`
-	TotalUsers      int64     `json:"total_users"`
-	ActiveUsers     int64     `json:"active_users"`
-	TotalGroups     int64     `json:"total_groups"`
-	LastSync        *time.Time `json:"last_sync,omitempty"`
-	ErrorRate       float64   `json:"error_rate"`
-	AverageGroups   float64   `json:"average_groups_per_user"`
+	Provider      string     `json:"provider"`
+	TotalUsers    int64      `json:"total_users"`
+	ActiveUsers   int64      `json:"active_users"`
+	TotalGroups   int64      `json:"total_groups"`
+	LastSync      *time.Time `json:"last_sync,omitempty"`
+	ErrorRate     float64    `json:"error_rate"`
+	AverageGroups float64    `json:"average_groups_per_user"`
 }
 
 type OAuthSession struct {
-	ID              string    `gorm:"primaryKey;type:varchar(64)" json:"id"`
-	Provider        string    `gorm:"not null;size:50" json:"provider"`
-	State           string    `gorm:"not null;size:255" json:"state"`
-	CodeChallenge   string    `gorm:"size:255" json:"code_challenge,omitempty"`
-	CodeChallengeMethod string `gorm:"size:20" json:"code_challenge_method,omitempty"`
-	RedirectURI     string    `gorm:"size:500" json:"redirect_uri"`
-	Scopes          string    `gorm:"type:text" json:"scopes"`
-	UserID          *string   `gorm:"size:32" json:"user_id,omitempty"`
-	ExpiresAt       time.Time `gorm:"not null;index" json:"expires_at"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                  string    `gorm:"primaryKey;type:varchar(64)" json:"id"`
+	Provider            string    `gorm:"not null;size:50" json:"provider"`
+	State               string    `gorm:"not null;size:255" json:"state"`
+	CodeChallenge       string    `gorm:"size:255" json:"code_challenge,omitempty"`
+	CodeChallengeMethod string    `gorm:"size:20" json:"code_challenge_method,omitempty"`
+	RedirectURI         string    `gorm:"size:500" json:"redirect_uri"`
+	Scopes              string    `gorm:"type:text" json:"scopes"`
+	UserID              *string   `gorm:"size:32" json:"user_id,omitempty"`
+	ExpiresAt           time.Time `gorm:"not null;index" json:"expires_at"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 func (OAuthSession) TableName() string { return "oauth_sessions" }

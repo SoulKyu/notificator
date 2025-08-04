@@ -12,30 +12,30 @@ import (
 )
 
 type OAuthPortalConfig struct {
-	Enabled            bool                       `json:"enabled" mapstructure:"enabled"`
-	DisableClassicAuth bool                       `json:"disable_classic_auth" mapstructure:"disable_classic_auth"`
-	RedirectURL        string                     `json:"redirect_url" mapstructure:"redirect_url"`
-	SessionKey         string                     `json:"session_key" mapstructure:"session_key"`
-	Debug              bool                       `json:"debug" mapstructure:"debug"`
-	LogLevel           string                     `json:"log_level" mapstructure:"log_level"`
-	Providers          map[string]OAuthProvider   `json:"providers" mapstructure:"providers"`
-	GroupSync          GroupSyncConfig            `json:"group_sync" mapstructure:"group_sync"`
-	Security           OAuthSecurityConfig        `json:"security" mapstructure:"security"`
+	Enabled            bool                     `json:"enabled" mapstructure:"enabled"`
+	DisableClassicAuth bool                     `json:"disable_classic_auth" mapstructure:"disable_classic_auth"`
+	RedirectURL        string                   `json:"redirect_url" mapstructure:"redirect_url"`
+	SessionKey         string                   `json:"session_key" mapstructure:"session_key"`
+	Debug              bool                     `json:"debug" mapstructure:"debug"`
+	LogLevel           string                   `json:"log_level" mapstructure:"log_level"`
+	Providers          map[string]OAuthProvider `json:"providers" mapstructure:"providers"`
+	GroupSync          GroupSyncConfig          `json:"group_sync" mapstructure:"group_sync"`
+	Security           OAuthSecurityConfig      `json:"security" mapstructure:"security"`
 }
 
 type OAuthProvider struct {
-	ClientID        string            `json:"client_id" mapstructure:"client_id"`
-	ClientSecret    string            `json:"client_secret" mapstructure:"client_secret"`
-	Scopes          []string          `json:"scopes" mapstructure:"scopes"`
-	AuthURL         string            `json:"auth_url" mapstructure:"auth_url"`
-	TokenURL        string            `json:"token_url" mapstructure:"token_url"`
-	UserInfoURL     string            `json:"user_info_url" mapstructure:"user_info_url"`
-	GroupsURL       string            `json:"groups_url" mapstructure:"groups_url"`
-	GroupScopes     []string          `json:"group_scopes" mapstructure:"group_scopes"`
-	GroupMapping    map[string]string `json:"group_mapping" mapstructure:"group_mapping"`
-	CustomClaims    map[string]string `json:"custom_claims" mapstructure:"custom_claims"`
-	GroupPatterns   map[string]string `json:"group_patterns" mapstructure:"group_patterns"`
-	Enabled         bool              `json:"enabled" mapstructure:"enabled"`
+	ClientID      string            `json:"client_id" mapstructure:"client_id"`
+	ClientSecret  string            `json:"client_secret" mapstructure:"client_secret"`
+	Scopes        []string          `json:"scopes" mapstructure:"scopes"`
+	AuthURL       string            `json:"auth_url" mapstructure:"auth_url"`
+	TokenURL      string            `json:"token_url" mapstructure:"token_url"`
+	UserInfoURL   string            `json:"user_info_url" mapstructure:"user_info_url"`
+	GroupsURL     string            `json:"groups_url" mapstructure:"groups_url"`
+	GroupScopes   []string          `json:"group_scopes" mapstructure:"group_scopes"`
+	GroupMapping  map[string]string `json:"group_mapping" mapstructure:"group_mapping"`
+	CustomClaims  map[string]string `json:"custom_claims" mapstructure:"custom_claims"`
+	GroupPatterns map[string]string `json:"group_patterns" mapstructure:"group_patterns"`
+	Enabled       bool              `json:"enabled" mapstructure:"enabled"`
 }
 
 type GroupSyncConfig struct {
@@ -48,13 +48,13 @@ type GroupSyncConfig struct {
 }
 
 type OAuthSecurityConfig struct {
-	StateTimeout       time.Duration `json:"state_timeout" mapstructure:"state_timeout"`
-	MaxAuthAttempts    int           `json:"max_auth_attempts" mapstructure:"max_auth_attempts"`
-	RateLimit          string        `json:"rate_limit" mapstructure:"rate_limit"`
-	RequireHTTPS       bool          `json:"require_https" mapstructure:"require_https"`
-	ValidateIssuer     bool          `json:"validate_issuer" mapstructure:"validate_issuer"`
-	TokenEncryption    bool          `json:"token_encryption" mapstructure:"token_encryption"`
-	CSRFProtection     bool          `json:"csrf_protection" mapstructure:"csrf_protection"`
+	StateTimeout    time.Duration `json:"state_timeout" mapstructure:"state_timeout"`
+	MaxAuthAttempts int           `json:"max_auth_attempts" mapstructure:"max_auth_attempts"`
+	RateLimit       string        `json:"rate_limit" mapstructure:"rate_limit"`
+	RequireHTTPS    bool          `json:"require_https" mapstructure:"require_https"`
+	ValidateIssuer  bool          `json:"validate_issuer" mapstructure:"validate_issuer"`
+	TokenEncryption bool          `json:"token_encryption" mapstructure:"token_encryption"`
+	CSRFProtection  bool          `json:"csrf_protection" mapstructure:"csrf_protection"`
 }
 
 func DefaultOAuthConfig() *OAuthPortalConfig {
@@ -75,13 +75,13 @@ func DefaultOAuthConfig() *OAuthPortalConfig {
 			AuditChanges:   false,
 		},
 		Security: OAuthSecurityConfig{
-			StateTimeout:       10 * time.Minute,
-			MaxAuthAttempts:    5,
-			RateLimit:          "10/minute",
-			RequireHTTPS:       true,
-			ValidateIssuer:     true,
-			TokenEncryption:    true,
-			CSRFProtection:     true,
+			StateTimeout:    10 * time.Minute,
+			MaxAuthAttempts: 5,
+			RateLimit:       "10/minute",
+			RequireHTTPS:    true,
+			ValidateIssuer:  true,
+			TokenEncryption: true,
+			CSRFProtection:  true,
 		},
 	}
 }
@@ -172,10 +172,10 @@ func loadOAuthProvidersFromEnv(cfg *OAuthPortalConfig) error {
 
 	for _, provider := range providers {
 		envPrefix := strings.ToUpper(provider)
-		
+
 		clientID := os.Getenv(fmt.Sprintf("OAUTH_%s_CLIENT_ID", envPrefix))
 		clientSecret := os.Getenv(fmt.Sprintf("OAUTH_%s_CLIENT_SECRET", envPrefix))
-		
+
 		if clientID != "" && clientSecret != "" {
 			providerConfig := getDefaultProviderConfig(provider)
 			providerConfig.ClientID = clientID
@@ -254,8 +254,8 @@ func getDefaultProviderConfig(provider string) OAuthProvider {
 			GroupScopes: []string{"GroupMember.Read.All"},
 			GroupMapping: map[string]string{
 				"Administrator": "administrator",
-				"Editor":       "editor",
-				"Viewer":       "viewer",
+				"Editor":        "editor",
+				"Viewer":        "viewer",
 			},
 		}
 	case "okta":
@@ -267,8 +267,8 @@ func getDefaultProviderConfig(provider string) OAuthProvider {
 			GroupsURL:   "", // Must be configured per Okta instance
 			GroupMapping: map[string]string{
 				"Administrators": "administrator",
-				"Editors":       "editor",
-				"Users":         "viewer",
+				"Editors":        "editor",
+				"Users":          "viewer",
 			},
 		}
 	default:

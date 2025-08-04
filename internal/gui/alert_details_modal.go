@@ -16,25 +16,25 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"notificator/internal/models"
 	alertpb "notificator/internal/backend/proto/alert"
 	authpb "notificator/internal/backend/proto/auth"
+	"notificator/internal/models"
 )
 
 func (aw *AlertsWindow) showAlertDetails(alert models.Alert) {
 	loadingContent := aw.createLoadingScreen(alert)
-	
+
 	dialogContent := container.NewBorder(nil, nil, nil, nil, loadingContent)
 	alertDialog := dialog.NewCustom("Alert Details", "Close", dialogContent, aw.window)
 	alertDialog.Resize(fyne.NewSize(1400, 1100))
 	alertDialog.Show()
-	
+
 	// Start real-time subscription for this alert
 	alertKey := alert.GetFingerprint()
 	if aw.backendClient != nil && aw.backendClient.IsLoggedIn() {
 		aw.startAlertSubscription(alertKey, alertDialog)
 	}
-	
+
 	// Load actual content asynchronously
 	go func() {
 		defer func() {
@@ -52,32 +52,32 @@ func (aw *AlertsWindow) showAlertDetails(alert models.Alert) {
 				})
 			}
 		}()
-		
+
 		log.Printf("Starting async content loading...")
-		
+
 		// Add a small delay to ensure dialog is fully displayed
 		time.Sleep(100 * time.Millisecond)
 		log.Printf("Delay completed, creating simple content...")
-		
+
 		// Create simple content structure
 		content := aw.createSimpleAlertContent(alert, alertDialog)
 		log.Printf("Simple content created successfully")
-		
+
 		fyne.Do(func() {
 			log.Printf("Setting content in UI thread...")
 			// Hide the current dialog
 			alertDialog.Hide()
-			
+
 			// Create new dialog with proper content
 			newDialogContent := container.NewBorder(nil, nil, nil, nil, content)
 			newDialog := dialog.NewCustom("Alert Details", "Close", newDialogContent, aw.window)
 			newDialog.Resize(fyne.NewSize(1400, 1100))
 			newDialog.Show()
-			
+
 			log.Printf("Content set successfully")
 			log.Printf("showAlertDetails completed successfully")
 		})
-		
+
 		log.Printf("Async content loading completed")
 	}()
 }
@@ -85,36 +85,36 @@ func (aw *AlertsWindow) showAlertDetails(alert models.Alert) {
 func (aw *AlertsWindow) createLoadingScreen(alert models.Alert) fyne.CanvasObject {
 	// Create the most minimal loading screen possible to avoid any blocking operations
 	loadingContainer := container.NewVBox()
-	
+
 	// Simple loading message without any complex operations
 	loadingCard := widget.NewCard("📊 Loading Alert Details", "Please wait while we load the alert information", container.NewVBox())
-	
+
 	loadingContent := container.NewVBox()
 	loadingContent.Add(widget.NewLabel("🔄 Loading alert details..."))
 	loadingContent.Add(widget.NewLabel(""))
 	loadingContent.Add(widget.NewLabel("This may take a moment to fetch all information."))
 	loadingContent.Add(widget.NewLabel(""))
 	loadingContent.Add(widget.NewLabel("The window will update automatically when ready."))
-	
+
 	loadingCard.SetContent(loadingContent)
 	loadingContainer.Add(loadingCard)
-	
+
 	return container.NewScroll(loadingContainer)
 }
 
 func (aw *AlertsWindow) createAlertContent(alert models.Alert, detailsWindow fyne.Window) fyne.CanvasObject {
 	log.Printf("createBasicAlertDetailsContent called")
-	
+
 	// Create the most minimal content possible
 	mainContainer := container.NewVBox()
-	
+
 	// Create minimal toolbar without any potentially blocking operations
 	toolbar := aw.createToolbar(detailsWindow)
 	mainContainer.Add(toolbar)
-	
+
 	// Create a single tab with just a simple message
 	tabs := container.NewAppTabs()
-	
+
 	// Create a simple welcome tab that loads immediately
 	welcomeContent := container.NewVBox()
 	welcomeContent.Add(widget.NewLabel("🎉 Alert Details Loaded Successfully"))
@@ -127,22 +127,22 @@ func (aw *AlertsWindow) createAlertContent(alert models.Alert, detailsWindow fyn
 	welcomeContent.Add(widget.NewLabel("📝 Annotations - Alert annotations"))
 	welcomeContent.Add(widget.NewLabel("🔇 Silence - Silence management"))
 	welcomeContent.Add(widget.NewLabel("🤝 Collaboration - Team collaboration features"))
-	
+
 	tabs.Append(container.NewTabItem("🏠 Welcome", container.NewScroll(welcomeContent)))
-	
+
 	// Add placeholder tabs that will load on demand
 	overviewPlaceholder := aw.createTabPlaceholder("📊 Overview", "Loading alert overview...")
 	detailsPlaceholder := aw.createTabPlaceholder("🔍 Details", "Loading alert details...")
 	labelsPlaceholder := aw.createTabPlaceholder("🏷️ Labels", "Loading labels...")
 	annotationsPlaceholder := aw.createTabPlaceholder("📝 Annotations", "Loading annotations...")
 	silencePlaceholder := aw.createSilencePlaceholder(alert)
-	
+
 	tabs.Append(container.NewTabItem("📊 Overview", overviewPlaceholder))
 	tabs.Append(container.NewTabItem("🔍 Details", detailsPlaceholder))
 	tabs.Append(container.NewTabItem("🏷️ Labels", labelsPlaceholder))
 	tabs.Append(container.NewTabItem("📝 Annotations", annotationsPlaceholder))
 	tabs.Append(container.NewTabItem("🔇 Silence", silencePlaceholder))
-	
+
 	// Add collaboration tab
 	var collaborationPlaceholder fyne.CanvasObject
 	if aw.isUserAuthenticated() {
@@ -152,11 +152,11 @@ func (aw *AlertsWindow) createAlertContent(alert models.Alert, detailsWindow fyn
 		basicCollabContent := aw.createBasicCollaborationTab()
 		tabs.Append(container.NewTabItem("🤝 Collaboration", basicCollabContent))
 	}
-	
+
 	// Set up comprehensive lazy loading for all tabs
 	tabs.OnChanged = func(tab *container.TabItem) {
 		log.Printf("Tab changed to: %s", tab.Text)
-		
+
 		switch tab.Text {
 		case "📊 Overview":
 			if tab.Content == overviewPlaceholder {
@@ -192,7 +192,7 @@ func (aw *AlertsWindow) createAlertContent(alert models.Alert, detailsWindow fyn
 			}
 		}
 	}
-	
+
 	mainContainer.Add(tabs)
 	return mainContainer
 }
@@ -200,40 +200,40 @@ func (aw *AlertsWindow) createAlertContent(alert models.Alert, detailsWindow fyn
 // createSimpleAlertContent creates the complete alert details content
 func (aw *AlertsWindow) createSimpleAlertContent(alert models.Alert, alertDialog interface{}) fyne.CanvasObject {
 	log.Printf("createSimpleAlertContent called")
-	
+
 	// Create the main container with proper sizing and padding
 	mainContainer := container.NewBorder(nil, nil, nil, nil, nil)
-	
+
 	// Create enhanced toolbar with alert info
 	toolbar := aw.createAlertToolbar(alert)
-	
+
 	// Create tabbed interface with lazy loading for ALL tabs
 	tabs := container.NewAppTabs()
-	
+
 	// Store placeholders for lazy loading
 	placeholders := make(map[string]fyne.CanvasObject)
-	
+
 	// Overview tab - loads immediately as default
 	overviewContent := aw.createOverviewTab(alert)
 	tabs.Append(container.NewTabItem("📊 Overview", overviewContent))
-	
+
 	// Create placeholder tabs
 	placeholders["details"] = aw.createTabPlaceholder("🔍 Details", "Loading alert details...")
 	placeholders["labels"] = aw.createTabPlaceholder("🏷️ Labels", "Loading labels...")
 	placeholders["annotations"] = aw.createTabPlaceholder("📝 Annotations", "Loading annotations...")
 	placeholders["silence"] = aw.createSilencePlaceholder(alert)
-	
+
 	// Add placeholder tabs
 	detailsTab := container.NewTabItem("🔍 Details", placeholders["details"])
 	labelsTab := container.NewTabItem("🏷️ Labels", placeholders["labels"])
 	annotationsTab := container.NewTabItem("📝 Annotations", placeholders["annotations"])
 	silenceTab := container.NewTabItem("🔇 Silence", placeholders["silence"])
-	
+
 	tabs.Append(detailsTab)
 	tabs.Append(labelsTab)
 	tabs.Append(annotationsTab)
 	tabs.Append(silenceTab)
-	
+
 	// Add collaboration tab
 	var collaborationTab *container.TabItem
 	if aw.isUserAuthenticated() {
@@ -244,11 +244,11 @@ func (aw *AlertsWindow) createSimpleAlertContent(alert models.Alert, alertDialog
 		basicCollabContent := aw.createBasicCollaborationTab()
 		tabs.Append(container.NewTabItem("🤝 Collaboration", basicCollabContent))
 	}
-	
+
 	// Set up lazy loading for tabs
 	tabs.OnChanged = func(tab *container.TabItem) {
 		log.Printf("Tab changed to: %s", tab.Text)
-		
+
 		switch tab.Text {
 		case "🔍 Details":
 			if tab.Content == placeholders["details"] {
@@ -278,11 +278,11 @@ func (aw *AlertsWindow) createSimpleAlertContent(alert models.Alert, alertDialog
 			}
 		}
 	}
-	
+
 	// Create a container that will force tabs to use all available height
 	topSection := container.NewVBox(toolbar, widget.NewSeparator())
-	
-	// Use border layout to make tabs fill all available space  
+
+	// Use border layout to make tabs fill all available space
 	mainContainer = container.NewBorder(
 		topSection,
 		nil,
@@ -290,21 +290,21 @@ func (aw *AlertsWindow) createSimpleAlertContent(alert models.Alert, alertDialog
 		nil,
 		tabs,
 	)
-	
+
 	// Force the main container to use all available space
 	mainContainer.Resize(fyne.NewSize(1380, 1050))
-	
+
 	log.Printf("createSimpleAlertContent completed")
 	return mainContainer
 }
 
 func (aw *AlertsWindow) createAlertToolbar(alert models.Alert) fyne.CanvasObject {
 	toolbar := container.NewHBox()
-	
+
 	// Alert status and severity icons
 	statusIcon := aw.getStatusIcon(alert.Status.State)
 	severityIcon := aw.getSeverityIcon(alert.GetSeverity())
-	
+
 	// Alert name with icons
 	alertLabel := widget.NewLabelWithStyle(
 		fmt.Sprintf("%s %s %s", statusIcon, severityIcon, alert.GetAlertName()),
@@ -312,10 +312,10 @@ func (aw *AlertsWindow) createAlertToolbar(alert models.Alert) fyne.CanvasObject
 		fyne.TextStyle{Bold: true},
 	)
 	toolbar.Add(alertLabel)
-	
+
 	// Add some spacing
 	toolbar.Add(layout.NewSpacer())
-	
+
 	// Duration badge
 	duration := alert.Duration()
 	durationText := formatDuration(duration)
@@ -325,19 +325,19 @@ func (aw *AlertsWindow) createAlertToolbar(alert models.Alert) fyne.CanvasObject
 		fyne.TextStyle{},
 	)
 	toolbar.Add(durationLabel)
-	
+
 	// Refresh button
 	refreshBtn := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		aw.refreshAlertData(alert)
 	})
 	toolbar.Add(refreshBtn)
-	
+
 	// Copy button
 	copyBtn := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
 		aw.copyAlertDetailsToClipboard(alert)
 	})
 	toolbar.Add(copyBtn)
-	
+
 	// External link button (if generator URL exists)
 	if alert.GeneratorURL != "" {
 		linkBtn := widget.NewButtonWithIcon("", theme.ComputerIcon(), func() {
@@ -345,7 +345,7 @@ func (aw *AlertsWindow) createAlertToolbar(alert models.Alert) fyne.CanvasObject
 		})
 		toolbar.Add(linkBtn)
 	}
-	
+
 	return toolbar
 }
 
@@ -358,24 +358,24 @@ func (aw *AlertsWindow) copyAlertDetailsToClipboard(alert models.Alert) {
 	details.WriteString(fmt.Sprintf("Severity: %s\n", alert.GetSeverity()))
 	details.WriteString(fmt.Sprintf("Duration: %s\n", formatDuration(alert.Duration())))
 	details.WriteString(fmt.Sprintf("Started: %s\n", alert.StartsAt.Format(time.RFC3339)))
-	
+
 	if !alert.EndsAt.IsZero() {
 		details.WriteString(fmt.Sprintf("Ended: %s\n", alert.EndsAt.Format(time.RFC3339)))
 	}
-	
+
 	details.WriteString("\nLabels:\n")
 	for k, v := range alert.Labels {
 		details.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
 	}
-	
+
 	details.WriteString("\nAnnotations:\n")
 	for k, v := range alert.Annotations {
 		details.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
 	}
-	
+
 	// Copy to clipboard
 	aw.window.Clipboard().SetContent(details.String())
-	
+
 	// Show confirmation
 	dialog.ShowInformation("Copied", "Alert details copied to clipboard", aw.window)
 }
@@ -383,16 +383,16 @@ func (aw *AlertsWindow) copyAlertDetailsToClipboard(alert models.Alert) {
 // createTabPlaceholder creates a generic loading placeholder for tabs
 func (aw *AlertsWindow) createTabPlaceholder(title string, message string) fyne.CanvasObject {
 	loadingContainer := container.NewVBox()
-	
+
 	loadingCard := widget.NewCard(title, message, container.NewVBox())
 	loadingContent := container.NewVBox()
 	loadingContent.Add(widget.NewLabel("🔄 Loading..."))
 	loadingContent.Add(widget.NewLabel(""))
 	loadingContent.Add(widget.NewLabel("Content will appear when you select this tab."))
-	
+
 	loadingCard.SetContent(loadingContent)
 	loadingContainer.Add(loadingCard)
-	
+
 	return container.NewScroll(loadingContainer)
 }
 
@@ -413,7 +413,7 @@ func (aw *AlertsWindow) loadTabContentAsync(tab *container.TabItem, tabs *contai
 				})
 			}
 		}()
-		
+
 		content := contentLoader()
 		fyne.Do(func() {
 			tab.Content = content
@@ -422,26 +422,25 @@ func (aw *AlertsWindow) loadTabContentAsync(tab *container.TabItem, tabs *contai
 	}()
 }
 
-
 // createAlertDetailsContent creates the content for the alert details window
 func (aw *AlertsWindow) createAlertDetailsContent(alert models.Alert, detailsWindow fyne.Window) fyne.CanvasObject {
 	log.Printf("createAlertDetailsContent called")
-	
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC in createAlertDetailsContent: %v", r)
 		}
 	}()
-	
+
 	// Create main container with toolbar
 	log.Printf("Creating main container...")
 	mainContainer := container.NewVBox()
-	
+
 	// Create toolbar for window controls
 	log.Printf("Creating toolbar...")
 	toolbar := aw.createAlertDetailsToolbar(alert, detailsWindow)
 	mainContainer.Add(toolbar)
-	
+
 	// Create tabbed interface for better organization
 	log.Printf("Creating tabs...")
 	tabs := container.NewAppTabs()
@@ -486,24 +485,24 @@ func (aw *AlertsWindow) createAlertDetailsContent(alert models.Alert, detailsWin
 	silencePlaceholder := aw.createSilencePlaceholder(alert)
 	silenceTab := container.NewTabItem("🔇 Silence", silencePlaceholder)
 	tabs.Append(silenceTab)
-	
+
 	// Enhance lazy loading for both collaboration and silence tabs
 	originalOnChanged := tabs.OnChanged
 	tabs.OnChanged = func(tab *container.TabItem) {
 		log.Printf("Tab changed to: %s", tab.Text)
-		
+
 		// Handle collaboration tab lazy loading
 		if tab.Text == "🤝 Collaboration" && collaborationPlaceholder != nil && tab.Content == collaborationPlaceholder {
 			log.Printf("Loading collaboration content...")
 			aw.loadCollaborationContentAsync(alert, tab, tabs)
 		}
-		
+
 		// Handle silence tab lazy loading
 		if tab.Text == "🔇 Silence" && tab.Content == silencePlaceholder {
 			log.Printf("Loading silence content...")
 			aw.loadSilenceContentAsync(alert, tab, tabs)
 		}
-		
+
 		// Call original handler if it exists
 		if originalOnChanged != nil {
 			originalOnChanged(tab)
@@ -512,7 +511,7 @@ func (aw *AlertsWindow) createAlertDetailsContent(alert models.Alert, detailsWin
 
 	log.Printf("Adding tabs to main container...")
 	mainContainer.Add(tabs)
-	
+
 	log.Printf("createAlertDetailsContent completed successfully")
 	return mainContainer
 }
@@ -520,28 +519,28 @@ func (aw *AlertsWindow) createAlertDetailsContent(alert models.Alert, detailsWin
 // createCollaborationPlaceholder creates a loading placeholder for the collaboration tab
 func (aw *AlertsWindow) createCollaborationPlaceholder(alert models.Alert) fyne.CanvasObject {
 	loadingContainer := container.NewVBox()
-	
+
 	// Loading indicator
 	loadingCard := widget.NewCard("🤝 Collaboration", "Loading collaboration features...", container.NewVBox())
-	
+
 	loadingContent := container.NewVBox()
 	loadingContent.Add(widget.NewLabel("🔄 Loading collaboration interface..."))
 	loadingContent.Add(widget.NewLabel(""))
 	loadingContent.Add(widget.NewLabel("Please wait while we set up the collaboration features."))
-	
+
 	loadingCard.SetContent(loadingContent)
 	loadingContainer.Add(loadingCard)
-	
+
 	return container.NewScroll(loadingContainer)
 }
 
 // createBasicCollaborationTab creates a basic collaboration tab for non-authenticated users
 func (aw *AlertsWindow) createBasicCollaborationTab() fyne.CanvasObject {
 	basicContainer := container.NewVBox()
-	
+
 	// Authentication prompt
 	authCard := widget.NewCard("🔐 Authentication Required", "Login to access collaboration features", container.NewVBox())
-	
+
 	authContent := container.NewVBox()
 	authContent.Add(widget.NewLabel("Collaboration features require backend authentication."))
 	authContent.Add(widget.NewLabel(""))
@@ -552,37 +551,36 @@ func (aw *AlertsWindow) createBasicCollaborationTab() fyne.CanvasObject {
 	authContent.Add(widget.NewLabel("• ⚡ Quick actions"))
 	authContent.Add(widget.NewLabel("• 👥 Live presence indicators"))
 	authContent.Add(widget.NewLabel(""))
-	
+
 	loginBtn := widget.NewButtonWithIcon("🔑 Login to Backend", theme.LoginIcon(), func() {
 		aw.showAuthDialog()
 	})
 	loginBtn.Importance = widget.HighImportance
 	authContent.Add(loginBtn)
-	
+
 	authCard.SetContent(authContent)
 	basicContainer.Add(authCard)
-	
+
 	return container.NewScroll(basicContainer)
 }
 
 // createSilencePlaceholder creates a loading placeholder for the silence tab
 func (aw *AlertsWindow) createSilencePlaceholder(alert models.Alert) fyne.CanvasObject {
 	loadingContainer := container.NewVBox()
-	
+
 	// Loading indicator
 	loadingCard := widget.NewCard("🔇 Silence", "Loading silence information...", container.NewVBox())
-	
+
 	loadingContent := container.NewVBox()
 	loadingContent.Add(widget.NewLabel("🔄 Loading silence details..."))
 	loadingContent.Add(widget.NewLabel(""))
 	loadingContent.Add(widget.NewLabel("Please wait while we check silence status from Alertmanager."))
-	
+
 	loadingCard.SetContent(loadingContent)
 	loadingContainer.Add(loadingCard)
-	
+
 	return container.NewScroll(loadingContainer)
 }
-
 
 // loadCollaborationContentAsync loads collaboration content asynchronously
 func (aw *AlertsWindow) loadCollaborationContentAsync(alert models.Alert, tab *container.TabItem, tabs *container.AppTabs) {
@@ -601,7 +599,7 @@ func (aw *AlertsWindow) loadCollaborationContentAsync(alert models.Alert, tab *c
 				})
 			}
 		}()
-		
+
 		collaborationContent := aw.createCollaborationTab(alert)
 		fyne.Do(func() {
 			tab.Content = collaborationContent
@@ -627,7 +625,7 @@ func (aw *AlertsWindow) loadSilenceContentAsync(alert models.Alert, tab *contain
 				})
 			}
 		}()
-		
+
 		silenceContent := aw.createSilenceTab(alert)
 		fyne.Do(func() {
 			tab.Content = silenceContent
@@ -639,56 +637,56 @@ func (aw *AlertsWindow) loadSilenceContentAsync(alert models.Alert, tab *contain
 // createAlertDetailsToolbar creates a toolbar for the alert details window
 func (aw *AlertsWindow) createAlertDetailsToolbar(alert models.Alert, detailsWindow fyne.Window) fyne.CanvasObject {
 	toolbar := container.NewHBox()
-	
+
 	// Alert status indicator
 	statusIcon := aw.getStatusIcon(alert.Status.State)
 	severityIcon := aw.getSeverityIcon(alert.GetSeverity())
-	
+
 	statusLabel := widget.NewLabelWithStyle(
 		fmt.Sprintf("%s %s %s", statusIcon, severityIcon, alert.GetAlertName()),
 		fyne.TextAlignLeading,
 		fyne.TextStyle{Bold: true},
 	)
 	toolbar.Add(statusLabel)
-	
+
 	// Spacer
 	toolbar.Add(widget.NewLabel(""))
-	
+
 	// Duration display
 	durationLabel := widget.NewLabel(formatDuration(alert.Duration()))
 	durationLabel.TextStyle = fyne.TextStyle{Italic: true}
 	toolbar.Add(durationLabel)
-	
+
 	// Spacer
 	toolbar.Add(widget.NewLabel(""))
-	
+
 	// Refresh button
 	refreshBtn := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		aw.refreshAlertData(alert)
 	})
 	refreshBtn.Importance = widget.MediumImportance
 	toolbar.Add(refreshBtn)
-	
+
 	// Pin/Unpin button (keeps window on top)
 	pinBtn := widget.NewButtonWithIcon("", theme.ViewFullScreenIcon(), func() {
 		// Toggle always on top (this is a UI placeholder - actual implementation depends on OS)
 		dialog.ShowInformation("Pin Window", "Window pinning feature coming soon", detailsWindow)
 	})
 	toolbar.Add(pinBtn)
-	
+
 	// Close button
 	closeBtn := widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
 		detailsWindow.Close()
 	})
 	closeBtn.Importance = widget.DangerImportance
 	toolbar.Add(closeBtn)
-	
+
 	return toolbar
 }
 
 func (aw *AlertsWindow) createToolbar(detailsWindow fyne.Window) fyne.CanvasObject {
 	toolbar := container.NewHBox()
-	
+
 	// Simple title label
 	titleLabel := widget.NewLabelWithStyle(
 		"Alert Details",
@@ -696,17 +694,17 @@ func (aw *AlertsWindow) createToolbar(detailsWindow fyne.Window) fyne.CanvasObje
 		fyne.TextStyle{Bold: true},
 	)
 	toolbar.Add(titleLabel)
-	
+
 	// Spacer
 	toolbar.Add(widget.NewLabel(""))
-	
+
 	// Close button
 	closeBtn := widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
 		detailsWindow.Close()
 	})
 	closeBtn.Importance = widget.DangerImportance
 	toolbar.Add(closeBtn)
-	
+
 	return toolbar
 }
 
@@ -714,32 +712,32 @@ func (aw *AlertsWindow) createToolbar(detailsWindow fyne.Window) fyne.CanvasObje
 func (aw *AlertsWindow) refreshAlertData(alert models.Alert) {
 	// Show loading indicator
 	aw.setStatus("Refreshing alert data...")
-	
+
 	go func() {
 		// Refresh the main alerts data first
 		aw.loadAlertsWithCaching()
-		
+
 		// Also refresh backend collaboration data if available
 		if aw.backendClient != nil && aw.backendClient.IsLoggedIn() {
 			alertKey := alert.GetFingerprint()
-			
+
 			// Try to refresh comments and acknowledgments
 			if _, err := aw.backendClient.GetComments(alertKey); err == nil {
 				log.Printf("Refreshed comments for alert %s", alertKey)
 			}
-			
+
 			if _, err := aw.getAlertAcknowledgments(alertKey); err == nil {
 				log.Printf("Refreshed acknowledgments for alert %s", alertKey)
 			}
 		}
-		
+
 		// Add a small delay to ensure data is loaded
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Find the updated alert in the current data
 		fingerprint := alert.GetFingerprint()
 		var updatedAlert *models.Alert
-		
+
 		aw.alertsMutex.RLock()
 		for _, a := range aw.alerts {
 			if a.GetFingerprint() == fingerprint {
@@ -748,7 +746,7 @@ func (aw *AlertsWindow) refreshAlertData(alert models.Alert) {
 			}
 		}
 		aw.alertsMutex.RUnlock()
-		
+
 		fyne.Do(func() {
 			if updatedAlert != nil {
 				aw.setStatus("Alert data refreshed successfully")
@@ -769,17 +767,17 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 			log.Printf("PANIC in createOverviewTab: %v", r)
 		}
 	}()
-	
+
 	// Create main container that will expand to fill available space
 	mainContainer := container.NewVBox()
-	
+
 	// Add spacer at the top to push content down
 	mainContainer.Add(layout.NewSpacer())
-	
+
 	// Create two-column layout with equal width distribution
 	leftColumn := container.NewVBox()
 	rightColumn := container.NewVBox()
-	
+
 	// Status Card - left column
 	log.Printf("Creating status card...")
 	statusCard := aw.createStatusCard(alert)
@@ -787,7 +785,7 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 	leftColumn.Add(statusCard)
 	leftColumn.Add(widget.NewLabel("")) // Spacing
 	leftColumn.Add(widget.NewLabel("")) // More spacing
-	
+
 	// Timeline Card - right column
 	log.Printf("Creating timeline card...")
 	timelineCard := aw.createTimelineCard(alert)
@@ -795,13 +793,13 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 	rightColumn.Add(timelineCard)
 	rightColumn.Add(widget.NewLabel("")) // Spacing
 	rightColumn.Add(widget.NewLabel("")) // More spacing
-	
+
 	// Metadata Card - left column
 	metadataCard := aw.createMetadataCard(alert)
 	leftColumn.Add(metadataCard)
 	leftColumn.Add(widget.NewLabel("")) // Spacing
 	leftColumn.Add(widget.NewLabel("")) // More spacing
-	
+
 	// Generator URL Card - right column (if exists)
 	if alert.GeneratorURL != "" {
 		generatorCard := aw.createGeneratorURLCard(alert)
@@ -809,15 +807,15 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 		rightColumn.Add(widget.NewLabel("")) // Spacing
 		rightColumn.Add(widget.NewLabel("")) // More spacing
 	}
-	
+
 	// Create horizontal layout for columns with equal spacing
 	log.Printf("Creating columns container...")
 	columnsContainer := container.NewGridWithColumns(2, leftColumn, rightColumn)
-	
+
 	// Summary Card - full width at the bottom
 	log.Printf("Creating summary card...")
 	summaryCard := aw.createSummaryCard(alert)
-	
+
 	// Add to main container with better spacing
 	log.Printf("Adding components to main container...")
 	mainContainer.Add(columnsContainer)
@@ -825,14 +823,14 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 	mainContainer.Add(widget.NewSeparator())
 	mainContainer.Add(widget.NewLabel("")) // More spacing
 	mainContainer.Add(summaryCard)
-	
+
 	// Add spacer at the bottom to fill remaining space
 	mainContainer.Add(layout.NewSpacer())
-	
+
 	// Create scroll container that properly fills the dialog
 	log.Printf("Creating scroll container...")
 	scrollContainer := container.NewScroll(mainContainer)
-	
+
 	log.Printf("Overview tab content created successfully")
 	return scrollContainer
 }
@@ -840,10 +838,10 @@ func (aw *AlertsWindow) createOverviewTab(alert models.Alert) fyne.CanvasObject 
 // createStatusCard creates a card showing alert status information
 func (aw *AlertsWindow) createStatusCard(alert models.Alert) *widget.Card {
 	content := container.NewVBox()
-	
+
 	// Main status row
 	statusRow := container.NewHBox()
-	
+
 	// Status icon and label
 	statusIcon := aw.getStatusIcon(alert.Status.State)
 	statusText := strings.ToUpper(string(alert.Status.State[0])) + alert.Status.State[1:]
@@ -853,10 +851,10 @@ func (aw *AlertsWindow) createStatusCard(alert models.Alert) *widget.Card {
 		fyne.TextStyle{Bold: true},
 	)
 	statusRow.Add(statusLabel)
-	
+
 	// Add spacing
 	statusRow.Add(layout.NewSpacer())
-	
+
 	// Severity badge
 	severityIcon := aw.getSeverityIcon(alert.GetSeverity())
 	severityText := strings.ToUpper(string(alert.GetSeverity()[0])) + alert.GetSeverity()[1:]
@@ -865,7 +863,7 @@ func (aw *AlertsWindow) createStatusCard(alert models.Alert) *widget.Card {
 		fyne.TextAlignLeading,
 		fyne.TextStyle{Bold: true},
 	)
-	
+
 	// Color code severity
 	switch alert.GetSeverity() {
 	case "critical":
@@ -875,30 +873,30 @@ func (aw *AlertsWindow) createStatusCard(alert models.Alert) *widget.Card {
 	default:
 		severityLabel.Importance = widget.MediumImportance
 	}
-	
+
 	statusRow.Add(severityLabel)
 	content.Add(statusRow)
-	
+
 	// Add some spacing
 	content.Add(widget.NewLabel("")) // Empty label for spacing
-	
+
 	// Additional info rows
 	infoContainer := container.NewVBox()
-	
+
 	// Team info
 	if team := alert.GetTeam(); team != "" {
 		teamLabel := widget.NewLabel(fmt.Sprintf("👥 Team: %s", team))
 		infoContainer.Add(teamLabel)
 	}
-	
+
 	// Instance info
 	if instance := alert.GetInstance(); instance != "" {
 		instanceLabel := widget.NewLabel(fmt.Sprintf("🖥️ Instance: %s", instance))
 		infoContainer.Add(instanceLabel)
 	}
-	
+
 	content.Add(infoContainer)
-	
+
 	// Silence/Inhibition status
 	if alert.Status.State == "suppressed" || len(alert.Status.SilencedBy) > 0 {
 		content.Add(widget.NewLabel("")) // Spacing
@@ -906,7 +904,7 @@ func (aw *AlertsWindow) createStatusCard(alert models.Alert) *widget.Card {
 		silenceLabel.Importance = widget.LowImportance
 		content.Add(silenceLabel)
 	}
-	
+
 	if len(alert.Status.InhibitedBy) > 0 {
 		if alert.Status.State != "suppressed" && len(alert.Status.SilencedBy) == 0 {
 			content.Add(widget.NewLabel("")) // Spacing only if no silence info above
@@ -915,7 +913,7 @@ func (aw *AlertsWindow) createStatusCard(alert models.Alert) *widget.Card {
 		inhibitLabel.Importance = widget.LowImportance
 		content.Add(inhibitLabel)
 	}
-	
+
 	card := widget.NewCard("🚨 Alert Status", "", content)
 	return card
 }
@@ -923,7 +921,7 @@ func (aw *AlertsWindow) createStatusCard(alert models.Alert) *widget.Card {
 // createTimelineCard creates a card showing alert timeline
 func (aw *AlertsWindow) createTimelineCard(alert models.Alert) *widget.Card {
 	content := container.NewVBox()
-	
+
 	// Started time
 	startedRow := container.NewHBox()
 	startedRow.Add(widget.NewLabel("🕐 Started:"))
@@ -935,7 +933,7 @@ func (aw *AlertsWindow) createTimelineCard(alert models.Alert) *widget.Card {
 	)
 	startedRow.Add(startedLabel)
 	content.Add(startedRow)
-	
+
 	// Duration
 	durationRow := container.NewHBox()
 	durationRow.Add(widget.NewLabel("⏱️ Duration:"))
@@ -947,7 +945,7 @@ func (aw *AlertsWindow) createTimelineCard(alert models.Alert) *widget.Card {
 	)
 	durationRow.Add(durationLabel)
 	content.Add(durationRow)
-	
+
 	// Ended time (if applicable)
 	if !alert.EndsAt.IsZero() {
 		endedRow := container.NewHBox()
@@ -974,41 +972,41 @@ func (aw *AlertsWindow) createTimelineCard(alert models.Alert) *widget.Card {
 		activeRow.Add(activeLabel)
 		content.Add(activeRow)
 	}
-	
+
 	return widget.NewCard("📅 Timeline", "", content)
 }
 
 // createSummaryCard creates a card showing alert summary
 func (aw *AlertsWindow) createSummaryCard(alert models.Alert) *widget.Card {
 	content := container.NewVBox()
-	
+
 	summaryText := alert.GetSummary()
 	if summaryText == "" {
 		summaryText = "No summary available for this alert"
 	}
-	
+
 	summaryLabel := widget.NewLabel(summaryText)
 	summaryLabel.Wrapping = fyne.TextWrapWord
 	content.Add(summaryLabel)
-	
+
 	// Add description if available
 	if description := alert.Annotations["description"]; description != "" && description != summaryText {
 		content.Add(widget.NewLabel("")) // Spacing
 		descLabel := widget.NewLabelWithStyle("Description:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 		content.Add(descLabel)
-		
+
 		descText := widget.NewLabel(description)
 		descText.Wrapping = fyne.TextWrapWord
 		content.Add(descText)
 	}
-	
+
 	return widget.NewCard("📝 Summary", "", content)
 }
 
 // createMetadataCard creates a card showing alert metadata
 func (aw *AlertsWindow) createMetadataCard(alert models.Alert) *widget.Card {
 	content := container.NewVBox()
-	
+
 	// Alert name
 	nameRow := container.NewHBox()
 	nameRow.Add(widget.NewLabel("🏷️ Alert:"))
@@ -1016,7 +1014,7 @@ func (aw *AlertsWindow) createMetadataCard(alert models.Alert) *widget.Card {
 	nameLabel := widget.NewLabelWithStyle(alert.GetAlertName(), fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
 	nameRow.Add(nameLabel)
 	content.Add(nameRow)
-	
+
 	// Team
 	teamRow := container.NewHBox()
 	teamRow.Add(widget.NewLabel("👥 Team:"))
@@ -1024,7 +1022,7 @@ func (aw *AlertsWindow) createMetadataCard(alert models.Alert) *widget.Card {
 	teamLabel := widget.NewLabelWithStyle(alert.GetTeam(), fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
 	teamRow.Add(teamLabel)
 	content.Add(teamRow)
-	
+
 	// Instance
 	instanceRow := container.NewHBox()
 	instanceRow.Add(widget.NewLabel("🖥️ Instance:"))
@@ -1032,7 +1030,7 @@ func (aw *AlertsWindow) createMetadataCard(alert models.Alert) *widget.Card {
 	instanceLabel := widget.NewLabelWithStyle(alert.GetInstance(), fyne.TextAlignTrailing, fyne.TextStyle{Monospace: true})
 	instanceRow.Add(instanceLabel)
 	content.Add(instanceRow)
-	
+
 	// Fingerprint (get from labels if available)
 	fingerprint := alert.GetFingerprint()
 	if fingerprint != "" {
@@ -1044,21 +1042,21 @@ func (aw *AlertsWindow) createMetadataCard(alert models.Alert) *widget.Card {
 		fingerprintRow.Add(fingerprintLabel)
 		content.Add(fingerprintRow)
 	}
-	
+
 	return widget.NewCard("ℹ️ Metadata", "", content)
 }
 
 // createGeneratorURLCard creates a card for generator URL
 func (aw *AlertsWindow) createGeneratorURLCard(alert models.Alert) *widget.Card {
 	content := container.NewVBox()
-	
+
 	// URL preview
 	urlLabel := widget.NewLabel(alert.GeneratorURL)
 	urlLabel.TextStyle = fyne.TextStyle{Monospace: true}
 	urlLabel.Wrapping = fyne.TextWrapWord
 	urlLabel.Truncation = fyne.TextTruncateEllipsis
 	content.Add(urlLabel)
-	
+
 	// Open button
 	openBtn := widget.NewButtonWithIcon("Open in Browser", theme.ComputerIcon(), func() {
 		go func() {
@@ -1071,17 +1069,17 @@ func (aw *AlertsWindow) createGeneratorURLCard(alert models.Alert) *widget.Card 
 	})
 	openBtn.Importance = widget.HighImportance
 	content.Add(openBtn)
-	
+
 	return widget.NewCard("🔗 Generator URL", "", content)
 }
 
 // createQuickActionsCard creates a card with quick action buttons
 func (aw *AlertsWindow) createQuickActionsCard(alert models.Alert) *widget.Card {
 	content := container.NewVBox()
-	
+
 	// First row of actions
 	row1 := container.NewGridWithColumns(3)
-	
+
 	// Acknowledge button (if authenticated)
 	if aw.isUserAuthenticated() && alert.Status.State == "firing" {
 		ackBtn := widget.NewButtonWithIcon("Acknowledge", theme.ConfirmIcon(), func() {
@@ -1093,7 +1091,7 @@ func (aw *AlertsWindow) createQuickActionsCard(alert models.Alert) *widget.Card 
 		// Add spacer if not authenticated
 		row1.Add(widget.NewLabel(""))
 	}
-	
+
 	// Silence button
 	if alert.Status.State != "suppressed" {
 		silenceBtn := widget.NewButtonWithIcon("Silence", theme.VolumeDownIcon(), func() {
@@ -1104,35 +1102,35 @@ func (aw *AlertsWindow) createQuickActionsCard(alert models.Alert) *widget.Card 
 		// Add spacer if suppressed
 		row1.Add(widget.NewLabel(""))
 	}
-	
+
 	// Hide button
 	hideBtn := widget.NewButtonWithIcon("Hide Alert", theme.VisibilityOffIcon(), func() {
 		aw.hideAlert(alert)
 	})
 	row1.Add(hideBtn)
-	
+
 	content.Add(row1)
-	
+
 	// Add spacing
 	content.Add(widget.NewLabel(""))
-	
+
 	// Second row of actions
 	row2 := container.NewGridWithColumns(2)
-	
+
 	// Copy details button
 	copyBtn := widget.NewButtonWithIcon("Copy Details", theme.ContentCopyIcon(), func() {
 		aw.copyAlertDetailsToClipboard(alert)
 	})
 	row2.Add(copyBtn)
-	
+
 	// Share button
 	shareBtn := widget.NewButtonWithIcon("Share", theme.MailSendIcon(), func() {
 		aw.shareAlertFromDetails(alert)
 	})
 	row2.Add(shareBtn)
-	
+
 	content.Add(row2)
-	
+
 	return widget.NewCard("⚡ Quick Actions", "", content)
 }
 
@@ -1156,7 +1154,7 @@ func (aw *AlertsWindow) hideAlert(alert models.Alert) {
 		dialog.ShowError(fmt.Errorf("failed to hide alert: %v", err), aw.window)
 		return
 	}
-	
+
 	aw.safeApplyFilters()
 	aw.updateHiddenCountDisplay()
 	dialog.ShowInformation("Hidden", "Alert has been hidden from view", aw.window)
@@ -1171,7 +1169,7 @@ func (aw *AlertsWindow) shareAlertFromDetails(alert models.Alert) {
 		alert.Status.State,
 		alert.GetSummary(),
 	)
-	
+
 	// Copy to clipboard for now
 	aw.window.Clipboard().SetContent(shareText)
 	dialog.ShowInformation("Shared", "Alert details copied to clipboard for sharing", aw.window)
@@ -1320,7 +1318,7 @@ func (aw *AlertsWindow) createSilenceTab(alert models.Alert) fyne.CanvasObject {
 			log.Printf("PANIC in createSilenceTab: %v", r)
 		}
 	}()
-	
+
 	content := container.NewVBox()
 
 	// Check if alert is currently silenced
@@ -1381,16 +1379,16 @@ func (aw *AlertsWindow) createSilenceTab(alert models.Alert) fyne.CanvasObject {
 // createSilenceInfoCardAsync creates a card showing detailed silence information (async version)
 func (aw *AlertsWindow) createSilenceInfoCardAsync(silenceID string, index int) *widget.Card {
 	log.Printf("createSilenceInfoCardAsync called for silence ID: %s", silenceID)
-	
+
 	// Create placeholder card
 	card := widget.NewCard(fmt.Sprintf("Silence %d", index), "", container.NewVBox())
-	
+
 	// Show loading state initially
 	loadingContent := container.NewVBox()
 	loadingContent.Add(widget.NewLabel(fmt.Sprintf("Silence ID: %s", silenceID)))
 	loadingContent.Add(widget.NewLabel("🔄 Loading silence details..."))
 	card.SetContent(loadingContent)
-	
+
 	// Load silence details asynchronously
 	go func() {
 		defer func() {
@@ -1398,19 +1396,19 @@ func (aw *AlertsWindow) createSilenceInfoCardAsync(silenceID string, index int) 
 				log.Printf("PANIC in createSilenceInfoCardAsync: %v", r)
 			}
 		}()
-		
+
 		// Add timeout to prevent hanging
 		done := make(chan bool, 1)
 		var silence *models.Silence
 		var err error
-		
+
 		// Fetch silence details with timeout
 		go func() {
 			log.Printf("Fetching silence details from alertmanager...")
 			silence, err = aw.client.FetchSilence(silenceID)
 			done <- true
 		}()
-		
+
 		// Wait for completion or timeout
 		select {
 		case <-done:
@@ -1427,7 +1425,7 @@ func (aw *AlertsWindow) createSilenceInfoCardAsync(silenceID string, index int) 
 			})
 			return
 		}
-		
+
 		fyne.Do(func() {
 			if err != nil {
 				// If we can't fetch details, show basic info
@@ -1499,7 +1497,7 @@ func (aw *AlertsWindow) createSilenceInfoCardAsync(silenceID string, index int) 
 			card.SetContent(silenceInfo)
 		})
 	}()
-	
+
 	return card
 }
 
@@ -1511,7 +1509,7 @@ func (aw *AlertsWindow) createSilenceInfoCard(silenceID string, index int) *widg
 			log.Printf("PANIC in createSilenceInfoCard: %v", r)
 		}
 	}()
-	
+
 	// Try to fetch silence details
 	log.Printf("Fetching silence details from alertmanager...")
 	silence, err := aw.client.FetchSilence(silenceID)
@@ -1899,7 +1897,7 @@ func (aw *AlertsWindow) createCollaborationTab(alert models.Alert) fyne.CanvasOb
 			log.Printf("Error in createCollaborationTab: %v", r)
 		}
 	}()
-	
+
 	// Generate alert key for backend operations
 	alertKey := alert.GetFingerprint()
 	if alertKey == "" {
@@ -1922,24 +1920,24 @@ func (aw *AlertsWindow) createCollaborationTab(alert models.Alert) fyne.CanvasOb
 
 	// Create main container with modern acknowledge UX
 	mainContainer := container.NewVBox()
-	
+
 	// Store reference to this container for real-time updates
 	aw.activeCollaborationContainers[alertKey] = mainContainer
-	
+
 	// Add spacer for padding
 	mainContainer.Add(layout.NewSpacer())
-	
+
 	// Create modern acknowledge interface
 	acknowledgeCard := aw.createAcknowledgeCard(alert, alertKey)
 	mainContainer.Add(acknowledgeCard)
-	
+
 	// Add some spacing
 	mainContainer.Add(widget.NewLabel(""))
-	
+
 	// Create comments section
 	commentsCard := aw.createCommentsSection(alertKey)
 	mainContainer.Add(commentsCard)
-	
+
 	// Add spacer for bottom padding
 	mainContainer.Add(layout.NewSpacer())
 
@@ -1949,10 +1947,10 @@ func (aw *AlertsWindow) createCollaborationTab(alert models.Alert) fyne.CanvasOb
 func (aw *AlertsWindow) createAcknowledgeCard(alert models.Alert, alertKey string) fyne.CanvasObject {
 	// Create a container that can be refreshed
 	cardContainer := container.NewVBox()
-	
+
 	// Load and display the acknowledge card content
 	aw.refreshAcknowledgeCard(cardContainer, alert, alertKey)
-	
+
 	return cardContainer
 }
 
@@ -1960,32 +1958,32 @@ func (aw *AlertsWindow) createAcknowledgeCard(alert models.Alert, alertKey strin
 func (aw *AlertsWindow) refreshAcknowledgeCard(cardContainer *fyne.Container, alert models.Alert, alertKey string) {
 	// Clear existing content
 	cardContainer.RemoveAll()
-	
+
 	card := widget.NewCard("👋 Acknowledge Alert", "Take ownership and manage this alert", container.NewVBox())
-	
+
 	content := container.NewVBox()
-	
+
 	// Get existing acknowledgments
 	acknowledgments, err := aw.getAlertAcknowledgments(alertKey)
 	if err != nil {
 		log.Printf("Error getting acknowledgments: %v", err)
 		acknowledgments = []*alertpb.Acknowledgment{}
 	}
-	
+
 	// Current acknowledgment status section
 	statusSection := container.NewVBox()
 	statusTitle := widget.NewLabelWithStyle("Current Status", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	statusSection.Add(statusTitle)
-	
+
 	isAcknowledged := len(acknowledgments) > 0
-	
+
 	var statusIndicator *widget.Label
 	var actionButton *widget.Button
-	
+
 	if isAcknowledged {
 		statusIndicator = widget.NewLabelWithStyle(fmt.Sprintf("✅ Alert Acknowledged (%d acknowledgments)", len(acknowledgments)), fyne.TextAlignLeading, fyne.TextStyle{})
 		statusIndicator.Importance = widget.SuccessImportance
-		
+
 		actionButton = widget.NewButtonWithIcon("🔄 Add Update", theme.DocumentSaveIcon(), func() {
 			aw.showUpdateAcknowledgeDialog(alert, alertKey, cardContainer)
 		})
@@ -1993,32 +1991,32 @@ func (aw *AlertsWindow) refreshAcknowledgeCard(cardContainer *fyne.Container, al
 	} else {
 		statusIndicator = widget.NewLabelWithStyle("⏳ Awaiting Acknowledgment", fyne.TextAlignLeading, fyne.TextStyle{})
 		statusIndicator.Importance = widget.WarningImportance
-		
+
 		actionButton = widget.NewButtonWithIcon("✋ Acknowledge Alert", theme.ConfirmIcon(), func() {
 			aw.showAcknowledgeDialog(alert, alertKey, cardContainer)
 		})
 		actionButton.Importance = widget.HighImportance
 	}
-	
+
 	statusSection.Add(statusIndicator)
 	statusSection.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Display existing acknowledgments
 	if len(acknowledgments) > 0 {
 		acknowledgementsSection := container.NewVBox()
 		acknowledgementsTitle := widget.NewLabelWithStyle("Acknowledgment History", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 		acknowledgementsSection.Add(acknowledgementsTitle)
-		
+
 		for i, ack := range acknowledgments {
 			// Create acknowledgment item
 			ackContainer := container.NewVBox()
-			
+
 			// Header with user and timestamp
 			headerContainer := container.NewHBox()
 			userLabel := widget.NewLabelWithStyle(fmt.Sprintf("👤 %s", ack.Username), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 			headerContainer.Add(userLabel)
 			headerContainer.Add(layout.NewSpacer())
-			
+
 			// Format timestamp
 			timestamp := "Unknown time"
 			if ack.CreatedAt != nil {
@@ -2028,80 +2026,80 @@ func (aw *AlertsWindow) refreshAcknowledgeCard(cardContainer *fyne.Container, al
 			}
 			timeLabel := widget.NewLabelWithStyle(timestamp, fyne.TextAlignTrailing, fyne.TextStyle{Italic: true})
 			headerContainer.Add(timeLabel)
-			
+
 			ackContainer.Add(headerContainer)
-			
+
 			// Reason
 			reasonLabel := widget.NewLabel(fmt.Sprintf("💬 %s", ack.Reason))
 			reasonLabel.Wrapping = fyne.TextWrapWord
 			ackContainer.Add(reasonLabel)
-			
+
 			// Add action buttons for this acknowledgment
 			ackActionsContainer := container.NewHBox()
 			ackActionsContainer.Add(layout.NewSpacer())
-			
+
 			// Remove button (only show if user can delete)
 			removeBtn := widget.NewButtonWithIcon("🗑️ Remove All", theme.DeleteIcon(), func() {
 				aw.showRemoveAcknowledgmentDialog(alert, alertKey, ack, cardContainer)
 			})
 			removeBtn.Importance = widget.DangerImportance
 			ackActionsContainer.Add(removeBtn)
-			
+
 			ackContainer.Add(widget.NewLabel("")) // Spacing
 			ackContainer.Add(ackActionsContainer)
-			
+
 			// Add border for each acknowledgment
 			ackCard := widget.NewCard("", "", ackContainer)
 			acknowledgementsSection.Add(ackCard)
-			
+
 			// Add spacing between acknowledgments (except for the last one)
 			if i < len(acknowledgments)-1 {
 				acknowledgementsSection.Add(widget.NewLabel(""))
 			}
 		}
-		
+
 		content.Add(acknowledgementsSection)
 		content.Add(widget.NewSeparator())
 	}
-	
+
 	// Action section
 	actionSection := container.NewVBox()
 	actionTitle := widget.NewLabelWithStyle("Take Action", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	actionSection.Add(actionTitle)
-	
+
 	if isAcknowledged {
 		actionSection.Add(widget.NewLabel("Add updates or additional context to the acknowledgment"))
 	} else {
 		actionSection.Add(widget.NewLabel("Acknowledge this alert to indicate you're working on it"))
 	}
 	actionSection.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Create action button container
 	buttonContainer := container.NewHBox()
 	buttonContainer.Add(actionButton)
 	buttonContainer.Add(layout.NewSpacer())
-	
+
 	// Add refresh button
 	refreshButton := widget.NewButtonWithIcon("🔄 Refresh", theme.ViewRefreshIcon(), func() {
 		aw.refreshAcknowledgeCard(cardContainer, alert, alertKey)
 	})
 	refreshButton.Importance = widget.LowImportance
 	buttonContainer.Add(refreshButton)
-	
+
 	// Add info button
 	infoButton := widget.NewButtonWithIcon("ℹ️ Info", theme.InfoIcon(), func() {
 		aw.showAcknowledgeInfoDialog()
 	})
 	infoButton.Importance = widget.LowImportance
 	buttonContainer.Add(infoButton)
-	
+
 	actionSection.Add(buttonContainer)
-	
+
 	// Add sections to content
 	content.Add(statusSection)
 	content.Add(widget.NewSeparator())
 	content.Add(actionSection)
-	
+
 	card.SetContent(content)
 	cardContainer.Add(card)
 	cardContainer.Refresh()
@@ -2111,12 +2109,12 @@ func (aw *AlertsWindow) refreshAcknowledgeCard(cardContainer *fyne.Container, al
 func (aw *AlertsWindow) showAcknowledgeDialog(alert models.Alert, alertKey string, cardContainer *fyne.Container) {
 	// Create acknowledge form
 	acknowledgeForm := container.NewVBox()
-	
+
 	// Title section
 	titleLabel := widget.NewLabelWithStyle("Acknowledge Alert", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	acknowledgeForm.Add(titleLabel)
 	acknowledgeForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Alert info section
 	alertInfo := container.NewVBox()
 	alertInfo.Add(widget.NewLabelWithStyle("Alert Details:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
@@ -2125,28 +2123,28 @@ func (aw *AlertsWindow) showAcknowledgeDialog(alert models.Alert, alertKey strin
 	alertInfo.Add(widget.NewLabel(fmt.Sprintf("⚠️ %s", alert.GetSeverity())))
 	acknowledgeForm.Add(alertInfo)
 	acknowledgeForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Reason section
 	reasonLabel := widget.NewLabelWithStyle("Acknowledgment Reason:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	acknowledgeForm.Add(reasonLabel)
-	
+
 	reasonEntry := widget.NewMultiLineEntry()
 	reasonEntry.SetPlaceHolder("Explain why you're acknowledging this alert and what actions you plan to take...")
 	reasonEntry.Resize(fyne.NewSize(500, 120))
 	acknowledgeForm.Add(reasonEntry)
 	acknowledgeForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Create and show dialog first
 	acknowledgeDialog := dialog.NewCustom("Acknowledge Alert", "", acknowledgeForm, aw.window)
-	
+
 	// Buttons
 	buttonContainer := container.NewHBox()
-	
+
 	cancelBtn := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
 		acknowledgeDialog.Hide()
 	})
 	cancelBtn.Importance = widget.LowImportance
-	
+
 	acknowledgeBtn := widget.NewButtonWithIcon("✋ Acknowledge", theme.ConfirmIcon(), func() {
 		reason := reasonEntry.Text
 		if reason == "" {
@@ -2154,29 +2152,29 @@ func (aw *AlertsWindow) showAcknowledgeDialog(alert models.Alert, alertKey strin
 			dialog.ShowInformation("Validation Error", "Please provide a reason for acknowledging this alert.", aw.window)
 			return
 		}
-		
+
 		// Call backend to acknowledge alert
 		err := aw.acknowledgeAlert(alertKey, reason)
-		
+
 		if err != nil {
 			log.Printf("Error acknowledging alert %s: %v", alertKey, err)
 			dialog.ShowError(fmt.Errorf("Failed to acknowledge alert: %v", err), aw.window)
 			return
 		}
-		
+
 		// Close the dialog, refresh the card, and show success
 		acknowledgeDialog.Hide()
 		aw.refreshAcknowledgeCard(cardContainer, alert, alertKey)
 		dialog.ShowInformation("Success", "Alert has been acknowledged successfully!", aw.window)
 	})
 	acknowledgeBtn.Importance = widget.HighImportance
-	
+
 	buttonContainer.Add(layout.NewSpacer())
 	buttonContainer.Add(cancelBtn)
 	buttonContainer.Add(acknowledgeBtn)
-	
+
 	acknowledgeForm.Add(buttonContainer)
-	
+
 	acknowledgeDialog.Resize(fyne.NewSize(600, 450))
 	acknowledgeDialog.Show()
 }
@@ -2185,67 +2183,67 @@ func (aw *AlertsWindow) showAcknowledgeDialog(alert models.Alert, alertKey strin
 func (aw *AlertsWindow) showUpdateAcknowledgeDialog(alert models.Alert, alertKey string, cardContainer *fyne.Container) {
 	// Similar to acknowledge dialog but for updating
 	updateForm := container.NewVBox()
-	
+
 	titleLabel := widget.NewLabelWithStyle("Update Acknowledgment", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	updateForm.Add(titleLabel)
 	updateForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Current status
 	statusLabel := widget.NewLabelWithStyle("Current Status: ✅ Acknowledged", fyne.TextAlignLeading, fyne.TextStyle{})
 	statusLabel.Importance = widget.SuccessImportance
 	updateForm.Add(statusLabel)
 	updateForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// New reason section
 	reasonLabel := widget.NewLabelWithStyle("Update Reason:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	updateForm.Add(reasonLabel)
-	
+
 	reasonEntry := widget.NewMultiLineEntry()
 	reasonEntry.SetPlaceHolder("Provide an update on your progress or changes to the acknowledgment...")
 	reasonEntry.Resize(fyne.NewSize(400, 100))
 	updateForm.Add(reasonEntry)
 	updateForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Create and show dialog first
 	updateDialog := dialog.NewCustom("Update Acknowledgment", "", updateForm, aw.window)
-	
+
 	// Buttons
 	buttonContainer := container.NewHBox()
-	
+
 	cancelBtn := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
 		updateDialog.Hide()
 	})
 	cancelBtn.Importance = widget.LowImportance
-	
+
 	updateBtn := widget.NewButtonWithIcon("🔄 Update", theme.DocumentSaveIcon(), func() {
 		reason := reasonEntry.Text
 		if reason == "" {
 			dialog.ShowInformation("Validation Error", "Please provide an update reason.", aw.window)
 			return
 		}
-		
+
 		// Call backend to update acknowledgment (add new acknowledgment)
 		err := aw.acknowledgeAlert(alertKey, reason)
-		
+
 		if err != nil {
 			log.Printf("Error updating acknowledgment for alert %s: %v", alertKey, err)
 			dialog.ShowError(fmt.Errorf("Failed to update acknowledgment: %v", err), aw.window)
 			return
 		}
-		
+
 		// Close the dialog, refresh the card, and show success
 		updateDialog.Hide()
 		aw.refreshAcknowledgeCard(cardContainer, alert, alertKey)
 		dialog.ShowInformation("Success", "Acknowledgment has been updated successfully!", aw.window)
 	})
 	updateBtn.Importance = widget.MediumImportance
-	
+
 	buttonContainer.Add(layout.NewSpacer())
 	buttonContainer.Add(cancelBtn)
 	buttonContainer.Add(updateBtn)
-	
+
 	updateForm.Add(buttonContainer)
-	
+
 	updateDialog.Resize(fyne.NewSize(500, 350))
 	updateDialog.Show()
 }
@@ -2253,11 +2251,11 @@ func (aw *AlertsWindow) showUpdateAcknowledgeDialog(alert models.Alert, alertKey
 // showAcknowledgeInfoDialog shows information about acknowledgments
 func (aw *AlertsWindow) showAcknowledgeInfoDialog() {
 	infoContent := container.NewVBox()
-	
+
 	titleLabel := widget.NewLabelWithStyle("About Alert Acknowledgments", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	infoContent.Add(titleLabel)
 	infoContent.Add(widget.NewLabel("")) // Spacing
-	
+
 	infoText := container.NewVBox()
 	infoText.Add(widget.NewLabel("📋 What is an acknowledgment?"))
 	infoText.Add(widget.NewLabel("An acknowledgment indicates that someone is aware of and working on the alert."))
@@ -2271,12 +2269,11 @@ func (aw *AlertsWindow) showAcknowledgeInfoDialog() {
 	infoText.Add(widget.NewLabel("• Provide progress updates to keep team informed"))
 	infoText.Add(widget.NewLabel("• Share findings or resolution steps"))
 	infoText.Add(widget.NewLabel("• Notify when the issue is resolved"))
-	
+
 	infoContent.Add(infoText)
-	
+
 	dialog.ShowCustom("Acknowledgment Info", "Close", infoContent, aw.window)
 }
-
 
 // checkAlertAcknowledgmentStatus checks if an alert has been acknowledged
 func (aw *AlertsWindow) checkAlertAcknowledgmentStatus(alertKey string) bool {
@@ -2285,7 +2282,7 @@ func (aw *AlertsWindow) checkAlertAcknowledgmentStatus(alertKey string) bool {
 		log.Printf("Error checking acknowledgment status for alert %s: %v", alertKey, err)
 		return false
 	}
-	
+
 	return len(acknowledgments) > 0
 }
 
@@ -2293,29 +2290,29 @@ func (aw *AlertsWindow) checkAlertAcknowledgmentStatus(alertKey string) bool {
 func (aw *AlertsWindow) showRemoveAcknowledgmentDialog(alert models.Alert, alertKey string, ack *alertpb.Acknowledgment, cardContainer *fyne.Container) {
 	// Create confirmation dialog content
 	confirmForm := container.NewVBox()
-	
+
 	// Title
 	titleLabel := widget.NewLabelWithStyle("Remove Acknowledgment", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	confirmForm.Add(titleLabel)
 	confirmForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Warning message
 	warningLabel := widget.NewLabelWithStyle("⚠️ Are you sure you want to remove ALL acknowledgments for this alert?", fyne.TextAlignCenter, fyne.TextStyle{})
 	warningLabel.Importance = widget.WarningImportance
 	confirmForm.Add(warningLabel)
 	confirmForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Additional warning
 	noteWarning := widget.NewLabel("Note: This will remove ALL acknowledgments for this alert, not just this specific one.")
 	noteWarning.Importance = widget.WarningImportance
 	confirmForm.Add(noteWarning)
 	confirmForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Show acknowledgment details
 	detailsContainer := container.NewVBox()
 	detailsContainer.Add(widget.NewLabelWithStyle("Acknowledgment Details:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 	detailsContainer.Add(widget.NewLabel(fmt.Sprintf("👤 User: %s", ack.Username)))
-	
+
 	timestamp := "Unknown time"
 	if ack.CreatedAt != nil {
 		t := ack.CreatedAt.AsTime()
@@ -2323,50 +2320,50 @@ func (aw *AlertsWindow) showRemoveAcknowledgmentDialog(alert models.Alert, alert
 	}
 	detailsContainer.Add(widget.NewLabel(fmt.Sprintf("🕐 Created: %s", timestamp)))
 	detailsContainer.Add(widget.NewLabel(fmt.Sprintf("💬 Reason: %s", ack.Reason)))
-	
+
 	confirmForm.Add(detailsContainer)
 	confirmForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Warning note
 	noteLabel := widget.NewLabel("This action cannot be undone.")
 	noteLabel.Importance = widget.LowImportance
 	confirmForm.Add(noteLabel)
 	confirmForm.Add(widget.NewLabel("")) // Spacing
-	
+
 	// Create dialog first
 	removeDialog := dialog.NewCustom("Remove Acknowledgment", "", confirmForm, aw.window)
-	
+
 	// Buttons
 	buttonContainer := container.NewHBox()
-	
+
 	cancelBtn := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
 		removeDialog.Hide()
 	})
 	cancelBtn.Importance = widget.LowImportance
-	
+
 	removeBtn := widget.NewButtonWithIcon("🗑️ Remove All", theme.DeleteIcon(), func() {
 		// Call backend to remove acknowledgment
 		err := aw.removeAcknowledgment(alertKey, ack.Id)
-		
+
 		if err != nil {
 			log.Printf("Error removing acknowledgment %s: %v", ack.Id, err)
 			dialog.ShowError(fmt.Errorf("Failed to remove acknowledgment: %v", err), aw.window)
 			return
 		}
-		
+
 		// Close the dialog, refresh the card, and show success
 		removeDialog.Hide()
 		aw.refreshAcknowledgeCard(cardContainer, alert, alertKey)
 		dialog.ShowInformation("Success", "All acknowledgments have been removed successfully!", aw.window)
 	})
 	removeBtn.Importance = widget.DangerImportance
-	
+
 	buttonContainer.Add(layout.NewSpacer())
 	buttonContainer.Add(cancelBtn)
 	buttonContainer.Add(removeBtn)
-	
+
 	confirmForm.Add(buttonContainer)
-	
+
 	removeDialog.Resize(fyne.NewSize(500, 400))
 	removeDialog.Show()
 }
@@ -2384,12 +2381,12 @@ func (aw *AlertsWindow) removeAcknowledgment(alertKey, acknowledgmentId string) 
 // createCollaborationDashboard creates a visual dashboard of collaboration status
 func (aw *AlertsWindow) createCollaborationDashboard(alertKey string) fyne.CanvasObject {
 	dashboardCard := widget.NewCard("🎯 Collaboration Status", "Real-time collaboration overview", container.NewVBox())
-	
+
 	contentContainer := container.NewVBox()
-	
+
 	// Load collaboration status
 	aw.loadCollaborationDashboard(alertKey, contentContainer)
-	
+
 	dashboardCard.SetContent(contentContainer)
 	return dashboardCard
 }
@@ -2410,14 +2407,14 @@ func (aw *AlertsWindow) loadCollaborationDashboard(alertKey string, containerObj
 		var acknowledgments []*alertpb.Acknowledgment
 		var comments []*alertpb.Comment
 		var ackErr, commErr error
-		
+
 		// Load data with timeout
 		go func() {
 			acknowledgments, ackErr = aw.getAlertAcknowledgments(alertKey)
 			comments, commErr = aw.getAlertComments(alertKey)
 			done <- true
 		}()
-		
+
 		// Wait for completion or timeout
 		select {
 		case <-done:
@@ -2431,10 +2428,10 @@ func (aw *AlertsWindow) loadCollaborationDashboard(alertKey string, containerObj
 			})
 			return
 		}
-		
+
 		fyne.Do(func() {
 			containerObj.Objects = nil
-			
+
 			if ackErr != nil || commErr != nil {
 				containerObj.Add(widget.NewLabel("❌ Failed to load collaboration data"))
 				if ackErr != nil {
@@ -2448,7 +2445,7 @@ func (aw *AlertsWindow) loadCollaborationDashboard(alertKey string, containerObj
 
 			// Collaboration metrics
 			metricsContainer := container.NewVBox()
-			
+
 			// Acknowledgment status
 			ackStatus := "🟥 Unacknowledged"
 			if len(acknowledgments) > 0 {
@@ -2456,29 +2453,29 @@ func (aw *AlertsWindow) loadCollaborationDashboard(alertKey string, containerObj
 			}
 			ackLabel := widget.NewLabelWithStyle(ackStatus, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 			metricsContainer.Add(ackLabel)
-			
+
 			// Comments count
 			commentsLabel := widget.NewLabel(fmt.Sprintf("💬 %d comments", len(comments)))
 			metricsContainer.Add(commentsLabel)
-			
+
 			// Active collaborators (simulated)
 			collaboratorsLabel := widget.NewLabel("👥 Active: 2 users")
 			metricsContainer.Add(collaboratorsLabel)
-			
+
 			// Recent activity indicator
 			if len(acknowledgments) > 0 || len(comments) > 0 {
 				recentActivity := widget.NewLabel("⚡ Recent activity")
 				recentActivity.TextStyle = fyne.TextStyle{Italic: true}
 				metricsContainer.Add(recentActivity)
 			}
-			
+
 			containerObj.Add(metricsContainer)
-			
+
 			// Live presence indicators (simulated)
 			presenceContainer := container.NewVBox()
 			presenceContainer.Add(widget.NewSeparator())
 			presenceContainer.Add(widget.NewLabelWithStyle("👁️ Currently Viewing", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
-			
+
 			// Simulate active users
 			activeUsers := []string{"👤 You", "👤 DevOps Team", "👤 SRE Lead"}
 			for _, user := range activeUsers {
@@ -2486,7 +2483,7 @@ func (aw *AlertsWindow) loadCollaborationDashboard(alertKey string, containerObj
 				userLabel.TextStyle = fyne.TextStyle{Italic: true}
 				presenceContainer.Add(userLabel)
 			}
-			
+
 			containerObj.Add(presenceContainer)
 		})
 	}()
@@ -2495,35 +2492,35 @@ func (aw *AlertsWindow) loadCollaborationDashboard(alertKey string, containerObj
 // createQuickActionsPanel creates a panel with quick action buttons
 func (aw *AlertsWindow) createQuickActionsPanel(alertKey string) fyne.CanvasObject {
 	actionsCard := widget.NewCard("⚡ Quick Actions", "One-click common actions", container.NewVBox())
-	
+
 	actionsContainer := container.NewVBox()
-	
+
 	// Quick acknowledge button
 	quickAckBtn := widget.NewButtonWithIcon("🚀 Quick Acknowledge", theme.ConfirmIcon(), func() {
 		aw.quickAcknowledge(alertKey)
 	})
 	quickAckBtn.Importance = widget.HighImportance
 	actionsContainer.Add(quickAckBtn)
-	
+
 	// Add quick comment button
 	quickCommentBtn := widget.NewButtonWithIcon("💭 Quick Comment", theme.MailSendIcon(), func() {
 		aw.showQuickCommentDialog(alertKey)
 	})
 	actionsContainer.Add(quickCommentBtn)
-	
+
 	// Emergency escalate button
 	escalateBtn := widget.NewButtonWithIcon("🚨 Escalate", theme.WarningIcon(), func() {
 		aw.escalateAlert(alertKey)
 	})
 	escalateBtn.Importance = widget.DangerImportance
 	actionsContainer.Add(escalateBtn)
-	
+
 	// Share alert button
 	shareBtn := widget.NewButtonWithIcon("📤 Share", theme.MailSendIcon(), func() {
 		aw.shareAlert(alertKey)
 	})
 	actionsContainer.Add(shareBtn)
-	
+
 	actionsCard.SetContent(actionsContainer)
 	return actionsCard
 }
@@ -2531,12 +2528,12 @@ func (aw *AlertsWindow) createQuickActionsPanel(alertKey string) fyne.CanvasObje
 // createActivityTimeline creates an activity timeline view
 func (aw *AlertsWindow) createActivityTimeline(alertKey string) fyne.CanvasObject {
 	timelineCard := widget.NewCard("📈 Activity Timeline", "Chronological view of all activities", container.NewVBox())
-	
+
 	contentContainer := container.NewVBox()
-	
+
 	// Load timeline data
 	aw.loadActivityTimeline(alertKey, contentContainer)
-	
+
 	timelineCard.SetContent(contentContainer)
 	return timelineCard
 }
@@ -2557,14 +2554,14 @@ func (aw *AlertsWindow) loadActivityTimeline(alertKey string, containerObj *fyne
 		var acknowledgments []*alertpb.Acknowledgment
 		var comments []*alertpb.Comment
 		var ackErr, commErr error
-		
+
 		// Load data with timeout
 		go func() {
 			acknowledgments, ackErr = aw.getAlertAcknowledgments(alertKey)
 			comments, commErr = aw.getAlertComments(alertKey)
 			done <- true
 		}()
-		
+
 		// Wait for completion or timeout
 		select {
 		case <-done:
@@ -2578,10 +2575,10 @@ func (aw *AlertsWindow) loadActivityTimeline(alertKey string, containerObj *fyne
 			})
 			return
 		}
-		
+
 		fyne.Do(func() {
 			containerObj.Objects = nil
-			
+
 			if ackErr != nil || commErr != nil {
 				containerObj.Add(widget.NewLabel("❌ Failed to load timeline"))
 				if ackErr != nil {
@@ -2595,7 +2592,7 @@ func (aw *AlertsWindow) loadActivityTimeline(alertKey string, containerObj *fyne
 
 			// Combine and sort activities by timestamp
 			activities := aw.mergeActivities(acknowledgments, comments)
-			
+
 			if len(activities) == 0 {
 				emptyCard := widget.NewCard("", "", container.NewVBox(
 					widget.NewLabel("📭 No activities yet"),
@@ -2616,7 +2613,7 @@ func (aw *AlertsWindow) loadActivityTimeline(alertKey string, containerObj *fyne
 
 // Activity represents a timeline activity
 type Activity struct {
-	Type      string    // "acknowledgment" or "comment"
+	Type      string // "acknowledgment" or "comment"
 	User      string
 	Content   string
 	Timestamp time.Time
@@ -2626,7 +2623,7 @@ type Activity struct {
 // mergeActivities combines acknowledgments and comments into a sorted timeline
 func (aw *AlertsWindow) mergeActivities(acknowledgments []*alertpb.Acknowledgment, comments []*alertpb.Comment) []Activity {
 	var activities []Activity
-	
+
 	// Add acknowledgments
 	for _, ack := range acknowledgments {
 		activity := Activity{
@@ -2640,7 +2637,7 @@ func (aw *AlertsWindow) mergeActivities(acknowledgments []*alertpb.Acknowledgmen
 		}
 		activities = append(activities, activity)
 	}
-	
+
 	// Add comments
 	for _, comment := range comments {
 		activity := Activity{
@@ -2654,7 +2651,7 @@ func (aw *AlertsWindow) mergeActivities(acknowledgments []*alertpb.Acknowledgmen
 		}
 		activities = append(activities, activity)
 	}
-	
+
 	// Sort by timestamp (newest first)
 	for i := 0; i < len(activities); i++ {
 		for j := i + 1; j < len(activities); j++ {
@@ -2663,26 +2660,26 @@ func (aw *AlertsWindow) mergeActivities(acknowledgments []*alertpb.Acknowledgmen
 			}
 		}
 	}
-	
+
 	return activities
 }
 
 // createTimelineEntry creates a timeline entry widget
 func (aw *AlertsWindow) createTimelineEntry(activity Activity) fyne.CanvasObject {
 	entryContainer := container.NewVBox()
-	
+
 	// Timeline connector (visual line)
 	connectorContainer := container.NewHBox()
 	connectorContainer.Add(widget.NewLabel("│"))
-	
+
 	// Activity content
 	activityContainer := container.NewVBox()
-	
+
 	// Header with icon, user, and timestamp
 	headerContainer := container.NewHBox()
 	headerContainer.Add(widget.NewLabel(activity.Icon))
 	headerContainer.Add(widget.NewLabelWithStyle(activity.User, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
-	
+
 	// Relative timestamp
 	if !activity.Timestamp.IsZero() {
 		relativeTime := aw.getRelativeTime(activity.Timestamp)
@@ -2690,29 +2687,29 @@ func (aw *AlertsWindow) createTimelineEntry(activity Activity) fyne.CanvasObject
 		timeLabel.TextStyle = fyne.TextStyle{Italic: true}
 		headerContainer.Add(timeLabel)
 	}
-	
+
 	activityContainer.Add(headerContainer)
-	
+
 	// Activity content
 	contentLabel := widget.NewLabel(activity.Content)
 	contentLabel.Wrapping = fyne.TextWrapWord
 	activityContainer.Add(contentLabel)
-	
+
 	// Combine connector and content
 	fullContainer := container.NewHBox()
 	fullContainer.Add(connectorContainer)
 	fullContainer.Add(activityContainer)
-	
+
 	entryContainer.Add(fullContainer)
 	entryContainer.Add(widget.NewSeparator())
-	
+
 	return entryContainer
 }
 
 // getRelativeTime returns a human-readable relative time
 func (aw *AlertsWindow) getRelativeTime(timestamp time.Time) string {
 	duration := time.Since(timestamp)
-	
+
 	if duration < time.Minute {
 		return "just now"
 	} else if duration < time.Hour {
@@ -2726,12 +2723,12 @@ func (aw *AlertsWindow) getRelativeTime(timestamp time.Time) string {
 
 func (aw *AlertsWindow) createCommentsSection(alertKey string) fyne.CanvasObject {
 	commentsCard := widget.NewCard("💬 Comments", "Collaborate with your team", container.NewVBox())
-	
+
 	contentContainer := container.NewVBox()
-	
+
 	// Load comments
 	aw.loadAdvancedComments(alertKey, contentContainer)
-	
+
 	commentsCard.SetContent(contentContainer)
 	return commentsCard
 }
@@ -2751,13 +2748,13 @@ func (aw *AlertsWindow) loadAdvancedComments(alertKey string, containerObj *fyne
 		done := make(chan bool, 1)
 		var comments []*alertpb.Comment
 		var err error
-		
+
 		// Load data with timeout
 		go func() {
 			comments, err = aw.getAlertComments(alertKey)
 			done <- true
 		}()
-		
+
 		// Wait for completion or timeout
 		select {
 		case <-done:
@@ -2771,10 +2768,10 @@ func (aw *AlertsWindow) loadAdvancedComments(alertKey string, containerObj *fyne
 			})
 			return
 		}
-		
+
 		fyne.Do(func() {
 			containerObj.Objects = nil
-			
+
 			if err != nil {
 				containerObj.Add(widget.NewLabel("❌ Failed to load comments"))
 				containerObj.Add(widget.NewLabel(fmt.Sprintf("Error: %v", err)))
@@ -2784,7 +2781,7 @@ func (aw *AlertsWindow) loadAdvancedComments(alertKey string, containerObj *fyne
 			// Advanced comment input form
 			commentForm := aw.createCommentForm(alertKey, containerObj)
 			containerObj.Add(commentForm)
-			
+
 			containerObj.Add(widget.NewSeparator())
 
 			// Show comments
@@ -2797,12 +2794,12 @@ func (aw *AlertsWindow) loadAdvancedComments(alertKey string, containerObj *fyne
 			} else {
 				// Comments count
 				countLabel := widget.NewLabelWithStyle(
-					fmt.Sprintf("💬 %d comments", len(comments)), 
-					fyne.TextAlignLeading, 
+					fmt.Sprintf("💬 %d comments", len(comments)),
+					fyne.TextAlignLeading,
 					fyne.TextStyle{Bold: true},
 				)
 				containerObj.Add(countLabel)
-				
+
 				// Display each comment
 				for _, comment := range comments {
 					commentCard := aw.createCommentCard(comment, alertKey, containerObj)
@@ -2815,10 +2812,10 @@ func (aw *AlertsWindow) loadAdvancedComments(alertKey string, containerObj *fyne
 
 func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne.Container) fyne.CanvasObject {
 	formCard := widget.NewCard("✍️ Add Comment", "Share insights with your team", container.NewVBox())
-	
+
 	// Comment templates for quick responses
 	templatesContainer := container.NewHBox()
-	
+
 	templates := []struct {
 		Label string
 		Text  string
@@ -2828,7 +2825,7 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 		{"🚧 Working on it", "I'm working on this. ETA: ..."},
 		{"❓ Need info", "I need more information about..."},
 	}
-	
+
 	var commentEntry *MentionEntry
 	if aw.backendClient != nil && aw.backendClient.IsLoggedIn() {
 		commentEntry = NewMentionEntry(aw.backendClient, aw.window)
@@ -2843,7 +2840,7 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 	}
 	commentEntry.SetPlaceHolder("What's happening with this alert? Share updates, ask questions, or provide insights... (Try @username to mention someone)")
 	commentEntry.Resize(fyne.NewSize(500, 120))
-	
+
 	for _, template := range templates {
 		template := template // Capture for closure
 		templateBtn := widget.NewButton(template.Label, func() {
@@ -2852,18 +2849,18 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 		templateBtn.Importance = widget.LowImportance
 		templatesContainer.Add(templateBtn)
 	}
-	
+
 	// Character counter with smart suggestions
 	charCountLabel := widget.NewLabel("0 / 1000")
 	charCountLabel.TextStyle = fyne.TextStyle{Italic: true}
-	
+
 	// Smart suggestions (simulated)
 	suggestionsLabel := widget.NewLabel("💡 Suggestions: Add @mention, #tag, or /command")
 	suggestionsLabel.TextStyle = fyne.TextStyle{Italic: true}
-	
+
 	// Enhanced button container
 	buttonContainer := container.NewHBox()
-	
+
 	// Submit button with enhanced styling
 	submitButton := widget.NewButtonWithIcon("🚀 Post Comment", theme.MailSendIcon(), func() {
 		content := strings.TrimSpace(commentEntry.Text)
@@ -2879,21 +2876,21 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 	})
 	submitButton.Importance = widget.HighImportance
 	submitButton.Disable()
-	
+
 	// Draft save button
 	draftBtn := widget.NewButtonWithIcon("💾 Save Draft", theme.DocumentSaveIcon(), func() {
 		// Save draft functionality
 		dialog.ShowInformation("Draft Saved", "Your comment has been saved as a draft", aw.window)
 	})
-	
+
 	buttonContainer.Add(submitButton)
 	buttonContainer.Add(draftBtn)
-	
+
 	// Update character count and suggestions
 	updateUI := func(text string) {
 		charCount := len(text)
 		charCountLabel.SetText(fmt.Sprintf("%d / 1000", charCount))
-		
+
 		// Color coding for character count
 		if charCount > 1000 {
 			charCountLabel.Importance = widget.DangerImportance
@@ -2902,14 +2899,14 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 		} else {
 			charCountLabel.Importance = widget.LowImportance
 		}
-		
+
 		// Enable/disable submit button
 		if strings.TrimSpace(text) == "" || charCount > 1000 {
 			submitButton.Disable()
 		} else {
 			submitButton.Enable()
 		}
-		
+
 		// Update suggestions based on content
 		if strings.Contains(text, "@") {
 			suggestionsLabel.SetText("💡 @mention detected - team members will be notified")
@@ -2921,7 +2918,7 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 			suggestionsLabel.SetText("💡 Suggestions: Add @mention, #tag, or /command")
 		}
 	}
-	
+
 	// Set up the callbacks
 	if aw.backendClient != nil && aw.backendClient.IsLoggedIn() {
 		// For MentionEntry, chain the original OnChanged with our UI updates
@@ -2930,7 +2927,7 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 			originalOnChanged(text)
 			updateUI(text)
 		}
-		
+
 		// Set up mention callback
 		commentEntry.SetOnMentionSelected(func(user *authpb.User) {
 			// Could show a notification or update UI
@@ -2940,7 +2937,7 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 		// For regular entry, just use the UI update
 		commentEntry.Entry.OnChanged = updateUI
 	}
-	
+
 	formContent := container.NewVBox(
 		widget.NewLabel("Quick Templates:"),
 		templatesContainer,
@@ -2953,7 +2950,7 @@ func (aw *AlertsWindow) createCommentForm(alertKey string, parentContainer *fyne
 		),
 		buttonContainer,
 	)
-	
+
 	formCard.SetContent(formContent)
 	return formCard
 }
@@ -2964,7 +2961,7 @@ func (aw *AlertsWindow) createCommentCard(comment *alertpb.Comment, alertKey str
 	if comment.CreatedAt != nil {
 		createdTime := comment.CreatedAt.AsTime()
 		timeStr = createdTime.Format("Jan 2, 15:04")
-		
+
 		// Add relative time with more granularity
 		duration := time.Since(createdTime)
 		if duration < time.Minute {
@@ -2980,26 +2977,26 @@ func (aw *AlertsWindow) createCommentCard(comment *alertpb.Comment, alertKey str
 
 	// Enhanced header with user avatar placeholder and status
 	headerContainer := container.NewHBox()
-	
+
 	// User avatar (placeholder)
 	avatarLabel := widget.NewLabel("👤")
 	headerContainer.Add(avatarLabel)
-	
+
 	// User name with role/status
 	userLabel := widget.NewLabelWithStyle(comment.Username, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	headerContainer.Add(userLabel)
-	
+
 	// User status (simulated)
 	statusLabel := widget.NewLabel("🟢 Online")
 	statusLabel.TextStyle = fyne.TextStyle{Italic: true}
 	headerContainer.Add(statusLabel)
-	
+
 	headerContainer.Add(widget.NewLabel("•"))
 	headerContainer.Add(widget.NewLabel(timeStr))
 
 	// Enhanced comment content with better formatting
 	contentContainer := container.NewVBox()
-	
+
 	// Process comment for mentions and tags
 	processedContent := aw.processCommentContent(comment.Content)
 	commentText := widget.NewRichTextFromMarkdown(processedContent)
@@ -3010,40 +3007,40 @@ func (aw *AlertsWindow) createCommentCard(comment *alertpb.Comment, alertKey str
 	currentUser := aw.getCurrentUser()
 	if currentUser != nil && currentUser.ID == comment.UserId {
 		actionsContainer := container.NewHBox()
-		
+
 		// Edit button
 		editBtn := widget.NewButtonWithIcon("✏️ Edit", theme.DocumentIcon(), func() {
 			// Edit functionality not implemented yet
 		})
 		editBtn.Importance = widget.MediumImportance
 		actionsContainer.Add(editBtn)
-		
+
 		// Delete button
 		deleteBtn := widget.NewButtonWithIcon("🗑️ Delete", theme.DeleteIcon(), func() {
 			// Delete functionality not implemented yet
 		})
 		deleteBtn.Importance = widget.DangerImportance
 		actionsContainer.Add(deleteBtn)
-		
+
 		contentContainer.Add(widget.NewSeparator())
 		contentContainer.Add(actionsContainer)
 	} else {
 		// Actions for other users' comments
 		otherActionsContainer := container.NewHBox()
-		
+
 		// Reply button
 		replyBtn := widget.NewButtonWithIcon("💬 Reply", theme.MailReplyIcon(), func() {
 			aw.replyToComment(comment, alertKey, parentContainer)
 		})
 		replyBtn.Importance = widget.MediumImportance
 		otherActionsContainer.Add(replyBtn)
-		
+
 		// Quote button
 		quoteBtn := widget.NewButtonWithIcon("📝 Quote", theme.DocumentIcon(), func() {
 			aw.quoteComment(comment, alertKey, parentContainer)
 		})
 		otherActionsContainer.Add(quoteBtn)
-		
+
 		if len(otherActionsContainer.Objects) > 0 {
 			contentContainer.Add(widget.NewSeparator())
 			contentContainer.Add(otherActionsContainer)
@@ -3071,14 +3068,14 @@ func (aw *AlertsWindow) processCommentContent(content string) string {
 			for len(username) > 0 && !isAlphanumeric(username[len(username)-1]) {
 				username = username[:len(username)-1]
 			}
-			
+
 			if len(username) > 0 {
 				// Highlight the mention
 				highlighted := fmt.Sprintf("**@%s**", username)
 				words[i] = strings.Replace(word, "@"+username, highlighted, 1)
 			}
 		}
-		
+
 		// Process #tags similarly
 		if strings.HasPrefix(word, "#") && len(word) > 1 {
 			tag := word[1:]
@@ -3086,7 +3083,7 @@ func (aw *AlertsWindow) processCommentContent(content string) string {
 			for len(tag) > 0 && !isAlphanumeric(tag[len(tag)-1]) {
 				tag = tag[:len(tag)-1]
 			}
-			
+
 			if len(tag) > 0 {
 				// Highlight the tag
 				highlighted := fmt.Sprintf("**#%s**", tag)
@@ -3094,7 +3091,7 @@ func (aw *AlertsWindow) processCommentContent(content string) string {
 			}
 		}
 	}
-	
+
 	return strings.Join(words, " ")
 }
 
@@ -3106,33 +3103,33 @@ func isAlphanumeric(c byte) bool {
 // startAlertSubscription starts a real-time subscription for alert updates
 func (aw *AlertsWindow) startAlertSubscription(alertKey string, alertDialog *dialog.CustomDialog) {
 	log.Printf("Starting real-time subscription for alert: %s", alertKey)
-	
+
 	err := aw.backendClient.SubscribeToAlertUpdates(alertKey, func(update *alertpb.AlertUpdate) {
 		log.Printf("Received real-time update: %v for alert %s", update.UpdateType, alertKey)
-		
+
 		switch update.UpdateType {
 		case alertpb.UpdateType_COMMENT_ADDED:
 			if comment := update.GetComment(); comment != nil {
 				aw.handleNewComment(comment, alertKey)
 			}
-			
+
 		case alertpb.UpdateType_COMMENT_DELETED:
 			if commentId := update.GetDeletedCommentId(); commentId != "" {
 				aw.handleDeletedComment(commentId, alertKey)
 			}
-			
+
 		case alertpb.UpdateType_ACKNOWLEDGMENT_ADDED:
 			if ack := update.GetAcknowledgment(); ack != nil {
 				aw.handleNewAcknowledgment(ack, alertKey)
 			}
-			
+
 		case alertpb.UpdateType_ACKNOWLEDGMENT_DELETED:
 			if ackId := update.GetDeletedAcknowledgmentId(); ackId != "" {
 				aw.handleDeletedAcknowledgment(ackId, alertKey)
 			}
 		}
 	})
-	
+
 	if err != nil {
 		log.Printf("Failed to start alert subscription: %v", err)
 		// Show a non-intrusive notification
@@ -3140,7 +3137,7 @@ func (aw *AlertsWindow) startAlertSubscription(alertKey string, alertDialog *dia
 	} else {
 		log.Printf("Real-time subscription started for alert: %s", alertKey)
 		aw.setStatus("🔴 Live - Real-time updates active")
-		
+
 		// Show a welcome notification to let user know real-time updates are working
 		go func() {
 			time.Sleep(2 * time.Second)
@@ -3154,17 +3151,17 @@ func (aw *AlertsWindow) startAlertSubscription(alertKey string, alertDialog *dia
 // handleNewComment handles real-time comment additions
 func (aw *AlertsWindow) handleNewComment(comment *alertpb.Comment, alertKey string) {
 	log.Printf("New comment added: %s by %s", comment.Content, comment.Username)
-	
+
 	// Show a brief notification
 	aw.setStatus(fmt.Sprintf("💬 New comment from %s", comment.Username))
-	
+
 	// Update comment count cache
 	aw.cacheMutex.Lock()
 	if count, exists := aw.commentCountCache[alertKey]; exists {
 		aw.commentCountCache[alertKey] = count + 1
 	}
 	aw.cacheMutex.Unlock()
-	
+
 	// Refresh the collaboration tab if it's currently loaded
 	aw.refreshActiveCollaborationContent(alertKey)
 }
@@ -3179,14 +3176,14 @@ func (aw *AlertsWindow) handleDeletedComment(commentId string, alertKey string) 
 func (aw *AlertsWindow) handleNewAcknowledgment(ack *alertpb.Acknowledgment, alertKey string) {
 	log.Printf("New acknowledgment: %s by %s", ack.Reason, ack.Username)
 	aw.setStatus(fmt.Sprintf("✅ %s acknowledged the alert", ack.Username))
-	
+
 	// Update acknowledgment count cache
 	aw.cacheMutex.Lock()
 	if count, exists := aw.ackCountCache[alertKey]; exists {
 		aw.ackCountCache[alertKey] = count + 1
 	}
 	aw.cacheMutex.Unlock()
-	
+
 	// Refresh the collaboration tab if it's currently loaded
 	aw.refreshActiveCollaborationContent(alertKey)
 }
@@ -3202,7 +3199,7 @@ func (aw *AlertsWindow) refreshActiveCollaborationContent(alertKey string) {
 	// Check if we have an active collaboration container for this alert
 	if container, exists := aw.activeCollaborationContainers[alertKey]; exists && container != nil {
 		log.Printf("Refreshing collaboration content for alert %s", alertKey)
-		
+
 		// Refresh the container content in the UI thread
 		fyne.Do(func() {
 			// Find the comments card by iterating through container objects
@@ -3222,13 +3219,13 @@ func (aw *AlertsWindow) refreshActiveCollaborationContent(alertKey string) {
 // refreshCommentsCard refreshes the comments card content with latest data
 func (aw *AlertsWindow) refreshCommentsCard(commentsCard *widget.Card, alertKey string) {
 	log.Printf("Refreshing comments card for alert %s", alertKey)
-	
+
 	// Create new content container
 	contentContainer := container.NewVBox()
-	
+
 	// Reload comments from backend
 	aw.loadAdvancedComments(alertKey, contentContainer)
-	
+
 	// Update the card content
 	commentsCard.SetContent(contentContainer)
 	commentsCard.Refresh()
@@ -3251,7 +3248,7 @@ func (aw *AlertsWindow) showQuickCommentDialog(alertKey string) {
 	entry := widget.NewMultiLineEntry()
 	entry.SetPlaceHolder("Quick comment...")
 	entry.Resize(fyne.NewSize(400, 100))
-	
+
 	dialog.ShowCustomConfirm("Quick Comment", "Post", "Cancel", entry, func(confirmed bool) {
 		if confirmed && strings.TrimSpace(entry.Text) != "" {
 			aw.addAdvancedComment(alertKey, entry.Text, entry, nil)
@@ -3266,7 +3263,6 @@ func (aw *AlertsWindow) escalateAlert(alertKey string) {
 func (aw *AlertsWindow) shareAlert(alertKey string) {
 	dialog.ShowInformation("Share Alert", "Share feature coming soon!", aw.window)
 }
-
 
 func (aw *AlertsWindow) addAdvancedComment(alertKey, content string, entry *widget.Entry, parentContainer *fyne.Container) {
 	err := aw.addAlertComment(alertKey, content)
@@ -3291,10 +3287,10 @@ func (aw *AlertsWindow) createAcknowledgmentSection(alertKey string) fyne.Canvas
 
 	// Create dynamic content container
 	contentContainer := container.NewVBox()
-	
+
 	// Load acknowledgment status and content
 	aw.loadAcknowledgmentStatus(alertKey, contentContainer)
-	
+
 	mainCard.SetContent(contentContainer)
 	return mainCard
 }
@@ -3312,11 +3308,11 @@ func (aw *AlertsWindow) loadAcknowledgmentStatus(alertKey string, containerObj *
 
 	go func() {
 		acknowledgments, err := aw.getAlertAcknowledgments(alertKey)
-		
+
 		fyne.Do(func() {
 			// Clear loading state
 			containerObj.Objects = nil
-			
+
 			if err != nil {
 				log.Printf("Failed to load acknowledgments: %v", err)
 				containerObj.Add(widget.NewLabel("❌ Failed to load acknowledgment status"))
@@ -3326,7 +3322,7 @@ func (aw *AlertsWindow) loadAcknowledgmentStatus(alertKey string, containerObj *
 			// Check if alert is already acknowledged
 			isAcknowledged := len(acknowledgments) > 0
 			currentUser := aw.getCurrentUser()
-			
+
 			if isAcknowledged {
 				// Show acknowledged state
 				aw.showAcknowledgedState(alertKey, acknowledgments, currentUser, containerObj)
@@ -3345,7 +3341,7 @@ func (aw *AlertsWindow) showAcknowledgedState(alertKey string, acknowledgments [
 		widget.NewLabelWithStyle("✅ Alert Acknowledged", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		widget.NewLabel("This alert has been acknowledged and is being worked on"),
 	))
-	statusCard.SetContent(container.NewBorder(nil, nil, 
+	statusCard.SetContent(container.NewBorder(nil, nil,
 		widget.NewIcon(theme.ConfirmIcon()), nil,
 		statusCard.Content,
 	))
@@ -3366,7 +3362,7 @@ func (aw *AlertsWindow) showAcknowledgedState(alertKey string, acknowledgments [
 				break
 			}
 		}
-		
+
 		if !hasCurrentUserAck {
 			containerObj.Add(widget.NewSeparator())
 			addAckBtn := widget.NewButtonWithIcon("Add My Acknowledgment", theme.ContentAddIcon(), func() {
@@ -3385,11 +3381,11 @@ func (aw *AlertsWindow) showAcknowledgmentForm(alertKey string, containerObj *fy
 
 	// Create modern form
 	formCard := widget.NewCard("Acknowledge Alert", "Indicate that you're working on this alert", container.NewVBox())
-	
+
 	// Reason selection with icons
 	reasonOptions := []struct {
-		Text string
-		Icon string
+		Text        string
+		Icon        string
 		Description string
 	}{
 		{"🔍 Investigating", "🔍", "Currently investigating the issue"},
@@ -3418,12 +3414,12 @@ func (aw *AlertsWindow) showAcknowledgmentForm(alertKey string, containerObj *fy
 		if strings.Contains(selectedReason, "Other") && customReasonEntry.Text != "" {
 			finalReason = customReasonEntry.Text
 		}
-		
+
 		if finalReason == "" {
 			dialog.ShowError(fmt.Errorf("please select a reason"), aw.window)
 			return
 		}
-		
+
 		// Clean up the reason text (remove emoji prefix)
 		if strings.Contains(finalReason, " ") {
 			parts := strings.SplitN(finalReason, " ", 2)
@@ -3431,7 +3427,7 @@ func (aw *AlertsWindow) showAcknowledgmentForm(alertKey string, containerObj *fy
 				finalReason = parts[1]
 			}
 		}
-		
+
 		aw.acknowledgeAlertWithUIRefresh(alertKey, finalReason, containerObj)
 	})
 	ackButton.Importance = widget.HighImportance
@@ -3445,7 +3441,7 @@ func (aw *AlertsWindow) showAcknowledgmentForm(alertKey string, containerObj *fy
 		btn.Alignment = widget.ButtonAlignLeading
 		reasonContainer.Add(btn)
 		reasonButtons = append(reasonButtons, btn)
-		
+
 		// Set up the callback with closure
 		func(btnRef *widget.Button, reasonRef string, index int) {
 			btnRef.OnTapped = func() {
@@ -3457,7 +3453,7 @@ func (aw *AlertsWindow) showAcknowledgmentForm(alertKey string, containerObj *fy
 				selectedButton = btnRef
 				btnRef.Importance = widget.HighImportance
 				ackButton.Enable()
-				
+
 				// Show/hide custom reason entry
 				if strings.Contains(reasonRef, "Other") {
 					customReasonEntry.Show()
@@ -3475,13 +3471,21 @@ func (aw *AlertsWindow) showAcknowledgmentForm(alertKey string, containerObj *fy
 		widget.NewSeparator(),
 		ackButton,
 	)
-	
+
 	formCard.SetContent(formContent)
 	containerObj.Add(formCard)
 }
 
 // Helper function to find index of option
-func indexOf(options []struct{Text string; Icon string; Description string}, target struct{Text string; Icon string; Description string}) int {
+func indexOf(options []struct {
+	Text        string
+	Icon        string
+	Description string
+}, target struct {
+	Text        string
+	Icon        string
+	Description string
+}) int {
 	for i, option := range options {
 		if option.Text == target.Text {
 			return i
@@ -3525,13 +3529,13 @@ func (aw *AlertsWindow) createAcknowledgmentCard(ack *alertpb.Acknowledgment, al
 	// Add actions if it's current user's acknowledgment
 	if currentUser != nil && currentUser.ID == ack.UserId {
 		actionsContainer := container.NewHBox()
-		
+
 		removeBtn := widget.NewButtonWithIcon("Remove", theme.DeleteIcon(), func() {
 			aw.deleteAcknowledgmentWithUIRefresh(alertKey, parentContainer)
 		})
 		removeBtn.Importance = widget.DangerImportance
 		actionsContainer.Add(removeBtn)
-		
+
 		content.Add(widget.NewSeparator())
 		content.Add(actionsContainer)
 	}
@@ -3566,12 +3570,12 @@ func (aw *AlertsWindow) acknowledgeAlertWithUIRefresh(alertKey, reason string, c
 			}
 
 			aw.setStatus("Alert acknowledged successfully")
-			
+
 			// Show success message
-			dialog.ShowInformation("✅ Success", 
-				fmt.Sprintf("Alert acknowledged successfully!\nReason: %s", reason), 
+			dialog.ShowInformation("✅ Success",
+				fmt.Sprintf("Alert acknowledged successfully!\nReason: %s", reason),
 				aw.window)
-			
+
 			// Refresh the acknowledgment section
 			aw.loadAcknowledgmentStatus(alertKey, containerObj)
 		})
@@ -3586,8 +3590,8 @@ func (aw *AlertsWindow) deleteAcknowledgmentWithUIRefresh(alertKey string, conta
 	}
 
 	// Confirm deletion
-	dialog.ShowConfirm("Remove Acknowledgment", 
-		"Are you sure you want to remove your acknowledgment for this alert?", 
+	dialog.ShowConfirm("Remove Acknowledgment",
+		"Are you sure you want to remove your acknowledgment for this alert?",
 		func(confirmed bool) {
 			if !confirmed {
 				return
@@ -3613,7 +3617,7 @@ func (aw *AlertsWindow) deleteAcknowledgmentWithUIRefresh(alertKey string, conta
 					}
 
 					aw.setStatus("Acknowledgment removed successfully")
-					
+
 					// Refresh the acknowledgment section
 					aw.loadAcknowledgmentStatus(alertKey, containerObj)
 				})
@@ -3640,8 +3644,8 @@ func (aw *AlertsWindow) getReasonIcon(reason string) string {
 
 // showNotLoggedInMessage shows a message when user is not logged in
 func (aw *AlertsWindow) showNotLoggedInMessage(containerObj *fyne.Container, feature string) {
-	loginCard := widget.NewCard("🔐 Login Required", 
-		fmt.Sprintf("Please log in to backend to use %s", feature), 
+	loginCard := widget.NewCard("🔐 Login Required",
+		fmt.Sprintf("Please log in to backend to use %s", feature),
 		container.NewVBox(
 			widget.NewLabel("Backend authentication is required for collaboration features."),
 			widget.NewLabel(""),

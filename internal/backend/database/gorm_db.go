@@ -38,13 +38,13 @@ func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 		if cfg.SQLitePath == "" {
 			cfg.SQLitePath = "./notificator.db"
 		}
-		
+
 		dir := filepath.Dir(cfg.SQLitePath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create database directory %s: %w", dir, err)
 		}
 		log.Printf("📁 Ensured database directory exists: %s", dir)
-		
+
 		db, err = gorm.Open(sqlite.Open(cfg.SQLitePath), gormConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
@@ -150,16 +150,16 @@ func (gdb *GormDB) UpdateLastLogin(userID string) error {
 
 func (gdb *GormDB) SearchUsers(query string, limit int) ([]models.User, error) {
 	var users []models.User
-	
+
 	err := gdb.db.Where("LOWER(username) LIKE LOWER(?)", query+"%").
 		Limit(limit).
 		Order("username").
 		Find(&users).Error
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to search users: %w", err)
 	}
-	
+
 	return users, nil
 }
 
@@ -299,22 +299,22 @@ func (gdb *GormDB) DeleteAcknowledgment(alertKey, userID string) error {
 
 func (gdb *GormDB) GetAllAcknowledgedAlerts() (map[string]models.AcknowledgmentWithUser, error) {
 	var acks []models.AcknowledgmentWithUser
-	
+
 	err := gdb.db.Table("acknowledgments").
 		Select("acknowledgments.*, users.username").
 		Joins("JOIN users ON users.id = acknowledgments.user_id").
 		Joins("JOIN (SELECT alert_key, MAX(created_at) as max_created FROM acknowledgments GROUP BY alert_key) latest ON acknowledgments.alert_key = latest.alert_key AND acknowledgments.created_at = latest.max_created").
 		Find(&acks).Error
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	result := make(map[string]models.AcknowledgmentWithUser)
 	for _, ack := range acks {
 		result[ack.AlertKey] = ack
 	}
-	
+
 	return result, nil
 }
 
@@ -339,18 +339,18 @@ func (gdb *GormDB) CreateResolvedAlert(fingerprint, source string, alertData, co
 
 func (gdb *GormDB) GetResolvedAlerts(limit, offset int) ([]models.ResolvedAlert, error) {
 	var resolvedAlerts []models.ResolvedAlert
-	
+
 	query := gdb.db.Where("expires_at > ?", time.Now()).
 		Order("resolved_at DESC")
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	if offset > 0 {
 		query = query.Offset(offset)
 	}
-	
+
 	err := query.Find(&resolvedAlerts).Error
 	return resolvedAlerts, err
 }
@@ -359,11 +359,11 @@ func (gdb *GormDB) GetResolvedAlert(fingerprint string) (*models.ResolvedAlert, 
 	var resolvedAlert models.ResolvedAlert
 	err := gdb.db.Where("fingerprint = ? AND expires_at > ?", fingerprint, time.Now()).
 		First(&resolvedAlert).Error
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &resolvedAlert, nil
 }
 
@@ -387,7 +387,6 @@ func (gdb *GormDB) RemoveAllResolvedAlerts() (int64, error) {
 	}
 	return result.RowsAffected, nil
 }
-
 
 func (gdb *GormDB) SaveUserColorPreferences(userID string, preferences []mainmodels.UserColorPreference) error {
 	tx := gdb.db.Begin()
@@ -421,11 +420,11 @@ func (gdb *GormDB) GetUserColorPreferences(userID string) ([]mainmodels.UserColo
 	err := gdb.db.Where("user_id = ?", userID).
 		Order("priority DESC, created_at ASC").
 		Find(&preferences).Error
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user color preferences: %w", err)
 	}
-	
+
 	return preferences, nil
 }
 
@@ -444,7 +443,7 @@ func (gdb *GormDB) DeleteUserColorPreference(userID, preferenceID string) error 
 func (gdb *GormDB) GetUserNotificationPreference(userID string) (*mainmodels.UserNotificationPreference, error) {
 	var preference mainmodels.UserNotificationPreference
 	err := gdb.db.Where("user_id = ?", userID).First(&preference).Error
-	
+
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			// Return nil, nil to indicate no preference exists (not an error)
@@ -452,7 +451,7 @@ func (gdb *GormDB) GetUserNotificationPreference(userID string) (*mainmodels.Use
 		}
 		return nil, fmt.Errorf("failed to get user notification preference: %w", err)
 	}
-	
+
 	return &preference, nil
 }
 
@@ -460,16 +459,16 @@ func (gdb *GormDB) GetUserNotificationPreference(userID string) (*mainmodels.Use
 func (gdb *GormDB) SaveUserNotificationPreference(userID string, pref *mainmodels.UserNotificationPreference) error {
 	// Set the user ID
 	pref.UserID = userID
-	
+
 	// Generate ID if not set
 	if pref.ID == "" {
 		pref.ID = generateUUID()
 	}
-	
+
 	// Try to find existing preference
 	var existing mainmodels.UserNotificationPreference
 	err := gdb.db.Where("user_id = ?", userID).First(&existing).Error
-	
+
 	if err == gorm.ErrRecordNotFound {
 		// Create new preference
 		if err := gdb.db.Create(pref).Error; err != nil {
@@ -486,7 +485,7 @@ func (gdb *GormDB) SaveUserNotificationPreference(userID string, pref *mainmodel
 		}
 		log.Printf("Updated notification preference for user %s", userID)
 	}
-	
+
 	return nil
 }
 

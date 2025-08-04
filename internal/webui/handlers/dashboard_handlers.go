@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	alertCache *services.AlertCache
+	alertCache   *services.AlertCache
 	colorService *services.ColorService
 	// Store user settings - in production this should be in database
 	userSettings = make(map[string]*webuimodels.DashboardSettings)
@@ -59,17 +59,17 @@ func SetColorService(cs *services.ColorService) {
 
 func GetDashboardData(c *gin.Context) {
 	userID := getCurrentUserID(c)
-	
+
 	// Parse filters from query parameters
 	filters := parseDashboardFilters(c)
 	sorting := parseDashboardSorting(c)
-	
+
 	// Get user settings
 	settings := getUserSettings(userID)
-	
+
 	// Get alerts based on display mode
 	var allAlerts []*webuimodels.DashboardAlert
-	
+
 	switch filters.DisplayMode {
 	case webuimodels.DisplayModeResolved:
 		if filters.ResolvedAlertsLimit > 0 {
@@ -92,16 +92,16 @@ func GetDashboardData(c *gin.Context) {
 	default: // DisplayModeClassic
 		allAlerts = getStandardAlerts()
 	}
-	
+
 	// Apply filters
 	filteredAlerts := applyDashboardFilters(allAlerts, filters, userID)
-	
+
 	// Apply sorting
 	sortedAlerts := applySorting(filteredAlerts, sorting)
-	
+
 	// Prepare response based on view mode
 	var response webuimodels.DashboardResponse
-	
+
 	if filters.ViewMode == webuimodels.ViewModeGroup {
 		response.Groups = groupAlerts(sortedAlerts)
 		response.Alerts = []webuimodels.DashboardAlert{} // Empty in group mode
@@ -109,7 +109,7 @@ func GetDashboardData(c *gin.Context) {
 		response.Alerts = convertToResponseAlerts(sortedAlerts)
 		response.Groups = []webuimodels.AlertGroup{} // Empty in list mode
 	}
-	
+
 	// Build metadata
 	// For classic mode, we need to pass ALL alerts (including acknowledged) to buildDashboardMetadata
 	// so it can properly count acknowledged alerts in its special logic
@@ -121,7 +121,7 @@ func GetDashboardData(c *gin.Context) {
 	}
 	response.Metadata = buildDashboardMetadata(metadataAllAlerts, filteredAlerts, filters, userID)
 	response.Settings = *settings
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(response))
 }
 
@@ -135,27 +135,27 @@ func parseDashboardFilters(c *gin.Context) webuimodels.DashboardFilters {
 		DisplayMode:   webuimodels.DashboardDisplayMode(c.DefaultQuery("displayMode", "classic")),
 		ViewMode:      webuimodels.DashboardViewMode(c.DefaultQuery("viewMode", "list")),
 	}
-	
+
 	// Parse boolean filters
 	if ack := c.Query("acknowledged"); ack != "" {
 		if val, err := strconv.ParseBool(ack); err == nil {
 			filters.Acknowledged = &val
 		}
 	}
-	
+
 	if comments := c.Query("hasComments"); comments != "" {
 		if val, err := strconv.ParseBool(comments); err == nil {
 			filters.HasComments = &val
 		}
 	}
-	
+
 	// Parse resolved alerts limit
 	if limitStr := c.Query("resolvedAlertsLimit"); limitStr != "" {
 		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 {
 			filters.ResolvedAlertsLimit = val
 		}
 	}
-	
+
 	return filters
 }
 
@@ -189,7 +189,7 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	if settings, exists := userSettings[userID]; exists {
 		return settings
 	}
-	
+
 	defaultSettings := &webuimodels.DashboardSettings{
 		UserID:                  userID,
 		Theme:                   "light",
@@ -197,7 +197,7 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 		SoundEnabled:            true,
 		ResolvedAlertsRetention: 1,
 		RefreshInterval:         5,
-		NotificationDelay:         2000,
+		NotificationDelay:       2000,
 		DefaultFilters: webuimodels.DashboardFilters{
 			DisplayMode: webuimodels.DisplayModeClassic,
 			ViewMode:    webuimodels.ViewModeList,
@@ -207,7 +207,7 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 			Direction: "desc",
 		},
 	}
-	
+
 	userSettings[userID] = defaultSettings
 	return defaultSettings
 }
@@ -215,68 +215,68 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 func getStandardAlerts() []*webuimodels.DashboardAlert {
 	allAlerts := alertCache.GetAllAlerts()
 	var standardAlerts []*webuimodels.DashboardAlert
-	
+
 	for _, alert := range allAlerts {
 		if !alert.IsAcknowledged && !alert.IsResolved {
 			standardAlerts = append(standardAlerts, alert)
 		}
 	}
-	
+
 	return standardAlerts
 }
 
 func getAcknowledgedAlerts() []*webuimodels.DashboardAlert {
 	allAlerts := alertCache.GetAllAlerts()
 	var acknowledgedAlerts []*webuimodels.DashboardAlert
-	
+
 	for _, alert := range allAlerts {
 		if alert.IsAcknowledged {
 			acknowledgedAlerts = append(acknowledgedAlerts, alert)
 		}
 	}
-	
+
 	return acknowledgedAlerts
 }
 
 func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string) []*webuimodels.DashboardAlert {
 	var filtered []*webuimodels.DashboardAlert
-	
+
 	for _, alert := range alerts {
 		// Skip hidden alerts for this user
 		if alertCache.IsAlertHidden(userID, alert.Fingerprint) {
 			continue
 		}
-		
+
 		// Apply search filter
 		if filters.Search != "" && !matchesSearch(alert, filters.Search) {
 			continue
 		}
-		
+
 		// Apply alertmanager filter
 		if len(filters.Alertmanagers) > 0 && !contains(filters.Alertmanagers, alert.Source) {
 			continue
 		}
-		
+
 		// Apply severity filter
 		if len(filters.Severities) > 0 && !contains(filters.Severities, alert.Severity) {
 			continue
 		}
-		
+
 		// Apply status filter
 		if len(filters.Statuses) > 0 && !contains(filters.Statuses, alert.Status.State) {
 			continue
 		}
-		
+
 		// Apply team filter
 		if len(filters.Teams) > 0 && !contains(filters.Teams, alert.Team) {
 			continue
 		}
-		
+
 		// Apply acknowledgment filter
 		if filters.Acknowledged != nil && alert.IsAcknowledged != *filters.Acknowledged {
 			continue
 		}
-		
+
 		// Apply comments filter
 		if filters.HasComments != nil {
 			hasComments := alert.CommentCount > 0
@@ -284,16 +284,16 @@ func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimo
 				continue
 			}
 		}
-		
+
 		filtered = append(filtered, alert)
 	}
-	
+
 	return filtered
 }
 
 func matchesSearch(alert *webuimodels.DashboardAlert, search string) bool {
 	searchLower := strings.ToLower(search)
-	
+
 	searchFields := []string{
 		alert.AlertName,
 		alert.Instance,
@@ -301,21 +301,21 @@ func matchesSearch(alert *webuimodels.DashboardAlert, search string) bool {
 		alert.Team,
 		alert.Source,
 	}
-	
+
 	for _, field := range searchFields {
 		if strings.Contains(strings.ToLower(field), searchLower) {
 			return true
 		}
 	}
-	
+
 	// Also search in labels
 	for key, value := range alert.Labels {
 		if strings.Contains(strings.ToLower(key), searchLower) ||
-		   strings.Contains(strings.ToLower(value), searchLower) {
+			strings.Contains(strings.ToLower(value), searchLower) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -331,10 +331,10 @@ func contains(slice []string, item string) bool {
 func applySorting(alerts []*webuimodels.DashboardAlert, sorting webuimodels.DashboardSorting) []*webuimodels.DashboardAlert {
 	sorted := make([]*webuimodels.DashboardAlert, len(alerts))
 	copy(sorted, alerts)
-	
+
 	sort.Slice(sorted, func(i, j int) bool {
 		var less bool
-		
+
 		switch sorting.Field {
 		case "alertName":
 			less = sorted[i].AlertName < sorted[j].AlertName
@@ -356,13 +356,13 @@ func applySorting(alerts []*webuimodels.DashboardAlert, sorting webuimodels.Dash
 			// Default to duration
 			less = sorted[i].Duration < sorted[j].Duration
 		}
-		
+
 		if sorting.Direction == "desc" {
 			return !less
 		}
 		return less
 	})
-	
+
 	return sorted
 }
 
@@ -394,42 +394,42 @@ func getStatusPriority(status string) int {
 
 func groupAlerts(alerts []*webuimodels.DashboardAlert) []webuimodels.AlertGroup {
 	groups := make(map[string]*webuimodels.AlertGroup)
-	
+
 	for _, alert := range alerts {
 		groupName := alert.GroupName
 		if groupName == "" {
 			groupName = "Other"
 		}
-		
+
 		if group, exists := groups[groupName]; exists {
 			group.Alerts = append(group.Alerts, *alert)
 			group.Count++
-			
+
 			// Update worst severity
 			if getSeverityPriority(alert.Severity) > getSeverityPriority(group.WorstSeverity) {
 				group.WorstSeverity = alert.Severity
 			}
 		} else {
 			groups[groupName] = &webuimodels.AlertGroup{
-				GroupName:    groupName,
-				Alerts:       []webuimodels.DashboardAlert{*alert},
-				Count:        1,
+				GroupName:     groupName,
+				Alerts:        []webuimodels.DashboardAlert{*alert},
+				Count:         1,
 				WorstSeverity: alert.Severity,
 			}
 		}
 	}
-	
+
 	// Convert map to slice
 	var result []webuimodels.AlertGroup
 	for _, group := range groups {
 		result = append(result, *group)
 	}
-	
+
 	// Sort groups by name
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].GroupName < result[j].GroupName
 	})
-	
+
 	return result
 }
 
@@ -449,13 +449,13 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		Statuses:      []string{},
 		Teams:         []string{},
 	}
-	
+
 	// Track unique values for filters
 	alertmanagerSet := make(map[string]bool)
 	severitySet := make(map[string]bool)
 	statusSet := make(map[string]bool)
 	teamSet := make(map[string]bool)
-	
+
 	// Count statistics from filtered alerts only
 	for _, alert := range filteredAlerts {
 		switch strings.ToLower(alert.Severity) {
@@ -466,23 +466,23 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		case "info":
 			counters.Info++
 		}
-		
+
 		switch alert.Status.State {
 		case "firing":
 			counters.Firing++
 		case "resolved":
 			counters.Resolved++
 		}
-		
+
 		if alert.IsAcknowledged {
 			counters.Acknowledged++
 		}
-		
+
 		if alert.CommentCount > 0 {
 			counters.WithComments++
 		}
 	}
-	
+
 	// Fix acknowledged counter for classic mode - count from all alerts since they're excluded from filtered
 	if filters.DisplayMode == webuimodels.DisplayModeClassic {
 		// Reset acknowledged counter and count from all alerts
@@ -493,7 +493,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 			}
 		}
 	}
-	
+
 	// Always include resolved alerts in statistics, even if not displayed (for Classic view)
 	// Only do this if we're not already in DisplayModeResolved or DisplayModeFull to avoid double counting
 	if filters.DisplayMode == webuimodels.DisplayModeClassic || filters.DisplayMode == webuimodels.DisplayModeAcknowledge {
@@ -504,7 +504,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 			resolvedAlerts = alertCache.GetResolvedAlerts()
 		}
 		filteredResolvedAlerts := applyDashboardFilters(resolvedAlerts, filters, userID)
-		
+
 		for _, alert := range filteredResolvedAlerts {
 			// Only count resolved alerts in the Resolved counter for Classic/Acknowledge views
 			// Exclude them from Critical, Warning, Info, Acknowledged, WithComments counters
@@ -514,7 +514,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 			}
 		}
 	}
-	
+
 	// Collect unique values for filters from all alerts to show available options
 	for _, alert := range allAlerts {
 		alertmanagerSet[alert.Source] = true
@@ -522,7 +522,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		statusSet[alert.Status.State] = true
 		teamSet[alert.Team] = true
 	}
-	
+
 	for am := range alertmanagerSet {
 		availableFilters.Alertmanagers = append(availableFilters.Alertmanagers, am)
 	}
@@ -535,13 +535,13 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 	for team := range teamSet {
 		availableFilters.Teams = append(availableFilters.Teams, team)
 	}
-	
+
 	// Sort filter options
 	sort.Strings(availableFilters.Alertmanagers)
 	sort.Strings(availableFilters.Severities)
 	sort.Strings(availableFilters.Statuses)
 	sort.Strings(availableFilters.Teams)
-	
+
 	return webuimodels.DashboardMetadata{
 		TotalAlerts:      len(filteredAlerts), // Now respects filtering
 		FilteredCount:    len(filteredAlerts), // Keep for backward compatibility
@@ -560,18 +560,18 @@ func BulkActionAlerts(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request format"))
 		return
 	}
-	
+
 	userID := getCurrentUserID(c)
 	response := webuimodels.BulkActionResponse{
 		Success: true,
 		Errors:  []string{},
 	}
-	
+
 	// Store silence duration in context for silence actions
 	if request.Action == "silence" {
 		var silenceDuration time.Duration
 		var err error
-		
+
 		if request.SilenceDurationType == "custom" && request.CustomSilenceDuration != "" {
 			silenceDuration, err = validateCustomDuration(request.CustomSilenceDuration)
 			if err != nil {
@@ -584,7 +584,7 @@ func BulkActionAlerts(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Silence duration must be provided"))
 			return
 		}
-		
+
 		c.Set("silenceDuration", silenceDuration)
 	}
 
@@ -597,7 +597,7 @@ func BulkActionAlerts(c *gin.Context) {
 			response.ProcessedCount++
 		}
 	}
-	
+
 	// Process group actions
 	for _, groupName := range request.GroupNames {
 		if err := processGroupAction(c, groupName, request.Action, request.Comment, userID); err != nil {
@@ -607,11 +607,11 @@ func BulkActionAlerts(c *gin.Context) {
 			response.ProcessedCount++
 		}
 	}
-	
+
 	if response.FailedCount > 0 {
 		response.Success = false
 	}
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(response))
 }
 
@@ -620,7 +620,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 	if !exists {
 		return fmt.Errorf("alert not found: %s", fingerprint)
 	}
-	
+
 	switch action {
 	case "acknowledge":
 		// Store acknowledgment in backend
@@ -630,11 +630,11 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 			if reason == "" {
 				reason = "Acknowledged from dashboard"
 			}
-			
+
 			if err := backendClient.AddAcknowledgment(sessionID, fingerprint, reason); err != nil {
 				return fmt.Errorf("failed to store acknowledgment in backend: %w", err)
 			}
-			
+
 			// Also add the acknowledgment reason as a comment for audit trail
 			commentContent := fmt.Sprintf("🔔 Alert acknowledged: %s", reason)
 			if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
@@ -642,14 +642,14 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				fmt.Printf("Warning: failed to add acknowledgment comment: %v\n", err)
 			}
 		}
-		
+
 		// Update local cache
 		alert.IsAcknowledged = true
 		alert.AcknowledgedBy = userID
 		alert.AcknowledgedAt = time.Now()
 		// Always increment comment count since we add an acknowledgment comment
 		alert.CommentCount++
-		
+
 	case "unacknowledge":
 		// Remove acknowledgment from backend
 		if backendClient != nil && backendClient.IsConnected() {
@@ -657,7 +657,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 			if err := backendClient.DeleteAcknowledgment(sessionID, fingerprint); err != nil {
 				return fmt.Errorf("failed to remove acknowledgment from backend: %w", err)
 			}
-			
+
 			// Also add a comment about the unacknowledgment for audit trail
 			unackReason := comment
 			if unackReason == "" {
@@ -669,21 +669,21 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				fmt.Printf("Warning: failed to add unacknowledgment comment: %v\n", err)
 			}
 		}
-		
+
 		// Update local cache
 		alert.IsAcknowledged = false
 		alert.AcknowledgedBy = ""
 		alert.AcknowledgedAt = time.Time{}
 		// Increment comment count for unacknowledgment comment
 		alert.CommentCount++
-		
+
 	case "resolve":
 		// Mark alert as resolved (this is more of a UI state than backend)
 		alert.Status.State = "resolved"
 		alert.EndsAt = time.Now()
 		alert.IsResolved = true
 		alert.ResolvedAt = time.Now()
-		
+
 		// Add a comment about resolution for audit trail
 		if backendClient != nil && backendClient.IsConnected() {
 			sessionID := getSessionIDFromContext(c)
@@ -700,36 +700,36 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				alert.CommentCount++
 			}
 		}
-		
+
 	case "hide":
 		alertCache.SetAlertHidden(userID, fingerprint, true)
-		
+
 	case "unhide":
 		alertCache.SetAlertHidden(userID, fingerprint, false)
-		
+
 	case "silence":
 		// Handle silence action
 		if err := processSilenceAction(c, fingerprint, comment, userID); err != nil {
 			return fmt.Errorf("failed to silence alert: %w", err)
 		}
-		
+
 	case "unsilence":
 		// Handle unsilence action
 		if err := processUnsilenceAction(c, fingerprint, userID); err != nil {
 			return fmt.Errorf("failed to unsilence alert: %w", err)
 		}
-		
+
 	default:
 		return fmt.Errorf("unknown action: %s", action)
 	}
-	
+
 	return nil
 }
 
 func processGroupAction(c *gin.Context, groupName, action, comment, userID string) error {
 	// Find all alerts in the group
 	allAlerts := alertCache.GetAllAlerts()
-	
+
 	for _, alert := range allAlerts {
 		if alert.GroupName == groupName {
 			if err := processAlertAction(c, alert.Fingerprint, action, comment, userID); err != nil {
@@ -737,7 +737,7 @@ func processGroupAction(c *gin.Context, groupName, action, comment, userID strin
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -747,18 +747,18 @@ func SaveDashboardSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid settings format"))
 		return
 	}
-	
+
 	userID := getCurrentUserID(c)
 	settings.UserID = userID
-	
+
 	// Update cache retention if changed
 	if alertCache != nil {
 		// Resolved alert retention is now handled by the backend TTL cleanup job
 		alertCache.SetRefreshInterval(time.Duration(settings.RefreshInterval) * time.Second)
 	}
-	
+
 	userSettings[userID] = &settings
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
 		"message": "Settings saved successfully",
 	}))
@@ -767,14 +767,14 @@ func SaveDashboardSettings(c *gin.Context) {
 func GetDashboardSettings(c *gin.Context) {
 	userID := getCurrentUserID(c)
 	settings := getUserSettings(userID)
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(settings))
 }
 
 func getFilteredAndSortedAlerts(filters webuimodels.DashboardFilters, sorting webuimodels.DashboardSorting, userID string) []*webuimodels.DashboardAlert {
 	// Get alerts based on display mode
 	var allAlerts []*webuimodels.DashboardAlert
-	
+
 	switch filters.DisplayMode {
 	case webuimodels.DisplayModeResolved:
 		if filters.ResolvedAlertsLimit > 0 {
@@ -797,20 +797,20 @@ func getFilteredAndSortedAlerts(filters webuimodels.DashboardFilters, sorting we
 	default: // DisplayModeClassic
 		allAlerts = getStandardAlerts()
 	}
-	
+
 	// Apply filters
 	filteredAlerts := applyDashboardFilters(allAlerts, filters, userID)
-	
+
 	// Apply sorting
 	sortedAlerts := applySorting(filteredAlerts, sorting)
-	
+
 	return sortedAlerts
 }
 
 func getDashboardMetadata(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string) webuimodels.DashboardMetadata {
 	// Get all alerts for total counts
 	var allAlerts []*webuimodels.DashboardAlert
-	
+
 	switch filters.DisplayMode {
 	case webuimodels.DisplayModeResolved:
 		if filters.ResolvedAlertsLimit > 0 {
@@ -834,32 +834,71 @@ func getDashboardMetadata(alerts []*webuimodels.DashboardAlert, filters webuimod
 		// This ensures we can count acknowledged alerts properly in the statistics
 		allAlerts = alertCache.GetAllAlerts()
 	}
-	
+
 	return buildDashboardMetadata(allAlerts, alerts, filters, userID)
 }
 
-func GetDashboardIncremental(c *gin.Context) {
+func PostDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
-	
+
 	// Parse last update timestamp from query parameter - for future use
 	_ = c.Query("lastUpdate")
-	
+
 	// Parse filters from query parameters
 	filters := parseDashboardFilters(c)
 	sorting := parseDashboardSorting(c)
-	
+
 	// Get user settings
 	settings := getUserSettings(userID)
-	
+
 	if alertCache == nil {
 		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Alert cache service not available"))
 		return
 	}
-	
+
 	// Get current alerts
 	currentAlerts := getFilteredAndSortedAlerts(filters, sorting, userID)
-	
-	// Get client's current alert fingerprints from request
+
+	// Get client's current alert fingerprints from POST body
+	var req webuimodels.DashboardIncrementalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request body: "+err.Error()))
+		return
+	}
+
+	clientFingerprints := make(map[string]bool)
+	for _, fp := range req.ClientAlerts {
+		if fp != "" {
+			clientFingerprints[fp] = true
+		}
+	}
+
+	// Process incremental update
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID)
+}
+
+func GetDashboardIncremental(c *gin.Context) {
+	userID := getCurrentUserID(c)
+
+	// Parse last update timestamp from query parameter - for future use
+	_ = c.Query("lastUpdate")
+
+	// Parse filters from query parameters
+	filters := parseDashboardFilters(c)
+	sorting := parseDashboardSorting(c)
+
+	// Get user settings
+	settings := getUserSettings(userID)
+
+	if alertCache == nil {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Alert cache service not available"))
+		return
+	}
+
+	// Get current alerts
+	currentAlerts := getFilteredAndSortedAlerts(filters, sorting, userID)
+
+	// Get client's current alert fingerprints from query parameter
 	clientFingerprintsStr := c.Query("clientAlerts")
 	clientFingerprints := make(map[string]bool)
 	if clientFingerprintsStr != "" {
@@ -869,18 +908,26 @@ func GetDashboardIncremental(c *gin.Context) {
 			}
 		}
 	}
-	
+
+	// Process incremental update
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID)
+}
+
+func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAlert, clientFingerprints map[string]bool, settings *webuimodels.DashboardSettings, userID string) {
+	// Parse filters from query parameters for metadata
+	filters := parseDashboardFilters(c)
+
 	// Compare current alerts with client's alerts
 	newAlerts := []*webuimodels.DashboardAlert{}
 	updatedAlerts := []*webuimodels.DashboardAlert{}
 	removedAlerts := []string{}
-	
+
 	// Track current fingerprints for removal detection
 	currentFingerprints := make(map[string]bool)
-	
+
 	for _, alert := range currentAlerts {
 		currentFingerprints[alert.Fingerprint] = true
-		
+
 		if !clientFingerprints[alert.Fingerprint] {
 			// Alert not in client's list = new alert
 			newAlerts = append(newAlerts, alert)
@@ -891,17 +938,17 @@ func GetDashboardIncremental(c *gin.Context) {
 			updatedAlerts = append(updatedAlerts, alert)
 		}
 	}
-	
+
 	// Find removed alerts (in client but not in current)
 	for fingerprint := range clientFingerprints {
 		if !currentFingerprints[fingerprint] {
 			removedAlerts = append(removedAlerts, fingerprint)
 		}
 	}
-	
+
 	// Get updated metadata
 	metadata := getDashboardMetadata(currentAlerts, filters, userID)
-	
+
 	// Get colors for new and updated alerts
 	var colorsMap map[string]interface{}
 	sessionID := getSessionIDFromContext(c)
@@ -910,20 +957,20 @@ func GetDashboardIncremental(c *gin.Context) {
 		alertsForColors := make([]*webuimodels.DashboardAlert, 0, len(newAlerts)+len(updatedAlerts))
 		alertsForColors = append(alertsForColors, newAlerts...)
 		alertsForColors = append(alertsForColors, updatedAlerts...)
-		
+
 		// Convert to model alerts
 		modelAlerts := make([]*models.Alert, len(alertsForColors))
 		fingerprintToAlert := make(map[string]*models.Alert)
-		
+
 		for i, alert := range alertsForColors {
 			modelAlert := convertDashboardToModel(alert)
 			modelAlerts[i] = modelAlert
 			fingerprintToAlert[alert.Fingerprint] = modelAlert
 		}
-		
+
 		// Get colors
 		colorResults := colorService.GetAlertColorsOptimized(modelAlerts, sessionID)
-		
+
 		// Remap results to use correct fingerprints
 		finalResults := make(map[string]interface{})
 		for fingerprint, alert := range fingerprintToAlert {
@@ -932,10 +979,10 @@ func GetDashboardIncremental(c *gin.Context) {
 				finalResults[fingerprint] = colorResult
 			}
 		}
-		
+
 		colorsMap = finalResults
 	}
-	
+
 	// Create incremental response
 	now := time.Now().Unix()
 	incrementalUpdate := webuimodels.DashboardIncrementalUpdate{
@@ -947,7 +994,7 @@ func GetDashboardIncremental(c *gin.Context) {
 		Colors:         colorsMap,
 		LastUpdateTime: now,
 	}
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(incrementalUpdate))
 }
 
@@ -961,19 +1008,19 @@ func GetAlertDetails(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert fingerprint is required"))
 		return
 	}
-	
+
 	// Get the alert from cache
 	alert := alertCache.GetAlertByFingerprint(fingerprint)
 	if alert == nil {
 		c.JSON(http.StatusNotFound, webuimodels.ErrorResponse("Alert not found"))
 		return
 	}
-	
+
 	// Build detailed alert information
 	details := &webuimodels.AlertDetails{
 		Alert: alert,
 	}
-	
+
 	// Get acknowledgments if backend is available
 	if backendClient != nil && backendClient.IsConnected() {
 		acknowledgments, err := backendClient.GetAcknowledgments(fingerprint)
@@ -991,7 +1038,7 @@ func GetAlertDetails(c *gin.Context) {
 				}
 			}
 		}
-		
+
 		// Get comments if backend is available
 		comments, err := backendClient.GetComments(fingerprint)
 		if err == nil {
@@ -1010,17 +1057,17 @@ func GetAlertDetails(c *gin.Context) {
 		} else {
 			details.Comments = []webuimodels.Comment{}
 		}
-		
+
 		// Note: Silences would need to be implemented in backend client
 		// For now, initialize empty slice
 		details.Silences = []webuimodels.Silence{}
 	}
-	
+
 	// Get additional metadata
 	if alert.GeneratorURL != "" {
 		details.GeneratorURL = alert.GeneratorURL
 	}
-	
+
 	// Calculate timing information
 	now := time.Now()
 	details.StartedAt = alert.StartsAt
@@ -1030,7 +1077,7 @@ func GetAlertDetails(c *gin.Context) {
 		details.EndedAt = &endTime
 		details.Duration = alert.EndsAt.Sub(alert.StartsAt)
 	}
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(details))
 }
 
@@ -1099,7 +1146,7 @@ func AddAlertComment(c *gin.Context) {
 func DeleteAlertComment(c *gin.Context) {
 	fingerprint := c.Param("id")
 	commentID := c.Param("commentId")
-	
+
 	if fingerprint == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert fingerprint is required"))
 		return
@@ -1164,7 +1211,7 @@ func GetUserColorPreferences(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get color preferences: "+err.Error()))
 		return
 	}
-	
+
 	// Convert protobuf preferences to webui models
 	var preferences []webuimodels.UserColorPreference
 	for _, pbPref := range pbPreferences {
@@ -1178,7 +1225,7 @@ func GetUserColorPreferences(c *gin.Context) {
 			BgLightnessFactor:  float64(pbPref.BgLightnessFactor),
 			TextDarknessFactor: float64(pbPref.TextDarknessFactor),
 		}
-		
+
 		// Convert timestamps if available
 		if pbPref.CreatedAt != nil {
 			pref.CreatedAt = pbPref.CreatedAt.AsTime()
@@ -1186,7 +1233,7 @@ func GetUserColorPreferences(c *gin.Context) {
 		if pbPref.UpdatedAt != nil {
 			pref.UpdatedAt = pbPref.UpdatedAt.AsTime()
 		}
-		
+
 		preferences = append(preferences, pref)
 	}
 
@@ -1263,7 +1310,6 @@ func DeleteUserColorPreference(c *gin.Context) {
 	}))
 }
 
-
 func GetAvailableAlertLabels(c *gin.Context) {
 	if alertCache == nil {
 		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Alert cache service not available"))
@@ -1272,11 +1318,11 @@ func GetAvailableAlertLabels(c *gin.Context) {
 
 	// Get all current alerts
 	allAlerts := alertCache.GetAllAlerts()
-	
+
 	// Build label-value map
 	labelValues := make(map[string][]string)
 	labelSet := make(map[string]map[string]bool) // for deduplication
-	
+
 	for _, alert := range allAlerts {
 		for labelKey, labelValue := range alert.Labels {
 			if labelSet[labelKey] == nil {
@@ -1285,7 +1331,7 @@ func GetAvailableAlertLabels(c *gin.Context) {
 			labelSet[labelKey][labelValue] = true
 		}
 	}
-	
+
 	for labelKey, valueSet := range labelSet {
 		var values []string
 		for value := range valueSet {
@@ -1301,7 +1347,7 @@ func GetAvailableAlertLabels(c *gin.Context) {
 		}
 		labelValues[labelKey] = values
 	}
-	
+
 	// Sort label keys as well
 	var labelKeys []string
 	for labelKey := range labelValues {
@@ -1314,17 +1360,17 @@ func GetAvailableAlertLabels(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// Build sorted result
 	sortedLabels := make(map[string][]string)
 	for _, key := range labelKeys {
 		sortedLabels[key] = labelValues[key]
 	}
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
-		"labels": sortedLabels,
+		"labels":      sortedLabels,
 		"totalAlerts": len(allAlerts),
-		"labelCount": len(labelKeys),
+		"labelCount":  len(labelKeys),
 	}))
 }
 
@@ -1337,13 +1383,13 @@ func GetAlertColors(c *gin.Context) {
 	}
 
 	userID := getCurrentUserID(c)
-	
+
 	// Parse filters from query parameters (same as dashboard data)
 	filters := parseDashboardFilters(c)
-	
+
 	// Get alerts based on display mode (same logic as dashboard data)
 	var allAlerts []*webuimodels.DashboardAlert
-	
+
 	switch filters.DisplayMode {
 	case webuimodels.DisplayModeResolved:
 		if filters.ResolvedAlertsLimit > 0 {
@@ -1366,30 +1412,30 @@ func GetAlertColors(c *gin.Context) {
 	default: // DisplayModeClassic
 		allAlerts = getStandardAlerts()
 	}
-	
+
 	// Apply filters (same as dashboard data)
 	filteredAlerts := applyDashboardFilters(allAlerts, filters, userID)
-	
+
 	// Build fingerprint to alert mapping
 	fingerprintToAlert := make(map[string]*models.Alert)
 	var modelAlerts []*models.Alert
-	
+
 	for _, alert := range filteredAlerts {
 		modelAlert := convertDashboardToModel(alert)
 		modelAlerts = append(modelAlerts, modelAlert)
 		// Use the existing fingerprint from DashboardAlert
 		fingerprintToAlert[alert.Fingerprint] = modelAlert
 	}
-	
+
 	// Check if color service is available
 	if colorService == nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Color service not available"))
 		return
 	}
-	
+
 	// Get optimized colors for all alerts
 	colorResults := colorService.GetAlertColorsOptimized(modelAlerts, sessionID)
-	
+
 	// Remap results to use the correct fingerprints
 	finalResults := make(map[string]*services.AlertColorResult)
 	for fingerprint, alert := range fingerprintToAlert {
@@ -1399,21 +1445,21 @@ func GetAlertColors(c *gin.Context) {
 			finalResults[fingerprint] = colorResult
 		}
 	}
-	
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
-		"colors": finalResults,
+		"colors":     finalResults,
 		"colorCount": len(finalResults),
-		"timestamp": time.Now().Unix(),
+		"timestamp":  time.Now().Unix(),
 	}))
 }
 
 func convertDashboardToModel(dashAlert *webuimodels.DashboardAlert) *models.Alert {
 	// Create alert for color service - it only needs basic fields for color matching
 	alert := &models.Alert{
-		Labels:      dashAlert.Labels,
-		Annotations: dashAlert.Annotations,
-		StartsAt:    dashAlert.StartsAt,
-		EndsAt:      dashAlert.EndsAt,
+		Labels:       dashAlert.Labels,
+		Annotations:  dashAlert.Annotations,
+		StartsAt:     dashAlert.StartsAt,
+		EndsAt:       dashAlert.EndsAt,
 		GeneratorURL: dashAlert.GeneratorURL,
 		Status: models.AlertStatus{
 			State:       dashAlert.Status.State,
@@ -1421,7 +1467,7 @@ func convertDashboardToModel(dashAlert *webuimodels.DashboardAlert) *models.Aler
 			InhibitedBy: dashAlert.Status.InhibitedBy,
 		},
 	}
-	
+
 	return alert
 }
 
@@ -1471,7 +1517,7 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 		if key == "__name__" || key == "__tmp_" {
 			continue
 		}
-		
+
 		matchers = append(matchers, models.SilenceMatcher{
 			Name:    key,
 			Value:   value,
@@ -1500,14 +1546,14 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 	// Get all alertmanager clients and create silence on each
 	allClients := alertmanagerClient.GetAllClients()
 	var errors []error
-	
+
 	for name, client := range allClients {
 		createdSilence, err := client.CreateSilence(silence)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("failed to create silence on %s: %w", name, err))
 			continue
 		}
-		
+
 		// Log success
 		fmt.Printf("Created silence %s on alertmanager %s\n", createdSilence.ID, name)
 	}
@@ -1544,9 +1590,9 @@ func processUnsilenceAction(c *gin.Context, fingerprint, userID string) error {
 	// Get all alertmanager clients and delete silences from each
 	allClients := alertmanagerClient.GetAllClients()
 	var errors []error
-	
+
 	successCount := 0
-	
+
 	for _, silenceID := range alert.Status.SilencedBy {
 		for name, client := range allClients {
 			err := client.DeleteSilence(silenceID)
@@ -1557,7 +1603,7 @@ func processUnsilenceAction(c *gin.Context, fingerprint, userID string) error {
 				}
 				continue
 			}
-			
+
 			// Log success
 			fmt.Printf("Deleted silence %s on alertmanager %s\n", silenceID, name)
 			successCount++

@@ -7,7 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gin-gonic/gin"
-	
+
 	"notificator/internal/webui/middleware"
 	"notificator/internal/webui/models"
 	"notificator/internal/webui/templates/pages"
@@ -21,7 +21,7 @@ func ProfilePage(c *gin.Context) {
 	}
 
 	sessionID := middleware.GetSessionID(c)
-	
+
 	authMethod := middleware.GetSessionValue(c, "auth_method")
 	var oauthProvider *string
 	if authMethodStr, ok := authMethod.(string); ok && strings.HasPrefix(authMethodStr, "oauth:") {
@@ -34,7 +34,7 @@ func ProfilePage(c *gin.Context) {
 	} else {
 		oauthProvider = user.OAuthProvider
 	}
-	
+
 	profileData := pages.ProfileData{
 		User: pages.ProfileUser{
 			ID:            user.ID,
@@ -92,8 +92,8 @@ func GetProfileData(c *gin.Context) {
 		},
 		"stats": gin.H{
 			"acknowledged_alerts": 42,
-			"comments":           17,
-			"color_preferences":  3,
+			"comments":            17,
+			"color_preferences":   3,
 		},
 	}))
 }

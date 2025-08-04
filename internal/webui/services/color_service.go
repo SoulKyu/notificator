@@ -14,19 +14,19 @@ import (
 )
 
 type ColorService struct {
-	backendClient    *client.BackendClient
-	colorCache       map[string]*ColorPreferenceCache // userID -> cache
-	cacheMutex       sync.RWMutex
-	defaultColors    map[string]string
-	cacheTTL         time.Duration
+	backendClient *client.BackendClient
+	colorCache    map[string]*ColorPreferenceCache // userID -> cache
+	cacheMutex    sync.RWMutex
+	defaultColors map[string]string
+	cacheTTL      time.Duration
 }
 
 type ColorPreferenceCache struct {
-	UserID      string                         `json:"userId"`
+	UserID      string                            `json:"userId"`
 	Preferences []webuimodels.UserColorPreference `json:"preferences"`
-	LookupMap   map[string]*ColorMatch         `json:"-"` // Pre-computed lookups for performance
-	CachedAt    time.Time                      `json:"cachedAt"`
-	TTL         time.Duration                  `json:"ttl"`
+	LookupMap   map[string]*ColorMatch            `json:"-"` // Pre-computed lookups for performance
+	CachedAt    time.Time                         `json:"cachedAt"`
+	TTL         time.Duration                     `json:"ttl"`
 }
 
 type ColorMatch struct {
@@ -52,11 +52,11 @@ func NewColorService(backendClient *client.BackendClient) *ColorService {
 		colorCache:    make(map[string]*ColorPreferenceCache),
 		cacheTTL:      5 * time.Minute,
 		defaultColors: map[string]string{
-			"critical":          "#dc2626",
-			"critical-daytime":  "#be123c",
-			"warning":           "#d97706",
-			"info":              "#2563eb",
-			"default":           "#6b7280",
+			"critical":         "#dc2626",
+			"critical-daytime": "#be123c",
+			"warning":          "#d97706",
+			"info":             "#2563eb",
+			"default":          "#6b7280",
 		},
 	}
 }
@@ -77,7 +77,7 @@ func (cs *ColorService) GetAlertColors(alert *models.Alert, sessionID string) *A
 
 func (cs *ColorService) GetAlertColorsOptimized(alerts []*models.Alert, sessionID string) map[string]*AlertColorResult {
 	results := make(map[string]*AlertColorResult)
-	
+
 	cache, err := cs.getUserColorCache(sessionID)
 	if err != nil {
 		for _, alert := range alerts {
@@ -89,7 +89,7 @@ func (cs *ColorService) GetAlertColorsOptimized(alerts []*models.Alert, sessionI
 
 	for _, alert := range alerts {
 		fingerprint := alert.GetFingerprint()
-		
+
 		colorMatch := cs.findColorMatch(alert, cache)
 		if colorMatch == nil {
 			results[fingerprint] = cs.getDefaultSeverityColors(alert)
@@ -162,7 +162,7 @@ func (cs *ColorService) buildLookupMap(preferences []webuimodels.UserColorPrefer
 
 	sortedPrefs := make([]webuimodels.UserColorPreference, len(preferences))
 	copy(sortedPrefs, preferences)
-	
+
 	for i := 0; i < len(sortedPrefs); i++ {
 		for j := 0; j < len(sortedPrefs)-1-i; j++ {
 			swap := false
@@ -181,7 +181,7 @@ func (cs *ColorService) buildLookupMap(preferences []webuimodels.UserColorPrefer
 
 	for _, pref := range sortedPrefs {
 		lookupKey := cs.buildLookupKey(pref.LabelConditions)
-		
+
 		if _, exists := lookupMap[lookupKey]; !exists {
 			lookupMap[lookupKey] = &ColorMatch{
 				Color:              pref.Color,
@@ -250,7 +250,7 @@ func (cs *ColorService) findColorMatch(alert *models.Alert, cache *ColorPreferen
 
 		if allMatch {
 			isBetterMatch := false
-			
+
 			if matchCount > bestMatchCount {
 				isBetterMatch = true
 			} else if matchCount == bestMatchCount {
@@ -262,7 +262,7 @@ func (cs *ColorService) findColorMatch(alert *models.Alert, cache *ColorPreferen
 					}
 				}
 			}
-			
+
 			if isBetterMatch {
 				bestMatch = &ColorMatch{
 					Color:              pref.Color,
@@ -289,7 +289,7 @@ func (cs *ColorService) findColorMatch(alert *models.Alert, cache *ColorPreferen
 
 func (cs *ColorService) getDefaultSeverityColors(alert *models.Alert) *AlertColorResult {
 	severity := alert.GetSeverity()
-	
+
 	var baseColor string
 	if color, exists := cs.defaultColors[severity]; exists {
 		baseColor = color
@@ -325,12 +325,12 @@ func (cs *ColorService) applyCustomColor(match *ColorMatch, alert *models.Alert)
 		if bgLightness < 0 {
 			bgLightness = 0.9
 		}
-		
+
 		textDarkness := match.TextDarknessFactor
 		if textDarkness < 0 {
 			textDarkness = 0.3
 		}
-		
+
 		return &AlertColorResult{
 			BackgroundColor: cs.lightenColor(baseColor, bgLightness),
 			TextColor:       cs.darkenColor(baseColor, textDarkness),
@@ -349,30 +349,42 @@ func (cs *ColorService) darkenColor(hexColor string, factor float64) string {
 	if !strings.HasPrefix(hexColor, "#") || len(hexColor) != 7 {
 		return hexColor
 	}
-	
+
 	rHex := hexColor[1:3]
 	gHex := hexColor[3:5]
 	bHex := hexColor[5:7]
-	
+
 	r, err1 := strconv.ParseInt(rHex, 16, 64)
 	g, err2 := strconv.ParseInt(gHex, 16, 64)
 	b, err3 := strconv.ParseInt(bHex, 16, 64)
-	
+
 	if err1 != nil || err2 != nil || err3 != nil {
 		return hexColor
 	}
-	
+
 	r = int64(float64(r) * (1 - factor))
 	g = int64(float64(g) * (1 - factor))
 	b = int64(float64(b) * (1 - factor))
-	
-	if r < 0 { r = 0 }
-	if g < 0 { g = 0 }
-	if b < 0 { b = 0 }
-	if r > 255 { r = 255 }
-	if g > 255 { g = 255 }
-	if b > 255 { b = 255 }
-	
+
+	if r < 0 {
+		r = 0
+	}
+	if g < 0 {
+		g = 0
+	}
+	if b < 0 {
+		b = 0
+	}
+	if r > 255 {
+		r = 255
+	}
+	if g > 255 {
+		g = 255
+	}
+	if b > 255 {
+		b = 255
+	}
+
 	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 }
 

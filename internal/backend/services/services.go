@@ -757,14 +757,14 @@ func (s *AlertServiceGorm) GetUserColorPreferences(ctx context.Context, req *ale
 		}
 
 		pbPreferences = append(pbPreferences, &alertpb.UserColorPreference{
-			Id:               pref.ID,
-			UserId:           pref.UserID,
-			LabelConditions:  conditions,
-			Color:            pref.Color,
-			ColorType:        pref.ColorType,
-			Priority:         int32(pref.Priority),
-			CreatedAt:        timestamppb.New(pref.CreatedAt),
-			UpdatedAt:        timestamppb.New(pref.UpdatedAt),
+			Id:              pref.ID,
+			UserId:          pref.UserID,
+			LabelConditions: conditions,
+			Color:           pref.Color,
+			ColorType:       pref.ColorType,
+			Priority:        int32(pref.Priority),
+			CreatedAt:       timestamppb.New(pref.CreatedAt),
+			UpdatedAt:       timestamppb.New(pref.UpdatedAt),
 		})
 	}
 
@@ -897,7 +897,7 @@ func (s *AlertServiceGorm) CreateResolvedAlert(ctx context.Context, req *alertpb
 			Message: "Alert data is required",
 		}, nil
 	}
-	
+
 	// Default TTL to 24 hours if not specified
 	ttlHours := int(req.TtlHours)
 	if ttlHours <= 0 {
@@ -937,10 +937,10 @@ func (s *AlertServiceGorm) CreateResolvedAlert(ctx context.Context, req *alertpb
 
 	// Broadcast resolved alert update to subscribers
 	go s.broadcastResolvedAlertUpdate(req.Fingerprint, &alertpb.ResolvedAlertUpdate{
-		Fingerprint:  req.Fingerprint,
-		UpdateType:   alertpb.ResolvedAlertUpdateType_RESOLVED_ALERT_CREATED,
+		Fingerprint:   req.Fingerprint,
+		UpdateType:    alertpb.ResolvedAlertUpdateType_RESOLVED_ALERT_CREATED,
 		ResolvedAlert: pbResolvedAlert,
-		Timestamp:    timestamppb.Now(),
+		Timestamp:     timestamppb.Now(),
 	})
 
 	return &alertpb.CreateResolvedAlertResponse{
@@ -954,7 +954,7 @@ func (s *AlertServiceGorm) CreateResolvedAlert(ctx context.Context, req *alertpb
 func (s *AlertServiceGorm) GetResolvedAlerts(ctx context.Context, req *alertpb.GetResolvedAlertsRequest) (*alertpb.GetResolvedAlertsResponse, error) {
 	limit := int(req.Limit)
 	offset := int(req.Offset)
-	
+
 	// Default limit to 100 if not specified
 	if limit <= 0 {
 		limit = 100
@@ -1004,7 +1004,7 @@ func (s *AlertServiceGorm) GetResolvedAlerts(ctx context.Context, req *alertpb.G
 // RemoveAllResolvedAlerts implements the RemoveAllResolvedAlerts RPC method
 func (s *AlertServiceGorm) RemoveAllResolvedAlerts(ctx context.Context, req *alertpb.RemoveAllResolvedAlertsRequest) (*alertpb.RemoveAllResolvedAlertsResponse, error) {
 	log.Printf("RemoveAllResolvedAlerts: Attempting to remove all resolved alerts")
-	
+
 	removedCount, err := s.db.RemoveAllResolvedAlerts()
 	if err != nil {
 		log.Printf("Error removing all resolved alerts: %v", err)
@@ -1015,7 +1015,7 @@ func (s *AlertServiceGorm) RemoveAllResolvedAlerts(ctx context.Context, req *ale
 	}
 
 	log.Printf("RemoveAllResolvedAlerts: Successfully removed %d resolved alerts", removedCount)
-	
+
 	return &alertpb.RemoveAllResolvedAlertsResponse{
 		Success:      true,
 		RemovedCount: int32(removedCount),
@@ -1105,14 +1105,14 @@ var (
 func (s *AlertServiceGorm) addResolvedAlertSubscription(sub *ResolvedAlertSubscription) {
 	resolvedAlertSubscriptionsMutex.Lock()
 	defer resolvedAlertSubscriptionsMutex.Unlock()
-	
+
 	resolvedAlertSubscriptions["global"] = append(resolvedAlertSubscriptions["global"], sub)
 }
 
 func (s *AlertServiceGorm) removeResolvedAlertSubscription(sub *ResolvedAlertSubscription) {
 	resolvedAlertSubscriptionsMutex.Lock()
 	defer resolvedAlertSubscriptionsMutex.Unlock()
-	
+
 	subs := resolvedAlertSubscriptions["global"]
 	for i, s := range subs {
 		if s == sub {
@@ -1125,7 +1125,7 @@ func (s *AlertServiceGorm) removeResolvedAlertSubscription(sub *ResolvedAlertSub
 func (s *AlertServiceGorm) broadcastResolvedAlertUpdate(fingerprint string, update *alertpb.ResolvedAlertUpdate) {
 	resolvedAlertSubscriptionsMutex.RLock()
 	defer resolvedAlertSubscriptionsMutex.RUnlock()
-	
+
 	subs := resolvedAlertSubscriptions["global"]
 	for _, sub := range subs {
 		go func(s *ResolvedAlertSubscription) {
@@ -1135,7 +1135,7 @@ func (s *AlertServiceGorm) broadcastResolvedAlertUpdate(fingerprint string, upda
 					close(s.Done)
 				}
 			}()
-			
+
 			if err := s.Stream.Send(update); err != nil {
 				log.Printf("Error sending resolved alert update to subscriber %s: %v", s.SessionID, err)
 				close(s.Done)
@@ -1192,7 +1192,7 @@ func (s *AuthServiceGorm) GetOAuthConfig(ctx context.Context, req *authpb.GetOAu
 					displayName = strings.ToUpper(string(name[0])) + name[1:]
 				}
 			}
-			
+
 			pbProviders = append(pbProviders, &authpb.OAuthProvider{
 				Name:        name,
 				DisplayName: displayName,
@@ -1242,7 +1242,7 @@ func (s *AuthServiceGorm) GetOAuthProviders(ctx context.Context, req *authpb.Get
 					displayName = strings.ToUpper(string(name[0])) + name[1:]
 				}
 			}
-			
+
 			pbProviders = append(pbProviders, &authpb.OAuthProvider{
 				Name:        name,
 				DisplayName: displayName,
@@ -1390,7 +1390,7 @@ func (s *AuthServiceGorm) OAuthCallback(ctx context.Context, req *authpb.OAuthCa
 	}
 
 	log.Printf("OAuth login successful for user %s via provider %s", user.Username, req.Provider)
-	
+
 	return &authpb.LoginResponse{
 		Success:   true,
 		Message:   "OAuth login successful",
@@ -1433,7 +1433,7 @@ func (s *AuthServiceGorm) GetUserGroups(ctx context.Context, req *authpb.GetUser
 		if group.Permissions != nil {
 			permissionsStr = string(group.Permissions)
 		}
-		
+
 		pbGroups = append(pbGroups, &authpb.UserGroup{
 			Id:          group.ID,
 			Name:        group.GroupName,
@@ -1594,7 +1594,7 @@ func (s *AlertServiceGorm) GetUserNotificationPreferences(ctx context.Context, r
 				InfoType:          "sine",
 			},
 		}
-		
+
 		return &alertpb.GetUserNotificationPreferencesResponse{
 			Preference: defaultPreference,
 			Success:    true,
@@ -1624,7 +1624,7 @@ func (s *AlertServiceGorm) GetUserNotificationPreferences(ctx context.Context, r
 		}
 	}
 
-	// Handle sound config JSON  
+	// Handle sound config JSON
 	if preference.SoundConfig != nil {
 		var soundConfigMap map[string]interface{}
 		if err := json.Unmarshal(preference.SoundConfig, &soundConfigMap); err == nil {
@@ -1657,9 +1657,9 @@ func (s *AlertServiceGorm) GetUserNotificationPreferences(ctx context.Context, r
 			if val, ok := soundConfigMap["info_type"].(string); ok {
 				soundConfig.InfoType = val
 			}
-			
+
 			pbPreference.SoundConfig = soundConfig
-			
+
 			// Also set JSON string for full config
 			if jsonBytes, err := json.Marshal(soundConfigMap); err == nil {
 				pbPreference.SoundConfigJson = string(jsonBytes)

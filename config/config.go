@@ -226,7 +226,7 @@ func LoadConfigWithViper() (*Config, error) {
 	// Debug: Check if config file is loaded
 	fmt.Printf("DEBUG: Config file used: %s\n", viper.ConfigFileUsed())
 	fmt.Printf("DEBUG: backend.database.type from viper = %s\n", viper.GetString("backend.database.type"))
-	
+
 	cfg := DefaultConfig()
 	setViperDefaults(cfg)
 
@@ -345,7 +345,7 @@ func setViperDefaults(cfg *Config) {
 	// DEBUG: Check what viper has before setting defaults
 	fmt.Printf("DEBUG: In setViperDefaults - viper.IsSet('backend.database.type') = %v\n", viper.IsSet("backend.database.type"))
 	fmt.Printf("DEBUG: In setViperDefaults - viper.Get('backend.database.type') = %v\n", viper.Get("backend.database.type"))
-	
+
 	// Backend defaults
 	viper.SetDefault("backend.enabled", cfg.Backend.Enabled)
 	viper.SetDefault("backend.grpc_listen", cfg.Backend.GRPCListen)
@@ -481,32 +481,32 @@ func setViperDefaults(cfg *Config) {
 	// Alertmanager defaults - DISABLED to allow JSON config to work properly
 	// The alertmanager configuration should come from the config file, not defaults
 	/*
-	if len(cfg.Alertmanagers) > 0 {
-		am := cfg.Alertmanagers[0]
-		if !viper.IsSet("alertmanagers.0.name") {
-			viper.SetDefault("alertmanagers.0.name", am.Name)
-		}
-		if !viper.IsSet("alertmanagers.0.url") {
-			viper.SetDefault("alertmanagers.0.url", am.URL)
-		}
-		if !viper.IsSet("alertmanagers.0.username") {
-			viper.SetDefault("alertmanagers.0.username", am.Username)
-		}
-		if !viper.IsSet("alertmanagers.0.password") {
-			viper.SetDefault("alertmanagers.0.password", am.Password)
-		}
-		if !viper.IsSet("alertmanagers.0.token") {
-			viper.SetDefault("alertmanagers.0.token", am.Token)
-		}
-		if am.OAuth != nil {
-			if !viper.IsSet("alertmanagers.0.oauth.enabled") {
-				viper.SetDefault("alertmanagers.0.oauth.enabled", am.OAuth.Enabled)
+		if len(cfg.Alertmanagers) > 0 {
+			am := cfg.Alertmanagers[0]
+			if !viper.IsSet("alertmanagers.0.name") {
+				viper.SetDefault("alertmanagers.0.name", am.Name)
 			}
-			if !viper.IsSet("alertmanagers.0.oauth.proxy_mode") {
-				viper.SetDefault("alertmanagers.0.oauth.proxy_mode", am.OAuth.ProxyMode)
+			if !viper.IsSet("alertmanagers.0.url") {
+				viper.SetDefault("alertmanagers.0.url", am.URL)
+			}
+			if !viper.IsSet("alertmanagers.0.username") {
+				viper.SetDefault("alertmanagers.0.username", am.Username)
+			}
+			if !viper.IsSet("alertmanagers.0.password") {
+				viper.SetDefault("alertmanagers.0.password", am.Password)
+			}
+			if !viper.IsSet("alertmanagers.0.token") {
+				viper.SetDefault("alertmanagers.0.token", am.Token)
+			}
+			if am.OAuth != nil {
+				if !viper.IsSet("alertmanagers.0.oauth.enabled") {
+					viper.SetDefault("alertmanagers.0.oauth.enabled", am.OAuth.Enabled)
+				}
+				if !viper.IsSet("alertmanagers.0.oauth.proxy_mode") {
+					viper.SetDefault("alertmanagers.0.oauth.proxy_mode", am.OAuth.ProxyMode)
+				}
 			}
 		}
-	}
 	*/
 
 	// Support common environment variables

@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	authpb "notificator/internal/backend/proto/auth"
 	alertpb "notificator/internal/backend/proto/alert"
+	authpb "notificator/internal/backend/proto/auth"
 	"notificator/internal/webui/models"
 )
 
@@ -21,12 +21,12 @@ type BackendClient struct {
 }
 
 type AuthResult struct {
-	Success     bool   `json:"success"`
-	SessionID   string `json:"session_id,omitempty"`
-	UserID      string `json:"user_id,omitempty"`
-	Username    string `json:"username,omitempty"`
-	Email       string `json:"email,omitempty"`
-	Error       string `json:"error,omitempty"`
+	Success   bool   `json:"success"`
+	SessionID string `json:"session_id,omitempty"`
+	UserID    string `json:"user_id,omitempty"`
+	Username  string `json:"username,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 type User struct {
@@ -89,17 +89,17 @@ func (c *BackendClient) HealthCheck() error {
 func isAuthError(err error) bool {
 	// Check if error is related to authentication rather than connectivity
 	errStr := err.Error()
-	return contains(errStr, "invalid session") || 
-		   contains(errStr, "unauthorized") || 
-		   contains(errStr, "session not found") ||
-		   contains(errStr, "authentication")
+	return contains(errStr, "invalid session") ||
+		contains(errStr, "unauthorized") ||
+		contains(errStr, "session not found") ||
+		contains(errStr, "authentication")
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (s == substr || (len(s) > len(substr) && 
-		   (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		   hasSubstring(s, substr))))
+	return len(s) >= len(substr) &&
+		(s == substr || (len(s) > len(substr) &&
+			(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+				hasSubstring(s, substr))))
 }
 
 func hasSubstring(s, substr string) bool {
@@ -227,14 +227,14 @@ func (c *BackendClient) ValidateSession(sessionID string) (*User, error) {
 		Username: resp.User.Username,
 		Email:    resp.User.Email,
 	}
-	
+
 	if resp.User.OauthProvider != "" {
 		user.OAuthProvider = &resp.User.OauthProvider
 	}
 	if resp.User.OauthId != "" {
 		user.OAuthID = &resp.User.OauthId
 	}
-	
+
 	return user, nil
 }
 
@@ -260,14 +260,14 @@ func (c *BackendClient) GetProfile(sessionID string) (*User, error) {
 		Username: resp.User.Username,
 		Email:    resp.User.Email,
 	}
-	
+
 	if resp.User.OauthProvider != "" {
 		user.OAuthProvider = &resp.User.OauthProvider
 	}
 	if resp.User.OauthId != "" {
 		user.OAuthID = &resp.User.OauthId
 	}
-	
+
 	return user, nil
 }
 
@@ -552,14 +552,14 @@ func (c *BackendClient) SaveUserColorPreferences(sessionID string, preferences [
 	var pbPreferences []*alertpb.UserColorPreference
 	for _, pref := range preferences {
 		pbPreferences = append(pbPreferences, &alertpb.UserColorPreference{
-			Id:                  pref.ID,
-			UserId:              pref.UserID,
-			LabelConditions:     pref.LabelConditions,
-			Color:               pref.Color,
-			ColorType:           pref.ColorType,
-			Priority:            int32(pref.Priority),
-			BgLightnessFactor:   float32(pref.BgLightnessFactor),
-			TextDarknessFactor:  float32(pref.TextDarknessFactor),
+			Id:                 pref.ID,
+			UserId:             pref.UserID,
+			LabelConditions:    pref.LabelConditions,
+			Color:              pref.Color,
+			ColorType:          pref.ColorType,
+			Priority:           int32(pref.Priority),
+			BgLightnessFactor:  float32(pref.BgLightnessFactor),
+			TextDarknessFactor: float32(pref.TextDarknessFactor),
 		})
 	}
 
@@ -794,8 +794,8 @@ func (c *BackendClient) GetOAuthConfig() (map[string]interface{}, error) {
 	}
 
 	config := map[string]interface{}{
-		"enabled":               resp.Enabled,
-		"disable_classic_auth":  resp.DisableClassicAuth,
+		"enabled":              resp.Enabled,
+		"disable_classic_auth": resp.DisableClassicAuth,
 		"providers":            providers,
 	}
 
