@@ -69,8 +69,26 @@ spec:
         {{- end }}
         
         # Alertmanager configuration (can be overridden by backend.env)
-        {{- $alertmanagers := include "notificator.allAlertmanagers" . | fromJson }}
-        {{- range $index, $am := $alertmanagers }}
+        {{- $index := 0 }}
+        {{- if .Values.alertmanager.enabled }}
+        {{- $nameKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_NAME" $index }}
+        {{- $urlKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_URL" $index }}
+        {{- if not (hasKey $.Values.backend.env $nameKey) }}
+        - name: {{ $nameKey }}
+          value: "Internal Alertmanager"
+        {{- end }}
+        {{- if not (hasKey $.Values.backend.env $urlKey) }}
+        - name: {{ $urlKey }}
+          value: "http://notificator-alertmanager:9093"
+        {{- end }}
+        {{- $oauthProxyKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_OAUTH_PROXY_MODE" $index }}
+        {{- if not (hasKey $.Values.backend.env $oauthProxyKey) }}
+        - name: {{ $oauthProxyKey }}
+          value: "true"
+        {{- end }}
+        {{- $index = add $index 1 }}
+        {{- end }}
+        {{- range $am := .Values.alertmanagerConfig }}
         {{- $nameKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_NAME" $index }}
         {{- $urlKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_URL" $index }}
         {{- if not (hasKey $.Values.backend.env $nameKey) }}
@@ -114,6 +132,7 @@ spec:
           value: {{ $am.oauthProxyMode | default true | quote }}
         {{- end }}
         {{- end }}
+        {{- $index = add $index 1 }}
         {{- end }}
         livenessProbe:
           httpGet:

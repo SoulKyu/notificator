@@ -20,17 +20,3 @@ Create the name of the service account to use for webui
 {{- end }}
 {{- end }}
 
-{{/*
-Get all alertmanager configs including internal one if enabled
-*/}}
-{{- define "notificator.allAlertmanagers" -}}
-{{- $alertmanagers := list }}
-{{- if .Values.alertmanager.enabled }}
-{{- $internal := dict "name" "Internal Alertmanager" "url" "http://notificator-alertmanager:9093" "username" "" "password" "" "token" "" "oauthEnabled" false "oauthProxyMode" true }}
-{{- $alertmanagers = append $alertmanagers $internal }}
-{{- end }}
-{{- range .Values.alertmanagerConfig }}
-{{- $alertmanagers = append $alertmanagers . }}
-{{- end }}
-{{- $alertmanagers | toJson }}
-{{- end }}
