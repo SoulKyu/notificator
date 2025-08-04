@@ -8,6 +8,14 @@ A simple Helm chart for deploying Notificator with WebUI, Backend, and Alertmana
 - **WebUI**: Web interface for viewing and managing alerts  
 - **Alertmanager**: Optional Prometheus Alertmanager instance (disabled by default, for testing)
 
+## Configuration Method
+
+This Helm chart uses **environment variables** for all configuration instead of config files. This approach:
+- Simplifies configuration management in Kubernetes
+- Follows cloud-native best practices
+- Makes it easier to override specific settings
+- Integrates better with Kubernetes secrets and ConfigMaps
+
 ## Prerequisites
 
 - Kubernetes 1.19+

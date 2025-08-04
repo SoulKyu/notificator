@@ -223,9 +223,14 @@ func GetConfigPath() string {
 }
 
 func LoadConfigWithViper() (*Config, error) {
+	// Debug: Check if config file is loaded
+	fmt.Printf("DEBUG: Config file used: %s\n", viper.ConfigFileUsed())
+	fmt.Printf("DEBUG: backend.database.type from viper = %s\n", viper.GetString("backend.database.type"))
+	
 	cfg := DefaultConfig()
 	setViperDefaults(cfg)
 
+	fmt.Printf("DEBUG: After setViperDefaults - backend.database.type = %s\n", viper.GetString("backend.database.type"))
 	fmt.Printf("DEBUG: Viper alertmanagers.0.url = %s\n", viper.GetString("alertmanagers.0.url"))
 	fmt.Printf("DEBUG: Viper alertmanagers.0.name = %s\n", viper.GetString("alertmanagers.0.name"))
 	if err := viper.Unmarshal(cfg); err != nil {
@@ -337,6 +342,10 @@ func LoadConfigWithViper() (*Config, error) {
 }
 
 func setViperDefaults(cfg *Config) {
+	// DEBUG: Check what viper has before setting defaults
+	fmt.Printf("DEBUG: In setViperDefaults - viper.IsSet('backend.database.type') = %v\n", viper.IsSet("backend.database.type"))
+	fmt.Printf("DEBUG: In setViperDefaults - viper.Get('backend.database.type') = %v\n", viper.Get("backend.database.type"))
+	
 	// Backend defaults
 	viper.SetDefault("backend.enabled", cfg.Backend.Enabled)
 	viper.SetDefault("backend.grpc_listen", cfg.Backend.GRPCListen)
@@ -344,9 +353,10 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("backend.http_listen", cfg.Backend.HTTPListen)
 
 	// Database defaults - only set if not already configured from config file or env vars
-	if !viper.IsSet("backend.database.type") {
-		viper.SetDefault("backend.database.type", cfg.Backend.Database.Type)
-	}
+	// IMPORTANT: Don't set database.type default - let it come from config file
+	// if !viper.IsSet("backend.database.type") {
+	//	viper.SetDefault("backend.database.type", cfg.Backend.Database.Type)
+	// }
 	if !viper.IsSet("backend.database.host") {
 		viper.SetDefault("backend.database.host", cfg.Backend.Database.Host)
 	}
@@ -369,36 +379,78 @@ func setViperDefaults(cfg *Config) {
 		viper.SetDefault("backend.database.sqlite_path", cfg.Backend.Database.SQLitePath)
 	}
 
-	// GUI defaults
-	viper.SetDefault("gui.width", cfg.GUI.Width)
-	viper.SetDefault("gui.height", cfg.GUI.Height)
-	viper.SetDefault("gui.title", cfg.GUI.Title)
-	viper.SetDefault("gui.minimize_to_tray", cfg.GUI.MinimizeToTray)
-	viper.SetDefault("gui.start_minimized", cfg.GUI.StartMinimized)
-	viper.SetDefault("gui.show_tray_icon", cfg.GUI.ShowTrayIcon)
-	viper.SetDefault("gui.background_mode", cfg.GUI.BackgroundMode)
+	// GUI defaults - only set if not already configured from config file or env vars
+	if !viper.IsSet("gui.width") {
+		viper.SetDefault("gui.width", cfg.GUI.Width)
+	}
+	if !viper.IsSet("gui.height") {
+		viper.SetDefault("gui.height", cfg.GUI.Height)
+	}
+	if !viper.IsSet("gui.title") {
+		viper.SetDefault("gui.title", cfg.GUI.Title)
+	}
+	if !viper.IsSet("gui.minimize_to_tray") {
+		viper.SetDefault("gui.minimize_to_tray", cfg.GUI.MinimizeToTray)
+	}
+	if !viper.IsSet("gui.start_minimized") {
+		viper.SetDefault("gui.start_minimized", cfg.GUI.StartMinimized)
+	}
+	if !viper.IsSet("gui.show_tray_icon") {
+		viper.SetDefault("gui.show_tray_icon", cfg.GUI.ShowTrayIcon)
+	}
+	if !viper.IsSet("gui.background_mode") {
+		viper.SetDefault("gui.background_mode", cfg.GUI.BackgroundMode)
+	}
 
-	// Notification defaults
-	viper.SetDefault("notifications.enabled", cfg.Notifications.Enabled)
-	viper.SetDefault("notifications.sound_enabled", cfg.Notifications.SoundEnabled)
-	viper.SetDefault("notifications.sound_path", cfg.Notifications.SoundPath)
-	viper.SetDefault("notifications.audio_output_device", cfg.Notifications.AudioOutputDevice)
-	viper.SetDefault("notifications.show_system", cfg.Notifications.ShowSystem)
-	viper.SetDefault("notifications.critical_only", cfg.Notifications.CriticalOnly)
-	viper.SetDefault("notifications.max_notifications", cfg.Notifications.MaxNotifications)
-	viper.SetDefault("notifications.cooldown_seconds", cfg.Notifications.CooldownSeconds)
-	viper.SetDefault("notifications.respect_filters", cfg.Notifications.RespectFilters)
+	// Notification defaults - only set if not already configured from config file or env vars
+	if !viper.IsSet("notifications.enabled") {
+		viper.SetDefault("notifications.enabled", cfg.Notifications.Enabled)
+	}
+	if !viper.IsSet("notifications.sound_enabled") {
+		viper.SetDefault("notifications.sound_enabled", cfg.Notifications.SoundEnabled)
+	}
+	if !viper.IsSet("notifications.sound_path") {
+		viper.SetDefault("notifications.sound_path", cfg.Notifications.SoundPath)
+	}
+	if !viper.IsSet("notifications.audio_output_device") {
+		viper.SetDefault("notifications.audio_output_device", cfg.Notifications.AudioOutputDevice)
+	}
+	if !viper.IsSet("notifications.show_system") {
+		viper.SetDefault("notifications.show_system", cfg.Notifications.ShowSystem)
+	}
+	if !viper.IsSet("notifications.critical_only") {
+		viper.SetDefault("notifications.critical_only", cfg.Notifications.CriticalOnly)
+	}
+	if !viper.IsSet("notifications.max_notifications") {
+		viper.SetDefault("notifications.max_notifications", cfg.Notifications.MaxNotifications)
+	}
+	if !viper.IsSet("notifications.cooldown_seconds") {
+		viper.SetDefault("notifications.cooldown_seconds", cfg.Notifications.CooldownSeconds)
+	}
+	if !viper.IsSet("notifications.respect_filters") {
+		viper.SetDefault("notifications.respect_filters", cfg.Notifications.RespectFilters)
+	}
 
-	// Polling defaults
-	viper.SetDefault("polling.interval", cfg.Polling.Interval)
+	// Polling defaults - only set if not already configured from config file or env vars
+	if !viper.IsSet("polling.interval") {
+		viper.SetDefault("polling.interval", cfg.Polling.Interval)
+	}
 
-	// Resolved alerts defaults
-	viper.SetDefault("resolved_alerts.enabled", cfg.ResolvedAlerts.Enabled)
-	viper.SetDefault("resolved_alerts.notifications_enabled", cfg.ResolvedAlerts.NotificationsEnabled)
-	viper.SetDefault("resolved_alerts.retention_duration", cfg.ResolvedAlerts.RetentionDuration)
+	// Resolved alerts defaults - only set if not already configured from config file or env vars
+	if !viper.IsSet("resolved_alerts.enabled") {
+		viper.SetDefault("resolved_alerts.enabled", cfg.ResolvedAlerts.Enabled)
+	}
+	if !viper.IsSet("resolved_alerts.notifications_enabled") {
+		viper.SetDefault("resolved_alerts.notifications_enabled", cfg.ResolvedAlerts.NotificationsEnabled)
+	}
+	if !viper.IsSet("resolved_alerts.retention_duration") {
+		viper.SetDefault("resolved_alerts.retention_duration", cfg.ResolvedAlerts.RetentionDuration)
+	}
 
-	// WebUI defaults
-	viper.SetDefault("webui.playground", cfg.WebUI.Playground)
+	// WebUI defaults - only set if not already configured from config file or env vars
+	if !viper.IsSet("webui.playground") {
+		viper.SetDefault("webui.playground", cfg.WebUI.Playground)
+	}
 
 	// OAuth defaults - use DefaultOAuthConfig for consistent defaults
 	oauthDefaults := DefaultOAuthConfig()
@@ -426,19 +478,36 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("oauth.security.token_encryption", oauthDefaults.Security.TokenEncryption)
 	viper.SetDefault("oauth.security.csrf_protection", oauthDefaults.Security.CSRFProtection)
 
-	// Alertmanager defaults (first one only)
+	// Alertmanager defaults - DISABLED to allow JSON config to work properly
+	// The alertmanager configuration should come from the config file, not defaults
+	/*
 	if len(cfg.Alertmanagers) > 0 {
 		am := cfg.Alertmanagers[0]
-		viper.SetDefault("alertmanagers.0.name", am.Name)
-		viper.SetDefault("alertmanagers.0.url", am.URL)
-		viper.SetDefault("alertmanagers.0.username", am.Username)
-		viper.SetDefault("alertmanagers.0.password", am.Password)
-		viper.SetDefault("alertmanagers.0.token", am.Token)
+		if !viper.IsSet("alertmanagers.0.name") {
+			viper.SetDefault("alertmanagers.0.name", am.Name)
+		}
+		if !viper.IsSet("alertmanagers.0.url") {
+			viper.SetDefault("alertmanagers.0.url", am.URL)
+		}
+		if !viper.IsSet("alertmanagers.0.username") {
+			viper.SetDefault("alertmanagers.0.username", am.Username)
+		}
+		if !viper.IsSet("alertmanagers.0.password") {
+			viper.SetDefault("alertmanagers.0.password", am.Password)
+		}
+		if !viper.IsSet("alertmanagers.0.token") {
+			viper.SetDefault("alertmanagers.0.token", am.Token)
+		}
 		if am.OAuth != nil {
-			viper.SetDefault("alertmanagers.0.oauth.enabled", am.OAuth.Enabled)
-			viper.SetDefault("alertmanagers.0.oauth.proxy_mode", am.OAuth.ProxyMode)
+			if !viper.IsSet("alertmanagers.0.oauth.enabled") {
+				viper.SetDefault("alertmanagers.0.oauth.enabled", am.OAuth.Enabled)
+			}
+			if !viper.IsSet("alertmanagers.0.oauth.proxy_mode") {
+				viper.SetDefault("alertmanagers.0.oauth.proxy_mode", am.OAuth.ProxyMode)
+			}
 		}
 	}
+	*/
 
 	// Support common environment variables
 	viper.BindEnv("backend.database.host", "DB_HOST", "DATABASE_HOST")

@@ -40,8 +40,6 @@ spec:
         command:
         - ./webui
         - webui
-        - --config
-        - /config/config.json
         - --backend
         - {{ .Values.webui.backendAddress }}
         ports:
@@ -52,6 +50,35 @@ spec:
         securityContext:
           {{- toYaml . | nindent 10 }}
         {{- end }}
+        env:
+        # Backend connection
+        - name: BACKEND_ADDRESS
+          value: {{ .Values.webui.backendAddress | quote }}
+        - name: NOTIFICATOR_WEBUI_LISTEN
+          value: ":8081"
+        - name: NOTIFICATOR_WEBUI_BACKEND
+          value: {{ .Values.webui.backendAddress | quote }}
+        - name: NOTIFICATOR_WEBUI_PLAYGROUND
+          value: {{ .Values.playground | quote }}
+        
+        # Alertmanager configuration
+        {{- $alertmanagers := include "notificator.allAlertmanagers" . | fromJson }}
+        {{- range $index, $am := $alertmanagers }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_NAME
+          value: {{ $am.name | quote }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_URL
+          value: {{ $am.url | quote }}
+        {{- if $am.oauthEnabled }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_ENABLED
+          value: {{ $am.oauthEnabled | quote }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_PROXY_MODE
+          value: {{ $am.oauthProxyMode | default true | quote }}
+        {{- end }}
+        {{- end }}
+        
+        # Logging
+        - name: NOTIFICATOR_LOG_LEVEL
+          value: {{ .Values.logLevel | quote }}
         livenessProbe:
           httpGet:
             path: /health
@@ -71,11 +98,3 @@ spec:
           requests:
             cpu: 100m
             memory: 128Mi
-        volumeMounts:
-        - name: config
-          mountPath: /config
-          readOnly: true
-      volumes:
-      - name: config
-        configMap:
-          name: notificator-webui-config-json

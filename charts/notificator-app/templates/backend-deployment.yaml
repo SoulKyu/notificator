@@ -40,8 +40,6 @@ spec:
         command:
         - ./notificator-backend
         - backend
-        - --config
-        - /config/config.json
         ports:
         - name: grpc
           containerPort: 50051
@@ -54,26 +52,102 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
         env:
+        # Backend configuration
+        - name: NOTIFICATOR_BACKEND_ENABLED
+          value: "true"
+        - name: NOTIFICATOR_BACKEND_GRPC_LISTEN
+          value: ":50051"
+        - name: NOTIFICATOR_BACKEND_HTTP_LISTEN
+          value: ":8080"
+        
+        # Database configuration
+        - name: NOTIFICATOR_BACKEND_DATABASE_TYPE
+          value: {{ .Values.backend.database.type | quote }}
         {{- if .Values.backend.database.postgresUrl }}
         - name: POSTGRES_URL
           value: {{ .Values.backend.database.postgresUrl | quote }}
         {{- else if eq .Values.backend.database.type "postgres" }}
-        - name: DB_HOST
+        - name: NOTIFICATOR_BACKEND_DATABASE_HOST
           value: {{ .Values.backend.database.postgres.host | quote }}
-        - name: DB_PORT
+        - name: NOTIFICATOR_BACKEND_DATABASE_PORT
           value: {{ .Values.backend.database.postgres.port | quote }}
-        - name: DB_NAME
+        - name: NOTIFICATOR_BACKEND_DATABASE_NAME
           value: {{ .Values.backend.database.postgres.database | quote }}
-        - name: DB_USER
+        - name: NOTIFICATOR_BACKEND_DATABASE_USER
           value: {{ .Values.backend.database.postgres.user | quote }}
-        - name: DB_PASSWORD
+        - name: NOTIFICATOR_BACKEND_DATABASE_PASSWORD
           value: {{ .Values.backend.database.postgres.password | quote }}
-        - name: DB_SSL_MODE
+        - name: NOTIFICATOR_BACKEND_DATABASE_SSL_MODE
           value: {{ .Values.backend.database.postgres.sslMode | quote }}
         {{- else if eq .Values.backend.database.type "sqlite" }}
-        - name: DB_PATH
+        - name: NOTIFICATOR_BACKEND_DATABASE_SQLITE_PATH
           value: {{ .Values.backend.database.sqlite.path | quote }}
         {{- end }}
+        
+        # Alertmanager configuration
+        {{- $alertmanagers := include "notificator.allAlertmanagers" . | fromJson }}
+        {{- range $index, $am := $alertmanagers }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_NAME
+          value: {{ $am.name | quote }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_URL
+          value: {{ $am.url | quote }}
+        {{- if $am.username }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_USERNAME
+          value: {{ $am.username | quote }}
+        {{- end }}
+        {{- if $am.password }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_PASSWORD
+          value: {{ $am.password | quote }}
+        {{- end }}
+        {{- if $am.token }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_TOKEN
+          value: {{ $am.token | quote }}
+        {{- end }}
+        {{- if $am.oauthEnabled }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_ENABLED
+          value: {{ $am.oauthEnabled | quote }}
+        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_PROXY_MODE
+          value: {{ $am.oauthProxyMode | default true | quote }}
+        {{- end }}
+        {{- end }}
+        
+        # OAuth configuration
+        {{- if .Values.oauth.enabled }}
+        - name: OAUTH_ENABLED
+          value: {{ .Values.oauth.enabled | quote }}
+        - name: OAUTH_DISABLE_CLASSIC_AUTH
+          value: {{ .Values.oauth.disableClassicAuth | quote }}
+        - name: OAUTH_REDIRECT_URL
+          value: {{ .Values.oauth.redirectUrl | quote }}
+        - name: OAUTH_SESSION_KEY
+          value: {{ .Values.oauth.sessionKey | quote }}
+        
+        {{- if .Values.oauth.github.enabled }}
+        - name: OAUTH_GITHUB_CLIENT_ID
+          value: {{ .Values.oauth.github.clientId | quote }}
+        - name: OAUTH_GITHUB_CLIENT_SECRET
+          value: {{ .Values.oauth.github.clientSecret | quote }}
+        - name: OAUTH_GITHUB_SCOPES
+          value: {{ .Values.oauth.github.scopes | quote }}
+        {{- end }}
+        
+        {{- if .Values.oauth.google.enabled }}
+        - name: OAUTH_GOOGLE_CLIENT_ID
+          value: {{ .Values.oauth.google.clientId | quote }}
+        - name: OAUTH_GOOGLE_CLIENT_SECRET
+          value: {{ .Values.oauth.google.clientSecret | quote }}
+        - name: OAUTH_GOOGLE_SCOPES
+          value: {{ .Values.oauth.google.scopes | quote }}
+        {{- end }}
+        {{- end }}
+        
+        # Logging
+        - name: NOTIFICATOR_LOG_LEVEL
+          value: {{ .Values.logLevel | quote }}
+        
+        # Playground mode
+        - name: NOTIFICATOR_WEBUI_PLAYGROUND
+          value: {{ .Values.playground | quote }}
         livenessProbe:
           httpGet:
             path: /health
@@ -93,11 +167,3 @@ spec:
           requests:
             cpu: 250m
             memory: 256Mi
-        volumeMounts:
-        - name: config
-          mountPath: /config
-          readOnly: true
-      volumes:
-      - name: config
-        configMap:
-          name: notificator-backend-config-json
