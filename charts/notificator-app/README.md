@@ -44,6 +44,13 @@ helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
   --set backend.labels.team=platform \
   --set backend.annotations."prometheus\.io/scrape"="true" \
   --set webui.podAnnotations."sidecar\.istio\.io/inject"="true"
+
+# With security contexts for enhanced security
+helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
+  --set backend.podSecurityContext.runAsNonRoot=true \
+  --set backend.podSecurityContext.runAsUser=1001 \
+  --set backend.securityContext.allowPrivilegeEscalation=false \
+  --set webui.securityContext.readOnlyRootFilesystem=false
 ```
 
 ### Option 2: Pull and Install Locally
@@ -102,6 +109,10 @@ Key configuration options in `values.yaml`:
 - `<component>.service.labels` - Custom labels for services only
 - `<component>.service.annotations` - Custom annotations for services only
 
+**Security Context Support:**
+- `<component>.podSecurityContext` - Pod-level security context (runAsUser, fsGroup, etc.)
+- `<component>.securityContext` - Container-level security context (capabilities, readOnlyRootFilesystem, etc.)
+
 Where `<component>` can be: `backend`, `webui`, or `alertmanager`
 
 ## Example values for production
@@ -122,6 +133,21 @@ backend:
   service:
     annotations:
       service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+  
+  # Security contexts for enhanced security
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: false  # Set to false if app needs to write temp files
+    runAsNonRoot: true
+    runAsUser: 1001
   
   database:
     type: postgres
@@ -145,6 +171,20 @@ webui:
       prometheus.io/scrape: "true"
       prometheus.io/port: "8081"
   
+  # Security contexts for webui
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1001
+  
   ingress:
     enabled: true
     className: nginx
@@ -166,6 +206,20 @@ alertmanager:
     team: sre
   podAnnotations:
     sidecar.istio.io/inject: "false"
+  
+  # Security contexts for alertmanager
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1001
 
 alertmanagerConfig:
   - name: "Production Alertmanager"

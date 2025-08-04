@@ -26,6 +26,21 @@ backend:
     annotations: {}
       # service.beta.kubernetes.io/aws-load-balancer-type: nlb
   
+  # Security contexts
+  podSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 1001
+    # runAsGroup: 1001
+    # fsGroup: 1001
+  securityContext: {}
+    # allowPrivilegeEscalation: false
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1001
+  
   # Database configuration
   database:
     type: postgres  # Options: sqlite, postgres
@@ -64,6 +79,21 @@ webui:
     labels: {}
     annotations: {}
       # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  
+  # Security contexts
+  podSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 1001
+    # runAsGroup: 1001
+    # fsGroup: 1001
+  securityContext: {}
+    # allowPrivilegeEscalation: false
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1001
   
   # Backend connection
   backendAddress: notificator-backend:50051
@@ -109,6 +139,21 @@ alertmanager:
     labels: {}
     annotations: {}
       # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  
+  # Security contexts
+  podSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 1001
+    # runAsGroup: 1001
+    # fsGroup: 1001
+  securityContext: {}
+    # allowPrivilegeEscalation: false
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1001
 
 # Shared alertmanager configuration
 # When alertmanager.enabled=false, configure external alertmanagers here

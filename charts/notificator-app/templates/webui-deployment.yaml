@@ -28,6 +28,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      {{- with .Values.webui.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: webui
         image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
@@ -43,6 +47,10 @@ spec:
         - name: http
           containerPort: 8081
           protocol: TCP
+        {{- with .Values.webui.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /health
