@@ -342,17 +342,37 @@ docker-compose up -d
 
 ### Production deployment - For real
 
-Check out the `helm/` folder - there's a Helm chart that deploys the whole stack:
+#### Option 1: Deploy from GitHub Container Registry (Recommended)
+
+The easiest way is to install directly from our published Helm chart:
 
 ```bash
-# Deploy everything on Kubernetes
-helm install notificator ./helm/notificator
+# Install with default values
+helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0
+
+# Or customize for your environment
+helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
+  --set webui.ingress.host=notificator.mycompany.com \
+  --set backend.database.type=postgres \
+  --set backend.database.postgres.host=my-postgres.example.com
+```
+
+#### Option 2: Deploy from source
+
+Check out the `charts/notificator-app/` folder - there's a Helm chart that deploys the whole stack:
+
+```bash
+# Clone and deploy from source
+git clone https://github.com/soulkyu/notificator
+cd notificator
+helm install notificator ./charts/notificator-app
 
 # This gives you:
-# - Backend with PostgreSQL
+# - Backend with PostgreSQL or SQLite
 # - WebUI with ingress
-# - Proper health checks
-# - OAuth ready to configure
+# - Alertmanager for testing
+# - OAuth ready to configure (GitHub & Google)
+# - Proper health checks and resource limits
 ```
 
 Or if you're old school, just run the binaries on a VM:

@@ -41,17 +41,20 @@ webui:
       enabled: false
       secretName: notificator-tls
 
-# Alertmanager configuration
+# Alertmanager configuration (optional - disabled by default)
 alertmanager:
+  enabled: false
   image:
     repository: soulkyu/notificator-alertmanager
     tag: latest
     pullPolicy: IfNotPresent
 
 # Shared alertmanager configuration
+# When alertmanager.enabled=false, configure external alertmanagers here
+# When alertmanager.enabled=true, the internal one will be added automatically
 alertmanagerConfig:
-  - name: "Main Alertmanager"
-    url: "http://notificator-alertmanager:9093"
+  - name: "External Alertmanager"
+    url: "http://alertmanager.monitoring.svc.cluster.local:9093"
     username: ""
     password: ""
     token: ""

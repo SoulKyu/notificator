@@ -6,8 +6,25 @@ data:
   config.json: |
     {
       "alertmanagers": [
+        {{- $first := true }}
+        {{- if .Values.alertmanager.enabled }}
+        {{- if not $first }},{{- end }}
+        {
+          "name": "Internal Alertmanager",
+          "url": "http://notificator-alertmanager:9093",
+          "username": "",
+          "password": "",
+          "token": "",
+          "headers": {},
+          "oauth": {
+            "enabled": false,
+            "proxy_mode": true
+          }
+        }
+        {{- $first = false }}
+        {{- end }}
         {{- range $index, $am := .Values.alertmanagerConfig }}
-        {{- if $index }},{{- end }}
+        {{- if not $first }},{{- end }}
         {
           "name": {{ $am.name | quote }},
           "url": {{ $am.url | quote }},
@@ -20,6 +37,7 @@ data:
             "proxy_mode": {{ $am.oauthProxyMode }}
           }
         }
+        {{- $first = false }}
         {{- end }}
       ],
       "backend": {

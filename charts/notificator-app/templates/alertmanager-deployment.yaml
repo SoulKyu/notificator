@@ -1,3 +1,4 @@
+{{- if .Values.alertmanager.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,3 +42,4 @@ spec:
           requests:
             cpu: 100m
             memory: 128Mi
+{{- end }}
