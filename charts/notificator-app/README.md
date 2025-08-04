@@ -51,6 +51,11 @@ helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
   --set backend.podSecurityContext.runAsUser=1001 \
   --set backend.securityContext.allowPrivilegeEscalation=false \
   --set webui.securityContext.readOnlyRootFilesystem=false
+
+# With custom ServiceAccount for AWS IAM roles (IRSA)
+helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
+  --set backend.serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="arn:aws:iam::123456789012:role/notificator-backend" \
+  --set webui.serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="arn:aws:iam::123456789012:role/notificator-webui"
 ```
 
 ### Option 2: Pull and Install Locally
@@ -113,6 +118,12 @@ Key configuration options in `values.yaml`:
 - `<component>.podSecurityContext` - Pod-level security context (runAsUser, fsGroup, etc.)
 - `<component>.securityContext` - Container-level security context (capabilities, readOnlyRootFilesystem, etc.)
 
+**ServiceAccount Support:**
+- `<component>.serviceAccount.create` - Create ServiceAccount (default: true)
+- `<component>.serviceAccount.name` - ServiceAccount name (auto-generated if empty)
+- `<component>.serviceAccount.annotations` - ServiceAccount annotations (useful for AWS IRSA, etc.)
+- `<component>.serviceAccount.labels` - ServiceAccount labels
+
 Where `<component>` can be: `backend`, `webui`, or `alertmanager`
 
 ## Example values for production
@@ -149,6 +160,12 @@ backend:
     runAsNonRoot: true
     runAsUser: 1001
   
+  # ServiceAccount for AWS IAM roles (IRSA)
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/notificator-backend"
+  
   database:
     type: postgres
     postgres:
@@ -184,6 +201,12 @@ webui:
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1001
+  
+  # ServiceAccount for AWS IAM roles (IRSA)
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/notificator-webui"
   
   ingress:
     enabled: true

@@ -41,6 +41,14 @@ backend:
     # runAsNonRoot: true
     # runAsUser: 1001
   
+  # Service Account
+  serviceAccount:
+    create: true
+    name: ""  # If empty, will generate name automatically
+    annotations: {}
+      # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/notificator-backend
+    labels: {}
+  
   # Database configuration
   database:
     type: postgres  # Options: sqlite, postgres
@@ -94,6 +102,14 @@ webui:
     # readOnlyRootFilesystem: true
     # runAsNonRoot: true
     # runAsUser: 1001
+  
+  # Service Account
+  serviceAccount:
+    create: true
+    name: ""  # If empty, will generate name automatically
+    annotations: {}
+      # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/notificator-webui
+    labels: {}
   
   # Backend connection
   backendAddress: notificator-backend:50051

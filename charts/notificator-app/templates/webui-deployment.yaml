@@ -28,6 +28,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      serviceAccountName: {{ include "notificator.webui.serviceAccountName" . }}
       {{- with .Values.webui.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
