@@ -1,0 +1,211 @@
+package pages
+
+import "notificator/internal/webui/templates/layouts"
+import "notificator/internal/webui/templates/components"
+
+type OAuthConfig struct {
+	Enabled             bool
+	DisableClassicAuth  bool
+	Providers           []components.OAuthProvider
+}
+
+templ Login() {
+	@LoginWithOAuth(nil)
+}
+
+templ LoginWithOAuth(oauthConfig *OAuthConfig) {
+	@layouts.Base("Login - Notificator", LoginContent(oauthConfig))
+}
+
+templ LoginContent(oauthConfig *OAuthConfig) {
+	<div class="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
+		<div class="sm:mx-auto sm:w-full sm:max-w-sm">
+			<h2 class="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900 dark:text-white">
+				Sign in to Notificator
+			</h2>
+		</div>
+
+		<div class="sm:mx-auto sm:w-full sm:max-w-sm">
+			@components.BackendWarning()
+		</div>
+
+		<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+			<!-- OAuth Providers -->
+			if oauthConfig != nil && oauthConfig.Enabled && len(oauthConfig.Providers) > 0 {
+				<div class="mb-6">
+					@components.OAuthProviderList(oauthConfig.Providers)
+				</div>
+			}
+			
+			<!-- Classic Login Form (hidden if OAuth-only mode) -->
+			if oauthConfig == nil || !oauthConfig.DisableClassicAuth {
+				<form class="space-y-6" x-data="loginForm()" @submit.prevent="submitForm">
+				<div>
+					<label for="username" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
+						Username
+					</label>
+					<div class="mt-2">
+						<input id="username" name="username" type="text" required 
+							   x-model="form.username"
+							   class="input-field"
+							   :class="{ 'border-red-500': errors.username }"/>
+					</div>
+					<p x-show="errors.username" class="mt-1 text-sm text-red-600" x-text="errors.username"></p>
+				</div>
+
+				<div>
+					<label for="password" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
+						Password
+					</label>
+					<div class="mt-2">
+						<input id="password" name="password" type="password" required 
+							   x-model="form.password"
+							   class="input-field"
+							   :class="{ 'border-red-500': errors.password }"/>
+					</div>
+					<p x-show="errors.password" class="mt-1 text-sm text-red-600" x-text="errors.password"></p>
+				</div>
+
+				<div class="flex items-center justify-between">
+					<div class="flex items-center">
+						<input id="remember-me" name="remember-me" type="checkbox" 
+							   x-model="form.rememberMe"
+							   class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-600"/>
+						<label for="remember-me" class="ml-3 block text-sm leading-6 text-gray-700 dark:text-gray-300">
+							Remember me
+						</label>
+					</div>
+
+					<div class="text-sm leading-6">
+						<a href="#" class="font-semibold text-primary-600 hover:text-primary-500">
+							Forgot password?
+						</a>
+					</div>
+				</div>
+
+				<div>
+					<button type="submit" class="btn-primary w-full" :disabled="loading">
+						<span x-show="!loading">Sign in</span>
+						<span x-show="loading" class="flex items-center justify-center">
+							<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+							</svg>
+							Signing in...
+						</span>
+					</button>
+				</div>
+
+				<!-- Success/Error Messages -->
+				<div x-show="message.text" class="rounded-md p-4" 
+					 :class="message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'">
+					<p class="text-sm" x-text="message.text"></p>
+				</div>
+				</form>
+			}
+			
+			<!-- OAuth-only message -->
+			if oauthConfig != nil && oauthConfig.DisableClassicAuth {
+				<div class="mt-6 text-center">
+					<p class="text-sm text-gray-600 dark:text-gray-400">
+						Username/password authentication is disabled. Please use one of the OAuth providers above.
+					</p>
+				</div>
+			}
+
+			<script>
+				function loginForm() {
+					return {
+						form: {
+							username: '',
+							password: '',
+							rememberMe: false
+						},
+						errors: {},
+						message: { text: '', type: '' },
+						loading: false,
+						
+						async submitForm() {
+							this.clearErrors();
+							
+							if (!this.validateForm()) {
+								return;
+							}
+							
+							this.loading = true;
+							
+							try {
+								const formData = new FormData();
+								formData.append('username', this.form.username);
+								formData.append('password', this.form.password);
+								if (this.form.rememberMe) {
+									formData.append('remember-me', 'on');
+								}
+								
+								const response = await fetch('/api/v1/auth/login', {
+									method: 'POST',
+									body: formData
+								});
+								
+								const result = await response.json();
+								
+								if (result.success) {
+									this.message = { text: result.data.message, type: 'success' };
+									// Redirect to dashboard
+									setTimeout(() => {
+										window.location.href = result.data.redirect;
+									}, 1000);
+								} else {
+									this.message = { text: result.error, type: 'error' };
+								}
+							} catch (error) {
+								this.message = { text: 'Network error. Please try again.', type: 'error' };
+							} finally {
+								this.loading = false;
+							}
+						},
+						
+						validateForm() {
+							let isValid = true;
+							
+							if (!this.form.username.trim()) {
+								this.errors.username = 'Username is required';
+								isValid = false;
+							}
+							
+							if (!this.form.password) {
+								this.errors.password = 'Password is required';
+								isValid = false;
+							}
+							
+							return isValid;
+						},
+						
+						clearErrors() {
+							this.errors = {};
+							this.message = { text: '', type: '' };
+						}
+					}
+				}
+			</script>
+
+			<!-- Register link (hidden if OAuth-only mode) -->
+			if oauthConfig == nil || !oauthConfig.DisableClassicAuth {
+				<p class="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
+					Not registered?
+					<a href="/register" class="font-semibold leading-6 text-primary-600 hover:text-primary-500">
+						Create an account
+					</a>
+				</p>
+			}
+
+			<!-- Dark mode toggle -->
+			<div class="mt-8 flex justify-center">
+				<button @click="toggle()" 
+						class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-bg-secondary transition-colors">
+					<span x-show="!darkMode">🌙 Dark Mode</span>
+					<span x-show="darkMode">☀️ Light Mode</span>
+				</button>
+			</div>
+		</div>
+	</div>
+}

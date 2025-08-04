@@ -21,12 +21,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_Register_FullMethodName        = "/notificator.auth.AuthService/Register"
-	AuthService_Login_FullMethodName           = "/notificator.auth.AuthService/Login"
-	AuthService_Logout_FullMethodName          = "/notificator.auth.AuthService/Logout"
-	AuthService_ValidateSession_FullMethodName = "/notificator.auth.AuthService/ValidateSession"
-	AuthService_GetProfile_FullMethodName      = "/notificator.auth.AuthService/GetProfile"
-	AuthService_SearchUsers_FullMethodName     = "/notificator.auth.AuthService/SearchUsers"
+	AuthService_Register_FullMethodName          = "/notificator.auth.AuthService/Register"
+	AuthService_Login_FullMethodName             = "/notificator.auth.AuthService/Login"
+	AuthService_Logout_FullMethodName            = "/notificator.auth.AuthService/Logout"
+	AuthService_ValidateSession_FullMethodName   = "/notificator.auth.AuthService/ValidateSession"
+	AuthService_GetProfile_FullMethodName        = "/notificator.auth.AuthService/GetProfile"
+	AuthService_SearchUsers_FullMethodName       = "/notificator.auth.AuthService/SearchUsers"
+	AuthService_GetOAuthAuthURL_FullMethodName   = "/notificator.auth.AuthService/GetOAuthAuthURL"
+	AuthService_OAuthCallback_FullMethodName     = "/notificator.auth.AuthService/OAuthCallback"
+	AuthService_GetOAuthProviders_FullMethodName = "/notificator.auth.AuthService/GetOAuthProviders"
+	AuthService_GetOAuthConfig_FullMethodName    = "/notificator.auth.AuthService/GetOAuthConfig"
+	AuthService_GetUserGroups_FullMethodName     = "/notificator.auth.AuthService/GetUserGroups"
+	AuthService_SyncUserGroups_FullMethodName    = "/notificator.auth.AuthService/SyncUserGroups"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -41,6 +47,14 @@ type AuthServiceClient interface {
 	ValidateSession(ctx context.Context, in *ValidateSessionRequest, opts ...grpc.CallOption) (*ValidateSessionResponse, error)
 	GetProfile(ctx context.Context, in *GetProfileRequest, opts ...grpc.CallOption) (*GetProfileResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
+	// OAuth Methods
+	GetOAuthAuthURL(ctx context.Context, in *OAuthAuthURLRequest, opts ...grpc.CallOption) (*OAuthAuthURLResponse, error)
+	OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	GetOAuthProviders(ctx context.Context, in *GetOAuthProvidersRequest, opts ...grpc.CallOption) (*GetOAuthProvidersResponse, error)
+	GetOAuthConfig(ctx context.Context, in *GetOAuthConfigRequest, opts ...grpc.CallOption) (*GetOAuthConfigResponse, error)
+	// User Groups
+	GetUserGroups(ctx context.Context, in *GetUserGroupsRequest, opts ...grpc.CallOption) (*GetUserGroupsResponse, error)
+	SyncUserGroups(ctx context.Context, in *SyncUserGroupsRequest, opts ...grpc.CallOption) (*SyncUserGroupsResponse, error)
 }
 
 type authServiceClient struct {
@@ -111,6 +125,66 @@ func (c *authServiceClient) SearchUsers(ctx context.Context, in *SearchUsersRequ
 	return out, nil
 }
 
+func (c *authServiceClient) GetOAuthAuthURL(ctx context.Context, in *OAuthAuthURLRequest, opts ...grpc.CallOption) (*OAuthAuthURLResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OAuthAuthURLResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetOAuthAuthURL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, AuthService_OAuthCallback_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetOAuthProviders(ctx context.Context, in *GetOAuthProvidersRequest, opts ...grpc.CallOption) (*GetOAuthProvidersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOAuthProvidersResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetOAuthProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetOAuthConfig(ctx context.Context, in *GetOAuthConfigRequest, opts ...grpc.CallOption) (*GetOAuthConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOAuthConfigResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetOAuthConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetUserGroups(ctx context.Context, in *GetUserGroupsRequest, opts ...grpc.CallOption) (*GetUserGroupsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserGroupsResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetUserGroups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) SyncUserGroups(ctx context.Context, in *SyncUserGroupsRequest, opts ...grpc.CallOption) (*SyncUserGroupsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncUserGroupsResponse)
+	err := c.cc.Invoke(ctx, AuthService_SyncUserGroups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -123,6 +197,14 @@ type AuthServiceServer interface {
 	ValidateSession(context.Context, *ValidateSessionRequest) (*ValidateSessionResponse, error)
 	GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
+	// OAuth Methods
+	GetOAuthAuthURL(context.Context, *OAuthAuthURLRequest) (*OAuthAuthURLResponse, error)
+	OAuthCallback(context.Context, *OAuthCallbackRequest) (*LoginResponse, error)
+	GetOAuthProviders(context.Context, *GetOAuthProvidersRequest) (*GetOAuthProvidersResponse, error)
+	GetOAuthConfig(context.Context, *GetOAuthConfigRequest) (*GetOAuthConfigResponse, error)
+	// User Groups
+	GetUserGroups(context.Context, *GetUserGroupsRequest) (*GetUserGroupsResponse, error)
+	SyncUserGroups(context.Context, *SyncUserGroupsRequest) (*SyncUserGroupsResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -150,6 +232,24 @@ func (UnimplementedAuthServiceServer) GetProfile(context.Context, *GetProfileReq
 }
 func (UnimplementedAuthServiceServer) SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchUsers not implemented")
+}
+func (UnimplementedAuthServiceServer) GetOAuthAuthURL(context.Context, *OAuthAuthURLRequest) (*OAuthAuthURLResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOAuthAuthURL not implemented")
+}
+func (UnimplementedAuthServiceServer) OAuthCallback(context.Context, *OAuthCallbackRequest) (*LoginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method OAuthCallback not implemented")
+}
+func (UnimplementedAuthServiceServer) GetOAuthProviders(context.Context, *GetOAuthProvidersRequest) (*GetOAuthProvidersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOAuthProviders not implemented")
+}
+func (UnimplementedAuthServiceServer) GetOAuthConfig(context.Context, *GetOAuthConfigRequest) (*GetOAuthConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOAuthConfig not implemented")
+}
+func (UnimplementedAuthServiceServer) GetUserGroups(context.Context, *GetUserGroupsRequest) (*GetUserGroupsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserGroups not implemented")
+}
+func (UnimplementedAuthServiceServer) SyncUserGroups(context.Context, *SyncUserGroupsRequest) (*SyncUserGroupsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SyncUserGroups not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -280,6 +380,114 @@ func _AuthService_SearchUsers_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetOAuthAuthURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OAuthAuthURLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetOAuthAuthURL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetOAuthAuthURL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetOAuthAuthURL(ctx, req.(*OAuthAuthURLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_OAuthCallback_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OAuthCallbackRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).OAuthCallback(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_OAuthCallback_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).OAuthCallback(ctx, req.(*OAuthCallbackRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetOAuthProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOAuthProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetOAuthProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetOAuthProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetOAuthProviders(ctx, req.(*GetOAuthProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetOAuthConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOAuthConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetOAuthConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetOAuthConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetOAuthConfig(ctx, req.(*GetOAuthConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetUserGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetUserGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetUserGroups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetUserGroups(ctx, req.(*GetUserGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_SyncUserGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncUserGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SyncUserGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SyncUserGroups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SyncUserGroups(ctx, req.(*SyncUserGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -310,6 +518,30 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SearchUsers",
 			Handler:    _AuthService_SearchUsers_Handler,
+		},
+		{
+			MethodName: "GetOAuthAuthURL",
+			Handler:    _AuthService_GetOAuthAuthURL_Handler,
+		},
+		{
+			MethodName: "OAuthCallback",
+			Handler:    _AuthService_OAuthCallback_Handler,
+		},
+		{
+			MethodName: "GetOAuthProviders",
+			Handler:    _AuthService_GetOAuthProviders_Handler,
+		},
+		{
+			MethodName: "GetOAuthConfig",
+			Handler:    _AuthService_GetOAuthConfig_Handler,
+		},
+		{
+			MethodName: "GetUserGroups",
+			Handler:    _AuthService_GetUserGroups_Handler,
+		},
+		{
+			MethodName: "SyncUserGroups",
+			Handler:    _AuthService_SyncUserGroups_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

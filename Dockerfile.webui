@@ -1,0 +1,62 @@
+# Multi-stage build for Notificator WebUI Frontend
+
+# Stage 1: Full build environment with Node.js and Go
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies for both Node.js and Go
+RUN apk add --no-cache \
+    gcc musl-dev sqlite-dev \
+    nodejs npm make
+
+# Install templ for template generation
+RUN go install github.com/a-h/templ/cmd/templ@latest
+
+WORKDIR /app
+
+# Copy all necessary files for the build
+COPY package*.json ./
+COPY go.mod go.sum ./
+COPY Makefile ./
+COPY tailwind.config.js ./
+
+# Download dependencies
+RUN npm install
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Run the full WebUI rebuild process
+# This includes: clean, webui-setup, webui-css-build, webui-templates
+RUN make webui-full-rebuild
+
+# Also run the explicit tailwindcss build command
+RUN npx tailwindcss build -i ./internal/webui/static/css/input.css -o ./internal/webui/static/css/output.css --minify
+
+# Build the webui binary from unified main.go (without GUI dependencies)
+# Enable CGO for potential SQLite support
+RUN CGO_ENABLED=1 GOOS=linux go build -a -tags nogui -o webui .
+
+# Stage 2: Runtime
+FROM alpine:latest
+
+# Install runtime dependencies for CGO/SQLite
+RUN apk --no-cache add ca-certificates sqlite
+
+WORKDIR /root/
+
+# Copy the binary from builder stage
+COPY --from=builder /app/webui .
+
+# Copy static assets and generated templates
+COPY --from=builder /app/internal/webui/static ./internal/webui/static
+COPY --from=builder /app/internal/webui/templates ./internal/webui/templates
+
+# Expose the webui port
+EXPOSE 8081
+
+# Set environment variable for backend address
+ENV BACKEND_ADDRESS=backend:50051
+
+# Run the webui binary with webui subcommand
+CMD ["./webui", "webui"]

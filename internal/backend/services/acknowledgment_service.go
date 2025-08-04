@@ -26,3 +26,7 @@ func (s *AcknowledgmentService) GetAcknowledgments(ctx context.Context, alertKey
 func (s *AcknowledgmentService) DeleteAcknowledgment(ctx context.Context, alertKey, userID string) error {
 	return s.db.DeleteAcknowledgment(alertKey, userID)
 }
+
+func (s *AcknowledgmentService) GetAllAcknowledgedAlerts(ctx context.Context) (map[string]models.AcknowledgmentWithUser, error) {
+	return s.db.GetAllAcknowledgedAlerts()
+}

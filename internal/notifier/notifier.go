@@ -234,6 +234,11 @@ func (n *Notifier) shouldNotify(alert models.Alert) bool {
 		return false
 	}
 
+	// Don't notify for resolved alerts
+	if alert.Status.State == "resolved" {
+		return false
+	}
+
 	// Check severity rules
 	if enabled, exists := n.config.SeverityRules[alert.GetSeverity()]; !enabled || !exists {
 		return false
@@ -314,28 +319,74 @@ func (n *Notifier) sendSingleNotification(alert models.Alert) {
 	log.Printf("Notification sent for alert: %s (severity: %s)%s", alert.GetAlertName(), alert.GetSeverity(), filterStatus)
 }
 
-// sendSystemNotification sends a system notification
+// sendSystemNotification sends an enhanced system notification with rich visual indicators
 func (n *Notifier) sendSystemNotification(alert models.Alert) {
 	var title string
-	message := fmt.Sprintf("%s\n%s", alert.GetAlertName(), alert.GetSummary())
 
-	// Truncate message if too long
-	if len(message) > 200 {
-		message = message[:197] + "..."
-	}
-
-	// Add severity emoji to title for visual distinction
+	// Enhanced title with severity context and visual indicators
+	alertName := alert.GetAlertName()
+	instance := alert.GetInstance()
+	team := alert.GetTeam()
+	
 	switch alert.GetSeverity() {
 	case "critical":
-		title = "🔴 Critical Alert"
-	case "warning":
-		title = "🟡 Warning Alert"
+		title = "🚨 CRITICAL ALERT"
+	case "warning":  
+		title = "⚠️ WARNING ALERT"
 	case "info":
-		title = "🔵 Info Alert"
+		title = "ℹ️ INFO ALERT"
 	default:
-		title = "⚪ Alert"
+		title = "❓ ALERT"
 	}
 
+	// Build structured message with rich context and visual indicators
+	messageBuilder := fmt.Sprintf("🎯 Alert: %s", alertName)
+	
+	if instance != "" && instance != alertName {
+		messageBuilder += fmt.Sprintf("\n🖥️ Instance: %s", instance)
+	}
+	
+	if team != "" {
+		messageBuilder += fmt.Sprintf("\n👥 Team: %s", team)
+	}
+	
+	summary := alert.GetSummary()
+	if summary != "" {
+		messageBuilder += fmt.Sprintf("\n📋 Summary: %s", summary)
+	}
+
+	// Add timing information with visual indicators
+	startTime := alert.StartsAt.Format("15:04:05")
+	duration := time.Since(alert.StartsAt)
+	messageBuilder += fmt.Sprintf("\n⏰ Started: %s (%.0fm ago)", startTime, duration.Minutes())
+
+	// Add source context with icons
+	if alert.Labels != nil {
+		if job, exists := alert.Labels["job"]; exists {
+			messageBuilder += fmt.Sprintf("\n🔧 Job: %s", job)
+		}
+		if alertmanager, exists := alert.Labels["alertmanager"]; exists {
+			messageBuilder += fmt.Sprintf("\n📡 Source: %s", alertmanager)
+		}
+	}
+
+	message := messageBuilder
+
+	// Enhanced truncation with smart line-aware cutting
+	if len(message) > 300 {
+		lines := strings.Split(message, "\n")
+		truncatedMessage := ""
+		for _, line := range lines {
+			if len(truncatedMessage+line+"\n") > 280 {
+				truncatedMessage += "\n⋯ (more details available in app)"
+				break
+			}
+			truncatedMessage += line + "\n"
+		}
+		message = strings.TrimRight(truncatedMessage, "\n")
+	}
+
+	// Create notification with enhanced visual design
 	notification := fyne.NewNotification(title, message)
 	n.app.SendNotification(notification)
 }

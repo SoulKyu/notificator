@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notificator-webui
+  labels:
+    app: notificator-webui
+    {{- with .Values.webui.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.webui.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notificator-webui
+  template:
+    metadata:
+      labels:
+        app: notificator-webui
+        {{- with .Values.webui.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.webui.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.webui.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: webui
+        image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
+        imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+        command:
+        - ./webui
+        - webui
+        - --config
+        - /config/config.json
+        - --backend
+        - {{ .Values.webui.backendAddress }}
+        ports:
+        - name: http
+          containerPort: 8081
+          protocol: TCP
+        {{- with .Values.webui.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: notificator-webui-config-json

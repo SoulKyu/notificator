@@ -1,0 +1,33 @@
+{{- if .Values.webui.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notificator-webui
+  labels:
+    app: notificator-webui
+  {{- if .Values.webui.ingress.annotations }}
+  annotations:
+    {{- toYaml .Values.webui.ingress.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.webui.ingress.className }}
+  ingressClassName: {{ .Values.webui.ingress.className }}
+  {{- end }}
+  {{- if and .Values.webui.ingress.tls.enabled .Values.webui.ingress.tls.secretName }}
+  tls:
+  - hosts:
+    - {{ .Values.webui.ingress.host }}
+    secretName: {{ .Values.webui.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+  - host: {{ .Values.webui.ingress.host }}
+    http:
+      paths:
+      - path: {{ .Values.webui.ingress.path }}
+        pathType: {{ .Values.webui.ingress.pathType }}
+        backend:
+          service:
+            name: notificator-webui
+            port:
+              number: 8081
+{{- end }}

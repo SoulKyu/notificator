@@ -10,7 +10,7 @@ func (gdb *GormDB) GetStatistics() (map[string]int64, error) {
 	stats := make(map[string]int64)
 
 	// Get counts
-	var usersCount, commentsCount, acksCount, activeSessions int64
+	var usersCount, commentsCount, acksCount, activeSessions, resolvedAlerts int64
 
 	if err := gdb.db.Model(&models.User{}).Count(&usersCount).Error; err != nil {
 		return nil, err
@@ -28,10 +28,15 @@ func (gdb *GormDB) GetStatistics() (map[string]int64, error) {
 		return nil, err
 	}
 
+	if err := gdb.db.Model(&models.ResolvedAlert{}).Where("expires_at > ?", time.Now()).Count(&resolvedAlerts).Error; err != nil {
+		return nil, err
+	}
+
 	stats["users"] = usersCount
 	stats["comments"] = commentsCount
 	stats["acknowledgments"] = acksCount
 	stats["active_sessions"] = activeSessions
+	stats["resolved_alerts"] = resolvedAlerts
 
 	return stats, nil
 }

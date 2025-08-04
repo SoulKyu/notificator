@@ -15,6 +15,16 @@ service AuthService {
   rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
   rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+  
+  // OAuth Methods
+  rpc GetOAuthAuthURL(OAuthAuthURLRequest) returns (OAuthAuthURLResponse);
+  rpc OAuthCallback(OAuthCallbackRequest) returns (LoginResponse);
+  rpc GetOAuthProviders(GetOAuthProvidersRequest) returns (GetOAuthProvidersResponse);
+  rpc GetOAuthConfig(GetOAuthConfigRequest) returns (GetOAuthConfigResponse);
+  
+  // User Groups
+  rpc GetUserGroups(GetUserGroupsRequest) returns (GetUserGroupsResponse);
+  rpc SyncUserGroups(SyncUserGroupsRequest) returns (SyncUserGroupsResponse);
 }
 
 // Messages
@@ -41,6 +51,10 @@ message LoginResponse {
   User user = 3;
   string message = 4;
   google.protobuf.Timestamp expires_at = 5;
+  string user_id = 6;                                               // Direct user ID for convenience
+  string username = 7;                                              // Direct username for convenience  
+  string email = 8;                                                 // Direct email for convenience
+  string error = 9;                                                 // Error message for OAuth flows
 }
 
 message LogoutRequest {
@@ -77,6 +91,8 @@ message User {
   string email = 3;
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp last_login = 5;
+  string oauth_provider = 6;                                        // OAuth provider name
+  string oauth_id = 7;                                              // OAuth user ID
 }
 
 message SearchUsersRequest {
@@ -87,4 +103,75 @@ message SearchUsersRequest {
 message SearchUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
+}
+
+// OAuth Messages
+message OAuthAuthURLRequest {
+  string provider = 1;
+  string state = 2;
+}
+
+message OAuthAuthURLResponse {
+  bool success = 1;
+  string auth_url = 2;
+  string error = 3;
+}
+
+message OAuthCallbackRequest {
+  string provider = 1;
+  string code = 2;
+  string state = 3;
+}
+
+message GetOAuthProvidersRequest {
+  // No parameters needed
+}
+
+message GetOAuthProvidersResponse {
+  repeated OAuthProvider providers = 1;
+}
+
+message GetOAuthConfigRequest {
+  // No parameters needed
+}
+
+message GetOAuthConfigResponse {
+  bool enabled = 1;
+  bool disable_classic_auth = 2;
+  repeated OAuthProvider providers = 3;
+}
+
+message OAuthProvider {
+  string name = 1;
+  string display_name = 2;
+  bool enabled = 3;
+}
+
+// User Groups Messages
+message GetUserGroupsRequest {
+  string user_id = 1;
+}
+
+message GetUserGroupsResponse {
+  repeated UserGroup groups = 1;
+}
+
+message UserGroup {
+  string id = 1;
+  string name = 2;
+  string provider = 3;
+  string type = 4;
+  string role = 5;
+  string permissions = 6;                                        // JSON string
+}
+
+message SyncUserGroupsRequest {
+  string user_id = 1;
+  string provider = 2;
+}
+
+message SyncUserGroupsResponse {
+  bool success = 1;
+  string error = 2;
+  int32 groups_synced = 3;
 }

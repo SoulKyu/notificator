@@ -1,0 +1,193 @@
+# Default values for notificator
+
+# Backend service configuration
+backend:
+  image:
+    repository: soulkyu/notificator-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Additional labels and annotations for backend resources
+  labels: {}
+    # environment: production
+    # team: platform
+  annotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "8080"
+  
+  # Pod-specific annotations and labels
+  podLabels: {}
+  podAnnotations: {}
+    # sidecar.istio.io/inject: "true"
+  
+  # Service-specific annotations and labels  
+  service:
+    labels: {}
+    annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  
+  # Security contexts
+  podSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 1001
+    # runAsGroup: 1001
+    # fsGroup: 1001
+  securityContext: {}
+    # allowPrivilegeEscalation: false
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1001
+  
+  # Database configuration
+  database:
+    type: postgres  # Options: sqlite, postgres
+    postgres:
+      host: postgres-service
+      port: 5432
+      database: notificator
+      user: notificator
+      password: notificator_password
+      sslMode: disable
+    sqlite:
+      path: /data/notificator.db
+
+# WebUI service configuration  
+webui:
+  image:
+    repository: soulkyu/notificator-webui
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Additional labels and annotations for webui resources
+  labels: {}
+    # environment: production
+    # team: frontend
+  annotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "8081"
+  
+  # Pod-specific annotations and labels
+  podLabels: {}
+  podAnnotations: {}
+    # sidecar.istio.io/inject: "true"
+  
+  # Service-specific annotations and labels
+  service:
+    labels: {}
+    annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  
+  # Security contexts
+  podSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 1001
+    # runAsGroup: 1001
+    # fsGroup: 1001
+  securityContext: {}
+    # allowPrivilegeEscalation: false
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1001
+  
+  # Backend connection
+  backendAddress: notificator-backend:50051
+  
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: nginx
+    annotations: {}
+      # nginx.ingress.kubernetes.io/rewrite-target: /
+      # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      # cert-manager.io/cluster-issuer: letsencrypt-prod
+    host: notificator.example.com
+    path: /
+    pathType: Prefix
+    tls:
+      enabled: false
+      secretName: notificator-tls
+
+# Alertmanager configuration (optional - disabled by default)
+alertmanager:
+  enabled: false
+  image:
+    repository: soulkyu/notificator-alertmanager
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Additional labels and annotations for alertmanager resources
+  labels: {}
+    # environment: production
+    # team: sre
+  annotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "9093"
+  
+  # Pod-specific annotations and labels
+  podLabels: {}
+  podAnnotations: {}
+    # sidecar.istio.io/inject: "false"
+  
+  # Service-specific annotations and labels
+  service:
+    labels: {}
+    annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  
+  # Security contexts
+  podSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 1001
+    # runAsGroup: 1001
+    # fsGroup: 1001
+  securityContext: {}
+    # allowPrivilegeEscalation: false
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1001
+
+# Shared alertmanager configuration
+# When alertmanager.enabled=false, configure external alertmanagers here
+# When alertmanager.enabled=true, the internal one will be added automatically
+alertmanagerConfig:
+  - name: "External Alertmanager"
+    url: "http://alertmanager.monitoring.svc.cluster.local:9093"
+    username: ""
+    password: ""
+    token: ""
+    oauthEnabled: false
+    oauthProxyMode: true
+
+# OAuth configuration (optional)
+oauth:
+  enabled: false
+  disableClassicAuth: false
+  redirectUrl: "https://notificator.example.com/api/v1/oauth"
+  sessionKey: "change-me-to-a-secure-random-key"
+  
+  # GitHub OAuth (optional)
+  github:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+    scopes: "user:email,read:org,read:user"
+  
+  # Google OAuth (optional)
+  google:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+    scopes: "openid,email,profile,https://www.googleapis.com/auth/admin.directory.group.readonly"
+
+# Common settings
+logLevel: info
+playground: false

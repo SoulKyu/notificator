@@ -1,0 +1,357 @@
+package scripts
+
+templ DashboardModal() {
+	<script>
+		window.dashboardModalMixin = {
+			async showAlertDetails(fingerprint) {
+				this.alertDetailsLoading = true;
+				this.showAlertModal = true;
+				this.currentAlertTab = 'overview';
+				this.alertDetails = null;
+
+				const currentPath = window.location.pathname;
+				const newPath = `/dashboard/alert/${fingerprint}`;
+				if (currentPath !== newPath) {
+					window.history.pushState({ alertId: fingerprint }, '', newPath);
+				}
+
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						this.alertDetails = result.data;
+					} else {
+						this.showNotification('error', 'Failed to load alert details: ' + result.error);
+						this.closeAlertModal();
+					}
+				} catch (error) {
+					console.error('Error loading alert details:', error);
+					this.showNotification('error', 'Failed to load alert details');
+					this.closeAlertModal();
+				} finally {
+					this.alertDetailsLoading = false;
+				}
+			},
+
+			closeAlertModal() {
+				this.showAlertModal = false;
+				this.alertDetails = null;
+				this.currentAlertTab = 'overview';
+				
+				this.newCommentContent = '';
+				this.commentSubmitting = false;
+				this.commentDeleting = {};
+				
+				if (window.location.pathname.includes('/alert/')) {
+					window.history.pushState({}, '', '/dashboard');
+				}
+			},
+
+			acknowledgeCurrentAlert() {
+				if (this.alertDetails?.alert) {
+					this.currentAckAlert = this.alertDetails.alert;
+					this.ackAction = 'single';
+					this.ackReason = '';
+					this.ackError = '';
+					this.showAckModal = true;
+				}
+			},
+
+			silenceCurrentAlert() {
+				if (this.alertDetails?.alert) {
+					this.currentSilenceAlert = this.alertDetails.alert;
+					this.silenceAction = 'single';
+					this.silenceReason = '';
+					this.silenceError = '';
+					this.silenceDuration = '1h';
+					this.silenceDurationType = 'preset';
+					this.customSilenceDuration = '';
+					this.customDurationError = '';
+					this.showSilenceModal = true;
+				}
+			},
+
+			unsilenceCurrentAlert() {
+				if (this.alertDetails?.alert) {
+					this.processUnsilenceAction(this.alertDetails.alert.fingerprint);
+				}
+			},
+
+			async processUnsilenceAction(fingerprint) {
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							action: 'unsilence',
+							fingerprints: [fingerprint],
+							comment: 'Unsilenced from alert details'
+						})
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert unsilenced successfully');
+						// Refresh alert details to show updated state
+						if (this.alertDetails?.alert?.fingerprint) {
+							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
+						}
+					} else {
+						this.showNotification('error', 'Failed to unsilence alert: ' + (result.error || 'Unknown error'));
+					}
+				} catch (error) {
+					console.error('Error unsilencing alert:', error);
+					this.showNotification('error', 'Failed to unsilence alert');
+				}
+			},
+
+			isAlertSilenced(alert) {
+				if (!alert) return false;
+				return alert.status?.state === 'suppressed' || 
+					   alert.status?.state === 'silenced' || 
+					   (alert.status?.silencedBy && alert.status.silencedBy.length > 0);
+			},
+
+			getSilenceButtonText(alert) {
+				if (!alert) return 'Unsilence';
+				const silenceCount = alert.status?.silencedBy?.length || 0;
+				return silenceCount > 1 ? `Unsilence (${silenceCount})` : 'Unsilence';
+			},
+
+			// Comment Management Functions
+			async addComment() {
+				if (!this.newCommentContent.trim()) {
+					this.showNotification('warning', 'Please enter a comment');
+					return;
+				}
+
+				if (!this.alertDetails?.alert?.fingerprint) {
+					this.showNotification('error', 'Alert information not available');
+					return;
+				}
+
+				this.commentSubmitting = true;
+				
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments`, {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							content: this.newCommentContent.trim()
+						})
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Comment added successfully');
+						this.newCommentContent = '';
+						
+						// Refresh alert details to show the new comment
+						await this.refreshComments();
+					} else {
+						this.showNotification('error', 'Failed to add comment: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error adding comment:', error);
+					this.showNotification('error', 'Failed to add comment');
+				} finally {
+					this.commentSubmitting = false;
+				}
+			},
+
+			async deleteComment(commentId) {
+				if (!commentId || !this.alertDetails?.alert?.fingerprint) {
+					this.showNotification('error', 'Comment information not available');
+					return;
+				}
+
+				this.commentDeleting[commentId] = true;
+				
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments/${commentId}`, {
+						method: 'DELETE',
+						credentials: 'include'
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Comment deleted successfully');
+						
+						// Refresh alert details to remove the deleted comment
+						await this.refreshComments();
+					} else {
+						this.showNotification('error', 'Failed to delete comment: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error deleting comment:', error);
+					this.showNotification('error', 'Failed to delete comment');
+				} finally {
+					// Remove deleting state for this comment
+					delete this.commentDeleting[commentId];
+				}
+			},
+
+			async refreshComments() {
+				if (!this.alertDetails?.alert?.fingerprint) {
+					return;
+				}
+
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						// Update only the comments and maintain other alert details
+						this.alertDetails.comments = result.data.comments || [];
+						// Update comment count in alert object if it exists
+						if (this.alertDetails.alert) {
+							this.alertDetails.alert.commentCount = this.alertDetails.comments.length;
+						}
+					}
+				} catch (error) {
+					console.error('Error refreshing comments:', error);
+				}
+			},
+
+			copyAlertAsIssue() {
+				if (!this.alertDetails?.alert) {
+					this.showNotification('error', 'No alert data available');
+					return;
+				}
+
+				const alert = this.alertDetails.alert;
+				const comments = this.alertDetails.comments || [];
+				
+				const formatDate = (dateStr) => {
+					if (!dateStr) return 'N/A';
+					return new Date(dateStr).toLocaleString();
+				};
+				
+				const calculateDuration = (start, end) => {
+					if (!start) return 'N/A';
+					const startTime = new Date(start);
+					const endTime = end ? new Date(end) : new Date();
+					const diffMs = endTime - startTime;
+					
+					const hours = Math.floor(diffMs / (1000 * 60 * 60));
+					const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+					
+					if (hours > 0) {
+						return `${hours}h ${minutes}m`;
+					}
+					return `${minutes}m`;
+				};
+
+				// Build markdown content
+				let markdown = `# Alert: ${alert.alertname || alert.labels?.alertname || 'Unknown'}\n\n`;
+				
+				// Summary section
+				if (alert.summary) {
+					markdown += `## Summary\n${alert.summary}\n\n`;
+				}
+
+				// Details section
+				markdown += `## Details\n`;
+				markdown += `- **Status**: ${(alert.status?.state || 'unknown').toUpperCase()}\n`;
+				markdown += `- **Severity**: ${(alert.severity || 'unknown').toUpperCase()}\n`;
+				if (alert.instance) {
+					markdown += `- **Instance**: ${alert.instance}\n`;
+				}
+				markdown += `- **Started**: ${formatDate(alert.startsAt)}\n`;
+				if (alert.endsAt) {
+					markdown += `- **Ended**: ${formatDate(alert.endsAt)}\n`;
+				}
+				markdown += `- **Duration**: ${calculateDuration(alert.startsAt, alert.endsAt)}\n\n`;
+
+				// Labels section
+				if (alert.labels && Object.keys(alert.labels).length > 0) {
+					markdown += `## Labels\n`;
+					Object.entries(alert.labels).forEach(([key, value]) => {
+						markdown += `- **${key}**: ${value}\n`;
+					});
+					markdown += '\n';
+				}
+
+				// Annotations section
+				if (alert.annotations && Object.keys(alert.annotations).length > 0) {
+					markdown += `## Annotations\n`;
+					Object.entries(alert.annotations).forEach(([key, value]) => {
+						markdown += `- **${key}**: ${value}\n`;
+					});
+					markdown += '\n';
+				}
+
+				// Comments section
+				if (comments.length > 0) {
+					markdown += `## Comments\n`;
+					comments.forEach(comment => {
+						const commentDate = formatDate(comment.createdAt);
+						markdown += `**${comment.username}** (${commentDate}):\n`;
+						markdown += `${comment.content}\n\n`;
+					});
+				}
+
+				// Alert ID section
+				markdown += `## Alert ID\n`;
+				markdown += `\`${alert.fingerprint}\`\n`;
+
+				// Copy to clipboard
+				this.copyToClipboard(markdown);
+				this.showNotification('success', 'Alert copied as issue template');
+			},
+
+			async unacknowledgeCurrentAlert() {
+				if (!this.alertDetails?.alert?.fingerprint) {
+					this.showNotification('error', 'No alert information available');
+					return;
+				}
+				
+				try {
+					const request = {
+						alertFingerprints: [this.alertDetails.alert.fingerprint],
+						action: 'unacknowledge',
+						comment: 'Unacknowledged from alert details'
+					};
+
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert unacknowledged successfully');
+						// Refresh alert details to show updated state
+						if (this.alertDetails?.alert?.fingerprint) {
+							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
+						}
+					} else {
+						this.showNotification('error', 'Failed to unacknowledge alert: ' + (result.error || 'Unknown error'));
+					}
+				} catch (error) {
+					console.error('Error unacknowledging alert:', error);
+					this.showNotification('error', 'Failed to unacknowledge alert');
+				}
+			}
+		};
+	</script>
+}

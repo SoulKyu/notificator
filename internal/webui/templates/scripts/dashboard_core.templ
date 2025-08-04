@@ -1,0 +1,241 @@
+package scripts
+
+templ DashboardCore() {
+	<script>
+		function newDashboard() {
+			return {
+				loading: true,
+				alerts: [],
+				groups: [],
+				metadata: {
+					totalAlerts: 0,
+					filteredCount: 0,
+					lastUpdate: null,
+					counters: {
+						critical: 0,
+						warning: 0,
+						info: 0,
+						firing: 0,
+						resolved: 0,
+						acknowledged: 0,
+						withComments: 0
+					},
+					availableFilters: {
+						alertmanagers: [],
+						severities: [],
+						statuses: [],
+						teams: []
+					}
+				},
+				settings: {
+					theme: 'light',
+					resolvedAlertsRetention: 1,
+					refreshInterval: 5,
+					resolvedAlertsLimit: 100
+				},
+				
+				isRemovingResolvedAlerts: false,
+				
+				hasInitiallyLoaded: false,
+				sessionStorageKey: 'dashboard_notification_state',
+				
+				displayMode: 'classic',
+				viewMode: 'list',
+				sortField: 'duration',
+				sortDirection: 'asc',
+				showSettings: false,
+				
+				showAckModal: false,
+				ackAction: 'single',
+				ackReason: '',
+				ackError: '',
+				ackSubmitting: false,
+				currentAckAlert: null,
+				currentGroupName: '',
+				
+				showSilenceModal: false,
+				silenceAction: 'single',
+				silenceReason: '',
+				silenceError: '',
+				silenceSubmitting: false,
+				currentSilenceAlert: null,
+				silenceDuration: '1h',
+				silenceDurationType: 'preset',
+				customSilenceDuration: '',
+				customDurationError: '',
+				
+				showAlertModal: false,
+				alertDetails: null,
+				currentAlertTab: 'overview',
+				alertDetailsLoading: false,
+				
+				newCommentContent: '',
+				commentSubmitting: false,
+				commentDeleting: {},
+				currentUser: null,
+				
+				searchQuery: '',
+				filters: {
+					alertmanagers: [],
+					severities: [],
+					statuses: [],
+					teams: []
+				},
+				acknowledgmentFilter: null,
+				commentsFilter: null,
+				
+				selectedAlerts: [],
+				selectedGroups: [],
+				expandedGroups: [],
+				
+				refreshInterval: null,
+				lastUpdateTime: null,
+				
+				alertColors: {},
+				alertColorsTimestamp: 0,
+				
+				columnWidths: {
+					alertName: 300,
+					action: 100,
+					instance: 350,
+					severity: 150,
+					status: 150,
+					comments: 130,
+					team: 200,
+					summary: 400,
+					duration: 150,
+					source: 180
+				},
+				isResizing: false,
+				startX: 0,
+				startWidth: 0,
+				currentColumn: null,
+
+				getDisplayStatus(status) {
+					if (!status?.state) return 'unknown';
+					return status.state === 'suppressed' ? 'silenced' : status.state;
+				},
+
+				statusMatches(status, value) {
+					const displayStatus = this.getDisplayStatus(status);
+					return displayStatus === value;
+				},
+
+				init() {
+					Object.assign(this, window.dashboardDataMixin || {});
+					Object.assign(this, window.dashboardActionsMixin || {});
+					Object.assign(this, window.dashboardNotificationsMixin || {});
+					Object.assign(this, window.dashboardUtilitiesMixin || {});
+					Object.assign(this, window.dashboardModalMixin || {});
+					
+					window.dashboardInstance = this;
+					
+					this.initializeSessionTracking();
+					
+					this.loadSettings();
+					this.loadFiltersFromURL();
+					this.loadColumnWidths();
+					this.loadCurrentUser();
+					
+					if (this.initializeNotificationSystem) {
+						this.initializeNotificationSystem();
+					}
+					
+					this.startAutoRefresh();
+					this.loadDashboardData();
+					
+					this.checkAlertFromURL();
+					
+					document.addEventListener('visibilitychange', () => {
+						if (document.hidden) {
+							this.stopAutoRefresh();
+						} else {
+							this.startAutoRefresh();
+							this.loadDashboardIncremental();
+						}
+					});
+					
+					document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+					document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+				},
+
+				openSettings() {
+					this.showSettings = true;
+				},
+				
+				getStatusText() {
+					if (this.loading) return 'Loading...';
+					if (this.metadata && this.metadata.lastUpdate) {
+						return `Last updated: ${new Date(this.metadata.lastUpdate).toLocaleTimeString()}`;
+					}
+					return 'Ready';
+				},
+
+				initializeSessionTracking() {
+					const sessionData = sessionStorage.getItem(this.sessionStorageKey);
+					
+					if (sessionData) {
+						try {
+							const data = JSON.parse(sessionData);
+							this.hasInitiallyLoaded = data.hasInitiallyLoaded || false;
+							console.log('Session tracking restored - hasInitiallyLoaded:', this.hasInitiallyLoaded);
+						} catch (e) {
+							console.warn('Failed to parse session data, treating as fresh session');
+							this.hasInitiallyLoaded = false;
+						}
+					} else {
+						console.log('Fresh session detected');
+						this.hasInitiallyLoaded = false;
+					}
+					
+					this.saveSessionState();
+				},
+
+				saveSessionState() {
+					try {
+						const sessionData = {
+							hasInitiallyLoaded: this.hasInitiallyLoaded,
+							timestamp: Date.now()
+						};
+						sessionStorage.setItem(this.sessionStorageKey, JSON.stringify(sessionData));
+					} catch (e) {
+						console.warn('Failed to save session state:', e);
+					}
+				},
+
+				setDisplayMode(mode) {
+					if (this.displayMode !== mode) {
+						this.displayMode = mode;
+						this.clearSelection();
+						this.loadDashboardData();
+					}
+				},
+
+				setViewMode(mode) {
+					if (this.viewMode !== mode) {
+						this.viewMode = mode;
+						this.clearSelection();
+						if (mode === 'group') {
+							this.expandedGroups = this.groups.map(g => g.groupName);
+						}
+						this.loadDashboardData();
+					}
+				},
+
+				startAutoRefresh() {
+					this.stopAutoRefresh();
+					this.refreshInterval = setInterval(() => {
+						this.loadDashboardIncremental();
+					}, this.settings.refreshInterval * 1000);
+				},
+
+				stopAutoRefresh() {
+					if (this.refreshInterval) {
+						clearInterval(this.refreshInterval);
+						this.refreshInterval = null;
+					}
+				}
+			}
+		}
+	</script>
+}

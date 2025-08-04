@@ -1,0 +1,239 @@
+{
+  "complete_oauth_config": {
+    "oauth": {
+      "enabled": true,
+      "redirect_url": "https://your-domain.com/api/v1/oauth",
+      "session_key": "your-secure-session-key-change-me-in-production",
+      "group_sync": {
+        "enabled": true,
+        "sync_on_login": true,
+        "cache_timeout": "1h",
+        "default_role": "viewer"
+      },
+      "providers": {
+        "github": {
+          "client_id": "your_github_client_id",
+          "client_secret": "your_github_client_secret",
+          "scopes": ["user:email", "read:org", "read:user"],
+          "auth_url": "https://github.com/login/oauth/authorize",
+          "token_url": "https://github.com/login/oauth/access_token",
+          "user_info_url": "https://api.github.com/user",
+          "groups_url": "https://api.github.com/user/orgs",
+          "group_scopes": ["read:org"],
+          "group_mapping": {
+            "owner": "administrator",
+            "admin": "administrator",
+            "maintainer": "editor",
+            "member": "viewer"
+          }
+        },
+        "google": {
+          "client_id": "your_google_client_id.apps.googleusercontent.com",
+          "client_secret": "your_google_client_secret",
+          "scopes": [
+            "openid",
+            "email",
+            "profile",
+            "https://www.googleapis.com/auth/admin.directory.group.readonly"
+          ],
+          "auth_url": "https://accounts.google.com/o/oauth2/auth",
+          "token_url": "https://oauth2.googleapis.com/token",
+          "user_info_url": "https://openidconnect.googleapis.com/v1/userinfo",
+          "groups_url": "https://admin.googleapis.com/admin/directory/v1/groups",
+          "group_scopes": ["https://www.googleapis.com/auth/admin.directory.group.readonly"],
+          "group_mapping": {
+            "notificator-admins@your-domain.com": "administrator",
+            "notificator-editors@your-domain.com": "editor",
+            "engineering@your-domain.com": "editor",
+            "support@your-domain.com": "viewer"
+          }
+        },
+        "microsoft": {
+          "client_id": "your_azure_client_id",
+          "client_secret": "your_azure_client_secret",
+          "scopes": ["User.Read", "GroupMember.Read.All"],
+          "auth_url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          "token_url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+          "user_info_url": "https://graph.microsoft.com/v1.0/me",
+          "groups_url": "https://graph.microsoft.com/v1.0/me/memberOf",
+          "group_scopes": ["GroupMember.Read.All"],
+          "group_mapping": {
+            "Notificator Administrators": "administrator",
+            "Notificator Editors": "editor",
+            "Engineering Team": "editor",
+            "Support Team": "viewer"
+          }
+        }
+      }
+    }
+  },
+
+  "minimal_oauth_config": {
+    "oauth": {
+      "enabled": true,
+      "providers": {
+        "github": {
+          "client_id": "your_github_client_id",
+          "client_secret": "your_github_client_secret"
+        }
+      }
+    }
+  },
+
+  "development_oauth_config": {
+    "oauth": {
+      "enabled": true,
+      "redirect_url": "https://abc123.ngrok.io/api/v1/oauth",
+      "debug": true,
+      "log_level": "debug",
+      "providers": {
+        "github": {
+          "client_id": "your_github_client_id",
+          "client_secret": "your_github_client_secret",
+          "scopes": ["user:email", "read:org"]
+        }
+      }
+    }
+  },
+
+  "environment_variables": {
+    "description": "Use these environment variables instead of config file",
+    "variables": {
+      "OAUTH_ENABLED": "true",
+      "OAUTH_REDIRECT_URL": "https://your-domain.com/api/v1/oauth",
+      "OAUTH_SESSION_KEY": "your-secure-session-key",
+      "OAUTH_GROUP_SYNC_ENABLED": "true",
+      "OAUTH_GROUP_SYNC_ON_LOGIN": "true",
+      "OAUTH_GROUP_CACHE_TIMEOUT": "1h",
+      "OAUTH_DEFAULT_ROLE": "viewer",
+      
+      "OAUTH_GITHUB_CLIENT_ID": "your_github_client_id",
+      "OAUTH_GITHUB_CLIENT_SECRET": "your_github_client_secret",
+      "OAUTH_GITHUB_SCOPES": "user:email,read:org,read:user",
+      
+      "OAUTH_GOOGLE_CLIENT_ID": "your_google_client_id.apps.googleusercontent.com",
+      "OAUTH_GOOGLE_CLIENT_SECRET": "your_google_client_secret",
+      "OAUTH_GOOGLE_SCOPES": "openid,email,profile,https://www.googleapis.com/auth/admin.directory.group.readonly",
+      
+      "OAUTH_MICROSOFT_CLIENT_ID": "your_azure_client_id",
+      "OAUTH_MICROSOFT_CLIENT_SECRET": "your_azure_client_secret",
+      "OAUTH_MICROSOFT_SCOPES": "User.Read,GroupMember.Read.All"
+    }
+  },
+
+  "docker_compose_environment": {
+    "description": "Environment variables for Docker Compose",
+    "environment": [
+      "OAUTH_ENABLED=true",
+      "OAUTH_REDIRECT_URL=https://your-domain.com/api/v1/oauth",
+      "OAUTH_GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}",
+      "OAUTH_GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}",
+      "OAUTH_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}",
+      "OAUTH_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}",
+      "OAUTH_GROUP_SYNC_ENABLED=true"
+    ]
+  },
+
+  "kubernetes_configmap": {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "notificator-oauth-config"
+    },
+    "data": {
+      "OAUTH_ENABLED": "true",
+      "OAUTH_REDIRECT_URL": "https://your-domain.com/api/v1/oauth",
+      "OAUTH_GROUP_SYNC_ENABLED": "true",
+      "OAUTH_GITHUB_SCOPES": "user:email,read:org,read:user",
+      "OAUTH_GOOGLE_SCOPES": "openid,email,profile,https://www.googleapis.com/auth/admin.directory.group.readonly"
+    }
+  },
+
+  "kubernetes_secret": {
+    "apiVersion": "v1",
+    "kind": "Secret",
+    "metadata": {
+      "name": "notificator-oauth-secrets"
+    },
+    "type": "Opaque",
+    "data": {
+      "OAUTH_SESSION_KEY": "<base64-encoded-session-key>",
+      "OAUTH_GITHUB_CLIENT_SECRET": "<base64-encoded-github-secret>",
+      "OAUTH_GOOGLE_CLIENT_SECRET": "<base64-encoded-google-secret>",
+      "OAUTH_MICROSOFT_CLIENT_SECRET": "<base64-encoded-microsoft-secret>"
+    }
+  },
+
+  "provider_specific_examples": {
+    "github_enterprise": {
+      "github": {
+        "client_id": "your_ghe_client_id",
+        "client_secret": "your_ghe_client_secret",
+        "auth_url": "https://your-ghe-instance.com/login/oauth/authorize",
+        "token_url": "https://your-ghe-instance.com/login/oauth/access_token",
+        "user_info_url": "https://your-ghe-instance.com/api/v3/user",
+        "groups_url": "https://your-ghe-instance.com/api/v3/user/orgs",
+        "scopes": ["user:email", "read:org"]
+      }
+    },
+    
+    "google_workspace_custom": {
+      "google": {
+        "client_id": "your_google_client_id.apps.googleusercontent.com",
+        "client_secret": "your_google_client_secret",
+        "scopes": ["openid", "email", "profile"],
+        "custom_claims": {
+          "department": "user.department",
+          "employee_id": "user.employee_id",
+          "manager": "user.manager"
+        },
+        "group_patterns": {
+          "*-admin*": "administrator",
+          "*-editor*": "editor",
+          "engineering-*": "editor",
+          "*": "viewer"
+        }
+      }
+    },
+
+    "okta_example": {
+      "okta": {
+        "client_id": "your_okta_client_id",
+        "client_secret": "your_okta_client_secret",
+        "auth_url": "https://your-org.okta.com/oauth2/default/v1/authorize",
+        "token_url": "https://your-org.okta.com/oauth2/default/v1/token",
+        "user_info_url": "https://your-org.okta.com/oauth2/default/v1/userinfo",
+        "groups_url": "https://your-org.okta.com/api/v1/users/{userId}/groups",
+        "scopes": ["openid", "email", "profile", "groups"],
+        "group_mapping": {
+          "Administrators": "administrator",
+          "Editors": "editor",
+          "Users": "viewer"
+        }
+      }
+    }
+  },
+
+  "security_hardened_config": {
+    "oauth": {
+      "enabled": true,
+      "redirect_url": "https://your-domain.com/api/v1/oauth",
+      "session_key": "${OAUTH_SESSION_KEY}",
+      "security": {
+        "state_timeout": "10m",
+        "max_auth_attempts": 5,
+        "rate_limit": "10/minute",
+        "require_https": true,
+        "validate_issuer": true,
+        "token_encryption": true
+      },
+      "group_sync": {
+        "enabled": true,
+        "sync_on_login": true,
+        "cache_timeout": "30m",
+        "validate_groups": true,
+        "audit_changes": true
+      }
+    }
+  }
+}

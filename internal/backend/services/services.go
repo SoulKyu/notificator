@@ -4,33 +4,38 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"notificator/internal/backend/database"
 	alertpb "notificator/internal/backend/proto/alert"
 	authpb "notificator/internal/backend/proto/auth"
+	mainmodels "notificator/internal/models"
 )
 
-// AuthServiceGorm implements the AuthService gRPC service
 type AuthServiceGorm struct {
 	authpb.UnimplementedAuthServiceServer
-	db *database.GormDB
+	db           *database.GormDB
+	oauthService *OAuthService
 }
 
-func NewAuthServiceGorm(db *database.GormDB) *AuthServiceGorm {
-	return &AuthServiceGorm{db: db}
+func NewAuthServiceGorm(db *database.GormDB, oauthService *OAuthService) *AuthServiceGorm {
+	return &AuthServiceGorm{
+		db:           db,
+		oauthService: oauthService,
+	}
 }
 
-// Register implements the Register RPC method
 func (s *AuthServiceGorm) Register(ctx context.Context, req *authpb.RegisterRequest) (*authpb.RegisterResponse, error) {
-	// Basic validation
 	if req.Username == "" || req.Password == "" {
 		return &authpb.RegisterResponse{
 			Success: false,
@@ -99,7 +104,6 @@ func (s *AuthServiceGorm) Login(ctx context.Context, req *authpb.LoginRequest) (
 		}, nil
 	}
 
-	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return &authpb.LoginResponse{
 			Success: false,
@@ -117,7 +121,6 @@ func (s *AuthServiceGorm) Login(ctx context.Context, req *authpb.LoginRequest) (
 		}, nil
 	}
 
-	// Create session (expires in 24 hours)
 	expiresAt := time.Now().Add(24 * time.Hour)
 	if err := s.db.CreateSession(user.ID, sessionID, expiresAt); err != nil {
 		log.Printf("Error creating session: %v", err)
@@ -539,6 +542,36 @@ func (s *AlertServiceGorm) GetAcknowledgments(ctx context.Context, req *alertpb.
 	}, nil
 }
 
+// GetAllAcknowledgedAlerts implements the GetAllAcknowledgedAlerts RPC method
+func (s *AlertServiceGorm) GetAllAcknowledgedAlerts(ctx context.Context, req *alertpb.GetAllAcknowledgedAlertsRequest) (*alertpb.GetAllAcknowledgedAlertsResponse, error) {
+	acknowledgedAlerts, err := s.db.GetAllAcknowledgedAlerts()
+	if err != nil {
+		log.Printf("Error getting all acknowledged alerts: %v", err)
+		return &alertpb.GetAllAcknowledgedAlertsResponse{
+			AcknowledgedAlerts: make(map[string]*alertpb.Acknowledgment),
+			Count:              0,
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbAcknowledgedAlerts := make(map[string]*alertpb.Acknowledgment)
+	for alertKey, ack := range acknowledgedAlerts {
+		pbAcknowledgedAlerts[alertKey] = &alertpb.Acknowledgment{
+			Id:        ack.ID,
+			AlertKey:  ack.AlertKey,
+			UserId:    ack.UserID,
+			Username:  ack.Username,
+			Reason:    ack.Reason,
+			CreatedAt: timestamppb.New(ack.CreatedAt),
+		}
+	}
+
+	return &alertpb.GetAllAcknowledgedAlertsResponse{
+		AcknowledgedAlerts: pbAcknowledgedAlerts,
+		Count:              int32(len(pbAcknowledgedAlerts)),
+	}, nil
+}
+
 // DeleteAcknowledgment implements the DeleteAcknowledgment RPC method
 func (s *AlertServiceGorm) DeleteAcknowledgment(ctx context.Context, req *alertpb.DeleteAcknowledgmentRequest) (*alertpb.DeleteAcknowledgmentResponse, error) {
 	if req.SessionId == "" {
@@ -686,6 +719,431 @@ func (s *AlertServiceGorm) broadcastUpdate(alertKey string, update *alertpb.Aler
 	}
 }
 
+// GetUserColorPreferences implements the GetUserColorPreferences RPC method
+func (s *AlertServiceGorm) GetUserColorPreferences(ctx context.Context, req *alertpb.GetUserColorPreferencesRequest) (*alertpb.GetUserColorPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetUserColorPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetUserColorPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get user color preferences
+	preferences, err := s.db.GetUserColorPreferences(user.ID)
+	if err != nil {
+		log.Printf("Error getting user color preferences: %v", err)
+		return &alertpb.GetUserColorPreferencesResponse{
+			Success: false,
+			Message: "Failed to get color preferences",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	var pbPreferences []*alertpb.UserColorPreference
+	for _, pref := range preferences {
+		conditions, err := pref.GetLabelConditions()
+		if err != nil {
+			log.Printf("Error getting label conditions for preference %s: %v", pref.ID, err)
+			continue
+		}
+
+		pbPreferences = append(pbPreferences, &alertpb.UserColorPreference{
+			Id:               pref.ID,
+			UserId:           pref.UserID,
+			LabelConditions:  conditions,
+			Color:            pref.Color,
+			ColorType:        pref.ColorType,
+			Priority:         int32(pref.Priority),
+			CreatedAt:        timestamppb.New(pref.CreatedAt),
+			UpdatedAt:        timestamppb.New(pref.UpdatedAt),
+		})
+	}
+
+	return &alertpb.GetUserColorPreferencesResponse{
+		Preferences: pbPreferences,
+		Success:     true,
+		Message:     "Color preferences retrieved successfully",
+	}, nil
+}
+
+// SaveUserColorPreferences implements the SaveUserColorPreferences RPC method
+func (s *AlertServiceGorm) SaveUserColorPreferences(ctx context.Context, req *alertpb.SaveUserColorPreferencesRequest) (*alertpb.SaveUserColorPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveUserColorPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveUserColorPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf preferences to model preferences
+	var modelPreferences []mainmodels.UserColorPreference
+	for _, pbPref := range req.Preferences {
+		modelPref := mainmodels.UserColorPreference{
+			ID:        pbPref.Id,
+			UserID:    user.ID,
+			Color:     pbPref.Color,
+			ColorType: pbPref.ColorType,
+			Priority:  int(pbPref.Priority),
+		}
+
+		// Set label conditions
+		if err := modelPref.SetLabelConditions(pbPref.LabelConditions); err != nil {
+			log.Printf("Error setting label conditions: %v", err)
+			return &alertpb.SaveUserColorPreferencesResponse{
+				Success: false,
+				Message: "Invalid label conditions format",
+			}, nil
+		}
+
+		// Generate ID if not provided
+		if modelPref.ID == "" {
+			modelPref.ID = generateUUID()
+		}
+
+		modelPreferences = append(modelPreferences, modelPref)
+	}
+
+	// Save preferences
+	if err := s.db.SaveUserColorPreferences(user.ID, modelPreferences); err != nil {
+		log.Printf("Error saving user color preferences: %v", err)
+		return &alertpb.SaveUserColorPreferencesResponse{
+			Success: false,
+			Message: "Failed to save color preferences",
+		}, nil
+	}
+
+	return &alertpb.SaveUserColorPreferencesResponse{
+		Success: true,
+		Message: "Color preferences saved successfully",
+	}, nil
+}
+
+func (s *AlertServiceGorm) DeleteUserColorPreference(ctx context.Context, req *alertpb.DeleteUserColorPreferenceRequest) (*alertpb.DeleteUserColorPreferenceResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.DeleteUserColorPreferenceResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.PreferenceId == "" {
+		return &alertpb.DeleteUserColorPreferenceResponse{
+			Success: false,
+			Message: "Preference ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.DeleteUserColorPreferenceResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Delete preference
+	if err := s.db.DeleteUserColorPreference(user.ID, req.PreferenceId); err != nil {
+		log.Printf("Error deleting color preference: %v", err)
+		return &alertpb.DeleteUserColorPreferenceResponse{
+			Success: false,
+			Message: "Failed to delete color preference or unauthorized",
+		}, nil
+	}
+
+	return &alertpb.DeleteUserColorPreferenceResponse{
+		Success: true,
+		Message: "Color preference deleted successfully",
+	}, nil
+}
+
+// CreateResolvedAlert implements the CreateResolvedAlert RPC method
+func (s *AlertServiceGorm) CreateResolvedAlert(ctx context.Context, req *alertpb.CreateResolvedAlertRequest) (*alertpb.CreateResolvedAlertResponse, error) {
+	if req.Fingerprint == "" {
+		return &alertpb.CreateResolvedAlertResponse{
+			Success: false,
+			Message: "Fingerprint is required",
+		}, nil
+	}
+
+	if req.Source == "" {
+		return &alertpb.CreateResolvedAlertResponse{
+			Success: false,
+			Message: "Source is required",
+		}, nil
+	}
+
+	if len(req.AlertData) == 0 {
+		return &alertpb.CreateResolvedAlertResponse{
+			Success: false,
+			Message: "Alert data is required",
+		}, nil
+	}
+	
+	// Default TTL to 24 hours if not specified
+	ttlHours := int(req.TtlHours)
+	if ttlHours <= 0 {
+		ttlHours = 24
+	}
+
+	// Create resolved alert in database
+	resolvedAlert, err := s.db.CreateResolvedAlert(
+		req.Fingerprint,
+		req.Source,
+		req.AlertData,
+		req.Comments,
+		req.Acknowledgments,
+		ttlHours,
+	)
+	if err != nil {
+		log.Printf("Error creating resolved alert: %v", err)
+		return &alertpb.CreateResolvedAlertResponse{
+			Success: false,
+			Message: "Failed to create resolved alert",
+		}, nil
+	}
+
+	// Convert to protobuf message
+	pbResolvedAlert := &alertpb.ResolvedAlertInfo{
+		Id:              resolvedAlert.ID,
+		Fingerprint:     resolvedAlert.Fingerprint,
+		AlertData:       []byte(resolvedAlert.AlertData),
+		Comments:        []byte(resolvedAlert.Comments),
+		Acknowledgments: []byte(resolvedAlert.Acknowledgments),
+		ResolvedAt:      timestamppb.New(resolvedAlert.ResolvedAt),
+		ExpiresAt:       timestamppb.New(resolvedAlert.ExpiresAt),
+		Source:          resolvedAlert.Source,
+		CreatedAt:       timestamppb.New(resolvedAlert.CreatedAt),
+		UpdatedAt:       timestamppb.New(resolvedAlert.UpdatedAt),
+	}
+
+	// Broadcast resolved alert update to subscribers
+	go s.broadcastResolvedAlertUpdate(req.Fingerprint, &alertpb.ResolvedAlertUpdate{
+		Fingerprint:  req.Fingerprint,
+		UpdateType:   alertpb.ResolvedAlertUpdateType_RESOLVED_ALERT_CREATED,
+		ResolvedAlert: pbResolvedAlert,
+		Timestamp:    timestamppb.Now(),
+	})
+
+	return &alertpb.CreateResolvedAlertResponse{
+		Success:       true,
+		ResolvedAlert: pbResolvedAlert,
+		Message:       "Resolved alert created successfully",
+	}, nil
+}
+
+// GetResolvedAlerts implements the GetResolvedAlerts RPC method
+func (s *AlertServiceGorm) GetResolvedAlerts(ctx context.Context, req *alertpb.GetResolvedAlertsRequest) (*alertpb.GetResolvedAlertsResponse, error) {
+	limit := int(req.Limit)
+	offset := int(req.Offset)
+	
+	// Default limit to 100 if not specified
+	if limit <= 0 {
+		limit = 100
+	}
+
+	resolvedAlerts, err := s.db.GetResolvedAlerts(limit, offset)
+	if err != nil {
+		log.Printf("Error fetching resolved alerts: %v", err)
+		return &alertpb.GetResolvedAlertsResponse{
+			Success: false,
+			Message: "Failed to fetch resolved alerts",
+		}, nil
+	}
+
+	// Get total count
+	totalCount, err := s.db.GetResolvedAlertsCount()
+	if err != nil {
+		log.Printf("Error getting resolved alerts count: %v", err)
+		totalCount = int64(len(resolvedAlerts))
+	}
+
+	// Convert to protobuf messages
+	pbResolvedAlerts := make([]*alertpb.ResolvedAlertInfo, len(resolvedAlerts))
+	for i, resolvedAlert := range resolvedAlerts {
+		pbResolvedAlerts[i] = &alertpb.ResolvedAlertInfo{
+			Id:              resolvedAlert.ID,
+			Fingerprint:     resolvedAlert.Fingerprint,
+			AlertData:       []byte(resolvedAlert.AlertData),
+			Comments:        []byte(resolvedAlert.Comments),
+			Acknowledgments: []byte(resolvedAlert.Acknowledgments),
+			ResolvedAt:      timestamppb.New(resolvedAlert.ResolvedAt),
+			ExpiresAt:       timestamppb.New(resolvedAlert.ExpiresAt),
+			Source:          resolvedAlert.Source,
+			CreatedAt:       timestamppb.New(resolvedAlert.CreatedAt),
+			UpdatedAt:       timestamppb.New(resolvedAlert.UpdatedAt),
+		}
+	}
+
+	return &alertpb.GetResolvedAlertsResponse{
+		ResolvedAlerts: pbResolvedAlerts,
+		TotalCount:     int32(totalCount),
+		Success:        true,
+		Message:        fmt.Sprintf("Found %d resolved alerts", len(resolvedAlerts)),
+	}, nil
+}
+
+// RemoveAllResolvedAlerts implements the RemoveAllResolvedAlerts RPC method
+func (s *AlertServiceGorm) RemoveAllResolvedAlerts(ctx context.Context, req *alertpb.RemoveAllResolvedAlertsRequest) (*alertpb.RemoveAllResolvedAlertsResponse, error) {
+	log.Printf("RemoveAllResolvedAlerts: Attempting to remove all resolved alerts")
+	
+	removedCount, err := s.db.RemoveAllResolvedAlerts()
+	if err != nil {
+		log.Printf("Error removing all resolved alerts: %v", err)
+		return &alertpb.RemoveAllResolvedAlertsResponse{
+			Success: false,
+			Message: "Failed to remove resolved alerts",
+		}, nil
+	}
+
+	log.Printf("RemoveAllResolvedAlerts: Successfully removed %d resolved alerts", removedCount)
+	
+	return &alertpb.RemoveAllResolvedAlertsResponse{
+		Success:      true,
+		RemovedCount: int32(removedCount),
+		Message:      fmt.Sprintf("Successfully removed %d resolved alerts", removedCount),
+	}, nil
+}
+
+// GetResolvedAlert implements the GetResolvedAlert RPC method
+func (s *AlertServiceGorm) GetResolvedAlert(ctx context.Context, req *alertpb.GetResolvedAlertRequest) (*alertpb.GetResolvedAlertResponse, error) {
+	if req.Fingerprint == "" {
+		return &alertpb.GetResolvedAlertResponse{
+			Success: false,
+			Message: "Fingerprint is required",
+		}, nil
+	}
+
+	resolvedAlert, err := s.db.GetResolvedAlert(req.Fingerprint)
+	if err != nil {
+		return &alertpb.GetResolvedAlertResponse{
+			Success: false,
+			Message: "Resolved alert not found",
+		}, nil
+	}
+
+	pbResolvedAlert := &alertpb.ResolvedAlertInfo{
+		Id:              resolvedAlert.ID,
+		Fingerprint:     resolvedAlert.Fingerprint,
+		AlertData:       []byte(resolvedAlert.AlertData),
+		Comments:        []byte(resolvedAlert.Comments),
+		Acknowledgments: []byte(resolvedAlert.Acknowledgments),
+		ResolvedAt:      timestamppb.New(resolvedAlert.ResolvedAt),
+		ExpiresAt:       timestamppb.New(resolvedAlert.ExpiresAt),
+		Source:          resolvedAlert.Source,
+		CreatedAt:       timestamppb.New(resolvedAlert.CreatedAt),
+		UpdatedAt:       timestamppb.New(resolvedAlert.UpdatedAt),
+	}
+
+	return &alertpb.GetResolvedAlertResponse{
+		Success:       true,
+		ResolvedAlert: pbResolvedAlert,
+		Message:       "Resolved alert found",
+	}, nil
+}
+
+// StreamResolvedAlertUpdates implements the StreamResolvedAlertUpdates RPC method
+func (s *AlertServiceGorm) StreamResolvedAlertUpdates(req *alertpb.StreamResolvedAlertUpdatesRequest, stream grpc.ServerStreamingServer[alertpb.ResolvedAlertUpdate]) error {
+	if req.SessionId == "" {
+		return fmt.Errorf("session ID is required")
+	}
+
+	// Validate session
+	_, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return fmt.Errorf("invalid session")
+	}
+
+	// Create subscription for resolved alert updates
+	sub := &ResolvedAlertSubscription{
+		SessionID: req.SessionId,
+		Stream:    stream,
+		Done:      make(chan bool),
+	}
+
+	// Add subscription
+	s.addResolvedAlertSubscription(sub)
+	defer s.removeResolvedAlertSubscription(sub)
+
+	// Wait for stream to close
+	<-sub.Done
+
+	return nil
+}
+
+// Helper methods for resolved alert subscriptions
+type ResolvedAlertSubscription struct {
+	SessionID string
+	Stream    grpc.ServerStreamingServer[alertpb.ResolvedAlertUpdate]
+	Done      chan bool
+}
+
+// Add resolved alert subscription tracking
+var (
+	resolvedAlertSubscriptions      = make(map[string][]*ResolvedAlertSubscription)
+	resolvedAlertSubscriptionsMutex sync.RWMutex
+)
+
+func (s *AlertServiceGorm) addResolvedAlertSubscription(sub *ResolvedAlertSubscription) {
+	resolvedAlertSubscriptionsMutex.Lock()
+	defer resolvedAlertSubscriptionsMutex.Unlock()
+	
+	resolvedAlertSubscriptions["global"] = append(resolvedAlertSubscriptions["global"], sub)
+}
+
+func (s *AlertServiceGorm) removeResolvedAlertSubscription(sub *ResolvedAlertSubscription) {
+	resolvedAlertSubscriptionsMutex.Lock()
+	defer resolvedAlertSubscriptionsMutex.Unlock()
+	
+	subs := resolvedAlertSubscriptions["global"]
+	for i, s := range subs {
+		if s == sub {
+			resolvedAlertSubscriptions["global"] = append(subs[:i], subs[i+1:]...)
+			break
+		}
+	}
+}
+
+func (s *AlertServiceGorm) broadcastResolvedAlertUpdate(fingerprint string, update *alertpb.ResolvedAlertUpdate) {
+	resolvedAlertSubscriptionsMutex.RLock()
+	defer resolvedAlertSubscriptionsMutex.RUnlock()
+	
+	subs := resolvedAlertSubscriptions["global"]
+	for _, sub := range subs {
+		go func(s *ResolvedAlertSubscription) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Recovered from panic in resolved alert broadcast: %v", r)
+					close(s.Done)
+				}
+			}()
+			
+			if err := s.Stream.Send(update); err != nil {
+				log.Printf("Error sending resolved alert update to subscriber %s: %v", s.SessionID, err)
+				close(s.Done)
+			}
+		}(sub)
+	}
+}
+
 // Helper function to generate secure session ID
 func generateSessionID() (string, error) {
 	bytes := make([]byte, 32)
@@ -693,4 +1151,625 @@ func generateSessionID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// GetOAuthConfig implements the GetOAuthConfig RPC method
+func (s *AuthServiceGorm) GetOAuthConfig(ctx context.Context, req *authpb.GetOAuthConfigRequest) (*authpb.GetOAuthConfigResponse, error) {
+	// If OAuth service is not available, return disabled state
+	if s.oauthService == nil {
+		return &authpb.GetOAuthConfigResponse{
+			Enabled:            false,
+			DisableClassicAuth: false,
+			Providers:          []*authpb.OAuthProvider{},
+		}, nil
+	}
+
+	config := s.oauthService.GetConfig()
+	if config == nil || !config.Enabled {
+		return &authpb.GetOAuthConfigResponse{
+			Enabled:            false,
+			DisableClassicAuth: false,
+			Providers:          []*authpb.OAuthProvider{},
+		}, nil
+	}
+
+	// Convert providers to protobuf format
+	var pbProviders []*authpb.OAuthProvider
+	for name, provider := range config.Providers {
+		if provider.Enabled {
+			// Generate display name from provider name if not set
+			displayName := name
+			switch name {
+			case "google":
+				displayName = "Google"
+			case "github":
+				displayName = "GitHub"
+			case "microsoft":
+				displayName = "Microsoft"
+			default:
+				// Capitalize first letter for other providers
+				if len(name) > 0 {
+					displayName = strings.ToUpper(string(name[0])) + name[1:]
+				}
+			}
+			
+			pbProviders = append(pbProviders, &authpb.OAuthProvider{
+				Name:        name,
+				DisplayName: displayName,
+				Enabled:     provider.Enabled,
+			})
+		}
+	}
+
+	return &authpb.GetOAuthConfigResponse{
+		Enabled:            config.Enabled,
+		DisableClassicAuth: config.DisableClassicAuth,
+		Providers:          pbProviders,
+	}, nil
+}
+
+func (s *AuthServiceGorm) GetOAuthProviders(ctx context.Context, req *authpb.GetOAuthProvidersRequest) (*authpb.GetOAuthProvidersResponse, error) {
+	// If OAuth service is not available, return empty providers
+	if s.oauthService == nil {
+		return &authpb.GetOAuthProvidersResponse{
+			Providers: []*authpb.OAuthProvider{},
+		}, nil
+	}
+
+	config := s.oauthService.GetConfig()
+	if config == nil || !config.Enabled {
+		return &authpb.GetOAuthProvidersResponse{
+			Providers: []*authpb.OAuthProvider{},
+		}, nil
+	}
+
+	// Convert providers to protobuf format
+	var pbProviders []*authpb.OAuthProvider
+	for name, provider := range config.Providers {
+		if provider.Enabled {
+			// Generate display name from provider name if not set
+			displayName := name
+			switch name {
+			case "google":
+				displayName = "Google"
+			case "github":
+				displayName = "GitHub"
+			case "microsoft":
+				displayName = "Microsoft"
+			default:
+				// Capitalize first letter for other providers
+				if len(name) > 0 {
+					displayName = strings.ToUpper(string(name[0])) + name[1:]
+				}
+			}
+			
+			pbProviders = append(pbProviders, &authpb.OAuthProvider{
+				Name:        name,
+				DisplayName: displayName,
+				Enabled:     provider.Enabled,
+			})
+		}
+	}
+
+	return &authpb.GetOAuthProvidersResponse{
+		Providers: pbProviders,
+	}, nil
+}
+
+// GetOAuthAuthURL implements the GetOAuthAuthURL RPC method
+func (s *AuthServiceGorm) GetOAuthAuthURL(ctx context.Context, req *authpb.OAuthAuthURLRequest) (*authpb.OAuthAuthURLResponse, error) {
+	if req.Provider == "" {
+		return &authpb.OAuthAuthURLResponse{
+			Success: false,
+			Error:   "Provider is required",
+		}, nil
+	}
+
+	if req.State == "" {
+		return &authpb.OAuthAuthURLResponse{
+			Success: false,
+			Error:   "State is required",
+		}, nil
+	}
+
+	// Check if OAuth service is available
+	if s.oauthService == nil {
+		log.Printf("OAuth service not available for GetOAuthAuthURL")
+		return &authpb.OAuthAuthURLResponse{
+			Success: false,
+			Error:   "OAuth service not configured",
+		}, nil
+	}
+
+	// Get auth URL from OAuth service
+	authURL, err := s.oauthService.GetAuthURL(req.Provider, req.State)
+	if err != nil {
+		log.Printf("Failed to get OAuth auth URL: %v", err)
+		return &authpb.OAuthAuthURLResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to generate auth URL: %v", err),
+		}, nil
+	}
+
+	log.Printf("Generated OAuth auth URL for provider %s", req.Provider)
+	return &authpb.OAuthAuthURLResponse{
+		Success: true,
+		AuthUrl: authURL,
+	}, nil
+}
+
+// OAuthCallback implements the OAuthCallback RPC method
+func (s *AuthServiceGorm) OAuthCallback(ctx context.Context, req *authpb.OAuthCallbackRequest) (*authpb.LoginResponse, error) {
+	if req.Provider == "" {
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Provider is required",
+		}, nil
+	}
+
+	if req.Code == "" {
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Authorization code is required",
+		}, nil
+	}
+
+	if req.State == "" {
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "State parameter is required",
+		}, nil
+	}
+
+	// Check if OAuth service is available
+	if s.oauthService == nil {
+		log.Printf("OAuth service not available for OAuthCallback")
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "OAuth service not configured",
+		}, nil
+	}
+
+	// Exchange code for token
+	token, err := s.oauthService.ExchangeCodeForToken(req.Provider, req.Code, req.State)
+	if err != nil {
+		log.Printf("Failed to exchange OAuth code for token: %v", err)
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Failed to exchange authorization code",
+			Error:   err.Error(),
+		}, nil
+	}
+
+	// Get user info from OAuth provider
+	userInfo, err := s.oauthService.GetUserInfo(req.Provider, token)
+	if err != nil {
+		log.Printf("Failed to get OAuth user info: %v", err)
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Failed to get user information",
+			Error:   err.Error(),
+		}, nil
+	}
+
+	// Create or update OAuth user
+	user, err := s.oauthService.CreateOrUpdateOAuthUser(req.Provider, userInfo)
+	if err != nil {
+		log.Printf("Failed to create/update OAuth user: %v", err)
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Failed to create user account",
+			Error:   err.Error(),
+		}, nil
+	}
+
+	// Generate session ID
+	sessionID, err := generateSessionID()
+	if err != nil {
+		log.Printf("Error generating session ID for OAuth user: %v", err)
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Internal server error",
+		}, nil
+	}
+
+	// Create session
+	expiresAt := time.Now().Add(24 * time.Hour)
+	if err := s.db.CreateSession(user.ID, sessionID, expiresAt); err != nil {
+		log.Printf("Error creating session for OAuth user: %v", err)
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Failed to create session",
+		}, nil
+	}
+
+	// Update last login
+	if err := s.db.UpdateLastLogin(user.ID); err != nil {
+		log.Printf("Error updating last login for OAuth user: %v", err)
+		// Don't fail the login for this
+	}
+
+	log.Printf("OAuth login successful for user %s via provider %s", user.Username, req.Provider)
+	
+	return &authpb.LoginResponse{
+		Success:   true,
+		Message:   "OAuth login successful",
+		SessionId: sessionID,
+		User: &authpb.User{
+			Id:            user.ID,
+			Username:      user.Username,
+			Email:         user.Email,
+			CreatedAt:     timestamppb.New(user.CreatedAt),
+			OauthProvider: req.Provider,
+			OauthId:       userInfo.ID,
+		},
+		UserId:   user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+	}, nil
+}
+
+// GetUserGroups implements the GetUserGroups RPC method
+func (s *AuthServiceGorm) GetUserGroups(ctx context.Context, req *authpb.GetUserGroupsRequest) (*authpb.GetUserGroupsResponse, error) {
+	if req.UserId == "" {
+		return &authpb.GetUserGroupsResponse{
+			Groups: []*authpb.UserGroup{},
+		}, nil
+	}
+
+	// Get user groups from database
+	groups, err := s.db.GetUserGroups(req.UserId)
+	if err != nil {
+		log.Printf("Failed to get user groups for user %s: %v", req.UserId, err)
+		return &authpb.GetUserGroupsResponse{
+			Groups: []*authpb.UserGroup{},
+		}, nil
+	}
+
+	// Convert to protobuf format
+	var pbGroups []*authpb.UserGroup
+	for _, group := range groups {
+		permissionsStr := ""
+		if group.Permissions != nil {
+			permissionsStr = string(group.Permissions)
+		}
+		
+		pbGroups = append(pbGroups, &authpb.UserGroup{
+			Id:          group.ID,
+			Name:        group.GroupName,
+			Provider:    group.Provider,
+			Type:        group.GroupType,
+			Role:        "", // UserGroup model doesn't have Role field
+			Permissions: permissionsStr,
+		})
+	}
+
+	log.Printf("Retrieved %d groups for user %s", len(pbGroups), req.UserId)
+	return &authpb.GetUserGroupsResponse{
+		Groups: pbGroups,
+	}, nil
+}
+
+// SyncUserGroups implements the SyncUserGroups RPC method
+func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUserGroupsRequest) (*authpb.SyncUserGroupsResponse, error) {
+	if req.UserId == "" {
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "User ID is required",
+		}, nil
+	}
+
+	if req.Provider == "" {
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "Provider is required",
+		}, nil
+	}
+
+	// Check if OAuth service is available
+	if s.oauthService == nil {
+		log.Printf("OAuth service not available for SyncUserGroups")
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "OAuth service not configured",
+		}, nil
+	}
+
+	// Get user by ID to verify it exists and get OAuth info
+	user, err := s.db.GetUserByID(req.UserId)
+	if err != nil {
+		log.Printf("Failed to get user %s for group sync: %v", req.UserId, err)
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "User not found",
+		}, nil
+	}
+
+	// Verify this is an OAuth user for the specified provider
+	if user.OAuthProvider == nil || *user.OAuthProvider != req.Provider {
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "User is not authenticated with the specified OAuth provider",
+		}, nil
+	}
+
+	// Get the user's OAuth token for group sync
+	oauthToken, err := s.db.GetOAuthToken(req.UserId, req.Provider)
+	if err != nil {
+		log.Printf("Failed to get OAuth token for user %s: %v", req.UserId, err)
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "OAuth token not found or expired",
+		}, nil
+	}
+
+	// Convert stored token to oauth2.Token format
+	token := &oauth2.Token{
+		AccessToken:  oauthToken.AccessToken,
+		RefreshToken: oauthToken.RefreshToken,
+		TokenType:    oauthToken.TokenType,
+		Expiry:       *oauthToken.ExpiresAt,
+	}
+
+	// Get user info with groups from OAuth provider
+	userInfo, err := s.oauthService.GetUserInfo(req.Provider, token)
+	if err != nil {
+		log.Printf("Failed to get user info for group sync: %v", err)
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "Failed to retrieve user information from provider",
+		}, nil
+	}
+
+	// Sync groups to database
+	if len(userInfo.Groups) > 0 {
+		err = s.db.SyncUserGroups(req.UserId, req.Provider, userInfo.Groups)
+		if err != nil {
+			log.Printf("Failed to sync user groups: %v", err)
+			return &authpb.SyncUserGroupsResponse{
+				Success: false,
+				Error:   "Failed to update user groups",
+			}, nil
+		}
+	}
+
+	log.Printf("Successfully synced %d groups for user %s from provider %s", len(userInfo.Groups), req.UserId, req.Provider)
+	return &authpb.SyncUserGroupsResponse{
+		Success:      true,
+		GroupsSynced: int32(len(userInfo.Groups)),
+	}, nil
+}
+
+// GetUserNotificationPreferences implements the GetUserNotificationPreferences RPC method
+func (s *AlertServiceGorm) GetUserNotificationPreferences(ctx context.Context, req *alertpb.GetUserNotificationPreferencesRequest) (*alertpb.GetUserNotificationPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetUserNotificationPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetUserNotificationPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get notification preference from database
+	preference, err := s.db.GetUserNotificationPreference(user.ID)
+	if err != nil {
+		log.Printf("Error getting notification preference for user %s: %v", user.ID, err)
+		return &alertpb.GetUserNotificationPreferencesResponse{
+			Success: false,
+			Message: "Failed to get notification preferences",
+		}, nil
+	}
+
+	// If no preference exists, return default
+	if preference == nil {
+		defaultPreference := &alertpb.UserNotificationPreference{
+			Id:                   "",
+			UserId:               user.ID,
+			Enabled:              true,
+			SoundEnabled:         true,
+			BrowserNotifications: true,
+			CooldownSeconds:      300,
+			MaxNotifications:     5,
+			RespectFilters:       true,
+			SeverityRules:        map[string]bool{
+				// Empty map - frontend will populate with dynamic severities from GetAvailableAlertLabels
+			},
+			SoundConfig: &alertpb.SoundConfig{
+				CriticalFrequency: 800,
+				CriticalDuration:  1000,
+				CriticalType:      "sine",
+				WarningFrequency:  600,
+				WarningDuration:   500,
+				WarningType:       "sine",
+				InfoFrequency:     400,
+				InfoDuration:      300,
+				InfoType:          "sine",
+			},
+		}
+		
+		return &alertpb.GetUserNotificationPreferencesResponse{
+			Preference: defaultPreference,
+			Success:    true,
+			Message:    "Default notification preferences",
+		}, nil
+	}
+
+	// Convert database model to protobuf
+	pbPreference := &alertpb.UserNotificationPreference{
+		Id:                   preference.ID,
+		UserId:               preference.UserID,
+		Enabled:              preference.Enabled,
+		SoundEnabled:         preference.SoundEnabled,
+		BrowserNotifications: preference.BrowserNotifications,
+		CooldownSeconds:      int32(preference.CooldownSeconds),
+		MaxNotifications:     int32(preference.MaxNotifications),
+		RespectFilters:       preference.RespectFilters,
+		CreatedAt:            timestamppb.New(preference.CreatedAt),
+		UpdatedAt:            timestamppb.New(preference.UpdatedAt),
+	}
+
+	// Handle severity rules JSON
+	if preference.SeverityRules != nil {
+		var severityRules map[string]bool
+		if err := json.Unmarshal(preference.SeverityRules, &severityRules); err == nil {
+			pbPreference.SeverityRules = severityRules
+		}
+	}
+
+	// Handle sound config JSON  
+	if preference.SoundConfig != nil {
+		var soundConfigMap map[string]interface{}
+		if err := json.Unmarshal(preference.SoundConfig, &soundConfigMap); err == nil {
+			// Convert to protobuf SoundConfig
+			soundConfig := &alertpb.SoundConfig{}
+			if val, ok := soundConfigMap["critical_frequency"].(float64); ok {
+				soundConfig.CriticalFrequency = int32(val)
+			}
+			if val, ok := soundConfigMap["critical_duration"].(float64); ok {
+				soundConfig.CriticalDuration = int32(val)
+			}
+			if val, ok := soundConfigMap["critical_type"].(string); ok {
+				soundConfig.CriticalType = val
+			}
+			if val, ok := soundConfigMap["warning_frequency"].(float64); ok {
+				soundConfig.WarningFrequency = int32(val)
+			}
+			if val, ok := soundConfigMap["warning_duration"].(float64); ok {
+				soundConfig.WarningDuration = int32(val)
+			}
+			if val, ok := soundConfigMap["warning_type"].(string); ok {
+				soundConfig.WarningType = val
+			}
+			if val, ok := soundConfigMap["info_frequency"].(float64); ok {
+				soundConfig.InfoFrequency = int32(val)
+			}
+			if val, ok := soundConfigMap["info_duration"].(float64); ok {
+				soundConfig.InfoDuration = int32(val)
+			}
+			if val, ok := soundConfigMap["info_type"].(string); ok {
+				soundConfig.InfoType = val
+			}
+			
+			pbPreference.SoundConfig = soundConfig
+			
+			// Also set JSON string for full config
+			if jsonBytes, err := json.Marshal(soundConfigMap); err == nil {
+				pbPreference.SoundConfigJson = string(jsonBytes)
+			}
+		}
+	}
+
+	log.Printf("Retrieved notification preferences for user %s", user.ID)
+	return &alertpb.GetUserNotificationPreferencesResponse{
+		Preference: pbPreference,
+		Success:    true,
+		Message:    "Notification preferences retrieved successfully",
+	}, nil
+}
+
+// SaveUserNotificationPreferences implements the SaveUserNotificationPreferences RPC method
+func (s *AlertServiceGorm) SaveUserNotificationPreferences(ctx context.Context, req *alertpb.SaveUserNotificationPreferencesRequest) (*alertpb.SaveUserNotificationPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveUserNotificationPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Preference == nil {
+		return &alertpb.SaveUserNotificationPreferencesResponse{
+			Success: false,
+			Message: "Preference data is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveUserNotificationPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf to database model
+	preference := &mainmodels.UserNotificationPreference{
+		ID:                   req.Preference.Id,
+		UserID:               user.ID,
+		Enabled:              req.Preference.Enabled,
+		SoundEnabled:         req.Preference.SoundEnabled,
+		BrowserNotifications: req.Preference.BrowserNotifications,
+		CooldownSeconds:      int(req.Preference.CooldownSeconds),
+		MaxNotifications:     int(req.Preference.MaxNotifications),
+		RespectFilters:       req.Preference.RespectFilters,
+	}
+
+	// Handle severity rules
+	if req.Preference.SeverityRules != nil {
+		if err := preference.SetSeverityRules(req.Preference.SeverityRules); err != nil {
+			log.Printf("Error setting severity rules: %v", err)
+			return &alertpb.SaveUserNotificationPreferencesResponse{
+				Success: false,
+				Message: "Invalid severity rules format",
+			}, nil
+		}
+	}
+
+	// Handle sound config - prefer JSON string if available, otherwise use structured config
+	if req.Preference.SoundConfigJson != "" {
+		// Use the JSON string directly
+		var soundConfigMap mainmodels.SoundConfigMap
+		if err := json.Unmarshal([]byte(req.Preference.SoundConfigJson), &soundConfigMap); err == nil {
+			if err := preference.SetSoundConfig(soundConfigMap); err != nil {
+				log.Printf("Error setting sound config from JSON: %v", err)
+			}
+		} else {
+			log.Printf("Error parsing sound config JSON: %v", err)
+		}
+	} else if req.Preference.SoundConfig != nil {
+		// Convert structured config to SoundConfigMap
+		soundConfigMap := mainmodels.SoundConfigMap{
+			CriticalFrequency: int(req.Preference.SoundConfig.CriticalFrequency),
+			CriticalDuration:  int(req.Preference.SoundConfig.CriticalDuration),
+			CriticalType:      req.Preference.SoundConfig.CriticalType,
+			WarningFrequency:  int(req.Preference.SoundConfig.WarningFrequency),
+			WarningDuration:   int(req.Preference.SoundConfig.WarningDuration),
+			WarningType:       req.Preference.SoundConfig.WarningType,
+			InfoFrequency:     int(req.Preference.SoundConfig.InfoFrequency),
+			InfoDuration:      int(req.Preference.SoundConfig.InfoDuration),
+			InfoType:          req.Preference.SoundConfig.InfoType,
+		}
+		if err := preference.SetSoundConfig(soundConfigMap); err != nil {
+			log.Printf("Error setting sound config: %v", err)
+		}
+	}
+
+	// Save to database
+	if err := s.db.SaveUserNotificationPreference(user.ID, preference); err != nil {
+		log.Printf("Error saving notification preference for user %s: %v", user.ID, err)
+		return &alertpb.SaveUserNotificationPreferencesResponse{
+			Success: false,
+			Message: "Failed to save notification preferences",
+		}, nil
+	}
+
+	log.Printf("Saved notification preferences for user %s", user.ID)
+	return &alertpb.SaveUserNotificationPreferencesResponse{
+		Success: true,
+		Message: "Notification preferences saved successfully",
+	}, nil
+}
+
+func generateUUID() string {
+	bytes := make([]byte, 16)
+	rand.Read(bytes)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", bytes[0:4], bytes[4:6], bytes[6:8], bytes[8:10], bytes[10:16])
 }
