@@ -52,10 +52,16 @@ func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 		log.Printf("📊 Connected to SQLite: %s", cfg.SQLitePath)
 
 	case "postgres":
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
-			cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Port, cfg.SSLMode)
-
-		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
+		// Check for POSTGRES_URL environment variable first
+		if postgresURL := os.Getenv("POSTGRES_URL"); postgresURL != "" {
+			log.Printf("📊 Using POSTGRES_URL environment variable")
+			db, err = gorm.Open(postgres.Open(postgresURL), gormConfig)
+		} else {
+			// Fall back to individual config values
+			dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
+				cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Port, cfg.SSLMode)
+			db, err = gorm.Open(postgres.Open(dsn), gormConfig)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
 		}

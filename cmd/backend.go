@@ -26,7 +26,7 @@ func init() {
 	rootCmd.AddCommand(backendCmd)
 
 	// Backend-specific flags
-	backendCmd.Flags().String("db-type", "sqlite", "Database type: sqlite or postgres")
+	backendCmd.Flags().String("db-type", "", "Database type: sqlite or postgres (overrides config file)")
 	backendCmd.Flags().String("grpc-listen", ":50051", "gRPC server listen address")
 	backendCmd.Flags().String("http-listen", ":8080", "HTTP server listen address")
 	backendCmd.Flags().Bool("migrate", true, "Run database migrations on startup")
@@ -45,7 +45,11 @@ func runBackend(cmd *cobra.Command, args []string) {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Get database type from flag first, then fall back to config
 	dbType := viper.GetString("backend.database.type")
+	if dbType == "" {
+		dbType = cfg.Backend.Database.Type
+	}
 	
 	fmt.Println("🚀 Starting Notificator Backend Server...")
 	fmt.Printf("   Config file: %s\n", viper.ConfigFileUsed())

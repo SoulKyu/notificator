@@ -28,6 +28,10 @@ helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
   --set webui.ingress.host=notificator.mycompany.com \
   --set backend.database.type=postgres
 
+# With PostgreSQL connection URL (simplest database config)
+helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
+  --set backend.database.postgresUrl="postgres://user:pass@host:5432/db?sslmode=require"
+
 # Enable internal alertmanager for testing
 helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
   --set alertmanager.enabled=true
@@ -100,6 +104,8 @@ helm uninstall notificator
 Key configuration options in `values.yaml`:
 
 - `backend.database.*` - Database configuration (postgres or sqlite)
+  - `backend.database.postgresUrl` - PostgreSQL connection URL (preferred)
+  - `backend.database.postgres.*` - Individual PostgreSQL settings
 - `webui.ingress.*` - Ingress settings for WebUI
 - `webui.ingress.annotations` - Custom annotations for the ingress
 - `alertmanager.enabled` - Enable/disable internal alertmanager (default: false)
@@ -168,11 +174,15 @@ backend:
   
   database:
     type: postgres
-    postgres:
-      host: my-postgres.example.com
-      database: notificator_prod
-      user: notificator
-      password: secure-password
+    # Use PostgreSQL connection URL (recommended)
+    postgresUrl: "postgres://notificator:secure-password@my-postgres.example.com:5432/notificator_prod?sslmode=require"
+    
+    # OR use individual settings
+    # postgres:
+    #   host: my-postgres.example.com
+    #   database: notificator_prod
+    #   user: notificator
+    #   password: secure-password
 
 webui:
   # Custom labels and annotations for webui

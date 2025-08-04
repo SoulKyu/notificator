@@ -13,22 +13,22 @@ import (
 )
 
 type Config struct {
-	Alertmanagers []AlertmanagerConfig `json:"alertmanagers"`
-	GUI GUIConfig `json:"gui"`
-	Notifications NotificationConfig `json:"notifications"`
-	Polling PollingConfig `json:"polling"`
-	ColumnWidths    map[string]float32 `json:"column_widths"`
-	Backend         BackendConfig      `json:"backend"`
-	ResolvedAlerts  ResolvedAlertsConfig `json:"resolved_alerts"`
+	Alertmanagers  []AlertmanagerConfig `json:"alertmanagers"`
+	GUI            GUIConfig            `json:"gui"`
+	Notifications  NotificationConfig   `json:"notifications"`
+	Polling        PollingConfig        `json:"polling"`
+	ColumnWidths   map[string]float32   `json:"column_widths"`
+	Backend        BackendConfig        `json:"backend"`
+	ResolvedAlerts ResolvedAlertsConfig `json:"resolved_alerts"`
 	WebUI          WebUIConfig          `json:"webui"`
-	OAuth *OAuthPortalConfig `json:"oauth,omitempty"`
+	OAuth          *OAuthPortalConfig   `json:"oauth,omitempty"`
 }
 
 type BackendConfig struct {
 	Enabled    bool           `json:"enabled"`
-	GRPCListen string         `json:"grpc_listen"`  // Port for gRPC server (e.g., ":50051")
-	GRPCClient string         `json:"grpc_client"`  // Address for gRPC client (e.g., "localhost:50051")
-	HTTPListen string         `json:"http_listen"`  // Port for HTTP server (e.g., ":8080")
+	GRPCListen string         `json:"grpc_listen"` // Port for gRPC server (e.g., ":50051")
+	GRPCClient string         `json:"grpc_client"` // Address for gRPC client (e.g., "localhost:50051")
+	HTTPListen string         `json:"http_listen"` // Port for HTTP server (e.g., ":8080")
 	Database   DatabaseConfig `json:"database"`
 }
 
@@ -44,9 +44,9 @@ type DatabaseConfig struct {
 }
 
 type ResolvedAlertsConfig struct {
-	Enabled              bool          `json:"enabled"`                // Enable resolved alerts tracking
-	NotificationsEnabled bool          `json:"notifications_enabled"`  // Send notifications for resolved alerts
-	RetentionDuration    time.Duration `json:"retention_duration"`     // How long to keep resolved alerts
+	Enabled              bool          `json:"enabled"`               // Enable resolved alerts tracking
+	NotificationsEnabled bool          `json:"notifications_enabled"` // Send notifications for resolved alerts
+	RetentionDuration    time.Duration `json:"retention_duration"`    // How long to keep resolved alerts
 }
 
 type AlertmanagerConfig struct {
@@ -178,14 +178,14 @@ func DefaultConfig() *Config {
 			},
 		},
 		ResolvedAlerts: ResolvedAlertsConfig{
-			Enabled:              true,                // Enable by default
-			NotificationsEnabled: true,                // Send notifications by default
-			RetentionDuration:    1 * time.Hour,       // Keep for 1 hour by default
+			Enabled:              true,          // Enable by default
+			NotificationsEnabled: true,          // Send notifications by default
+			RetentionDuration:    1 * time.Hour, // Keep for 1 hour by default
 		},
 		WebUI: WebUIConfig{
-			Playground: false,     // Playground mode disabled by default
+			Playground: false, // Playground mode disabled by default
 		},
-		
+
 		// OAuth is disabled by default - must be explicitly configured
 		OAuth: nil,
 	}
@@ -193,53 +193,6 @@ func DefaultConfig() *Config {
 
 func getDefaultSoundPath() string {
 	return ""
-}
-
-func LoadConfig(configPath string) (*Config, error) {
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		config := DefaultConfig()
-		if err := config.SaveToFile(configPath); err != nil {
-			return nil, fmt.Errorf("failed to create default config: %w", err)
-		}
-		return config, nil
-	}
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	if config.Notifications.SeverityRules == nil {
-		config.Notifications.SeverityRules = map[string]bool{
-			"critical": true,
-			"warning":  true,
-			"info":     false,
-			"unknown":  false,
-		}
-	}
-
-	if config.GUI.FilterState.SelectedSeverities == nil {
-		config.GUI.FilterState.SelectedSeverities = map[string]bool{"All": true}
-	}
-	if config.GUI.FilterState.SelectedStatuses == nil {
-		config.GUI.FilterState.SelectedStatuses = map[string]bool{"All": true}
-	}
-	if config.GUI.FilterState.SelectedTeams == nil {
-		config.GUI.FilterState.SelectedTeams = map[string]bool{"All": true}
-	}
-	if config.GUI.FilterState.SelectedAcks == nil {
-		config.GUI.FilterState.SelectedAcks = map[string]bool{"All": true}
-	}
-	if config.GUI.FilterState.SelectedComments == nil {
-		config.GUI.FilterState.SelectedComments = map[string]bool{"All": true}
-	}
-
-	return &config, nil
 }
 
 func (c *Config) SaveToFile(configPath string) error {
@@ -272,13 +225,13 @@ func GetConfigPath() string {
 func LoadConfigWithViper() (*Config, error) {
 	cfg := DefaultConfig()
 	setViperDefaults(cfg)
-	
+
 	fmt.Printf("DEBUG: Viper alertmanagers.0.url = %s\n", viper.GetString("alertmanagers.0.url"))
 	fmt.Printf("DEBUG: Viper alertmanagers.0.name = %s\n", viper.GetString("alertmanagers.0.name"))
 	if err := viper.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	
+
 	alertmanagers := []AlertmanagerConfig{}
 	for i := 0; i < 10; i++ { // Support up to 10 alertmanagers
 		prefix := fmt.Sprintf("alertmanagers.%d", i)
@@ -292,7 +245,7 @@ func LoadConfigWithViper() (*Config, error) {
 				Token:    viper.GetString(prefix + ".token"),
 				Headers:  make(map[string]string),
 			}
-			
+
 			// Handle OAuth config
 			if viper.IsSet(prefix + ".oauth.enabled") {
 				am.OAuth = &OAuthConfig{
@@ -300,11 +253,11 @@ func LoadConfigWithViper() (*Config, error) {
 					ProxyMode: viper.GetBool(prefix + ".oauth.proxy_mode"),
 				}
 			}
-			
+
 			alertmanagers = append(alertmanagers, am)
 		}
 	}
-	
+
 	if len(alertmanagers) > 0 {
 		cfg.Alertmanagers = alertmanagers
 		fmt.Printf("DEBUG: Loaded %d alertmanagers from environment\n", len(alertmanagers))
@@ -323,15 +276,15 @@ func LoadConfigWithViper() (*Config, error) {
 
 	oauthEnabled := viper.GetBool("oauth.enabled")
 	log.Printf("DEBUG: OAuth enabled check: %v", oauthEnabled)
-	
+
 	// Check if we have OAuth environment variables (indicates this is a backend/OAuth-enabled service)
-	hasOAuthEnvVars := viper.IsSet("oauth.session_key") || 
-		os.Getenv("OAUTH_GITHUB_CLIENT_ID") != "" || 
+	hasOAuthEnvVars := viper.IsSet("oauth.session_key") ||
+		os.Getenv("OAUTH_GITHUB_CLIENT_ID") != "" ||
 		os.Getenv("OAUTH_GOOGLE_CLIENT_ID") != "" ||
 		os.Getenv("OAUTH_MICROSOFT_CLIENT_ID") != ""
-	
+
 	log.Printf("DEBUG: Has OAuth env vars: %v", hasOAuthEnvVars)
-	
+
 	if oauthEnabled && hasOAuthEnvVars {
 		log.Printf("DEBUG: OAuth is enabled with providers, loading complete configuration...")
 		// OAuth config should now be populated by viper.Unmarshal above
@@ -345,19 +298,19 @@ func LoadConfigWithViper() (*Config, error) {
 				cfg.OAuth.Providers = make(map[string]OAuthProvider)
 			}
 		}
-		
+
 		// Load providers from environment variables
 		if err := loadOAuthProvidersFromEnv(cfg.OAuth); err != nil {
 			log.Printf("DEBUG: Failed to load OAuth providers: %v", err)
 			return nil, fmt.Errorf("failed to load OAuth providers: %w", err)
 		}
-		
+
 		// Validate configuration
 		if err := cfg.OAuth.Validate(); err != nil {
 			log.Printf("DEBUG: OAuth config validation failed: %v", err)
 			return nil, fmt.Errorf("OAuth config validation failed: %w", err)
 		}
-		
+
 		log.Printf("DEBUG: OAuth config loaded successfully, providers: %d", len(cfg.OAuth.Providers))
 	} else if oauthEnabled && !hasOAuthEnvVars {
 		log.Printf("DEBUG: OAuth enabled but no local config - will use backend for OAuth info")
@@ -389,16 +342,32 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("backend.grpc_listen", cfg.Backend.GRPCListen)
 	viper.SetDefault("backend.grpc_client", cfg.Backend.GRPCClient)
 	viper.SetDefault("backend.http_listen", cfg.Backend.HTTPListen)
-	
-	// Database defaults
-	viper.SetDefault("backend.database.type", cfg.Backend.Database.Type)
-	viper.SetDefault("backend.database.host", cfg.Backend.Database.Host)
-	viper.SetDefault("backend.database.port", cfg.Backend.Database.Port)
-	viper.SetDefault("backend.database.name", cfg.Backend.Database.Name)
-	viper.SetDefault("backend.database.user", cfg.Backend.Database.User)
-	viper.SetDefault("backend.database.password", cfg.Backend.Database.Password)
-	viper.SetDefault("backend.database.ssl_mode", cfg.Backend.Database.SSLMode)
-	viper.SetDefault("backend.database.sqlite_path", cfg.Backend.Database.SQLitePath)
+
+	// Database defaults - only set if not already configured from config file or env vars
+	if !viper.IsSet("backend.database.type") {
+		viper.SetDefault("backend.database.type", cfg.Backend.Database.Type)
+	}
+	if !viper.IsSet("backend.database.host") {
+		viper.SetDefault("backend.database.host", cfg.Backend.Database.Host)
+	}
+	if !viper.IsSet("backend.database.port") {
+		viper.SetDefault("backend.database.port", cfg.Backend.Database.Port)
+	}
+	if !viper.IsSet("backend.database.name") {
+		viper.SetDefault("backend.database.name", cfg.Backend.Database.Name)
+	}
+	if !viper.IsSet("backend.database.user") {
+		viper.SetDefault("backend.database.user", cfg.Backend.Database.User)
+	}
+	if !viper.IsSet("backend.database.password") {
+		viper.SetDefault("backend.database.password", cfg.Backend.Database.Password)
+	}
+	if !viper.IsSet("backend.database.ssl_mode") {
+		viper.SetDefault("backend.database.ssl_mode", cfg.Backend.Database.SSLMode)
+	}
+	if !viper.IsSet("backend.database.sqlite_path") {
+		viper.SetDefault("backend.database.sqlite_path", cfg.Backend.Database.SQLitePath)
+	}
 
 	// GUI defaults
 	viper.SetDefault("gui.width", cfg.GUI.Width)
@@ -439,7 +408,7 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("oauth.session_key", oauthDefaults.SessionKey)
 	viper.SetDefault("oauth.debug", oauthDefaults.Debug)
 	viper.SetDefault("oauth.log_level", oauthDefaults.LogLevel)
-	
+
 	// Group sync defaults
 	viper.SetDefault("oauth.group_sync.enabled", oauthDefaults.GroupSync.Enabled)
 	viper.SetDefault("oauth.group_sync.sync_on_login", oauthDefaults.GroupSync.SyncOnLogin)
@@ -447,7 +416,7 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("oauth.group_sync.default_role", oauthDefaults.GroupSync.DefaultRole)
 	viper.SetDefault("oauth.group_sync.validate_groups", oauthDefaults.GroupSync.ValidateGroups)
 	viper.SetDefault("oauth.group_sync.audit_changes", oauthDefaults.GroupSync.AuditChanges)
-	
+
 	// Security defaults
 	viper.SetDefault("oauth.security.state_timeout", oauthDefaults.Security.StateTimeout)
 	viper.SetDefault("oauth.security.max_auth_attempts", oauthDefaults.Security.MaxAuthAttempts)
@@ -479,13 +448,13 @@ func setViperDefaults(cfg *Config) {
 	viper.BindEnv("backend.database.password", "DB_PASSWORD", "DATABASE_PASSWORD")
 	viper.BindEnv("backend.database.ssl_mode", "DB_SSL_MODE", "DATABASE_SSL_MODE")
 	viper.BindEnv("backend.database.sqlite_path", "DB_PATH", "DATABASE_PATH")
-	
-	// Support DATABASE_URL for full connection string
+
+	// Support DATABASE_URL for full connection string (POSTGRES_URL handled directly by GORM)
 	viper.BindEnv("database_url", "DATABASE_URL")
-	
+
 	// WebUI environment variable bindings
 	viper.BindEnv("webui.playground", "WEBUI_PLAYGROUND", "NOTIFICATOR_WEBUI_PLAYGROUND")
-	
+
 	// OAuth environment variable bindings
 	// Support both OAUTH_* and NOTIFICATOR_OAUTH_* patterns for flexibility
 	// Main OAuth settings

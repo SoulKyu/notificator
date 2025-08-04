@@ -53,6 +53,27 @@ spec:
         securityContext:
           {{- toYaml . | nindent 10 }}
         {{- end }}
+        env:
+        {{- if .Values.backend.database.postgresUrl }}
+        - name: POSTGRES_URL
+          value: {{ .Values.backend.database.postgresUrl | quote }}
+        {{- else if eq .Values.backend.database.type "postgres" }}
+        - name: DB_HOST
+          value: {{ .Values.backend.database.postgres.host | quote }}
+        - name: DB_PORT
+          value: {{ .Values.backend.database.postgres.port | quote }}
+        - name: DB_NAME
+          value: {{ .Values.backend.database.postgres.database | quote }}
+        - name: DB_USER
+          value: {{ .Values.backend.database.postgres.user | quote }}
+        - name: DB_PASSWORD
+          value: {{ .Values.backend.database.postgres.password | quote }}
+        - name: DB_SSL_MODE
+          value: {{ .Values.backend.database.postgres.sslMode | quote }}
+        {{- else if eq .Values.backend.database.type "sqlite" }}
+        - name: DB_PATH
+          value: {{ .Values.backend.database.sqlite.path | quote }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /health

@@ -52,6 +52,13 @@ backend:
   # Database configuration
   database:
     type: postgres  # Options: sqlite, postgres
+    
+    # Option 1: Use PostgreSQL connection URL (simplest)
+    # If set, this takes precedence over individual postgres settings
+    postgresUrl: ""
+    # Example: "postgres://user:password@host:5432/database?sslmode=require"
+    
+    # Option 2: Individual PostgreSQL settings
     postgres:
       host: postgres-service
       port: 5432
@@ -59,6 +66,8 @@ backend:
       user: notificator
       password: notificator_password
       sslMode: disable
+    
+    # Option 3: SQLite settings (for local development)
     sqlite:
       path: /data/notificator.db
 

@@ -43,7 +43,10 @@ FROM alpine:latest
 # Install runtime dependencies for CGO/SQLite
 RUN apk --no-cache add ca-certificates sqlite
 
-WORKDIR /root/
+# Create non-root user first
+RUN addgroup -g 1001 -S notificator && adduser -u 1001 -S notificator -G notificator
+
+WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/webui .
@@ -52,11 +55,14 @@ COPY --from=builder /app/webui .
 COPY --from=builder /app/internal/webui/static ./internal/webui/static
 COPY --from=builder /app/internal/webui/templates ./internal/webui/templates
 
+# Set proper ownership
+RUN chown -R notificator:notificator /app
+
+# Run as non-root user
+USER notificator
+
 # Expose the webui port
 EXPOSE 8081
-
-# Set environment variable for backend address
-ENV BACKEND_ADDRESS=backend:50051
 
 # Run the webui binary with webui subcommand
 CMD ["./webui", "webui"]
