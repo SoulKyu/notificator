@@ -52,102 +52,69 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
         env:
-        # Backend configuration
-        - name: NOTIFICATOR_BACKEND_ENABLED
-          value: "true"
-        - name: NOTIFICATOR_BACKEND_GRPC_LISTEN
-          value: ":50051"
-        - name: NOTIFICATOR_BACKEND_HTTP_LISTEN
-          value: ":8080"
-        
-        # Database configuration
-        - name: NOTIFICATOR_BACKEND_DATABASE_TYPE
-          value: {{ .Values.backend.database.type | quote }}
-        {{- if .Values.backend.database.postgresUrl }}
-        - name: POSTGRES_URL
-          value: {{ .Values.backend.database.postgresUrl | quote }}
-        {{- else if eq .Values.backend.database.type "postgres" }}
-        - name: NOTIFICATOR_BACKEND_DATABASE_HOST
-          value: {{ .Values.backend.database.postgres.host | quote }}
-        - name: NOTIFICATOR_BACKEND_DATABASE_PORT
-          value: {{ .Values.backend.database.postgres.port | quote }}
-        - name: NOTIFICATOR_BACKEND_DATABASE_NAME
-          value: {{ .Values.backend.database.postgres.database | quote }}
-        - name: NOTIFICATOR_BACKEND_DATABASE_USER
-          value: {{ .Values.backend.database.postgres.user | quote }}
-        - name: NOTIFICATOR_BACKEND_DATABASE_PASSWORD
-          value: {{ .Values.backend.database.postgres.password | quote }}
-        - name: NOTIFICATOR_BACKEND_DATABASE_SSL_MODE
-          value: {{ .Values.backend.database.postgres.sslMode | quote }}
-        {{- else if eq .Values.backend.database.type "sqlite" }}
-        - name: NOTIFICATOR_BACKEND_DATABASE_SQLITE_PATH
-          value: {{ .Values.backend.database.sqlite.path | quote }}
+        # Custom environment variables from values.yaml
+        {{- range $key, $value := .Values.backend.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
         {{- end }}
         
-        # Alertmanager configuration
+        # Global settings (can be overridden by backend.env)
+        {{- if not (hasKey .Values.backend.env "NOTIFICATOR_LOG_LEVEL") }}
+        - name: NOTIFICATOR_LOG_LEVEL
+          value: {{ .Values.logLevel | quote }}
+        {{- end }}
+        {{- if not (hasKey .Values.backend.env "NOTIFICATOR_WEBUI_PLAYGROUND") }}
+        - name: NOTIFICATOR_WEBUI_PLAYGROUND
+          value: {{ .Values.playground | quote }}
+        {{- end }}
+        
+        # Alertmanager configuration (can be overridden by backend.env)
         {{- $alertmanagers := include "notificator.allAlertmanagers" . | fromJson }}
         {{- range $index, $am := $alertmanagers }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_NAME
+        {{- $nameKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_NAME" $index }}
+        {{- $urlKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_URL" $index }}
+        {{- if not (hasKey $.Values.backend.env $nameKey) }}
+        - name: {{ $nameKey }}
           value: {{ $am.name | quote }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_URL
+        {{- end }}
+        {{- if not (hasKey $.Values.backend.env $urlKey) }}
+        - name: {{ $urlKey }}
           value: {{ $am.url | quote }}
+        {{- end }}
         {{- if $am.username }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_USERNAME
+        {{- $usernameKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_USERNAME" $index }}
+        {{- if not (hasKey $.Values.backend.env $usernameKey) }}
+        - name: {{ $usernameKey }}
           value: {{ $am.username | quote }}
         {{- end }}
+        {{- end }}
         {{- if $am.password }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_PASSWORD
+        {{- $passwordKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_PASSWORD" $index }}
+        {{- if not (hasKey $.Values.backend.env $passwordKey) }}
+        - name: {{ $passwordKey }}
           value: {{ $am.password | quote }}
         {{- end }}
+        {{- end }}
         {{- if $am.token }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_TOKEN
+        {{- $tokenKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_TOKEN" $index }}
+        {{- if not (hasKey $.Values.backend.env $tokenKey) }}
+        - name: {{ $tokenKey }}
           value: {{ $am.token | quote }}
         {{- end }}
+        {{- end }}
         {{- if $am.oauthEnabled }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_ENABLED
+        {{- $oauthEnabledKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_OAUTH_ENABLED" $index }}
+        {{- $oauthProxyKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_OAUTH_PROXY_MODE" $index }}
+        {{- if not (hasKey $.Values.backend.env $oauthEnabledKey) }}
+        - name: {{ $oauthEnabledKey }}
           value: {{ $am.oauthEnabled | quote }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_PROXY_MODE
+        {{- end }}
+        {{- if not (hasKey $.Values.backend.env $oauthProxyKey) }}
+        - name: {{ $oauthProxyKey }}
           value: {{ $am.oauthProxyMode | default true | quote }}
         {{- end }}
         {{- end }}
-        
-        # OAuth configuration
-        {{- if .Values.oauth.enabled }}
-        - name: OAUTH_ENABLED
-          value: {{ .Values.oauth.enabled | quote }}
-        - name: OAUTH_DISABLE_CLASSIC_AUTH
-          value: {{ .Values.oauth.disableClassicAuth | quote }}
-        - name: OAUTH_REDIRECT_URL
-          value: {{ .Values.oauth.redirectUrl | quote }}
-        - name: OAUTH_SESSION_KEY
-          value: {{ .Values.oauth.sessionKey | quote }}
-        
-        {{- if .Values.oauth.github.enabled }}
-        - name: OAUTH_GITHUB_CLIENT_ID
-          value: {{ .Values.oauth.github.clientId | quote }}
-        - name: OAUTH_GITHUB_CLIENT_SECRET
-          value: {{ .Values.oauth.github.clientSecret | quote }}
-        - name: OAUTH_GITHUB_SCOPES
-          value: {{ .Values.oauth.github.scopes | quote }}
         {{- end }}
-        
-        {{- if .Values.oauth.google.enabled }}
-        - name: OAUTH_GOOGLE_CLIENT_ID
-          value: {{ .Values.oauth.google.clientId | quote }}
-        - name: OAUTH_GOOGLE_CLIENT_SECRET
-          value: {{ .Values.oauth.google.clientSecret | quote }}
-        - name: OAUTH_GOOGLE_SCOPES
-          value: {{ .Values.oauth.google.scopes | quote }}
-        {{- end }}
-        {{- end }}
-        
-        # Logging
-        - name: NOTIFICATOR_LOG_LEVEL
-          value: {{ .Values.logLevel | quote }}
-        
-        # Playground mode
-        - name: NOTIFICATOR_WEBUI_PLAYGROUND
-          value: {{ .Values.playground | quote }}
         livenessProbe:
           httpGet:
             path: /health

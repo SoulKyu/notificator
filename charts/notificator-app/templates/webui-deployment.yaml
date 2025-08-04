@@ -51,34 +51,62 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
         env:
-        # Backend connection
+        # Custom environment variables from values.yaml
+        {{- range $key, $value := .Values.webui.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        
+        # Backend connection (can be overridden by webui.env)
+        {{- if not (hasKey .Values.webui.env "BACKEND_ADDRESS") }}
         - name: BACKEND_ADDRESS
           value: {{ .Values.webui.backendAddress | quote }}
-        - name: NOTIFICATOR_WEBUI_LISTEN
-          value: ":8081"
+        {{- end }}
+        {{- if not (hasKey .Values.webui.env "NOTIFICATOR_WEBUI_BACKEND") }}
         - name: NOTIFICATOR_WEBUI_BACKEND
           value: {{ .Values.webui.backendAddress | quote }}
+        {{- end }}
+        {{- if not (hasKey .Values.webui.env "NOTIFICATOR_WEBUI_LISTEN") }}
+        - name: NOTIFICATOR_WEBUI_LISTEN
+          value: ":8081"
+        {{- end }}
+        
+        # Global settings (can be overridden by webui.env)
+        {{- if not (hasKey .Values.webui.env "NOTIFICATOR_LOG_LEVEL") }}
+        - name: NOTIFICATOR_LOG_LEVEL
+          value: {{ .Values.logLevel | quote }}
+        {{- end }}
+        {{- if not (hasKey .Values.webui.env "NOTIFICATOR_WEBUI_PLAYGROUND") }}
         - name: NOTIFICATOR_WEBUI_PLAYGROUND
           value: {{ .Values.playground | quote }}
+        {{- end }}
         
-        # Alertmanager configuration
+        # Alertmanager configuration (can be overridden by webui.env)
         {{- $alertmanagers := include "notificator.allAlertmanagers" . | fromJson }}
         {{- range $index, $am := $alertmanagers }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_NAME
+        {{- $nameKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_NAME" $index }}
+        {{- $urlKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_URL" $index }}
+        {{- if not (hasKey $.Values.webui.env $nameKey) }}
+        - name: {{ $nameKey }}
           value: {{ $am.name | quote }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_URL
+        {{- end }}
+        {{- if not (hasKey $.Values.webui.env $urlKey) }}
+        - name: {{ $urlKey }}
           value: {{ $am.url | quote }}
+        {{- end }}
         {{- if $am.oauthEnabled }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_ENABLED
+        {{- $oauthEnabledKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_OAUTH_ENABLED" $index }}
+        {{- $oauthProxyKey := printf "NOTIFICATOR_ALERTMANAGERS_%d_OAUTH_PROXY_MODE" $index }}
+        {{- if not (hasKey $.Values.webui.env $oauthEnabledKey) }}
+        - name: {{ $oauthEnabledKey }}
           value: {{ $am.oauthEnabled | quote }}
-        - name: NOTIFICATOR_ALERTMANAGERS_{{ $index }}_OAUTH_PROXY_MODE
+        {{- end }}
+        {{- if not (hasKey $.Values.webui.env $oauthProxyKey) }}
+        - name: {{ $oauthProxyKey }}
           value: {{ $am.oauthProxyMode | default true | quote }}
         {{- end }}
         {{- end }}
-        
-        # Logging
-        - name: NOTIFICATOR_LOG_LEVEL
-          value: {{ .Values.logLevel | quote }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /health

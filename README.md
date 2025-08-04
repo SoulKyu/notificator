@@ -353,8 +353,8 @@ helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0
 # Or customize for your environment
 helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
   --set webui.ingress.host=notificator.mycompany.com \
-  --set backend.database.type=postgres \
-  --set backend.database.postgres.host=my-postgres.example.com
+  --set backend.env.NOTIFICATOR_BACKEND_DATABASE_TYPE=postgres \
+  --set backend.env.NOTIFICATOR_BACKEND_DATABASE_HOST=my-postgres.example.com
 ```
 
 #### Option 2: Deploy from source

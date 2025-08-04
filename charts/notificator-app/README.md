@@ -34,11 +34,11 @@ helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0
 # Install with custom values
 helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
   --set webui.ingress.host=notificator.mycompany.com \
-  --set backend.database.type=postgres
+  --set backend.env.NOTIFICATOR_BACKEND_DATABASE_TYPE=postgres
 
 # With PostgreSQL connection URL (simplest database config)
 helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
-  --set backend.database.postgresUrl="postgres://user:pass@host:5432/db?sslmode=require"
+  --set backend.env.POSTGRES_URL="postgres://user:pass@host:5432/db?sslmode=require"
 
 # Enable internal alertmanager for testing
 helm install notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
@@ -98,7 +98,7 @@ helm upgrade notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0
 
 # Upgrade with new values
 helm upgrade notificator oci://ghcr.io/soulkyu/notificator --version 0.1.0 \
-  --set backend.database.postgres.password=new-secure-password
+  --set backend.env.NOTIFICATOR_BACKEND_DATABASE_PASSWORD=new-secure-password
 ```
 
 ## Uninstalling
@@ -111,14 +111,12 @@ helm uninstall notificator
 
 Key configuration options in `values.yaml`:
 
-- `backend.database.*` - Database configuration (postgres or sqlite)
-  - `backend.database.postgresUrl` - PostgreSQL connection URL (preferred)
-  - `backend.database.postgres.*` - Individual PostgreSQL settings
+- `backend.env` - Environment variables for backend configuration
+- `webui.env` - Environment variables for webui configuration
 - `webui.ingress.*` - Ingress settings for WebUI
 - `webui.ingress.annotations` - Custom annotations for the ingress
 - `alertmanager.enabled` - Enable/disable internal alertmanager (default: false)
 - `alertmanagerConfig` - List of external Alertmanager instances to monitor
-- `oauth.*` - OAuth authentication settings (optional)
 
 **Labels and Annotations Support:**
 - `<component>.labels` - Custom labels for all resources of a component
@@ -180,17 +178,34 @@ backend:
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/notificator-backend"
   
-  database:
-    type: postgres
-    # Use PostgreSQL connection URL (recommended)
-    postgresUrl: "postgres://notificator:secure-password@my-postgres.example.com:5432/notificator_prod?sslmode=require"
+  # Environment variables for backend configuration
+  env:
+    # Database configuration - PostgreSQL URL (recommended)
+    POSTGRES_URL: "postgres://notificator:secure-password@my-postgres.example.com:5432/notificator_prod?sslmode=require"
     
     # OR use individual settings
-    # postgres:
-    #   host: my-postgres.example.com
-    #   database: notificator_prod
-    #   user: notificator
-    #   password: secure-password
+    # NOTIFICATOR_BACKEND_DATABASE_TYPE: "postgres"
+    # NOTIFICATOR_BACKEND_DATABASE_HOST: "my-postgres.example.com"
+    # NOTIFICATOR_BACKEND_DATABASE_NAME: "notificator_prod"
+    # NOTIFICATOR_BACKEND_DATABASE_USER: "notificator"
+    # NOTIFICATOR_BACKEND_DATABASE_PASSWORD: "secure-password"
+    # NOTIFICATOR_BACKEND_DATABASE_SSL_MODE: "require"
+    
+    # OAuth configuration
+    OAUTH_ENABLED: "true"
+    OAUTH_DISABLE_CLASSIC_AUTH: "true"
+    OAUTH_REDIRECT_URL: "https://notificator.mycompany.com/api/v1/oauth"
+    OAUTH_SESSION_KEY: "your-secure-random-session-key-here"
+    
+    # GitHub OAuth
+    OAUTH_GITHUB_CLIENT_ID: "your-github-oauth-app-client-id"
+    OAUTH_GITHUB_CLIENT_SECRET: "your-github-oauth-app-client-secret"
+    OAUTH_GITHUB_SCOPES: "user:email,read:org,read:user"
+    
+    # Google OAuth
+    OAUTH_GOOGLE_CLIENT_ID: "your-google-oauth-client-id.apps.googleusercontent.com"
+    OAUTH_GOOGLE_CLIENT_SECRET: "your-google-oauth-client-secret"
+    OAUTH_GOOGLE_SCOPES: "openid,email,profile,https://www.googleapis.com/auth/admin.directory.group.readonly"
 
 webui:
   # Custom labels and annotations for webui
@@ -225,6 +240,11 @@ webui:
     create: true
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/notificator-webui"
+  
+  # Environment variables for webui configuration (optional overrides)
+  env: {}
+    # NOTIFICATOR_WEBUI_BACKEND: "notificator-backend:50051"
+    # NOTIFICATOR_WEBUI_LISTEN: ":8081"
   
   ingress:
     enabled: true
@@ -265,21 +285,4 @@ alertmanager:
 alertmanagerConfig:
   - name: "Production Alertmanager"
     url: "http://alertmanager.monitoring.svc.cluster.local:9093"
-
-# OAuth example (GitHub and Google)
-oauth:
-  enabled: true
-  disableClassicAuth: true
-  redirectUrl: "https://notificator.mycompany.com/api/v1/oauth"
-  sessionKey: "your-secure-random-session-key-here"
-  
-  github:
-    enabled: true
-    clientId: "your-github-oauth-app-client-id"
-    clientSecret: "your-github-oauth-app-client-secret"
-  
-  google:
-    enabled: true
-    clientId: "your-google-oauth-client-id.apps.googleusercontent.com"
-    clientSecret: "your-google-oauth-client-secret"
 ```

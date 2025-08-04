@@ -49,27 +49,44 @@ backend:
       # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/notificator-backend
     labels: {}
   
-  # Database configuration
-  database:
-    type: postgres  # Options: sqlite, postgres
+  # Environment variables for backend configuration
+  env: {}
+    # Backend service configuration
+    # NOTIFICATOR_BACKEND_ENABLED: "true"
+    # NOTIFICATOR_BACKEND_GRPC_LISTEN: ":50051"
+    # NOTIFICATOR_BACKEND_HTTP_LISTEN: ":8080"
     
-    # Option 1: Use PostgreSQL connection URL (simplest)
-    # If set, this takes precedence over individual postgres settings
-    postgresUrl: ""
-    # Example: "postgres://user:password@host:5432/database?sslmode=require"
+    # Database configuration - PostgreSQL URL (recommended)
+    # POSTGRES_URL: "postgres://user:password@host:5432/database?sslmode=require"
     
-    # Option 2: Individual PostgreSQL settings
-    postgres:
-      host: postgres-service
-      port: 5432
-      database: notificator
-      user: notificator
-      password: notificator_password
-      sslMode: disable
+    # Database configuration - Individual PostgreSQL settings
+    # NOTIFICATOR_BACKEND_DATABASE_TYPE: "postgres"
+    # NOTIFICATOR_BACKEND_DATABASE_HOST: "postgres-service"
+    # NOTIFICATOR_BACKEND_DATABASE_PORT: "5432"
+    # NOTIFICATOR_BACKEND_DATABASE_NAME: "notificator"
+    # NOTIFICATOR_BACKEND_DATABASE_USER: "notificator"
+    # NOTIFICATOR_BACKEND_DATABASE_PASSWORD: "notificator_password"
+    # NOTIFICATOR_BACKEND_DATABASE_SSL_MODE: "disable"
     
-    # Option 3: SQLite settings (for local development)
-    sqlite:
-      path: /data/notificator.db
+    # Database configuration - SQLite (for development)
+    # NOTIFICATOR_BACKEND_DATABASE_TYPE: "sqlite"
+    # NOTIFICATOR_BACKEND_DATABASE_SQLITE_PATH: "/data/notificator.db"
+    
+    # OAuth configuration
+    # OAUTH_ENABLED: "false"
+    # OAUTH_DISABLE_CLASSIC_AUTH: "false"
+    # OAUTH_REDIRECT_URL: "https://notificator.example.com/api/v1/oauth"
+    # OAUTH_SESSION_KEY: "change-me-to-a-secure-random-key"
+    
+    # GitHub OAuth
+    # OAUTH_GITHUB_CLIENT_ID: ""
+    # OAUTH_GITHUB_CLIENT_SECRET: ""
+    # OAUTH_GITHUB_SCOPES: "user:email,read:org,read:user"
+    
+    # Google OAuth
+    # OAUTH_GOOGLE_CLIENT_ID: ""
+    # OAUTH_GOOGLE_CLIENT_SECRET: ""
+    # OAUTH_GOOGLE_SCOPES: "openid,email,profile,https://www.googleapis.com/auth/admin.directory.group.readonly"
 
 # WebUI service configuration  
 webui:
@@ -122,6 +139,20 @@ webui:
   
   # Backend connection
   backendAddress: notificator-backend:50051
+  
+  # Environment variables for webui configuration
+  env: {}
+    # WebUI service configuration
+    # BACKEND_ADDRESS: "notificator-backend:50051"
+    # NOTIFICATOR_WEBUI_LISTEN: ":8081"
+    # NOTIFICATOR_WEBUI_BACKEND: "notificator-backend:50051"
+    # NOTIFICATOR_WEBUI_PLAYGROUND: "false"
+    
+    # Alertmanager configuration (examples)
+    # NOTIFICATOR_ALERTMANAGERS_0_NAME: "External Alertmanager"
+    # NOTIFICATOR_ALERTMANAGERS_0_URL: "http://alertmanager.monitoring.svc.cluster.local:9093"
+    # NOTIFICATOR_ALERTMANAGERS_0_OAUTH_ENABLED: "false"
+    # NOTIFICATOR_ALERTMANAGERS_0_OAUTH_PROXY_MODE: "true"
   
   # Ingress configuration
   ingress:
@@ -192,26 +223,6 @@ alertmanagerConfig:
     oauthEnabled: false
     oauthProxyMode: true
 
-# OAuth configuration (optional)
-oauth:
-  enabled: false
-  disableClassicAuth: false
-  redirectUrl: "https://notificator.example.com/api/v1/oauth"
-  sessionKey: "change-me-to-a-secure-random-key"
-  
-  # GitHub OAuth (optional)
-  github:
-    enabled: false
-    clientId: ""
-    clientSecret: ""
-    scopes: "user:email,read:org,read:user"
-  
-  # Google OAuth (optional)
-  google:
-    enabled: false
-    clientId: ""
-    clientSecret: ""
-    scopes: "openid,email,profile,https://www.googleapis.com/auth/admin.directory.group.readonly"
 
 # Common settings
 logLevel: info
