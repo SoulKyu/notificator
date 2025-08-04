@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notificator-webui-config-json
+data:
+  config.json: |
+    {
+      "alertmanagers": [
+        {{- range $index, $am := .Values.alertmanagerConfig }}
+        {{- if $index }},{{- end }}
+        {
+          "name": {{ $am.name | quote }},
+          "url": {{ $am.url | quote }},
+          "username": {{ $am.username | quote }},
+          "password": {{ $am.password | quote }},
+          "token": {{ $am.token | quote }},
+          "headers": {},
+          "oauth": {
+            "enabled": {{ $am.oauthEnabled }},
+            "proxy_mode": {{ $am.oauthProxyMode }}
+          }
+        }
+        {{- end }}
+      ],
+      "backend": {
+        "enabled": false,
+        "grpc_listen": ":50051",
+        "grpc_client": {{ .Values.webui.backendAddress | quote }},
+        "http_listen": ":8080"
+      },
+      "gui": {
+        "width": 1920,
+        "height": 1080,
+        "title": "Notificator - Alert Dashboard",
+        "filter_state": {
+          "search_text": "",
+          "selected_severities": {"All": true},
+          "selected_statuses": {"All": true},
+          "selected_teams": {"All": true},
+          "selected_acks": {"All": true},
+          "selected_comments": {"All": true}
+        },
+        "minimize_to_tray": false,
+        "start_minimized": false,
+        "show_tray_icon": false,
+        "background_mode": false
+      },
+      "notifications": {
+        "enabled": true,
+        "sound_enabled": true,
+        "sound_path": "",
+        "audio_output_device": "",
+        "show_system": true,
+        "critical_only": false,
+        "max_notifications": 5,
+        "cooldown_seconds": 300,
+        "severity_rules": {
+          "critical": true,
+          "warning": true,
+          "info": false,
+          "unknown": false
+        },
+        "respect_filters": true
+      },
+      "polling": {
+        "interval": 30000000000
+      },
+      "resolved_alerts": {
+        "enabled": true,
+        "notifications_enabled": true,
+        "retention_duration": 3600000000000
+      },
+      "webui": {
+        "playground": {{ .Values.playground }}
+      }
+    }

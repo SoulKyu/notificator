@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notificator-alertmanager
+  labels:
+    app: notificator-alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notificator-alertmanager
+  template:
+    metadata:
+      labels:
+        app: notificator-alertmanager
+    spec:
+      containers:
+      - name: alertmanager
+        image: "{{ .Values.alertmanager.image.repository }}:{{ .Values.alertmanager.image.tag }}"
+        imagePullPolicy: {{ .Values.alertmanager.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 9093
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /-/healthy
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi

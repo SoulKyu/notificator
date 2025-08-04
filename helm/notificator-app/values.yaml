@@ -1,0 +1,84 @@
+# Default values for notificator
+
+# Backend service configuration
+backend:
+  image:
+    repository: soulkyu/notificator-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Database configuration
+  database:
+    type: postgres  # Options: sqlite, postgres
+    postgres:
+      host: postgres-service
+      port: 5432
+      database: notificator
+      user: notificator
+      password: notificator_password
+      sslMode: disable
+    sqlite:
+      path: /data/notificator.db
+
+# WebUI service configuration  
+webui:
+  image:
+    repository: soulkyu/notificator-webui
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Backend connection
+  backendAddress: notificator-backend:50051
+  
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: nginx
+    host: notificator.example.com
+    path: /
+    pathType: Prefix
+    tls:
+      enabled: false
+      secretName: notificator-tls
+
+# Alertmanager configuration
+alertmanager:
+  image:
+    repository: soulkyu/notificator-alertmanager
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Shared alertmanager configuration
+alertmanagerConfig:
+  - name: "Main Alertmanager"
+    url: "http://notificator-alertmanager:9093"
+    username: ""
+    password: ""
+    token: ""
+    oauthEnabled: false
+    oauthProxyMode: true
+
+# OAuth configuration (optional)
+oauth:
+  enabled: false
+  disableClassicAuth: false
+  redirectUrl: "https://notificator.example.com/api/v1/oauth"
+  sessionKey: "change-me-to-a-secure-random-key"
+  
+  # GitHub OAuth (optional)
+  github:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+    scopes: "user:email,read:org,read:user"
+  
+  # Google OAuth (optional)
+  google:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+    scopes: "openid,email,profile,https://www.googleapis.com/auth/admin.directory.group.readonly"
+
+# Common settings
+logLevel: info
+playground: false
