@@ -4,6 +4,13 @@ metadata:
   name: notificator-webui
   labels:
     app: notificator-webui
+    {{- with .Values.webui.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.webui.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   ports:

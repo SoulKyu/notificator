@@ -5,6 +5,13 @@ metadata:
   name: notificator-alertmanager
   labels:
     app: notificator-alertmanager
+    {{- with .Values.alertmanager.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.alertmanager.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   ports:

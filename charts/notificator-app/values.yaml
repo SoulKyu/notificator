@@ -7,6 +7,25 @@ backend:
     tag: latest
     pullPolicy: IfNotPresent
   
+  # Additional labels and annotations for backend resources
+  labels: {}
+    # environment: production
+    # team: platform
+  annotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "8080"
+  
+  # Pod-specific annotations and labels
+  podLabels: {}
+  podAnnotations: {}
+    # sidecar.istio.io/inject: "true"
+  
+  # Service-specific annotations and labels  
+  service:
+    labels: {}
+    annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  
   # Database configuration
   database:
     type: postgres  # Options: sqlite, postgres
@@ -27,6 +46,25 @@ webui:
     tag: latest
     pullPolicy: IfNotPresent
   
+  # Additional labels and annotations for webui resources
+  labels: {}
+    # environment: production
+    # team: frontend
+  annotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "8081"
+  
+  # Pod-specific annotations and labels
+  podLabels: {}
+  podAnnotations: {}
+    # sidecar.istio.io/inject: "true"
+  
+  # Service-specific annotations and labels
+  service:
+    labels: {}
+    annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  
   # Backend connection
   backendAddress: notificator-backend:50051
   
@@ -34,6 +72,10 @@ webui:
   ingress:
     enabled: true
     className: nginx
+    annotations: {}
+      # nginx.ingress.kubernetes.io/rewrite-target: /
+      # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      # cert-manager.io/cluster-issuer: letsencrypt-prod
     host: notificator.example.com
     path: /
     pathType: Prefix
@@ -48,6 +90,25 @@ alertmanager:
     repository: soulkyu/notificator-alertmanager
     tag: latest
     pullPolicy: IfNotPresent
+  
+  # Additional labels and annotations for alertmanager resources
+  labels: {}
+    # environment: production
+    # team: sre
+  annotations: {}
+    # prometheus.io/scrape: "true"
+    # prometheus.io/port: "9093"
+  
+  # Pod-specific annotations and labels
+  podLabels: {}
+  podAnnotations: {}
+    # sidecar.istio.io/inject: "false"
+  
+  # Service-specific annotations and labels
+  service:
+    labels: {}
+    annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
 
 # Shared alertmanager configuration
 # When alertmanager.enabled=false, configure external alertmanagers here
