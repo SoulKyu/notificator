@@ -1,0 +1,134 @@
+# Electron Builder Configuration
+# This file can be used instead of the "build" section in package.json
+
+appId: com.yourcompany.notificator
+productName: Notificator
+copyright: Copyright © 2025 ${author}
+
+directories:
+  output: dist
+  buildResources: build
+
+# Auto Update
+publish:
+  provider: github
+  owner: yourusername
+  repo: notificator
+
+# macOS Configuration
+mac:
+  category: public.app-category.developer-tools
+  icon: assets/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  darkModeSupport: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+
+# macOS DMG Options
+dmg:
+  icon: assets/icon.icns
+  iconSize: 128
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Windows Configuration
+win:
+  icon: assets/icon.ico
+  publisherName: Your Company Name
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+    - target: portable
+      arch:
+        - x64
+
+# Windows Installer Options
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  installerHeader: assets/installer-header.bmp
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Notificator
+
+# Linux Configuration
+linux:
+  icon: assets/icon.png
+  category: Development
+  synopsis: Desktop client for Notificator alert management
+  description: A desktop application for managing and monitoring alerts through Notificator
+  desktop:
+    Name: Notificator
+    Comment: Alert Management System
+    Categories: Development;Monitoring;
+    Keywords: alerts;monitoring;notificator;
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+        - arm64
+    - target: rpm
+      arch:
+        - x64
+
+# Debian Package Options
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+
+# RPM Package Options
+rpm:
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - libXtst
+    - xdg-utils
+    - at-spi2-core
+    - libuuid
+    - libsecret
+
+# AppImage Options
+appImage:
+  systemIntegration: ask
+  license: LICENSE
+
+# File Associations (optional)
+# fileAssociations:
+#   - ext: noti
+#     name: Notificator Alert File
+#     description: Notificator Alert Export
+#     icon: assets/file-icon.png

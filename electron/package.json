@@ -1,0 +1,129 @@
+{
+  "name": "notificator-desktop",
+  "version": "1.0.0",
+  "description": "Desktop client for Notificator alert management system",
+  "main": "main.js",
+  "author": "Your Name",
+  "license": "MIT",
+  "homepage": "https://github.com/yourusername/notificator",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/notificator.git"
+  },
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "dev": "electron . --dev --no-sandbox",
+    "start-safe": "electron .",
+    "test": "echo \"No tests specified\" && exit 0",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "electron-builder -mwl",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": [
+    "notificator",
+    "alerts",
+    "monitoring",
+    "desktop",
+    "electron"
+  ],
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
+  },
+  "build": {
+    "appId": "com.yourcompany.notificator",
+    "productName": "Notificator",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**/*",
+      "!assets/**/*.psd",
+      "!assets/**/*.sketch"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.icns",
+      "darkModeSupport": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "category": "Development",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "rpm",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "appImage": {
+      "systemIntegration": "ask"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "yourusername",
+      "repo": "notificator"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# Placeholder for icon.icns
+# 
+# For production use, create a macOS ICNS file containing multiple resolutions:
+# - 16x16
+# - 32x32
+# - 64x64
+# - 128x128
+# - 256x256
+# - 512x512
+# - 1024x1024
+#
+# You can create ICNS files using:
+# - macOS: Use iconutil or Icon Set Creator
+# - Command: iconutil -c icns icon.iconset
+# - Online converters
+# - Third-party tools like Image2icon
