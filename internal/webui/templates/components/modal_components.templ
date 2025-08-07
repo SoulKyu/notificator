@@ -660,7 +660,7 @@ templ AlertDetailsModal() {
 		<div class="fixed inset-0 z-50 overflow-y-auto">
 			<div class="flex min-h-full items-center justify-center p-2 sm:p-4">
 				
-				<!-- Modal panel with modern design -->
+				<!-- Modal panel with modern design and resizing -->
 				<div x-transition:enter="ease-out duration-300"
 					 x-transition:enter-start="opacity-0 translate-y-8 scale-95"
 					 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
@@ -668,17 +668,63 @@ templ AlertDetailsModal() {
 					 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
 					 x-transition:leave-end="opacity-0 translate-y-8 scale-95"
 					 @click.away="closeAlertModal()"
-					 class="relative transform rounded-2xl bg-white dark:bg-dark-bg-secondary shadow-2xl transition-all w-full max-w-7xl max-h-[95vh] overflow-hidden border border-gray-200/50 dark:border-dark-border-subtle/50">
+					 class="alert-modal-panel relative transform rounded-2xl bg-white dark:bg-dark-bg-secondary shadow-2xl transition-all w-full max-w-7xl max-h-[95vh] overflow-hidden border border-gray-200/50 dark:border-dark-border-subtle/50"
+					 :style="`width: ${modalSize.width}px; height: ${modalSize.height}px;`">
 					
-					<!-- Modern Loading state -->
-					<div x-show="loading" class="flex flex-col items-center justify-center p-16 space-y-4">
-						<div class="relative">
-							<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 dark:border-blue-900"></div>
-							<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+					<!-- Skeleton Loading state -->
+					<div x-show="loading" class="flex flex-col h-full animate-pulse">
+						<!-- Header Skeleton -->
+						<div class="relative bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
+							<div class="flex items-start space-x-4">
+								<div class="w-12 h-12 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+								<div class="flex-1 space-y-3">
+									<div class="h-7 bg-gray-300 dark:bg-gray-700 rounded w-1/3"></div>
+									<div class="flex space-x-2">
+										<div class="h-6 bg-gray-300 dark:bg-gray-700 rounded-full w-20"></div>
+										<div class="h-6 bg-gray-300 dark:bg-gray-700 rounded-full w-20"></div>
+									</div>
+									<div class="flex space-x-3">
+										<div class="h-9 bg-gray-300 dark:bg-gray-700 rounded-lg w-28"></div>
+										<div class="h-9 bg-gray-300 dark:bg-gray-700 rounded-lg w-24"></div>
+									</div>
+								</div>
+							</div>
 						</div>
-						<div class="text-center">
-							<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">Loading Alert Details</h3>
-							<p class="text-sm text-gray-600 dark:text-gray-400">Please wait while we fetch the alert information...</p>
+						
+						<!-- Tab Navigation Skeleton -->
+						<div class="px-6 py-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
+							<div class="flex space-x-4">
+								<div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-lg w-24"></div>
+								<div class="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-20"></div>
+								<div class="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-20"></div>
+							</div>
+						</div>
+						
+						<!-- Content Skeleton -->
+						<div class="flex-1 overflow-y-auto p-6">
+							<div class="grid grid-cols-3 gap-6 mb-8">
+								<div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-6">
+									<div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-20 mb-4"></div>
+									<div class="space-y-2">
+										<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+										<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4"></div>
+									</div>
+								</div>
+								<div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-6">
+									<div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-24 mb-4"></div>
+									<div class="space-y-2">
+										<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+										<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-2/3"></div>
+									</div>
+								</div>
+								<div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-6">
+									<div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-24 mb-4"></div>
+									<div class="space-y-2">
+										<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+										<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-1/2"></div>
+									</div>
+								</div>
+							</div>
 						</div>
 					</div>
 					
@@ -875,6 +921,17 @@ templ AlertDetailsModal() {
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2V8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
 													</svg>
 													Copy as Issue
+												</button>
+												
+												<!-- Generator URL Button -->
+												<button @click="copyGeneratorURL()" 
+														x-show="alertDetails?.alert && alertDetails?.alert?.generatorURL"
+														class="inline-flex items-center px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-teal-600/25 transition-all duration-200 hover:shadow-teal-600/40 hover:scale-105">
+													<!-- Heroicon: arrow-top-right-on-square -->
+													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+													</svg>
+													Generator URL
 												</button>
 												
 												<!-- Copy Alert Link Button -->
@@ -1302,6 +1359,16 @@ templ AlertDetailsModal() {
 						</div>
 					</div>
 					</div> <!-- End alertDetails content wrapper -->
+					
+					<!-- Modal Resize Handle -->
+					<div class="absolute bottom-0 right-0 w-6 h-6 cursor-nw-resize opacity-50 hover:opacity-100 transition-opacity"
+						 @mousedown="startResize($event)"
+						 title="Drag to resize modal">
+						<svg class="w-full h-full text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400" 
+							 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M13 9l4 4-4 4M9 9l4 4-4 4"/>
+						</svg>
+					</div>
 				</div>
 			</div>
 		</div>

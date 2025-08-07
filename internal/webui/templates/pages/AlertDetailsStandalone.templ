@@ -15,15 +15,34 @@ templ AlertDetailsStandaloneContent() {
 		<!-- Header -->
 		<header class="bg-white dark:bg-dark-bg-secondary shadow-sm border-b border-gray-200 dark:border-dark-border-subtle">
 			<div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
-				<div class="flex items-center justify-between h-16">
-					<!-- Back to Dashboard -->
+				<!-- Breadcrumb Navigation -->
+				<div class="py-2 border-b border-gray-100 dark:border-gray-800">
+					<nav class="flex items-center space-x-2 text-sm">
+						<a @click="goBackToDashboard()" href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+							Dashboard
+						</a>
+						<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+						</svg>
+						<span class="text-gray-500 dark:text-gray-400">Alert</span>
+						<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+						</svg>
+						<span class="text-gray-900 dark:text-white font-medium truncate max-w-xs" 
+							  x-text="alertDetails?.alert?.alertName || alertDetails?.alert?.labels?.alertname || 'Loading...'">
+						</span>
+					</nav>
+				</div>
+				
+				<div class="flex items-center justify-between h-14">
+					<!-- Back to Dashboard Button -->
 					<div class="flex items-center space-x-4">
-						<a @click="goBackToDashboard()" href="#" class="flex items-center space-x-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+						<button @click="goBackToDashboard()" class="flex items-center space-x-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
 							<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
 							</svg>
-							<span class="text-sm font-medium">Back to Dashboard</span>
-						</a>
+							<span class="text-sm font-medium">Back</span>
+						</button>
 					</div>
 
 					<!-- Title -->
@@ -47,15 +66,75 @@ templ AlertDetailsStandaloneContent() {
 
 		<!-- Alert Content Container -->
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-			<!-- Loading State -->
-			<div x-show="loading" class="flex flex-col items-center justify-center p-16 space-y-4 bg-white dark:bg-dark-bg-secondary rounded-lg shadow">
-				<div class="relative">
-					<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 dark:border-blue-900"></div>
-					<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+			<!-- Skeleton Loading State -->
+			<div x-show="loading" class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg animate-pulse">
+				<!-- Alert Header Skeleton -->
+				<div class="relative bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50 rounded-t-lg">
+					<div class="flex items-start space-x-4">
+						<div class="w-12 h-12 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+						<div class="flex-1 space-y-3">
+							<div class="h-7 bg-gray-300 dark:bg-gray-700 rounded w-1/3"></div>
+							<div class="flex space-x-2">
+								<div class="h-6 bg-gray-300 dark:bg-gray-700 rounded-full w-20"></div>
+								<div class="h-6 bg-gray-300 dark:bg-gray-700 rounded-full w-20"></div>
+								<div class="h-6 bg-gray-300 dark:bg-gray-700 rounded-full w-24"></div>
+							</div>
+							<div class="flex space-x-3">
+								<div class="h-9 bg-gray-300 dark:bg-gray-700 rounded-lg w-28"></div>
+								<div class="h-9 bg-gray-300 dark:bg-gray-700 rounded-lg w-24"></div>
+								<div class="h-9 bg-gray-300 dark:bg-gray-700 rounded-lg w-32"></div>
+							</div>
+						</div>
+					</div>
 				</div>
-				<div class="text-center">
-					<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">Loading Alert Details</h3>
-					<p class="text-sm text-gray-600 dark:text-gray-400">Please wait while we fetch the alert information...</p>
+				
+				<!-- Tab Navigation Skeleton -->
+				<div class="px-6 py-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
+					<div class="flex space-x-4">
+						<div class="h-10 bg-gray-300 dark:bg-gray-700 rounded-lg w-24"></div>
+						<div class="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-20"></div>
+						<div class="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-20"></div>
+						<div class="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-28"></div>
+						<div class="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-32"></div>
+					</div>
+				</div>
+				
+				<!-- Content Skeleton -->
+				<div class="p-6">
+					<!-- Quick Info Cards Skeleton -->
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+						<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 border border-gray-200/50 dark:border-dark-border-subtle/50">
+							<div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-20 mb-4"></div>
+							<div class="space-y-2">
+								<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+								<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4"></div>
+							</div>
+						</div>
+						<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 border border-gray-200/50 dark:border-dark-border-subtle/50">
+							<div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-24 mb-4"></div>
+							<div class="space-y-2">
+								<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+								<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-2/3"></div>
+							</div>
+						</div>
+						<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 border border-gray-200/50 dark:border-dark-border-subtle/50">
+							<div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-24 mb-4"></div>
+							<div class="space-y-2">
+								<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+								<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-1/2"></div>
+							</div>
+						</div>
+					</div>
+					
+					<!-- Summary/Description Skeleton -->
+					<div class="bg-white dark:bg-dark-bg-tertiary rounded-lg p-6 border border-gray-200 dark:border-dark-border-subtle">
+						<div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-24 mb-4"></div>
+						<div class="space-y-2">
+							<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+							<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-full"></div>
+							<div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4"></div>
+						</div>
+					</div>
 				</div>
 			</div>
 
@@ -74,9 +153,9 @@ templ AlertDetailsStandaloneContent() {
 			</div>
 
 			<!-- Alert Details Content -->
-			<div x-show="!loading && !error && alertDetails" class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg">
-				<!-- Alert Header -->
-				<div class="relative bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50 rounded-t-lg">
+			<div x-show="!loading && !error && alertDetails" class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg flex flex-col max-h-[calc(100vh-12rem)]">
+				<!-- Sticky Alert Header -->
+				<div class="sticky top-0 z-10 relative bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50 rounded-t-lg">
 					<div class="flex items-start space-x-4">
 						<!-- Status Icon -->
 						<div class="flex-shrink-0 mt-1">
@@ -195,6 +274,15 @@ templ AlertDetailsStandaloneContent() {
 									Copy as Issue
 								</button>
 								
+								<button @click="copyGeneratorURL()" 
+										x-show="alertDetails?.alert && alertDetails?.alert?.generatorURL"
+										class="inline-flex items-center px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200">
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+									</svg>
+									Generator URL
+								</button>
+								
 								<button @click="copyAlertLink()" 
 										x-show="alertDetails?.alert"
 										class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200">
@@ -208,8 +296,8 @@ templ AlertDetailsStandaloneContent() {
 					</div>
 				</div>
 
-				<!-- Tab Navigation -->
-				<div class="px-6 py-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
+				<!-- Sticky Tab Navigation -->
+				<div class="sticky top-[10.5rem] z-10 px-6 py-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
 					<nav class="flex space-x-1 overflow-x-auto">
 						<button @click="currentTab = 'overview'" 
 								:class="currentTab === 'overview' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
@@ -263,11 +351,23 @@ templ AlertDetailsStandaloneContent() {
 								  x-text="alertDetails?.comments?.length || 0">
 							</span>
 						</button>
+						<button @click="currentTab = 'related'" 
+								:class="currentTab === 'related' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+							</svg>
+							Related
+							<span x-show="relatedAlerts && relatedAlerts.length > 0" 
+								  class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+								  x-text="relatedAlerts?.length || 0">
+							</span>
+						</button>
 					</nav>
 				</div>
 
-				<!-- Tab Content -->
-				<div class="p-6">
+				<!-- Scrollable Tab Content -->
+				<div class="flex-1 overflow-y-auto p-6">
 					<!-- Overview Tab -->
 					<div x-show="currentTab === 'overview'" class="space-y-6">
 						<!-- Include all the overview content from modal -->
@@ -298,6 +398,11 @@ templ AlertDetailsStandaloneContent() {
 					<div x-show="currentTab === 'comments'">
 						@alertDetailsCommentsTab()
 					</div>
+					
+					<!-- Related Alerts Tab -->
+					<div x-show="currentTab === 'related'">
+						@alertDetailsRelatedTab()
+					</div>
 				</div>
 			</div>
 		</div>
@@ -319,44 +424,83 @@ templ AlertDetailsStandaloneContent() {
 
 // Tab content components (temporary - will be moved to shared component later)
 templ alertDetailsOverviewTab() {
-	<!-- Quick Info Cards -->
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-		<!-- Status Card -->
-		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
-			<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status</h4>
-			<div class="space-y-3">
+	<!-- Quick Info Cards with Better Hierarchy -->
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+		<!-- Status Card (Priority 1) -->
+		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-5 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<div class="flex items-center mb-3">
+				<svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				</svg>
+				<h4 class="text-sm font-semibold text-gray-900 dark:text-white">Status</h4>
+			</div>
+			<div class="space-y-2">
 				<div class="flex items-center justify-between">
-					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">State:</span>
-					<span class="text-sm font-semibold text-gray-900 dark:text-white capitalize" x-text="alertDetails?.alert?.status?.state || 'Unknown'"></span>
+					<span class="text-xs text-gray-500 dark:text-gray-400">State</span>
+					<span class="text-sm font-bold capitalize" 
+						  :class="{
+							  'text-red-600 dark:text-red-400': alertDetails?.alert?.status?.state === 'firing',
+							  'text-green-600 dark:text-green-400': alertDetails?.alert?.status?.state === 'resolved',
+							  'text-purple-600 dark:text-purple-400': alertDetails?.alert?.status?.state === 'suppressed'
+						  }"
+						  x-text="alertDetails?.alert?.status?.state || 'Unknown'"></span>
 				</div>
-				<div x-show="alertDetails?.alert?.isAcknowledged">
-					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Acknowledged: Yes</span>
+				<div x-show="alertDetails?.alert?.isAcknowledged" class="flex items-center justify-between">
+					<span class="text-xs text-gray-500 dark:text-gray-400">Acknowledged</span>
+					<svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+					</svg>
 				</div>
 			</div>
 		</div>
 
-		<!-- Timeline Card -->
-		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
-			<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Timeline</h4>
-			<div class="space-y-3">
-				<div>
-					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Started:</span>
-					<span class="text-xs font-mono" x-text="alertDetails?.alert?.startsAt ? new Date(alertDetails.alert.startsAt).toLocaleString() : 'Unknown'"></span>
-				</div>
-				<div x-show="alertDetails?.alert?.endsAt">
-					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Ended:</span>
-					<span class="text-xs font-mono" x-text="alertDetails?.alert?.endsAt ? new Date(alertDetails.alert.endsAt).toLocaleString() : 'Unknown'"></span>
+		<!-- Severity Card (Priority 2) -->
+		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-5 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<div class="flex items-center mb-3">
+				<svg class="w-5 h-5 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+				</svg>
+				<h4 class="text-sm font-semibold text-gray-900 dark:text-white">Severity</h4>
+			</div>
+			<div class="text-center py-2">
+				<span class="text-2xl font-bold uppercase" 
+					  :class="{
+						  'text-red-600 dark:text-red-400': alertDetails?.alert?.severity === 'critical',
+						  'text-yellow-600 dark:text-yellow-400': alertDetails?.alert?.severity === 'warning',
+						  'text-blue-600 dark:text-blue-400': alertDetails?.alert?.severity === 'info'
+					  }"
+					  x-text="alertDetails?.alert?.severity || 'Unknown'"></span>
+			</div>
+		</div>
+
+		<!-- Duration Card (Priority 3) -->
+		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-5 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<div class="flex items-center mb-3">
+				<svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				</svg>
+				<h4 class="text-sm font-semibold text-gray-900 dark:text-white">Duration</h4>
+			</div>
+			<div class="text-center">
+				<span class="text-2xl font-bold text-gray-900 dark:text-white" x-text="calculateDuration()"></span>
+				<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					<span x-text="alertDetails?.alert?.startsAt ? new Date(alertDetails.alert.startsAt).toLocaleTimeString() : ''"></span>
 				</div>
 			</div>
 		</div>
 
-		<!-- Metadata Card -->
-		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
-			<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Metadata</h4>
-			<div class="space-y-3">
-				<div class="flex items-center justify-between">
-					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Source:</span>
-					<span class="text-sm font-semibold" x-text="alertDetails?.alert?.source || 'Unknown'"></span>
+		<!-- Source Card (Priority 4) -->
+		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-5 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<div class="flex items-center mb-3">
+				<svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+				</svg>
+				<h4 class="text-sm font-semibold text-gray-900 dark:text-white">Source</h4>
+			</div>
+			<div class="truncate">
+				<span class="text-sm font-medium text-gray-700 dark:text-gray-300" x-text="alertDetails?.alert?.source || 'Unknown'"></span>
+				<div x-show="alertDetails?.alert?.instance" class="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">
+					<span x-text="alertDetails?.alert?.instance"></span>
 				</div>
 			</div>
 		</div>
@@ -501,6 +645,179 @@ templ alertDetailsCommentsTab() {
 	@components.SilenceModal()
 }
 
+templ alertDetailsRelatedTab() {
+	<!-- Filter Controls -->
+	<div class="mb-6 space-y-4">
+		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+			<div class="flex flex-wrap items-center gap-4">
+				<div class="flex items-center space-x-2">
+					<label class="text-sm font-medium text-gray-700 dark:text-gray-300">Filter:</label>
+					<select x-model="relatedFilter" @change="loadRelatedAlerts()" 
+							class="text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-lg px-3 py-1 bg-white dark:bg-dark-bg-tertiary dark:text-white">
+						<option value="all">All Related</option>
+						<option value="same_source">Same Source</option>
+						<option value="same_severity">Same Severity</option>
+						<option value="same_labels">Same Labels</option>
+					</select>
+				</div>
+				
+				<div class="flex items-center space-x-2">
+					<label class="text-sm font-medium text-gray-700 dark:text-gray-300">Per page:</label>
+					<select x-model="relatedPageSize" @change="changeRelatedPageSize(relatedPageSize)" 
+							class="text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-lg px-3 py-1 bg-white dark:bg-dark-bg-tertiary dark:text-white">
+						<option value="10">10</option>
+						<option value="25">25</option>
+						<option value="50">50</option>
+					</select>
+				</div>
+			</div>
+			
+			<button @click="loadRelatedAlerts()" 
+					class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center">
+				<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+				</svg>
+				Refresh
+			</button>
+		</div>
+		
+		<div class="flex items-center space-x-2">
+			<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+			</svg>
+			<input type="text" 
+				   x-model="relatedSearchQuery" 
+				   @input="searchRelatedAlerts()"
+				   placeholder="Search in related alerts..." 
+				   class="flex-1 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-lg px-3 py-2 bg-white dark:bg-dark-bg-tertiary dark:text-white placeholder-gray-500 dark:placeholder-gray-400">
+		</div>
+	</div>
+
+	<!-- Loading State -->
+	<div x-show="relatedLoading" class="text-center py-8">
+		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+		<p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Loading related alerts...</p>
+	</div>
+
+	<!-- Related Alerts List -->
+	<div x-show="!relatedLoading && relatedAlerts && relatedAlerts.length > 0" class="space-y-3">
+		<template x-for="alert in relatedAlerts" :key="alert.fingerprint">
+			<div class="border border-gray-200 dark:border-dark-border-subtle rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+				 @click="navigateToAlert(alert.fingerprint)">
+				<div class="flex items-start justify-between">
+					<div class="flex-1 min-w-0">
+						<h4 class="text-sm font-medium text-gray-900 dark:text-white truncate" 
+							x-text="alert.alertName || alert.labels?.alertname || 'Unknown Alert'"></h4>
+						<div class="flex items-center space-x-3 mt-2">
+							<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+								  :class="{
+									  'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200': alert.severity === 'critical',
+									  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200': alert.severity === 'warning',
+									  'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200': alert.severity === 'info'
+								  }"
+								  x-text="(alert.severity || 'unknown').toUpperCase()"></span>
+							<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+								  :class="{
+									  'bg-red-100 text-red-800': alert.status?.state === 'firing',
+									  'bg-green-100 text-green-800': alert.status?.state === 'resolved',
+									  'bg-purple-100 text-purple-800': alert.status?.state === 'suppressed'
+								  }"
+								  x-text="(alert.status?.state || 'unknown').toUpperCase()"></span>
+							<span x-show="alert.isAcknowledged" 
+								  class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200">
+								ACKNOWLEDGED
+							</span>
+						</div>
+						<p x-show="alert.summary" class="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2" x-text="alert.summary"></p>
+					</div>
+					<div class="flex-shrink-0 ml-4">
+						<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+						</svg>
+					</div>
+				</div>
+			</div>
+		</template>
+	</div>
+	
+	<!-- Pagination Controls -->
+	<div x-show="!relatedLoading && relatedAlerts && relatedAlerts.length > 0 && relatedTotalPages > 1" 
+		 class="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+		
+		<!-- Results Info -->
+		<div class="flex items-center space-x-4">
+			<span class="text-sm text-gray-700 dark:text-gray-300">
+				Showing 
+				<span class="font-medium" x-text="((relatedCurrentPage - 1) * relatedPageSize + 1)"></span>
+				to 
+				<span class="font-medium" x-text="Math.min(relatedCurrentPage * relatedPageSize, relatedTotalResults)"></span>
+				of 
+				<span class="font-medium" x-text="relatedTotalResults"></span>
+				results
+			</span>
+		</div>
+		
+		<!-- Pagination Navigation -->
+		<div class="flex items-center space-x-2">
+			<!-- First Page -->
+			<button @click="goToRelatedPage(1)" 
+					:disabled="relatedCurrentPage === 1"
+					:class="relatedCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700'"
+					class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+				First
+			</button>
+			
+			<!-- Previous Page -->
+			<button @click="prevRelatedPage()" 
+					:disabled="relatedCurrentPage === 1"
+					:class="relatedCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700'"
+					class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+				</svg>
+			</button>
+			
+			<!-- Page Numbers -->
+			<template x-for="page in getRelatedPageNumbers()" :key="'page-' + page">
+				<button @click="goToRelatedPage(page)"
+						:class="page === relatedCurrentPage ? 
+							'bg-blue-600 text-white border-blue-600' : 
+							'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
+						class="px-3 py-1 text-sm border rounded-md"
+						x-text="page">
+				</button>
+			</template>
+			
+			<!-- Next Page -->
+			<button @click="nextRelatedPage()" 
+					:disabled="relatedCurrentPage === relatedTotalPages"
+					:class="relatedCurrentPage === relatedTotalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700'"
+					class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+				</svg>
+			</button>
+			
+			<!-- Last Page -->
+			<button @click="goToRelatedPage(relatedTotalPages)" 
+					:disabled="relatedCurrentPage === relatedTotalPages"
+					:class="relatedCurrentPage === relatedTotalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700'"
+					class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+				Last
+			</button>
+		</div>
+	</div>
+	
+	<!-- Empty State -->
+	<div x-show="!relatedLoading && (!relatedAlerts || relatedAlerts.length === 0)" class="text-center py-12">
+		<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+		</svg>
+		<h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No related alerts found</h3>
+		<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Try adjusting the filter criteria or check back later.</p>
+	</div>
+}
+
 
 templ alertDetailsStandaloneScript() {
 	<script>
@@ -514,6 +831,8 @@ templ alertDetailsStandaloneScript() {
 				newCommentContent: '',
 				commentSubmitting: false,
 				commentDeleting: {},
+
+				// Related alerts functionality - handled by alertActionsCommonMixin
 
 				// Modal state variables needed for shared functions
 				showSilenceModal: false,
@@ -531,6 +850,11 @@ templ alertDetailsStandaloneScript() {
 				selectedAlerts: [],
 				selectedGroups: [],
 
+				// Auto-refresh functionality
+				refreshInterval: null,
+				refreshRate: 5000, // 5 seconds
+				isVisible: true,
+
 				init() {
 					// Merge the common alert actions mixin
 					Object.assign(this, window.alertActionsCommonMixin || {});
@@ -539,11 +863,83 @@ templ alertDetailsStandaloneScript() {
 					if (pathParts.length >= 3 && pathParts[1] === 'alert') {
 						this.alertId = pathParts[2];
 						this.loadAlertDetails();
+						this.startAutoRefresh();
 					} else {
 						this.error = 'Invalid alert URL';
 						this.loading = false;
 					}
+					
+					// Set up visibility change handling
+					document.addEventListener('visibilitychange', () => {
+						this.isVisible = !document.hidden;
+						if (this.isVisible) {
+							this.startAutoRefresh();
+						} else {
+							this.stopAutoRefresh();
+						}
+					});
 				},
+
+				startAutoRefresh() {
+					this.stopAutoRefresh(); // Clear any existing interval
+					this.refreshInterval = setInterval(() => {
+						if (this.isVisible && !this.loading) {
+							this.refreshAlertDetails();
+						}
+					}, this.refreshRate);
+				},
+
+				stopAutoRefresh() {
+					if (this.refreshInterval) {
+						clearInterval(this.refreshInterval);
+						this.refreshInterval = null;
+					}
+				},
+
+				async refreshAlertDetails() {
+					if (!this.alertId) return;
+					
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${this.alertId}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						
+						if (result.success) {
+							// Only update if data actually changed to avoid unnecessary DOM updates
+							if (JSON.stringify(this.alertDetails) !== JSON.stringify(result.data)) {
+								this.alertDetails = result.data;
+								// Show subtle refresh indicator
+								this.showRefreshIndicator();
+								
+								// Refresh related alerts if on related tab
+								if (this.currentTab === 'related') {
+									this.loadRelatedAlerts();
+								}
+							}
+						}
+					} catch (error) {
+						console.warn('Auto-refresh failed:', error);
+						// Don't show error notifications for auto-refresh failures
+					}
+				},
+
+				showRefreshIndicator() {
+					// Find the alert header and add a subtle refresh indication
+					const header = document.querySelector('.bg-gradient-to-r.from-blue-50');
+					if (header) {
+						header.classList.add('transition-colors', 'duration-300');
+						header.classList.remove('from-blue-50', 'to-indigo-50');
+						header.classList.add('from-green-50', 'to-emerald-50');
+						
+						setTimeout(() => {
+							header.classList.remove('from-green-50', 'to-emerald-50');
+							header.classList.add('from-blue-50', 'to-indigo-50');
+						}, 1000);
+					}
+				},
+
+				// calculateDuration moved to alertActionsCommonMixin
 
 				isAlertSilenced(alert) {
 					return alert?.status?.state === 'suppressed' || alert?.status?.state === 'silenced';

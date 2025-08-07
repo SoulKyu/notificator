@@ -48,8 +48,10 @@ templ AlertsTable() {
 			<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-dark-border-subtle">
 				<template x-for="(alert, index) in alerts" x-key="alert.fingerprint">
 					<!-- Row click opens alert details modal. Selection only happens via checkbox (has @click.stop) -->
-					<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors border-l-4"
+					<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors border-l-4 relative"
 						@click="if (!$event.target.closest('input[type=checkbox]') && !$event.target.closest('button')) showAlertDetails(alert.fingerprint)"
+						@mouseenter="showPreview($event, alert, 300)"
+						@mouseleave="hidePreview()"
 						:class="{
 							'bg-blue-50 dark:bg-blue-900/20': selectedAlerts.includes(alert.fingerprint)
 						}"

@@ -4,6 +4,17 @@ package scripts
 templ AlertActionsCommon() {
 	<script>
 		window.alertActionsCommonMixin = {
+			// Related alerts state variables
+			relatedFilter: 'all',
+			relatedCurrentPage: 1,
+			relatedPageSize: 10,
+			relatedTotalResults: 0,
+			relatedTotalPages: 0,
+			relatedAllAlerts: [],
+			relatedSearchQuery: '',
+			relatedLoading: false,
+			relatedAlerts: [],
+			
 			// Modal state variables
 			showAckModal: false,
 			ackAction: 'single', // 'single', 'bulk', or 'group'
@@ -266,6 +277,108 @@ templ AlertActionsCommon() {
 				this.showNotification('success', 'Alert link copied to clipboard');
 			},
 
+			async copyGeneratorURL() {
+				if (!this.alertDetails?.alert?.generatorURL) {
+					this.showNotification('error', 'Generator URL not available for this alert');
+					return;
+				}
+
+				// Copy generator URL to clipboard
+				await this.copyToClipboard(this.alertDetails.alert.generatorURL);
+				this.showNotification('success', 'Generator URL copied to clipboard');
+			},
+
+			calculateDuration() {
+				if (!this.alertDetails?.duration) {
+					return 'N/A';
+				}
+				
+				// Duration is in nanoseconds, convert to seconds
+				const durationSeconds = Math.floor(this.alertDetails.duration / 1000000000);
+				
+				if (durationSeconds < 60) {
+					return `${durationSeconds}s`;
+				} else if (durationSeconds < 3600) {
+					const minutes = Math.floor(durationSeconds / 60);
+					const remainingSeconds = durationSeconds % 60;
+					return `${minutes}m ${remainingSeconds}s`;
+				} else if (durationSeconds < 86400) {
+					const hours = Math.floor(durationSeconds / 3600);
+					const remainingMinutes = Math.floor((durationSeconds % 3600) / 60);
+					return `${hours}h ${remainingMinutes}m`;
+				} else {
+					const days = Math.floor(durationSeconds / 86400);
+					const remainingHours = Math.floor((durationSeconds % 86400) / 3600);
+					return `${days}d ${remainingHours}h`;
+				}
+			},
+
+			async copyAlertAsIssue() {
+				if (!this.alertDetails?.alert) {
+					this.showNotification('error', 'Alert information not available');
+					return;
+				}
+
+				const alert = this.alertDetails.alert;
+				
+				// Build an issue template with alert information
+				let issueContent = `## Alert Details\n\n`;
+				issueContent += `**Alert Name:** ${alert.alertName || 'Unknown'}\n`;
+				issueContent += `**Severity:** ${alert.severity || 'Unknown'}\n`;
+				issueContent += `**Status:** ${alert.status?.state || 'Unknown'}\n`;
+				issueContent += `**Instance:** ${alert.instance || 'N/A'}\n`;
+				
+				if (alert.labels?.team) {
+					issueContent += `**Team:** ${alert.labels.team}\n`;
+				}
+				
+				if (alert.summary) {
+					issueContent += `**Summary:** ${alert.summary}\n`;
+				}
+				
+				if (alert.description) {
+					issueContent += `**Description:** ${alert.description}\n`;
+				}
+				
+				if (alert.generatorURL) {
+					issueContent += `**Generator URL:** ${alert.generatorURL}\n`;
+				}
+				
+				if (alert.startsAt) {
+					const startDate = new Date(alert.startsAt).toLocaleString();
+					issueContent += `**Started At:** ${startDate}\n`;
+				}
+				
+				// Add labels section
+				if (alert.labels && Object.keys(alert.labels).length > 0) {
+					issueContent += `\n### Labels\n`;
+					Object.entries(alert.labels).forEach(([key, value]) => {
+						if (key !== 'team') { // Skip team as it's already shown above
+							issueContent += `- **${key}:** ${value}\n`;
+						}
+					});
+				}
+				
+				// Add annotations section
+				if (alert.annotations && Object.keys(alert.annotations).length > 0) {
+					issueContent += `\n### Annotations\n`;
+					Object.entries(alert.annotations).forEach(([key, value]) => {
+						if (key !== 'summary' && key !== 'description') { // Skip as they're already shown above
+							issueContent += `- **${key}:** ${value}\n`;
+						}
+					});
+				}
+				
+				// Add alert link
+				const baseUrl = window.location.origin;
+				const alertUrl = `${baseUrl}/alert/${alert.fingerprint}`;
+				issueContent += `\n**Alert Link:** ${alertUrl}\n`;
+
+				// Copy to clipboard
+				await this.copyToClipboard(issueContent);
+				this.showNotification('success', 'Alert issue template copied to clipboard');
+			},
+
 			async loadAlertDetails() {
 				if (!this.alertId) {
 					this.error = 'No alert ID provided';
@@ -284,6 +397,10 @@ templ AlertActionsCommon() {
 					
 					if (result.success) {
 						this.alertDetails = result.data;
+						// Load related alerts if we're on the related tab and have the loadRelatedAlerts function
+						if (this.currentTab === 'related' && typeof this.loadRelatedAlerts === 'function') {
+							this.loadRelatedAlerts();
+						}
 					} else {
 						this.error = result.error || 'Failed to load alert details';
 					}
@@ -294,6 +411,186 @@ templ AlertActionsCommon() {
 					this.loading = false;
 				}
 			},
+
+			// Related alerts functionality
+			async loadRelatedAlerts() {
+				if (!this.alertDetails?.alert) return;
+				
+				this.relatedLoading = true;
+				
+				try {
+					// Fetch all alerts from the correct endpoint
+					const response = await fetch('/api/v1/dashboard/incremental', {
+						credentials: 'include'
+					});
+					
+					const result = await response.json();
+					
+					if (result.success && result.data) {
+						const allAlerts = result.data;
+						const currentAlert = this.alertDetails.alert;
+						
+						// Debug: Log the structure of the first few alerts
+						console.log('Sample alerts from API:', allAlerts.slice(0, 3));
+						
+						// Filter alerts based on selected criteria
+						let filteredAlerts = allAlerts.filter(alert => {
+							// Validate alert has required properties
+							if (!alert || !alert.fingerprint || typeof alert.fingerprint !== 'string') {
+								console.warn('Alert missing or invalid fingerprint:', alert);
+								return false;
+							}
+							
+							// Exclude current alert
+							if (alert.fingerprint === currentAlert.fingerprint) return false;
+							
+							switch (this.relatedFilter) {
+								case 'same_source':
+									return alert.source === currentAlert.source;
+								case 'same_severity':
+									return alert.labels?.severity === currentAlert.labels?.severity || alert.severity === currentAlert.severity;
+								case 'same_labels':
+									// Match on alertname (most common relation)
+									return alert.labels?.alertname === currentAlert.labels?.alertname;
+								default: // 'all'
+									// Match on alertname primarily, fallback to job or instance
+									return (alert.labels?.alertname === currentAlert.labels?.alertname) ||
+										   (alert.labels?.job === currentAlert.labels?.job) ||
+										   (alert.labels?.instance === currentAlert.labels?.instance);
+							}
+						});
+						
+						// Apply search filter if provided
+						if (this.relatedSearchQuery.trim()) {
+							const searchLower = this.relatedSearchQuery.toLowerCase();
+							filteredAlerts = filteredAlerts.filter(alert => {
+								return (alert.labels?.alertname || '').toLowerCase().includes(searchLower) ||
+									   (alert.labels?.instance || '').toLowerCase().includes(searchLower) ||
+									   (alert.annotations?.summary || '').toLowerCase().includes(searchLower);
+							});
+						}
+						
+						// Sort by most recent first
+						filteredAlerts.sort((a, b) => new Date(b.startsAt || 0) - new Date(a.startsAt || 0));
+						
+						// Deduplicate by fingerprint (keep first occurrence)
+						const seenFingerprints = new Set();
+						filteredAlerts = filteredAlerts.filter(alert => {
+							if (seenFingerprints.has(alert.fingerprint)) {
+								return false;
+							}
+							seenFingerprints.add(alert.fingerprint);
+							return true;
+						});
+						
+						// Store all filtered results
+						this.relatedAllAlerts = filteredAlerts;
+						this.relatedTotalResults = filteredAlerts.length;
+						this.relatedTotalPages = Math.ceil(filteredAlerts.length / this.relatedPageSize);
+						
+						// Apply pagination
+						this.updateRelatedAlertsPage();
+					} else {
+						this.relatedAlerts = [];
+						this.relatedAllAlerts = [];
+						this.relatedTotalResults = 0;
+						this.relatedTotalPages = 0;
+					}
+				} catch (error) {
+					console.error('Error loading related alerts:', error);
+					this.relatedAlerts = [];
+					this.relatedAllAlerts = [];
+					this.relatedTotalResults = 0;
+					this.relatedTotalPages = 0;
+					this.showNotification('error', 'Failed to load related alerts');
+				} finally {
+					this.relatedLoading = false;
+				}
+			},
+
+			// Pagination methods for related alerts
+			updateRelatedAlertsPage() {
+				const startIndex = (this.relatedCurrentPage - 1) * this.relatedPageSize;
+				const endIndex = startIndex + this.relatedPageSize;
+				this.relatedAlerts = this.relatedAllAlerts.slice(startIndex, endIndex);
+			},
+
+			goToRelatedPage(page) {
+				if (page >= 1 && page <= this.relatedTotalPages) {
+					this.relatedCurrentPage = page;
+					this.updateRelatedAlertsPage();
+				}
+			},
+
+			nextRelatedPage() {
+				if (this.relatedCurrentPage < this.relatedTotalPages) {
+					this.relatedCurrentPage++;
+					this.updateRelatedAlertsPage();
+				}
+			},
+
+			prevRelatedPage() {
+				if (this.relatedCurrentPage > 1) {
+					this.relatedCurrentPage--;
+					this.updateRelatedAlertsPage();
+				}
+			},
+
+			changeRelatedPageSize(newSize) {
+				this.relatedPageSize = parseInt(newSize);
+				this.relatedCurrentPage = 1; // Reset to first page
+				this.relatedTotalPages = Math.ceil(this.relatedTotalResults / this.relatedPageSize);
+				this.updateRelatedAlertsPage();
+			},
+
+			searchRelatedAlerts() {
+				// Reset to first page when searching
+				this.relatedCurrentPage = 1;
+				// Reload with search filter applied
+				this.loadRelatedAlerts();
+			},
+
+			getRelatedPageNumbers() {
+				const pages = [];
+				const current = this.relatedCurrentPage;
+				const total = this.relatedTotalPages;
+				
+				// Show at most 5 page numbers
+				let start = Math.max(1, current - 2);
+				let end = Math.min(total, current + 2);
+				
+				// Adjust if we're near the beginning or end
+				if (end - start < 4) {
+					if (start === 1) {
+						end = Math.min(total, start + 4);
+					} else if (end === total) {
+						start = Math.max(1, end - 4);
+					}
+				}
+				
+				for (let i = start; i <= end; i++) {
+					pages.push(i);
+				}
+				
+				return pages;
+			},
+
+			navigateToAlert(fingerprint) {
+				// Validate fingerprint
+				if (!fingerprint || typeof fingerprint !== 'string') {
+					console.error('Invalid fingerprint for navigation:', fingerprint);
+					this.showNotification('error', 'Invalid alert fingerprint');
+					return;
+				}
+				
+				// Debug: Log the fingerprint being used
+				console.log('Navigating to alert with fingerprint:', fingerprint);
+				
+				// Navigate to another alert, preserving query parameters
+				const currentQuery = window.location.search;
+				window.location.href = `/alert/${fingerprint}${currentQuery}`;
+			},
+
 
 			// Common unsilence action (for direct unsilence without modal)
 			async processUnsilenceAction(fingerprint) {

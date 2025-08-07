@@ -394,6 +394,25 @@ templ DashboardUtilities() {
 				}
 			},
 
+			// Alias for backward compatibility
+			getInitials(username) {
+				if (!username) {
+					// If no username provided, use current user
+					return this.getUserInitials();
+				}
+				
+				// Direct username provided
+				const cleanUsername = username.trim();
+				if (cleanUsername.length === 0) {
+					return 'U';
+				} else if (cleanUsername.length === 1) {
+					return cleanUsername.toUpperCase();
+				} else {
+					// Get first 2 characters and convert to uppercase
+					return cleanUsername.substring(0, 2).toUpperCase();
+				}
+			},
+
 			canDeleteComment(comment) {
 				const currentUser = this.getCurrentUser();
 				return currentUser && comment && (
@@ -561,6 +580,130 @@ templ DashboardUtilities() {
 				if (!colorData || !colorData.textColor) return '';
 				
 				return colorData.textColor;
+			},
+
+			// Quick Preview functionality
+			previewTimeout: null,
+			currentPreview: null,
+
+			showPreview(event, alert, delay = 300) {
+				// Clear any existing preview or timeout
+				this.hidePreview();
+				
+				// Set timeout to show preview after delay
+				this.previewTimeout = setTimeout(() => {
+					this.createPreview(event, alert);
+				}, delay);
+			},
+
+			hidePreview() {
+				// Clear timeout if it exists
+				if (this.previewTimeout) {
+					clearTimeout(this.previewTimeout);
+					this.previewTimeout = null;
+				}
+				
+				// Remove existing preview
+				if (this.currentPreview) {
+					this.currentPreview.remove();
+					this.currentPreview = null;
+				}
+			},
+
+			createPreview(event, alert) {
+				// Create preview tooltip
+				const preview = document.createElement('div');
+				preview.className = 'fixed z-50 bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-DEFAULT rounded-lg shadow-xl p-4 max-w-sm';
+				preview.style.pointerEvents = 'none';
+				
+				// Build content
+				const severity = alert.severity || 'unknown';
+				const status = alert.status?.state || 'unknown';
+				const duration = this.calculateAlertDuration(alert);
+				
+				let previewContent = '<div class="space-y-3"><div>';
+				previewContent += '<h4 class="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2">' + (alert.alertName || 'Unknown Alert') + '</h4>';
+				previewContent += '</div><div class="flex items-center space-x-2">';
+				previewContent += '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ' + this.getSeverityClasses(severity) + '">';
+				previewContent += severity.toUpperCase() + '</span>';
+				previewContent += '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ' + this.getStatusClasses(status) + '">';
+				previewContent += status.toUpperCase() + '</span>';
+				if (alert.isAcknowledged) {
+					previewContent += '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200">ACK</span>';
+				}
+				previewContent += '</div>';
+				if (alert.summary) {
+					previewContent += '<p class="text-xs text-gray-600 dark:text-gray-400 line-clamp-3">' + alert.summary + '</p>';
+				}
+				previewContent += '<div class="text-xs text-gray-500 dark:text-gray-400">';
+				previewContent += '<div>Duration: ' + duration + '</div>';
+				if (alert.instance) {
+					previewContent += '<div>Instance: ' + alert.instance + '</div>';
+				}
+				if (alert.source) {
+					previewContent += '<div>Source: ' + alert.source + '</div>';
+				}
+				previewContent += '</div></div>';
+				
+				preview.innerHTML = previewContent;
+				
+				// Position the preview
+				document.body.appendChild(preview);
+				
+				// Calculate position
+				const rect = event.target.closest('tr').getBoundingClientRect();
+				const previewRect = preview.getBoundingClientRect();
+				
+				let left = rect.left + rect.width + 10;
+				let top = rect.top + window.scrollY;
+				
+				// Adjust if it would go off screen
+				if (left + previewRect.width > window.innerWidth) {
+					left = rect.left - previewRect.width - 10;
+				}
+				
+				if (top + previewRect.height > window.innerHeight + window.scrollY) {
+					top = window.innerHeight + window.scrollY - previewRect.height - 10;
+				}
+				
+				preview.style.left = Math.max(10, left) + 'px';
+				preview.style.top = Math.max(10, top) + 'px';
+				
+				this.currentPreview = preview;
+			},
+
+			calculateAlertDuration(alert) {
+				if (!alert.startsAt) return 'N/A';
+				
+				const start = new Date(alert.startsAt);
+				const end = alert.endsAt ? new Date(alert.endsAt) : new Date();
+				const diffMs = end - start;
+				
+				const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+				const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+				const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+				
+				if (days > 0) return `${days}d ${hours}h`;
+				if (hours > 0) return `${hours}h ${minutes}m`;
+				return `${minutes}m`;
+			},
+
+			getSeverityClasses(severity) {
+				switch (severity.toLowerCase()) {
+					case 'critical': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
+					case 'warning': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200';
+					case 'info': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200';
+					default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200';
+				}
+			},
+
+			getStatusClasses(status) {
+				switch (status.toLowerCase()) {
+					case 'firing': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
+					case 'resolved': return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200';
+					case 'suppressed': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200';
+					default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200';
+				}
 			},
 		};
 

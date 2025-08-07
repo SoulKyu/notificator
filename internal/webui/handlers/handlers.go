@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -424,14 +426,14 @@ func StandaloneAlertPage(c *gin.Context) {
 }
 
 func generateFingerprint(labels map[string]string) string {
-	fingerprint := ""
+	var labelPairs []string
 	for key, value := range labels {
-		fingerprint += key + "=" + value + ";"
+		labelPairs = append(labelPairs, fmt.Sprintf("%s=%s", key, value))
 	}
-	if len(fingerprint) > 16 {
-		return fingerprint[:16]
-	}
-	return fingerprint
+	sort.Strings(labelPairs)
+	labelString := strings.Join(labelPairs, ",")
+	hash := md5.Sum([]byte(labelString))
+	return fmt.Sprintf("%x", hash)
 }
 
 func formatEndTime(endTime time.Time) string {

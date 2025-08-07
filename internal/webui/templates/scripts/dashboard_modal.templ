@@ -3,6 +3,17 @@ package scripts
 templ DashboardModal() {
 	<script>
 		window.dashboardModalMixin = {
+			// Auto-refresh for modal
+			modalRefreshInterval: null,
+			modalRefreshRate: 5000, // 5 seconds
+			
+			// Modal resizing
+			modalSize: { width: 1200, height: 700 },
+			defaultModalSize: { width: 1200, height: 700 },
+			isResizing: false,
+			resizeStartPos: { x: 0, y: 0 },
+			resizeStartSize: { width: 0, height: 0 },
+
 			async showAlertDetails(fingerprint) {
 				this.alertDetailsLoading = true;
 				this.loading = true; // Sync loading state for injected content
@@ -14,10 +25,23 @@ templ DashboardModal() {
 				this.error = null;
 				this.currentTab = 'overview';
 				this.alertDetails = null; // Clear previous data
+				
+				// Initialize modal resize functionality
+				this.initModalResize();
+				
+				// Start auto-refresh for modal
+				this.startModalAutoRefresh();
+				
+				// Apply modal size after a brief delay to ensure modal is rendered
+				setTimeout(() => {
+					this.applyModalSize();
+				}, 100);
 
+				// Preserve query parameters when updating URL
 				const currentPath = window.location.pathname;
-				const newPath = `/dashboard/alert/${fingerprint}`;
-				if (currentPath !== newPath) {
+				const currentQuery = window.location.search;
+				const newPath = `/dashboard/alert/${fingerprint}${currentQuery}`;
+				if (currentPath !== newPath.split('?')[0]) {
 					window.history.pushState({ alertId: fingerprint }, '', newPath);
 				}
 
@@ -140,6 +164,9 @@ templ DashboardModal() {
 				this.showAlertModal = false;
 				this.currentAlertFingerprint = null;
 				
+				// Stop auto-refresh
+				this.stopModalAutoRefresh();
+				
 				// Clear variables used by injected content
 				this.alertId = null;
 				this.error = null;
@@ -153,8 +180,50 @@ templ DashboardModal() {
 					modalContent.innerHTML = '';
 				}
 				
+				// Preserve query parameters when closing modal
 				if (window.location.pathname.includes('/alert/')) {
-					window.history.pushState({}, '', '/dashboard');
+					const currentQuery = window.location.search;
+					window.history.pushState({}, '', `/dashboard${currentQuery}`);
+				}
+			},
+
+			startModalAutoRefresh() {
+				this.stopModalAutoRefresh(); // Clear any existing interval
+				this.modalRefreshInterval = setInterval(() => {
+					if (this.showAlertModal && this.currentAlertFingerprint && !this.loading && !document.hidden) {
+						this.refreshModalAlertDetails();
+					}
+				}, this.modalRefreshRate);
+			},
+
+			stopModalAutoRefresh() {
+				if (this.modalRefreshInterval) {
+					clearInterval(this.modalRefreshInterval);
+					this.modalRefreshInterval = null;
+				}
+			},
+
+			async refreshModalAlertDetails() {
+				if (!this.currentAlertFingerprint) return;
+				
+				try {
+					// If using injected content, let the injected page handle its own refresh
+					if (this.currentAlertFingerprint) {
+						// Find the injected Alpine.js instance and trigger refresh if it exists
+						const modalContent = document.getElementById('modal-alert-content');
+						if (modalContent && modalContent._x_dataStack) {
+							const alertInstance = modalContent._x_dataStack[0];
+							if (alertInstance && typeof alertInstance.refreshAlertDetails === 'function') {
+								alertInstance.refreshAlertDetails();
+								return;
+							}
+						}
+					}
+					
+					// Fallback: refresh data via API for legacy modal content
+					await this.loadAlertDataForModal(this.currentAlertFingerprint);
+				} catch (error) {
+					console.warn('Modal auto-refresh failed:', error);
 				}
 			},
 
@@ -181,6 +250,74 @@ templ DashboardModal() {
 					console.error('Error loading alert data for modal:', error);
 					this.error = 'Network error loading alert data';
 				}
+			},
+
+			// Modal resizing functionality
+			initModalResize() {
+				// Load saved modal size from localStorage
+				const savedSize = localStorage.getItem('modalSize');
+				if (savedSize) {
+					try {
+						this.modalSize = JSON.parse(savedSize);
+					} catch (e) {
+						console.warn('Failed to parse saved modal size:', e);
+					}
+				}
+				
+				// Add global mouse event listeners
+				document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+				document.addEventListener('mouseup', () => this.stopResize());
+			},
+
+			startResize(event) {
+				this.isResizing = true;
+				this.resizeStartPos = { x: event.clientX, y: event.clientY };
+				this.resizeStartSize = { width: this.modalSize.width, height: this.modalSize.height };
+				
+				event.preventDefault();
+				document.body.style.cursor = 'nw-resize';
+				document.body.style.userSelect = 'none';
+			},
+
+			handleMouseMove(event) {
+				if (!this.isResizing) return;
+				
+				const deltaX = event.clientX - this.resizeStartPos.x;
+				const deltaY = event.clientY - this.resizeStartPos.y;
+				
+				// Calculate new size with minimum constraints
+				const newWidth = Math.max(400, Math.min(window.innerWidth - 40, this.resizeStartSize.width + deltaX));
+				const newHeight = Math.max(300, Math.min(window.innerHeight - 40, this.resizeStartSize.height + deltaY));
+				
+				this.modalSize = { width: newWidth, height: newHeight };
+				this.applyModalSize();
+			},
+
+			stopResize() {
+				if (this.isResizing) {
+					this.isResizing = false;
+					document.body.style.cursor = '';
+					document.body.style.userSelect = '';
+					
+					// Save modal size to localStorage
+					localStorage.setItem('modalSize', JSON.stringify(this.modalSize));
+				}
+			},
+
+			applyModalSize() {
+				const modalPanel = document.querySelector('.alert-modal-panel');
+				if (modalPanel) {
+					modalPanel.style.width = this.modalSize.width + 'px';
+					modalPanel.style.height = this.modalSize.height + 'px';
+					modalPanel.style.maxWidth = 'none';
+					modalPanel.style.maxHeight = 'none';
+				}
+			},
+
+			resetModalSize() {
+				this.modalSize = { ...this.defaultModalSize };
+				this.applyModalSize();
+				localStorage.removeItem('modalSize');
 			},
 
 			// NOTE: All alert action functions (acknowledge, silence, comments, etc.) are now handled
