@@ -351,18 +351,6 @@ templ AlertDetailsStandaloneContent() {
 								  x-text="alertDetails?.comments?.length || 0">
 							</span>
 						</button>
-						<button @click="currentTab = 'related'" 
-								:class="currentTab === 'related' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
-								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
-							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-							</svg>
-							Related
-							<span x-show="relatedAlerts && relatedAlerts.length > 0" 
-								  class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-								  x-text="relatedAlerts?.length || 0">
-							</span>
-						</button>
 					</nav>
 				</div>
 

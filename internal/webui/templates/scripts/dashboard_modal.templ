@@ -320,9 +320,71 @@ templ DashboardModal() {
 				localStorage.removeItem('modalSize');
 			},
 
-			// NOTE: All alert action functions (acknowledge, silence, comments, etc.) are now handled
-			// by the standalone alert page that gets loaded into this modal. This provides a single
-			// source of truth and eliminates code duplication.
+			// Alert action functions for dashboard modal context
+			silenceAlert(fingerprint) {
+				// Use the same data source as copyAlertLink - the loaded alert details
+				const alert = this.alertDetails?.alert;
+				
+				if (!alert) {
+					// If alert details aren't loaded yet, wait a moment and try again
+					setTimeout(() => {
+						if (this.alertDetails?.alert) {
+							this.silenceAlert(fingerprint);
+						} else {
+							this.showNotification('error', 'Alert information not available');
+						}
+					}, 100);
+					return;
+				}
+				
+				// Debug logging
+				console.log('silenceAlert called with fingerprint:', fingerprint);
+				console.log('alertDetails.alert.fingerprint:', alert.fingerprint);
+				
+				// Set up the silence modal with the loaded alert
+				// Note: We trust that the modal contains the correct alert since it was opened with this fingerprint
+				this.currentSilenceAlert = alert;
+				this.silenceAction = 'single';
+				this.silenceReason = '';
+				this.silenceError = '';
+				this.silenceDuration = '1h';
+				this.silenceDurationType = 'preset';
+				this.customSilenceDuration = '';
+				this.customDurationError = '';
+				this.showSilenceModal = true;
+			},
+
+			acknowledgeAlert(fingerprint) {
+				// Use the same data source as copyAlertLink - the loaded alert details
+				const alert = this.alertDetails?.alert;
+				
+				if (!alert) {
+					// If alert details aren't loaded yet, wait a moment and try again
+					setTimeout(() => {
+						if (this.alertDetails?.alert) {
+							this.acknowledgeAlert(fingerprint);
+						} else {
+							this.showNotification('error', 'Alert information not available');
+						}
+					}, 100);
+					return;
+				}
+				
+				// Debug logging
+				console.log('acknowledgeAlert called with fingerprint:', fingerprint);
+				console.log('alertDetails.alert.fingerprint:', alert.fingerprint);
+				
+				// Set up the acknowledge modal with the loaded alert
+				// Note: We trust that the modal contains the correct alert since it was opened with this fingerprint
+				this.currentAckAlert = alert;
+				this.ackAction = 'single';
+				this.ackReason = '';
+				this.ackError = '';
+				this.showAckModal = true;
+			},
+
+			// NOTE: Other alert actions (comments, related alerts, etc.) are handled
+			// by the standalone alert page content that gets loaded into this modal
 		};
 	</script>
 }

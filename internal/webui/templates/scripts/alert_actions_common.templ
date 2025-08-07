@@ -60,8 +60,26 @@ templ AlertActionsCommon() {
 					
 					switch (this.ackAction) {
 						case 'single':
+							// Safety check: ensure we have a valid alert with fingerprint
+							let alertFingerprint = null;
+							if (this.currentAckAlert && this.currentAckAlert.fingerprint) {
+								alertFingerprint = this.currentAckAlert.fingerprint;
+							} else if (this.alertDetails && this.alertDetails.alert && this.alertDetails.alert.fingerprint) {
+								// Fallback to alertDetails for standalone context
+								alertFingerprint = this.alertDetails.alert.fingerprint;
+							} else if (this.alertId) {
+								// Final fallback using alertId if available
+								alertFingerprint = this.alertId;
+							}
+							
+							if (!alertFingerprint) {
+								this.ackError = 'Alert information not available';
+								this.ackSubmitting = false;
+								return;
+							}
+							
 							request = {
-								alertFingerprints: [this.currentAckAlert.fingerprint],
+								alertFingerprints: [alertFingerprint],
 								groupNames: [],
 								action: 'acknowledge',
 								comment: this.ackReason
@@ -178,8 +196,26 @@ templ AlertActionsCommon() {
 					
 					switch (this.silenceAction) {
 						case 'single':
+							// Safety check: ensure we have a valid alert with fingerprint
+							let alertFingerprint = null;
+							if (this.currentSilenceAlert && this.currentSilenceAlert.fingerprint) {
+								alertFingerprint = this.currentSilenceAlert.fingerprint;
+							} else if (this.alertDetails && this.alertDetails.alert && this.alertDetails.alert.fingerprint) {
+								// Fallback to alertDetails for standalone context
+								alertFingerprint = this.alertDetails.alert.fingerprint;
+							} else if (this.alertId) {
+								// Final fallback using alertId if available
+								alertFingerprint = this.alertId;
+							}
+							
+							if (!alertFingerprint) {
+								this.silenceError = 'Alert information not available';
+								this.silenceSubmitting = false;
+								return;
+							}
+							
 							request = {
-								alertFingerprints: [this.currentSilenceAlert.fingerprint],
+								alertFingerprints: [alertFingerprint],
 								groupNames: [],
 								action: 'silence',
 								comment: this.silenceReason,
@@ -274,7 +310,11 @@ templ AlertActionsCommon() {
 
 				// Copy to clipboard
 				await this.copyToClipboard(alertUrl);
-				this.showNotification('success', 'Alert link copied to clipboard');
+				
+				// Open link in new tab
+				window.open(alertUrl, '_blank');
+				
+				this.showNotification('success', 'Alert link copied and opened in new tab');
 			},
 
 			async copyGeneratorURL() {
@@ -285,7 +325,11 @@ templ AlertActionsCommon() {
 
 				// Copy generator URL to clipboard
 				await this.copyToClipboard(this.alertDetails.alert.generatorURL);
-				this.showNotification('success', 'Generator URL copied to clipboard');
+				
+				// Open generator URL in new tab
+				window.open(this.alertDetails.alert.generatorURL, '_blank');
+				
+				this.showNotification('success', 'Generator URL copied and opened in new tab');
 			},
 
 			calculateDuration() {
