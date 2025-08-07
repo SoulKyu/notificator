@@ -1,0 +1,854 @@
+package pages
+
+import (
+	"notificator/internal/webui/templates/layouts"
+	"notificator/internal/webui/templates/components"
+	"notificator/internal/webui/templates/scripts"
+)
+
+templ AlertDetailsStandalone() {
+	@layouts.Base("Alert Details - Notificator", AlertDetailsStandaloneContent())
+}
+
+templ AlertDetailsStandaloneContent() {
+	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary" x-data="alertDetailsStandalone()" x-init="init()">
+		<!-- Header -->
+		<header class="bg-white dark:bg-dark-bg-secondary shadow-sm border-b border-gray-200 dark:border-dark-border-subtle">
+			<div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
+				<div class="flex items-center justify-between h-16">
+					<!-- Back to Dashboard -->
+					<div class="flex items-center space-x-4">
+						<a href="/dashboard" class="flex items-center space-x-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+							<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+							</svg>
+							<span class="text-sm font-medium">Back to Dashboard</span>
+						</a>
+					</div>
+
+					<!-- Title -->
+					<div class="flex-1 text-center">
+						<h1 class="text-xl font-semibold text-gray-900 dark:text-white">Alert Details</h1>
+					</div>
+
+					<!-- View in Dashboard Modal -->
+					<div class="flex items-center space-x-4">
+						<a :href="'/dashboard/alert/' + alertId" 
+						   class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+							<svg class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+							</svg>
+							View in Dashboard
+						</a>
+					</div>
+				</div>
+			</div>
+		</header>
+
+		<!-- Alert Content Container -->
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+			<!-- Loading State -->
+			<div x-show="loading" class="flex flex-col items-center justify-center p-16 space-y-4 bg-white dark:bg-dark-bg-secondary rounded-lg shadow">
+				<div class="relative">
+					<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 dark:border-blue-900"></div>
+					<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+				</div>
+				<div class="text-center">
+					<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">Loading Alert Details</h3>
+					<p class="text-sm text-gray-600 dark:text-gray-400">Please wait while we fetch the alert information...</p>
+				</div>
+			</div>
+
+			<!-- Error State -->
+			<div x-show="error && !loading" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+				<div class="flex items-center">
+					<svg class="h-5 w-5 text-red-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+					</svg>
+					<h3 class="text-lg font-medium text-red-800 dark:text-red-200">Error Loading Alert</h3>
+				</div>
+				<p class="mt-2 text-sm text-red-700 dark:text-red-300" x-text="error"></p>
+				<button @click="loadAlertDetails()" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+					Retry
+				</button>
+			</div>
+
+			<!-- Alert Details Content -->
+			<div x-show="!loading && !error && alertDetails" class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg">
+				<!-- Alert Header -->
+				<div class="relative bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50 rounded-t-lg">
+					<div class="flex items-start space-x-4">
+						<!-- Status Icon -->
+						<div class="flex-shrink-0 mt-1">
+							<div class="relative">
+								<!-- Firing status -->
+								<div x-show="alertDetails?.alert?.status?.state === 'firing'" 
+									 class="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center shadow-lg shadow-red-500/25">
+									<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+									</svg>
+								</div>
+								<!-- Resolved status -->
+								<div x-show="alertDetails?.alert?.status?.state === 'resolved'" 
+									 class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/25">
+									<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+									</svg>
+								</div>
+								<!-- Suppressed/Silenced status -->
+								<div x-show="alertDetails?.alert?.status?.state === 'suppressed'" 
+									 class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/25">
+									<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+									</svg>
+								</div>
+							</div>
+						</div>
+
+						<!-- Alert Info -->
+						<div class="flex-1 min-w-0">
+							<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2 break-words" 
+								x-text="alertDetails?.alert?.alertName || 'Loading...'">
+							</h1>
+							
+							<!-- Status and severity badges -->
+							<div class="flex flex-wrap items-center gap-2 mb-3">
+								<!-- Severity badge -->
+								<span x-show="alertDetails?.alert?.severity" 
+									  class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium shadow-sm"
+									  :class="{
+										  'bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800': (alertDetails?.alert?.severity === 'critical'),
+										  'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-200 dark:border-yellow-800': (alertDetails?.alert?.severity === 'warning'),
+										  'bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-900/50 dark:text-blue-200 dark:border-blue-800': (alertDetails?.alert?.severity === 'info')
+									  }">
+									<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+									</svg>
+									<span x-text="alertDetails?.alert?.severity?.toUpperCase()"></span>
+								</span>
+								
+								<!-- Status badge -->
+								<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium shadow-sm"
+									  :class="{
+										  'bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800': alertDetails?.alert?.status?.state === 'firing',
+										  'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800': alertDetails?.alert?.status?.state === 'resolved',
+										  'bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-800': alertDetails?.alert?.status?.state === 'suppressed'
+									  }">
+									<span x-text="(alertDetails?.alert?.status?.state || 'unknown').toUpperCase()"></span>
+								</span>
+								
+								<!-- Acknowledged badge -->
+								<span x-show="alertDetails?.alert?.isAcknowledged" 
+									  class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800 shadow-sm">
+									<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+									</svg>
+									ACKNOWLEDGED
+								</span>
+							</div>
+
+							<!-- Action buttons -->
+							<div class="flex flex-wrap items-center gap-3">
+								<button @click="acknowledgeAlert()" 
+										x-show="alertDetails?.alert && !alertDetails?.alert?.isAcknowledged"
+										class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200">
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+									</svg>
+									Acknowledge
+								</button>
+								
+								<button @click="unacknowledgeAlert()" 
+										x-show="alertDetails?.alert && alertDetails?.alert?.isAcknowledged"
+										class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200">
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+									</svg>
+									Unacknowledge
+								</button>
+								
+								<button @click="silenceAlert()" 
+										x-show="alertDetails?.alert && !isAlertSilenced(alertDetails?.alert)"
+										class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200">
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.59-.79-1.59-1.78V9.51c0-.88.79-1.59 1.78-1.59h1.78Z"/>
+									</svg>
+									Silence
+								</button>
+								
+								<button @click="unsilenceAlert()" 
+										x-show="alertDetails?.alert && isAlertSilenced(alertDetails?.alert)"
+										class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200">
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.59-.79-1.59-1.78V9.51c0-.88.79-1.59 1.78-1.59h1.78Z"/>
+									</svg>
+									<span x-text="getSilenceButtonText(alertDetails?.alert)"></span>
+								</button>
+								
+								<button @click="copyAlertAsIssue()" 
+										x-show="alertDetails?.alert"
+										class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200">
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2V8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+									</svg>
+									Copy as Issue
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Tab Navigation -->
+				<div class="px-6 py-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
+					<nav class="flex space-x-1 overflow-x-auto">
+						<button @click="currentTab = 'overview'" 
+								:class="currentTab === 'overview' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+							</svg>
+							Overview
+						</button>
+						<button @click="currentTab = 'details'" 
+								:class="currentTab === 'details' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+							</svg>
+							Details
+						</button>
+						<button @click="currentTab = 'labels'" 
+								:class="currentTab === 'labels' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+							</svg>
+							Labels
+						</button>
+						<button @click="currentTab = 'annotations'" 
+								:class="currentTab === 'annotations' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+							</svg>
+							Annotations
+						</button>
+						<button @click="currentTab = 'acknowledgments'" 
+								:class="currentTab === 'acknowledgments' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							</svg>
+							Acknowledgments
+						</button>
+						<button @click="currentTab = 'comments'" 
+								:class="currentTab === 'comments' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+								class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+							</svg>
+							Comments
+							<span x-show="alertDetails?.comments && alertDetails.comments.length > 0" 
+								  class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+								  x-text="alertDetails?.comments?.length || 0">
+							</span>
+						</button>
+					</nav>
+				</div>
+
+				<!-- Tab Content -->
+				<div class="p-6">
+					<!-- Overview Tab -->
+					<div x-show="currentTab === 'overview'" class="space-y-6">
+						<!-- Include all the overview content from modal -->
+						@alertDetailsOverviewTab()
+					</div>
+
+					<!-- Details Tab -->
+					<div x-show="currentTab === 'details'" class="space-y-4">
+						@alertDetailsDetailsTab()
+					</div>
+
+					<!-- Labels Tab -->
+					<div x-show="currentTab === 'labels'">
+						@alertDetailsLabelsTab()
+					</div>
+
+					<!-- Annotations Tab -->
+					<div x-show="currentTab === 'annotations'">
+						@alertDetailsAnnotationsTab()
+					</div>
+
+					<!-- Acknowledgments Tab -->
+					<div x-show="currentTab === 'acknowledgments'">
+						@alertDetailsAcknowledgmentsTab()
+					</div>
+
+					<!-- Comments Tab -->
+					<div x-show="currentTab === 'comments'">
+						@alertDetailsCommentsTab()
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Include modals for acknowledge and silence actions -->
+		@components.AcknowledgmentModal()
+		@components.SilenceModal()
+	</div>
+
+	<!-- Notifications container -->
+	<div id="notifications" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+	<!-- Include common scripts -->
+	@scripts.AlertActionsCommon()
+	
+	<!-- JavaScript for standalone alert details -->
+	@alertDetailsStandaloneScript()
+}
+
+// Tab content components (temporary - will be moved to shared component later)
+templ alertDetailsOverviewTab() {
+	<!-- Quick Info Cards -->
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+		<!-- Status Card -->
+		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status</h4>
+			<div class="space-y-3">
+				<div class="flex items-center justify-between">
+					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">State:</span>
+					<span class="text-sm font-semibold text-gray-900 dark:text-white capitalize" x-text="alertDetails?.alert?.status?.state || 'Unknown'"></span>
+				</div>
+				<div x-show="alertDetails?.alert?.isAcknowledged">
+					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Acknowledged: Yes</span>
+				</div>
+			</div>
+		</div>
+
+		<!-- Timeline Card -->
+		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Timeline</h4>
+			<div class="space-y-3">
+				<div>
+					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Started:</span>
+					<span class="text-xs font-mono" x-text="alertDetails?.alert?.startsAt ? new Date(alertDetails.alert.startsAt).toLocaleString() : 'Unknown'"></span>
+				</div>
+				<div x-show="alertDetails?.alert?.endsAt">
+					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Ended:</span>
+					<span class="text-xs font-mono" x-text="alertDetails?.alert?.endsAt ? new Date(alertDetails.alert.endsAt).toLocaleString() : 'Unknown'"></span>
+				</div>
+			</div>
+		</div>
+
+		<!-- Metadata Card -->
+		<div class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Metadata</h4>
+			<div class="space-y-3">
+				<div class="flex items-center justify-between">
+					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Source:</span>
+					<span class="text-sm font-semibold" x-text="alertDetails?.alert?.source || 'Unknown'"></span>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Summary and Description -->
+	<div x-show="alertDetails?.alert?.summary" class="bg-white dark:bg-dark-bg-tertiary rounded-lg p-6 border border-gray-200 dark:border-dark-border-subtle">
+		<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Summary</h4>
+		<p class="text-sm text-gray-700 dark:text-gray-300" x-text="alertDetails?.alert?.summary"></p>
+	</div>
+
+	<div x-show="alertDetails?.alert?.description" class="bg-white dark:bg-dark-bg-tertiary rounded-lg p-6 border border-gray-200 dark:border-dark-border-subtle">
+		<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h4>
+		<p class="text-sm text-gray-700 dark:text-gray-300" x-text="alertDetails?.alert?.description"></p>
+	</div>
+}
+
+templ alertDetailsDetailsTab() {
+	<div>
+		<label class="block text-sm font-medium text-gray-900 dark:text-white">Fingerprint</label>
+		<div class="mt-1 flex items-center space-x-2">
+			<code class="px-2 py-1 text-xs bg-gray-100 dark:bg-dark-bg-tertiary rounded font-mono" x-text="alertDetails?.alert?.fingerprint"></code>
+			<button @click="copyToClipboard(alertDetails?.alert?.fingerprint)" class="text-gray-400 hover:text-gray-600">
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+				</svg>
+			</button>
+		</div>
+	</div>
+
+	<div x-show="alertDetails?.alert?.generatorURL">
+		<label class="block text-sm font-medium text-gray-900 dark:text-white">Generator URL</label>
+		<a :href="alertDetails?.alert?.generatorURL" target="_blank" class="text-blue-600 hover:text-blue-500 text-sm break-all" x-text="alertDetails?.alert?.generatorURL"></a>
+	</div>
+}
+
+templ alertDetailsLabelsTab() {
+	<div x-show="alertDetails?.alert?.labels && Object.keys(alertDetails.alert.labels).length > 0" class="space-y-2">
+		<template x-for="[key, value] in Object.entries((alertDetails?.alert?.labels) || {})" :key="key">
+			<div class="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-dark-bg-tertiary rounded">
+				<div class="flex items-center space-x-2">
+					<code class="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded font-mono" x-text="key"></code>
+					<span class="text-sm">=</span>
+					<code class="text-xs bg-gray-100 dark:bg-dark-bg-secondary text-gray-800 dark:text-gray-200 px-2 py-1 rounded font-mono" x-text="value"></code>
+				</div>
+				<button @click="copyToClipboard(key + '=' + value)" class="text-gray-400 hover:text-gray-600">
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+					</svg>
+				</button>
+			</div>
+		</template>
+	</div>
+	<div x-show="!alertDetails?.alert?.labels || Object.keys(alertDetails?.alert?.labels || {}).length === 0" class="text-center py-8 text-gray-500">
+		No labels available
+	</div>
+}
+
+templ alertDetailsAnnotationsTab() {
+	<div x-show="alertDetails?.alert?.annotations && Object.keys(alertDetails.alert.annotations).length > 0" class="space-y-2">
+		<template x-for="[key, value] in Object.entries((alertDetails?.alert?.annotations) || {})" :key="key">
+			<div class="py-2 px-3 bg-gray-50 dark:bg-dark-bg-tertiary rounded">
+				<div class="flex items-center justify-between mb-1">
+					<code class="text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-2 py-1 rounded font-mono" x-text="key"></code>
+					<button @click="copyToClipboard(value)" class="text-gray-400 hover:text-gray-600">
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+						</svg>
+					</button>
+				</div>
+				<div class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap" x-text="value"></div>
+			</div>
+		</template>
+	</div>
+	<div x-show="!alertDetails?.alert?.annotations || Object.keys(alertDetails?.alert?.annotations || {}).length === 0" class="text-center py-8 text-gray-500">
+		No annotations available
+	</div>
+}
+
+templ alertDetailsAcknowledgmentsTab() {
+	<div x-show="alertDetails?.acknowledgments && alertDetails.acknowledgments.length > 0" class="space-y-3">
+		<template x-for="ack in alertDetails?.acknowledgments || []" :key="ack.id">
+			<div class="border border-gray-200 dark:border-dark-border-subtle rounded-lg p-4">
+				<div class="flex items-center justify-between mb-2">
+					<span class="font-medium" x-text="ack.author"></span>
+					<span class="text-sm text-gray-500" x-text="new Date(ack.createdAt).toLocaleString()"></span>
+				</div>
+				<p class="text-sm text-gray-700 dark:text-gray-300" x-text="ack.comment"></p>
+			</div>
+		</template>
+	</div>
+	<div x-show="!alertDetails?.acknowledgments || alertDetails.acknowledgments.length === 0" class="text-center py-8 text-gray-500">
+		No acknowledgments available
+	</div>
+}
+
+templ alertDetailsCommentsTab() {
+	<!-- Add new comment -->
+	<div class="mb-6">
+		<textarea 
+			x-model="newCommentContent"
+			@keydown.enter.cmd="addComment()"
+			@keydown.enter.ctrl="addComment()"
+			placeholder="Add a comment..." 
+			class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white"
+			rows="3"></textarea>
+		<button @click="addComment()" 
+				:disabled="!newCommentContent.trim() || commentSubmitting"
+				class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+			<span x-show="!commentSubmitting">Add Comment</span>
+			<span x-show="commentSubmitting">Adding...</span>
+		</button>
+	</div>
+
+	<!-- Comments list -->
+	<div x-show="alertDetails?.comments && alertDetails.comments.length > 0" class="space-y-3">
+		<template x-for="comment in alertDetails?.comments || []" :key="comment.id">
+			<div class="border border-gray-200 dark:border-dark-border-subtle rounded-lg p-4">
+				<div class="flex items-center justify-between mb-2">
+					<span class="font-medium" x-text="comment.author"></span>
+					<div class="flex items-center space-x-2">
+						<span class="text-sm text-gray-500" x-text="new Date(comment.createdAt).toLocaleString()"></span>
+						<button @click="deleteComment(comment.id)" 
+								x-show="comment.canDelete"
+								:disabled="commentDeleting[comment.id]"
+								class="text-red-500 hover:text-red-700">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+							</svg>
+						</button>
+					</div>
+				</div>
+				<p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap" x-text="comment.content"></p>
+			</div>
+		</template>
+	</div>
+	<div x-show="!alertDetails?.comments || alertDetails.comments.length === 0" class="text-center py-8 text-gray-500">
+		No comments yet. Be the first to comment!
+	</div>
+
+	<!-- Modals -->
+	@components.SilenceModal()
+}
+
+
+templ alertDetailsStandaloneScript() {
+	<script>
+		function alertDetailsStandalone() {
+			return {
+				alertId: null,
+				alertDetails: null,
+				loading: true,
+				error: null,
+				currentTab: 'overview',
+				newCommentContent: '',
+				commentSubmitting: false,
+				commentDeleting: {},
+
+				// Modal state variables needed for shared functions
+				showSilenceModal: false,
+				silenceAction: 'single',
+				silenceReason: '',
+				silenceError: '',
+				silenceSubmitting: false,
+				currentSilenceAlert: null,
+				silenceDuration: '1h',
+				silenceDurationType: 'preset',
+				customSilenceDuration: '',
+				customDurationError: '',
+
+				// Properties that shared functions might reference (stub implementations)
+				selectedAlerts: [],
+				selectedGroups: [],
+
+				init() {
+					// Merge the common alert actions mixin
+					Object.assign(this, window.alertActionsCommonMixin || {});
+					// Extract alert ID from URL
+					const pathParts = window.location.pathname.split('/');
+					if (pathParts.length >= 3 && pathParts[1] === 'alert') {
+						this.alertId = pathParts[2];
+						this.loadAlertDetails();
+					} else {
+						this.error = 'Invalid alert URL';
+						this.loading = false;
+					}
+				},
+
+				async loadAlertDetails() {
+					if (!this.alertId) {
+						this.error = 'No alert ID provided';
+						this.loading = false;
+						return;
+					}
+
+					this.loading = true;
+					this.error = null;
+
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${this.alertId}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						
+						if (result.success) {
+							this.alertDetails = result.data;
+						} else {
+							this.error = result.error || 'Failed to load alert details';
+						}
+					} catch (error) {
+						console.error('Error loading alert details:', error);
+						this.error = 'Network error: Failed to load alert details';
+					} finally {
+						this.loading = false;
+					}
+				},
+
+				isAlertSilenced(alert) {
+					return alert?.status?.state === 'suppressed' || alert?.status?.state === 'silenced';
+				},
+
+				getSilenceButtonText(alert) {
+					if (!alert) return 'Unsilence';
+					if (alert.status?.state === 'suppressed' || alert.status?.state === 'silenced') {
+						return 'Unsilence';
+					}
+					return 'Silence';
+				},
+
+				acknowledgeAlert() {
+					if (this.alertDetails?.alert) {
+						this.currentAckAlert = this.alertDetails.alert;
+						this.ackAction = 'single';
+						this.ackReason = '';
+						this.ackError = '';
+						this.showAckModal = true;
+					} else {
+						this.showNotification('error', 'No alert information available');
+					}
+				},
+
+				async unacknowledgeAlert() {
+					if (!this.alertDetails?.alert?.fingerprint) {
+						this.showNotification('error', 'No alert information available');
+						return;
+					}
+					
+					// Use the common function from the mixin
+					await this.processUnacknowledgeAction(this.alertDetails.alert.fingerprint);
+				},
+
+				silenceAlert() {
+					if (!this.alertDetails?.alert) {
+						this.showNotification('error', 'No alert information available');
+						return;
+					}
+					
+					// Use modal approach like dashboard
+					this.currentSilenceAlert = this.alertDetails.alert;
+					this.silenceAction = 'single';
+					this.silenceReason = '';
+					this.silenceError = '';
+					this.silenceDuration = '1h';
+					this.silenceDurationType = 'preset';
+					this.customSilenceDuration = '';
+					this.customDurationError = '';
+					this.showSilenceModal = true;
+				},
+
+				async unsilenceAlert() {
+					if (!this.alertDetails?.alert?.fingerprint) {
+						this.showNotification('error', 'No alert information available');
+						return;
+					}
+					
+					// Use common function from shared mixin
+					await this.processUnsilenceAction(this.alertDetails.alert.fingerprint);
+				},
+
+				async copyAlertAsIssue() {
+					if (!this.alertDetails?.alert) {
+						this.showNotification('error', 'No alert data available');
+						return;
+					}
+
+					const alert = this.alertDetails.alert;
+					const comments = this.alertDetails.comments || [];
+					
+					const formatDate = (dateStr) => {
+						if (!dateStr) return 'N/A';
+						return new Date(dateStr).toLocaleString();
+					};
+					
+					const calculateDuration = (start, end) => {
+						if (!start) return 'N/A';
+						const startTime = new Date(start);
+						const endTime = end ? new Date(end) : new Date();
+						const diffMs = endTime - startTime;
+						
+						const hours = Math.floor(diffMs / (1000 * 60 * 60));
+						const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+						
+						if (hours > 0) {
+							return `${hours}h ${minutes}m`;
+						}
+						return `${minutes}m`;
+					};
+
+					// Build markdown content
+					let markdown = `# Alert: ${alert.alertname || alert.labels?.alertname || alert.alertName || 'Unknown'}\n\n`;
+					
+					// Summary section
+					if (alert.summary) {
+						markdown += `## Summary\n${alert.summary}\n\n`;
+					}
+
+					// Details section
+					markdown += `## Details\n`;
+					markdown += `- **Status**: ${(alert.status?.state || 'unknown').toUpperCase()}\n`;
+					markdown += `- **Severity**: ${(alert.severity || 'unknown').toUpperCase()}\n`;
+					if (alert.instance) {
+						markdown += `- **Instance**: ${alert.instance}\n`;
+					}
+					markdown += `- **Started**: ${formatDate(alert.startsAt)}\n`;
+					if (alert.endsAt) {
+						markdown += `- **Ended**: ${formatDate(alert.endsAt)}\n`;
+					}
+					markdown += `- **Duration**: ${calculateDuration(alert.startsAt, alert.endsAt)}\n\n`;
+
+					// Labels section
+					if (alert.labels && Object.keys(alert.labels).length > 0) {
+						markdown += `## Labels\n`;
+						Object.entries(alert.labels).forEach(([key, value]) => {
+							markdown += `- **${key}**: ${value}\n`;
+						});
+						markdown += '\n';
+					}
+
+					// Annotations section
+					if (alert.annotations && Object.keys(alert.annotations).length > 0) {
+						markdown += `## Annotations\n`;
+						Object.entries(alert.annotations).forEach(([key, value]) => {
+							markdown += `- **${key}**: ${value}\n`;
+						});
+						markdown += '\n';
+					}
+
+					// Comments section
+					if (comments.length > 0) {
+						markdown += `## Comments\n`;
+						comments.forEach(comment => {
+							const commentDate = formatDate(comment.createdAt);
+							markdown += `**${comment.username || comment.author}** (${commentDate}):\n`;
+							markdown += `${comment.content}\n\n`;
+						});
+					}
+
+					// Alert ID section
+					markdown += `## Alert ID\n`;
+					markdown += `\`${alert.fingerprint}\`\n`;
+
+					// Copy to clipboard
+					await this.copyToClipboard(markdown);
+					this.showNotification('success', 'Alert copied as issue template');
+				},
+
+				async copyToClipboard(text) {
+					if (navigator.clipboard) {
+						try {
+							await navigator.clipboard.writeText(text);
+							this.showNotification('success', 'Copied to clipboard');
+						} catch (err) {
+							this.showNotification('error', 'Failed to copy to clipboard');
+						}
+					} else {
+						// Fallback for older browsers
+						const textArea = document.createElement('textarea');
+						textArea.value = text;
+						document.body.appendChild(textArea);
+						textArea.select();
+						try {
+							document.execCommand('copy');
+							this.showNotification('success', 'Copied to clipboard');
+						} catch (err) {
+							this.showNotification('error', 'Failed to copy to clipboard');
+						}
+						document.body.removeChild(textArea);
+					}
+				},
+
+				showNotification(type, message) {
+					const notification = document.createElement('div');
+					notification.className = `mb-2 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+						type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200' :
+						type === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200' :
+						'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200'
+					}`;
+					notification.innerHTML = `
+						<div class="flex items-center justify-between">
+							<span>${message}</span>
+							<button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-sm opacity-70 hover:opacity-100">&times;</button>
+						</div>
+					`;
+
+					document.getElementById('notifications').appendChild(notification);
+
+					// Auto-remove after 5 seconds
+					setTimeout(() => {
+						if (notification.parentElement) {
+							notification.remove();
+						}
+					}, 5000);
+				},
+
+				async addComment() {
+					if (!this.newCommentContent.trim()) {
+						this.showNotification('warning', 'Please enter a comment');
+						return;
+					}
+
+					if (!this.alertDetails?.alert?.fingerprint) {
+						this.showNotification('error', 'Alert information not available');
+						return;
+					}
+
+					this.commentSubmitting = true;
+					
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments`, {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								content: this.newCommentContent.trim()
+							})
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', 'Comment added successfully');
+							this.newCommentContent = '';
+							// Refresh alert details to get new comment
+							await this.loadAlertDetails();
+						} else {
+							this.showNotification('error', 'Failed to add comment: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error adding comment:', error);
+						this.showNotification('error', 'Failed to add comment');
+					} finally {
+						this.commentSubmitting = false;
+					}
+				},
+
+				async deleteComment(commentId) {
+					if (!commentId || !this.alertDetails?.alert?.fingerprint) {
+						this.showNotification('error', 'Comment information not available');
+						return;
+					}
+
+					this.commentDeleting[commentId] = true;
+					
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments/${commentId}`, {
+							method: 'DELETE',
+							credentials: 'include'
+						});
+
+						const result = await response.json();
+						
+						if (result.success) {
+							this.showNotification('success', 'Comment deleted successfully');
+							// Refresh alert details
+							await this.loadAlertDetails();
+						} else {
+							this.showNotification('error', 'Failed to delete comment: ' + result.error);
+						}
+					} catch (error) {
+						console.error('Error deleting comment:', error);
+						this.showNotification('error', 'Failed to delete comment');
+					} finally {
+						delete this.commentDeleting[commentId];
+					}
+				},
+
+				// Method that shared functions can call to refresh data
+				async loadDashboardData() {
+					// In standalone mode, we refresh the alert details instead of full dashboard
+					return this.loadAlertDetails();
+				},
+
+				// Stub method that shared functions might call
+				clearSelection() {
+					// No-op in standalone mode since we don't have selections
+					this.selectedAlerts = [];
+					this.selectedGroups = [];
+				}
+			}
+		}
+	</script>
+}

@@ -1,0 +1,412 @@
+package scripts
+
+// Common alert actions script shared between dashboard and standalone alert page
+templ AlertActionsCommon() {
+	<script>
+		window.alertActionsCommonMixin = {
+			// Modal state variables
+			showAckModal: false,
+			ackAction: 'single', // 'single', 'bulk', or 'group'
+			ackReason: '',
+			ackError: '',
+			ackSubmitting: false,
+			currentAckAlert: null,
+			currentGroupName: '',
+			
+			showSilenceModal: false,
+			silenceAction: 'single', // 'single', 'bulk', or 'group'
+			silenceReason: '',
+			silenceError: '',
+			silenceSubmitting: false,
+			currentSilenceAlert: null,
+			silenceDuration: '1h',
+			silenceDurationType: 'preset', // 'preset' or 'custom'
+			customSilenceDuration: '',
+			customDurationError: '',
+
+			// Acknowledge Modal Functions
+			cancelAcknowledgment() {
+				this.showAckModal = false;
+				this.ackReason = '';
+				this.ackError = '';
+				this.ackSubmitting = false;
+				this.currentAckAlert = null;
+				this.currentGroupName = '';
+			},
+			
+			async submitAcknowledgment() {
+				if (!this.ackReason.trim()) {
+					this.ackError = 'Please provide a reason for the acknowledgment';
+					return;
+				}
+				
+				this.ackSubmitting = true;
+				this.ackError = '';
+				
+				try {
+					let request;
+					let successMessage;
+					
+					switch (this.ackAction) {
+						case 'single':
+							request = {
+								alertFingerprints: [this.currentAckAlert.fingerprint],
+								groupNames: [],
+								action: 'acknowledge',
+								comment: this.ackReason
+							};
+							successMessage = 'Alert acknowledged successfully';
+							break;
+							
+						case 'group':
+							request = {
+								alertFingerprints: [],
+								groupNames: [this.currentGroupName],
+								action: 'acknowledge',
+								comment: this.ackReason
+							};
+							successMessage = `Group "${this.currentGroupName}" acknowledged successfully`;
+							break;
+							
+						case 'bulk':
+							request = {
+								alertFingerprints: this.selectedAlerts || [],
+								groupNames: this.selectedGroups || [],
+								action: 'acknowledge',
+								comment: this.ackReason
+							};
+							const totalCount = (this.selectedAlerts?.length || 0) + (this.selectedGroups?.length || 0);
+							successMessage = `${totalCount} items acknowledged successfully`;
+							break;
+							
+						default:
+							this.ackError = 'Invalid acknowledgment action';
+							this.ackSubmitting = false;
+							return;
+					}
+					
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', successMessage);
+						this.showAckModal = false;
+						
+						// Clear selection if bulk action (only if method exists)
+						if (this.ackAction === 'bulk' && typeof this.clearSelection === 'function') {
+							this.clearSelection();
+						}
+						
+						// Refresh data - use appropriate method based on context
+						if (typeof this.loadDashboardData === 'function') {
+							this.loadDashboardData(); // Dashboard context
+						} else if (typeof this.loadAlertDetails === 'function') {
+							this.loadAlertDetails(); // Standalone page context
+						}
+					} else {
+						this.ackError = result.error || 'Failed to acknowledge';
+					}
+				} catch (error) {
+					console.error('Error submitting acknowledgment:', error);
+					this.ackError = 'Network error: Failed to submit acknowledgment';
+				} finally {
+					this.ackSubmitting = false;
+				}
+			},
+
+			// Silence Modal Functions
+			cancelSilence() {
+				this.showSilenceModal = false;
+				this.silenceReason = '';
+				this.silenceError = '';
+				this.silenceSubmitting = false;
+				this.currentSilenceAlert = null;
+				this.currentGroupName = '';
+				this.silenceDuration = '1h';
+				this.silenceDurationType = 'preset';
+				this.customSilenceDuration = '';
+				this.customDurationError = '';
+			},
+
+			
+			async submitSilence() {
+				if (!this.silenceReason.trim()) {
+					this.silenceError = 'Please provide a reason for the silence';
+					return;
+				}
+				
+				if (this.silenceDurationType === 'custom') {
+					if (!this.validateCustomDuration()) {
+						return;
+					}
+				}
+				
+				this.silenceSubmitting = true;
+				this.silenceError = '';
+				
+				try {
+					let request;
+					let successMessage;
+					
+					const durationFields = {};
+					if (this.silenceDurationType === 'custom') {
+						durationFields.silenceDurationType = 'custom';
+						durationFields.customSilenceDuration = this.customSilenceDuration.trim();
+					} else {
+						durationFields.silenceDuration = this.parseDurationToSeconds(this.silenceDuration) * 1000000000;
+						durationFields.silenceDurationType = 'preset';
+					}
+					
+					switch (this.silenceAction) {
+						case 'single':
+							request = {
+								alertFingerprints: [this.currentSilenceAlert.fingerprint],
+								groupNames: [],
+								action: 'silence',
+								comment: this.silenceReason,
+								...durationFields
+							};
+							successMessage = 'Alert silenced successfully';
+							break;
+							
+						case 'group':
+							request = {
+								alertFingerprints: [],
+								groupNames: [this.currentGroupName],
+								action: 'silence',
+								comment: this.silenceReason,
+								...durationFields
+							};
+							successMessage = `Group "${this.currentGroupName}" silenced successfully`;
+							break;
+							
+						case 'bulk':
+							request = {
+								alertFingerprints: this.selectedAlerts || [],
+								groupNames: this.selectedGroups || [],
+								action: 'silence',
+								comment: this.silenceReason,
+								...durationFields
+							};
+							const totalCount = (this.selectedAlerts?.length || 0) + (this.selectedGroups?.length || 0);
+							successMessage = `${totalCount} items silenced successfully`;
+							break;
+							
+						default:
+							this.silenceError = 'Invalid silence action';
+							this.silenceSubmitting = false;
+							return;
+					}
+					
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', successMessage);
+						this.showSilenceModal = false;
+						
+						// Clear selection if bulk action (only if method exists)
+						if (this.silenceAction === 'bulk' && typeof this.clearSelection === 'function') {
+							this.clearSelection();
+						}
+						
+						// Refresh data - use appropriate method based on context
+						if (typeof this.loadDashboardData === 'function') {
+							this.loadDashboardData(); // Dashboard context
+						} else if (typeof this.loadAlertDetails === 'function') {
+							this.loadAlertDetails(); // Standalone page context
+						}
+					} else {
+						this.silenceError = result.error || 'Failed to silence';
+					}
+				} catch (error) {
+					console.error('Error submitting silence:', error);
+					this.silenceError = 'Network error: Failed to submit silence';
+				} finally {
+					this.silenceSubmitting = false;
+				}
+			},
+
+			// Common unsilence action (for direct unsilence without modal)
+			async processUnsilenceAction(fingerprint) {
+				try {
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							action: 'unsilence',
+							fingerprints: [fingerprint],
+							comment: 'Unsilenced from alert details'
+						})
+					});
+
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert unsilenced successfully');
+						
+						// Refresh data based on context
+						if (typeof this.loadDashboardData === 'function') {
+							this.loadDashboardData();
+						} else if (typeof this.loadAlertDetails === 'function') {
+							this.loadAlertDetails();
+						}
+					} else {
+						this.showNotification('error', 'Failed to unsilence alert: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error unsilencing alert:', error);
+					this.showNotification('error', 'Failed to unsilence alert');
+				}
+			},
+
+			// Common unacknowledge action
+			async processUnacknowledgeAction(fingerprint) {
+				try {
+					const request = {
+						alertFingerprints: [fingerprint],
+						action: 'unacknowledge',
+						comment: 'Unacknowledged from alert details'
+					};
+					
+					const response = await fetch('/api/v1/dashboard/bulk-action', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(request)
+					});
+					
+					const result = await response.json();
+					
+					if (result.success) {
+						this.showNotification('success', 'Alert unacknowledged successfully');
+						
+						// Refresh data based on context
+						if (typeof this.loadDashboardData === 'function') {
+							this.loadDashboardData();
+						} else if (typeof this.loadAlertDetails === 'function') {
+							this.loadAlertDetails();
+						}
+					} else {
+						this.showNotification('error', 'Failed to unacknowledge alert: ' + result.error);
+					}
+				} catch (error) {
+					console.error('Error unacknowledging alert:', error);
+					this.showNotification('error', 'Failed to unacknowledge alert');
+				}
+			},
+
+			// Duration parsing functions (copied from dashboard_actions.templ)
+			parseDurationToSeconds(duration) {
+				if (!duration) return 0;
+				
+				if (duration.match(/^\d+[hd]$/)) {
+					const value = parseInt(duration.slice(0, -1));
+					const unit = duration.slice(-1);
+					
+					switch (unit) {
+						case 'h':
+							return value * 3600;
+						case 'd':
+							return value * 86400;
+						default:
+							return value * 3600;
+					}
+				}
+				
+				return this.parseComplexDurationToSeconds(duration);
+			},
+			
+			parseComplexDurationToSeconds(duration) {
+				if (!duration) return 0;
+				
+				let totalSeconds = 0;
+				const units = {
+					'ns': 0.000000001,
+					'µs': 0.000001,
+					'us': 0.000001,
+					'ms': 0.001,
+					's': 1,
+					'm': 60,
+					'h': 3600
+				};
+				
+				const regex = /(\d+(?:\.\d+)?)(ns|µs|us|ms|s|m|h)/g;
+				let match;
+				
+				while ((match = regex.exec(duration)) !== null) {
+					const value = parseFloat(match[1]);
+					const unit = match[2];
+					
+					if (units[unit]) {
+						totalSeconds += value * units[unit];
+					}
+				}
+				
+				return Math.round(totalSeconds);
+			},
+			
+			validateCustomDuration() {
+				if (this.silenceDurationType !== 'custom' || !this.customSilenceDuration) {
+					this.customDurationError = '';
+					return true;
+				}
+				
+				const duration = this.customSilenceDuration.trim();
+				
+				if (!duration) {
+					this.customDurationError = 'Duration cannot be empty';
+					return false;
+				}
+				
+				const validFormat = /^(\d+(?:\.\d+)?)(ns|µs|us|ms|s|m|h)(\d+(?:\.\d+)?(ns|µs|us|ms|s|m|h))*$/;
+				if (!validFormat.test(duration)) {
+					this.customDurationError = 'Invalid format. Use combinations like 1h30m, 2h15m30s';
+					return false;
+				}
+				
+				const totalSeconds = this.parseComplexDurationToSeconds(duration);
+				
+				if (totalSeconds <= 0) {
+					this.customDurationError = 'Duration must be positive';
+					return false;
+				}
+				
+				if (totalSeconds < 1) {
+					this.customDurationError = 'Duration must be at least 1 second';
+					return false;
+				}
+				
+				const maxSeconds = 30 * 24 * 3600;
+				if (totalSeconds > maxSeconds) {
+					this.customDurationError = 'Duration cannot exceed 30 days';
+					return false;
+				}
+				
+				this.customDurationError = '';
+				return true;
+			}
+		};
+	</script>
+}

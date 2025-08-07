@@ -122,6 +122,7 @@ templ DashboardCore() {
 				},
 
 				init() {
+					Object.assign(this, window.alertActionsCommonMixin || {});
 					Object.assign(this, window.dashboardDataMixin || {});
 					Object.assign(this, window.dashboardActionsMixin || {});
 					Object.assign(this, window.dashboardNotificationsMixin || {});

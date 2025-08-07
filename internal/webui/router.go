@@ -224,6 +224,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	{
 		protectedPages.GET("/dashboard", handlers.DashboardPage)
 		protectedPages.GET("/dashboard/alert/:id", handlers.DashboardPage) // Show dashboard with modal
+		protectedPages.GET("/alert/:id", handlers.StandaloneAlertPage) // Standalone alert page
 		protectedPages.GET("/profile", handlers.ProfilePage)
 	}
 

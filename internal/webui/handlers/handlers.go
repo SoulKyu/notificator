@@ -418,6 +418,11 @@ func DashboardPage(c *gin.Context) {
 	pages.NewDashboard().Render(context.Background(), c.Writer)
 }
 
+func StandaloneAlertPage(c *gin.Context) {
+	c.Header("Content-Type", "text/html")
+	pages.AlertDetailsStandalone().Render(context.Background(), c.Writer)
+}
+
 func generateFingerprint(labels map[string]string) string {
 	fingerprint := ""
 	for key, value := range labels {
