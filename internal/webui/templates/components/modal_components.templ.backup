@@ -639,7 +639,7 @@ templ AcknowledgmentModal() {
 
 // Alert Details Modal Component
 templ AlertDetailsModal() {
-	<!-- Alert Details Modal Dialog -->
+	<!-- Alert Details Modal Dialog - Simplified to load standalone content -->
 	<div x-show="showAlertModal" 
 		 x-transition:enter="ease-out duration-300"
 		 x-transition:enter-start="opacity-0"
@@ -653,14 +653,13 @@ templ AlertDetailsModal() {
 		 aria-modal="true"
 		 style="display: none;">
 		
-		<!-- Background backdrop with modern blur effect -->
-		<div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300"></div>
+		<!-- Background backdrop -->
+		<div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300" @click="closeAlertModal()"></div>
 		
 		<!-- Modal container -->
 		<div class="fixed inset-0 z-50 overflow-y-auto">
 			<div class="flex min-h-full items-center justify-center p-2 sm:p-4">
-				
-				<!-- Modal panel with modern design -->
+				<!-- Modal panel -->
 				<div x-transition:enter="ease-out duration-300"
 					 x-transition:enter-start="opacity-0 translate-y-8 scale-95"
 					 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
@@ -670,8 +669,31 @@ templ AlertDetailsModal() {
 					 @click.away="closeAlertModal()"
 					 class="relative transform rounded-2xl bg-white dark:bg-dark-bg-secondary shadow-2xl transition-all w-full max-w-7xl max-h-[95vh] overflow-hidden border border-gray-200/50 dark:border-dark-border-subtle/50">
 					
-					<!-- Modern Loading state -->
-					<div x-show="loading" class="flex flex-col items-center justify-center p-16 space-y-4">
+					<!-- Modal header with close button -->
+					<div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border-subtle">
+						<h2 class="text-lg font-semibold text-gray-900 dark:text-white">Alert Details</h2>
+						<div class="flex items-center space-x-2">
+							<!-- Open in new tab button -->
+							<button x-show="currentAlertFingerprint" 
+									@click="window.open(`/alert/${currentAlertFingerprint}`, '_blank')"
+									class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+									title="Open in new tab">
+								<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+								</svg>
+							</button>
+							<!-- Close button -->
+							<button @click="closeAlertModal()" 
+									class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+								<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+								</svg>
+							</button>
+						</div>
+					</div>
+					
+					<!-- Loading state -->
+					<div x-show="alertDetailsLoading" class="flex flex-col items-center justify-center p-16 space-y-4">
 						<div class="relative">
 							<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 dark:border-blue-900"></div>
 							<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
@@ -682,11 +704,47 @@ templ AlertDetailsModal() {
 						</div>
 					</div>
 					
-					<!-- Injected content container for standalone alert pages -->
-					<div id="modal-alert-content" class="flex flex-col h-full" x-show="!loading && currentAlertFingerprint"></div>
+					<!-- Content container - will be populated with standalone page HTML -->
+					<div x-show="!alertDetailsLoading" 
+						 id="modal-alert-content" 
+						 class="overflow-y-auto max-h-[85vh]">
+						<!-- Standalone page content will be loaded here -->
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// Silence Modal Component
+templ SilenceModal() {
+	<!-- Silence Dialog -->
+	<div x-show="showSilenceModal" 
+		 x-transition:enter="ease-out duration-300" 
+		 x-transition:enter-start="opacity-0" 
+		 x-transition:enter-end="opacity-100"
+		 x-transition:leave="ease-in duration-200" 
+		 x-transition:leave-start="opacity-100" 
+		 x-transition:leave-end="opacity-0"
+		 class="fixed inset-0 z-60 overflow-y-auto" 
+		 @click.away="showSilenceModal = false"
+		 style="display: none;">
+		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+			<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+						<div class="relative">
+							<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 dark:border-blue-900"></div>
+							<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+						</div>
+						<div class="text-center">
+							<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">Loading Alert Details</h3>
+							<p class="text-sm text-gray-600 dark:text-gray-400">Please wait while we fetch the alert information...</p>
+						</div>
+					</div>
 					
-					<!-- Alert content (only show when alertDetails exists and not using injected content) -->
-					<div x-show="alertDetails && !currentAlertFingerprint" class="flex flex-col h-full">
+					<!-- Alert content (only show when alertDetails exists) -->
+					<div x-show="alertDetails" class="flex flex-col h-full">
 						<!-- Modern Header with gradient background -->
 						<div class="relative bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
 							<!-- Action buttons - positioned absolutely for modern look -->
@@ -875,17 +933,6 @@ templ AlertDetailsModal() {
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2V8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
 													</svg>
 													Copy as Issue
-												</button>
-												
-												<!-- Copy Alert Link Button -->
-												<button @click="copyAlertLink()" 
-														x-show="alertDetails?.alert"
-														class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-indigo-600/25 transition-all duration-200 hover:shadow-indigo-600/40 hover:scale-105">
-													<!-- Heroicon: link -->
-													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-													</svg>
-													Copy Alert Link
 												</button>
 											</div>
 										</div>

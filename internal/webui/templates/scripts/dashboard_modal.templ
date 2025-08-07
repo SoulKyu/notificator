@@ -5,9 +5,15 @@ templ DashboardModal() {
 		window.dashboardModalMixin = {
 			async showAlertDetails(fingerprint) {
 				this.alertDetailsLoading = true;
+				this.loading = true; // Sync loading state for injected content
 				this.showAlertModal = true;
-				this.currentAlertTab = 'overview';
-				this.alertDetails = null;
+				this.currentAlertFingerprint = fingerprint;
+				
+				// Initialize variables needed by injected content
+				this.alertId = fingerprint;
+				this.error = null;
+				this.currentTab = 'overview';
+				this.alertDetails = null; // Clear previous data
 
 				const currentPath = window.location.pathname;
 				const newPath = `/dashboard/alert/${fingerprint}`;
@@ -16,342 +22,170 @@ templ DashboardModal() {
 				}
 
 				try {
-					const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}`, {
-						credentials: 'include'
+					// Fetch the standalone alert page HTML content
+					console.log(`Fetching alert content from: /alert/${fingerprint}`);
+					const response = await fetch(`/alert/${fingerprint}`, {
+						credentials: 'include',
+						headers: {
+							'Accept': 'text/html',
+							'Cache-Control': 'no-cache'
+						}
 					});
-					const result = await response.json();
 					
-					if (result.success) {
-						this.alertDetails = result.data;
+					console.log(`Response status: ${response.status}, headers:`, response.headers);
+					
+					if (response.ok) {
+						const htmlContent = await response.text();
+						console.log('Fetched HTML content length:', htmlContent.length);
+						console.log('HTML content preview:', htmlContent.substring(0, 500));
+						
+						// Parse the HTML and extract the content we need
+						const tempDiv = document.createElement('div');
+						tempDiv.innerHTML = htmlContent;
+						
+						console.log('Parsed DOM structure:', tempDiv);
+						
+						// Try multiple selectors to find the Alpine.js content
+						let mainContent = null;
+						
+						// Try exact match first
+						mainContent = tempDiv.querySelector('[x-data="alertDetailsStandalone()"]');
+						console.log('Exact match result:', mainContent);
+						
+						// Try contains match if exact fails
+						if (!mainContent) {
+							mainContent = tempDiv.querySelector('[x-data*="alertDetailsStandalone"]');
+							console.log('Contains match result:', mainContent);
+						}
+						
+						// Try finding by class if selector fails
+						if (!mainContent) {
+							mainContent = tempDiv.querySelector('.min-h-screen');
+							console.log('Class-based match result:', mainContent);
+						}
+						
+						if (mainContent) {
+							console.log('Found main content element:', mainContent);
+							console.log('Element attributes:', mainContent.attributes);
+							
+							// Clone the content and remove navigation elements that don't belong in modal
+							const contentClone = mainContent.cloneNode(true);
+							
+							// Remove the header section with navigation buttons
+							const header = contentClone.querySelector('header');
+							if (header) {
+								header.remove();
+								console.log('Removed header navigation from modal content');
+							}
+							
+							// Get the cleaned inner content
+							const innerContent = contentClone.innerHTML;
+							console.log('Extracted inner content length:', innerContent.length);
+							console.log('Inner content preview:', innerContent.substring(0, 300));
+							
+							// Insert the content into the modal
+							const modalContent = document.getElementById('modal-alert-content');
+							console.log('Modal content container:', modalContent);
+							
+							if (modalContent) {
+								modalContent.innerHTML = innerContent;
+								console.log('Content injected into modal');
+								
+								// Load alert data for the injected content
+								await this.loadAlertDataForModal(fingerprint);
+								
+								// Reinitialize Alpine.js for the new content
+								if (window.Alpine) {
+									console.log('Reinitializing Alpine.js for modal content');
+									window.Alpine.initTree(modalContent);
+								} else {
+									console.warn('Alpine.js not available');
+								}
+							} else {
+								console.error('Modal content container not found');
+								this.error = 'Modal container not found';
+								this.showNotification('error', this.error);
+								this.closeAlertModal();
+							}
+						} else {
+							console.error('Could not find alert content in fetched HTML');
+							console.log('Available elements with x-data:', tempDiv.querySelectorAll('[x-data]'));
+							this.error = 'Failed to parse alert content';
+							this.showNotification('error', this.error);
+							this.closeAlertModal();
+						}
 					} else {
-						this.showNotification('error', 'Failed to load alert details: ' + result.error);
+						// Check if it's a redirect to login
+						if (response.status === 302 || response.url?.includes('/login')) {
+							this.error = 'Authentication required. Please refresh the page and try again.';
+						} else {
+							this.error = `Failed to load alert details: HTTP ${response.status}`;
+						}
+						console.error('Failed to fetch alert content:', response.status, response.statusText);
+						this.showNotification('error', this.error);
 						this.closeAlertModal();
 					}
 				} catch (error) {
 					console.error('Error loading alert details:', error);
-					this.showNotification('error', 'Failed to load alert details');
+					this.error = 'Failed to load alert details';
+					this.showNotification('error', this.error);
 					this.closeAlertModal();
 				} finally {
 					this.alertDetailsLoading = false;
+					this.loading = false; // Sync loading state for injected content
 				}
 			},
 
 			closeAlertModal() {
 				this.showAlertModal = false;
-				this.alertDetails = null;
-				this.currentAlertTab = 'overview';
+				this.currentAlertFingerprint = null;
 				
-				this.newCommentContent = '';
-				this.commentSubmitting = false;
-				this.commentDeleting = {};
+				// Clear variables used by injected content
+				this.alertId = null;
+				this.error = null;
+				this.currentTab = 'overview';
+				this.loading = false;
+				this.alertDetails = null;
+				
+				// Clear the modal content
+				const modalContent = document.getElementById('modal-alert-content');
+				if (modalContent) {
+					modalContent.innerHTML = '';
+				}
 				
 				if (window.location.pathname.includes('/alert/')) {
 					window.history.pushState({}, '', '/dashboard');
 				}
 			},
 
-			acknowledgeCurrentAlert() {
-				if (this.alertDetails?.alert) {
-					this.currentAckAlert = this.alertDetails.alert;
-					this.ackAction = 'single';
-					this.ackReason = '';
-					this.ackError = '';
-					this.showAckModal = true;
-				}
-			},
-
-			silenceCurrentAlert() {
-				if (this.alertDetails?.alert) {
-					this.currentSilenceAlert = this.alertDetails.alert;
-					this.silenceAction = 'single';
-					this.silenceReason = '';
-					this.silenceError = '';
-					this.silenceDuration = '1h';
-					this.silenceDurationType = 'preset';
-					this.customSilenceDuration = '';
-					this.customDurationError = '';
-					this.showSilenceModal = true;
-				}
-			},
-
-			unsilenceCurrentAlert() {
-				if (this.alertDetails?.alert) {
-					this.processUnsilenceAction(this.alertDetails.alert.fingerprint);
-				}
-			},
-
-			async processUnsilenceAction(fingerprint) {
-				try {
-					const response = await fetch('/api/v1/dashboard/bulk-action', {
-						method: 'POST',
-						credentials: 'include',
-						headers: {
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify({
-							action: 'unsilence',
-							fingerprints: [fingerprint],
-							comment: 'Unsilenced from alert details'
-						})
-					});
-
-					const result = await response.json();
-					
-					if (result.success) {
-						this.showNotification('success', 'Alert unsilenced successfully');
-						// Refresh alert details to show updated state
-						if (this.alertDetails?.alert?.fingerprint) {
-							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
-						}
-					} else {
-						this.showNotification('error', 'Failed to unsilence alert: ' + (result.error || 'Unknown error'));
-					}
-				} catch (error) {
-					console.error('Error unsilencing alert:', error);
-					this.showNotification('error', 'Failed to unsilence alert');
-				}
-			},
-
-			isAlertSilenced(alert) {
-				if (!alert) return false;
-				return alert.status?.state === 'suppressed' || 
-					   alert.status?.state === 'silenced' || 
-					   (alert.status?.silencedBy && alert.status.silencedBy.length > 0);
-			},
-
-			getSilenceButtonText(alert) {
-				if (!alert) return 'Unsilence';
-				const silenceCount = alert.status?.silencedBy?.length || 0;
-				return silenceCount > 1 ? `Unsilence (${silenceCount})` : 'Unsilence';
-			},
-
-			// Comment Management Functions
-			async addComment() {
-				if (!this.newCommentContent.trim()) {
-					this.showNotification('warning', 'Please enter a comment');
-					return;
-				}
-
-				if (!this.alertDetails?.alert?.fingerprint) {
-					this.showNotification('error', 'Alert information not available');
-					return;
-				}
-
-				this.commentSubmitting = true;
+			// Load alert data via API for injected modal content
+			async loadAlertDataForModal(fingerprint) {
+				console.log(`Loading alert data for modal: ${fingerprint}`);
 				
 				try {
-					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments`, {
-						method: 'POST',
-						credentials: 'include',
-						headers: {
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify({
-							content: this.newCommentContent.trim()
-						})
-					});
-
-					const result = await response.json();
-					
-					if (result.success) {
-						this.showNotification('success', 'Comment added successfully');
-						this.newCommentContent = '';
-						
-						// Refresh alert details to show the new comment
-						await this.refreshComments();
-					} else {
-						this.showNotification('error', 'Failed to add comment: ' + result.error);
-					}
-				} catch (error) {
-					console.error('Error adding comment:', error);
-					this.showNotification('error', 'Failed to add comment');
-				} finally {
-					this.commentSubmitting = false;
-				}
-			},
-
-			async deleteComment(commentId) {
-				if (!commentId || !this.alertDetails?.alert?.fingerprint) {
-					this.showNotification('error', 'Comment information not available');
-					return;
-				}
-
-				this.commentDeleting[commentId] = true;
-				
-				try {
-					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/comments/${commentId}`, {
-						method: 'DELETE',
+					const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}`, {
 						credentials: 'include'
 					});
-
+					
 					const result = await response.json();
+					console.log('Alert data API response:', result);
 					
 					if (result.success) {
-						this.showNotification('success', 'Comment deleted successfully');
-						
-						// Refresh alert details to remove the deleted comment
-						await this.refreshComments();
+						this.alertDetails = result.data;
+						console.log('Set alertDetails for injected content:', this.alertDetails);
 					} else {
-						this.showNotification('error', 'Failed to delete comment: ' + result.error);
+						console.error('Failed to load alert data:', result.error);
+						this.error = result.error || 'Failed to load alert data';
 					}
 				} catch (error) {
-					console.error('Error deleting comment:', error);
-					this.showNotification('error', 'Failed to delete comment');
-				} finally {
-					// Remove deleting state for this comment
-					delete this.commentDeleting[commentId];
+					console.error('Error loading alert data for modal:', error);
+					this.error = 'Network error loading alert data';
 				}
 			},
 
-			async refreshComments() {
-				if (!this.alertDetails?.alert?.fingerprint) {
-					return;
-				}
-
-				try {
-					const response = await fetch(`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}`, {
-						credentials: 'include'
-					});
-					const result = await response.json();
-					
-					if (result.success) {
-						// Update only the comments and maintain other alert details
-						this.alertDetails.comments = result.data.comments || [];
-						// Update comment count in alert object if it exists
-						if (this.alertDetails.alert) {
-							this.alertDetails.alert.commentCount = this.alertDetails.comments.length;
-						}
-					}
-				} catch (error) {
-					console.error('Error refreshing comments:', error);
-				}
-			},
-
-			copyAlertAsIssue() {
-				if (!this.alertDetails?.alert) {
-					this.showNotification('error', 'No alert data available');
-					return;
-				}
-
-				const alert = this.alertDetails.alert;
-				const comments = this.alertDetails.comments || [];
-				
-				const formatDate = (dateStr) => {
-					if (!dateStr) return 'N/A';
-					return new Date(dateStr).toLocaleString();
-				};
-				
-				const calculateDuration = (start, end) => {
-					if (!start) return 'N/A';
-					const startTime = new Date(start);
-					const endTime = end ? new Date(end) : new Date();
-					const diffMs = endTime - startTime;
-					
-					const hours = Math.floor(diffMs / (1000 * 60 * 60));
-					const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-					
-					if (hours > 0) {
-						return `${hours}h ${minutes}m`;
-					}
-					return `${minutes}m`;
-				};
-
-				// Build markdown content
-				let markdown = `# Alert: ${alert.alertname || alert.labels?.alertname || 'Unknown'}\n\n`;
-				
-				// Summary section
-				if (alert.summary) {
-					markdown += `## Summary\n${alert.summary}\n\n`;
-				}
-
-				// Details section
-				markdown += `## Details\n`;
-				markdown += `- **Status**: ${(alert.status?.state || 'unknown').toUpperCase()}\n`;
-				markdown += `- **Severity**: ${(alert.severity || 'unknown').toUpperCase()}\n`;
-				if (alert.instance) {
-					markdown += `- **Instance**: ${alert.instance}\n`;
-				}
-				markdown += `- **Started**: ${formatDate(alert.startsAt)}\n`;
-				if (alert.endsAt) {
-					markdown += `- **Ended**: ${formatDate(alert.endsAt)}\n`;
-				}
-				markdown += `- **Duration**: ${calculateDuration(alert.startsAt, alert.endsAt)}\n\n`;
-
-				// Labels section
-				if (alert.labels && Object.keys(alert.labels).length > 0) {
-					markdown += `## Labels\n`;
-					Object.entries(alert.labels).forEach(([key, value]) => {
-						markdown += `- **${key}**: ${value}\n`;
-					});
-					markdown += '\n';
-				}
-
-				// Annotations section
-				if (alert.annotations && Object.keys(alert.annotations).length > 0) {
-					markdown += `## Annotations\n`;
-					Object.entries(alert.annotations).forEach(([key, value]) => {
-						markdown += `- **${key}**: ${value}\n`;
-					});
-					markdown += '\n';
-				}
-
-				// Comments section
-				if (comments.length > 0) {
-					markdown += `## Comments\n`;
-					comments.forEach(comment => {
-						const commentDate = formatDate(comment.createdAt);
-						markdown += `**${comment.username}** (${commentDate}):\n`;
-						markdown += `${comment.content}\n\n`;
-					});
-				}
-
-				// Alert ID section
-				markdown += `## Alert ID\n`;
-				markdown += `\`${alert.fingerprint}\`\n`;
-
-				// Copy to clipboard
-				this.copyToClipboard(markdown);
-				this.showNotification('success', 'Alert copied as issue template');
-			},
-
-			async unacknowledgeCurrentAlert() {
-				if (!this.alertDetails?.alert?.fingerprint) {
-					this.showNotification('error', 'No alert information available');
-					return;
-				}
-				
-				try {
-					const request = {
-						alertFingerprints: [this.alertDetails.alert.fingerprint],
-						action: 'unacknowledge',
-						comment: 'Unacknowledged from alert details'
-					};
-
-					const response = await fetch('/api/v1/dashboard/bulk-action', {
-						method: 'POST',
-						credentials: 'include',
-						headers: {
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify(request)
-					});
-
-					const result = await response.json();
-					
-					if (result.success) {
-						this.showNotification('success', 'Alert unacknowledged successfully');
-						// Refresh alert details to show updated state
-						if (this.alertDetails?.alert?.fingerprint) {
-							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
-						}
-					} else {
-						this.showNotification('error', 'Failed to unacknowledge alert: ' + (result.error || 'Unknown error'));
-					}
-				} catch (error) {
-					console.error('Error unacknowledging alert:', error);
-					this.showNotification('error', 'Failed to unacknowledge alert');
-				}
-			}
+			// NOTE: All alert action functions (acknowledge, silence, comments, etc.) are now handled
+			// by the standalone alert page that gets loaded into this modal. This provides a single
+			// source of truth and eliminates code duplication.
 		};
 	</script>
 }

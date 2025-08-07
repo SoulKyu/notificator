@@ -243,6 +243,58 @@ templ AlertActionsCommon() {
 				}
 			},
 
+			getSilenceButtonText(alert) {
+				if (!alert) return 'Unsilence';
+				if (alert.status?.state === 'suppressed' || alert.status?.state === 'silenced') {
+					return 'Unsilence';
+				}
+				return 'Silence';
+			},
+
+			async copyAlertLink() {
+				if (!this.alertDetails?.alert?.fingerprint) {
+					this.showNotification('error', 'Alert information not available');
+					return;
+				}
+
+				// Build the alert URL
+				const baseUrl = window.location.origin;
+				const alertUrl = `${baseUrl}/alert/${this.alertDetails.alert.fingerprint}`;
+
+				// Copy to clipboard
+				await this.copyToClipboard(alertUrl);
+				this.showNotification('success', 'Alert link copied to clipboard');
+			},
+
+			async loadAlertDetails() {
+				if (!this.alertId) {
+					this.error = 'No alert ID provided';
+					this.loading = false;
+					return;
+				}
+
+				this.loading = true;
+				this.error = null;
+
+				try {
+					const response = await fetch(`/api/v1/dashboard/alert/${this.alertId}`, {
+						credentials: 'include'
+					});
+					const result = await response.json();
+					
+					if (result.success) {
+						this.alertDetails = result.data;
+					} else {
+						this.error = result.error || 'Failed to load alert details';
+					}
+				} catch (error) {
+					console.error('Error loading alert details:', error);
+					this.error = 'Network error: Failed to load alert details';
+				} finally {
+					this.loading = false;
+				}
+			},
+
 			// Common unsilence action (for direct unsilence without modal)
 			async processUnsilenceAction(fingerprint) {
 				try {
