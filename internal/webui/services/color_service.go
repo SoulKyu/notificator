@@ -33,8 +33,8 @@ type ColorMatch struct {
 	Color              string    `json:"color"`
 	ColorType          string    `json:"colorType"`
 	Priority           int       `json:"priority"`
-	BgLightnessFactor  float64   `json:"bgLightnessFactor"`
-	TextDarknessFactor float64   `json:"textDarknessFactor"`
+	BgLightnessFactor  float32   `json:"bgLightnessFactor"`
+	TextDarknessFactor float32   `json:"textDarknessFactor"`
 	CreatedAt          time.Time `json:"createdAt"`
 }
 
@@ -137,8 +137,8 @@ func (cs *ColorService) getUserColorCache(sessionID string) (*ColorPreferenceCac
 			Color:              pref.Color,
 			ColorType:          pref.ColorType,
 			Priority:           int(pref.Priority),
-			BgLightnessFactor:  float64(pref.BgLightnessFactor),
-			TextDarknessFactor: float64(pref.TextDarknessFactor),
+			BgLightnessFactor:  float32(pref.BgLightnessFactor),
+			TextDarknessFactor: float32(pref.TextDarknessFactor),
 			CreatedAt:          pref.CreatedAt.AsTime(),
 			UpdatedAt:          pref.UpdatedAt.AsTime(),
 		}
@@ -341,11 +341,11 @@ func (cs *ColorService) applyCustomColor(match *ColorMatch, alert *models.Alert)
 	}
 }
 
-func (cs *ColorService) lightenColor(hexColor string, factor float64) string {
+func (cs *ColorService) lightenColor(hexColor string, factor float32) string {
 	return hexColor + fmt.Sprintf("%02x", int(255*(1-factor)))
 }
 
-func (cs *ColorService) darkenColor(hexColor string, factor float64) string {
+func (cs *ColorService) darkenColor(hexColor string, factor float32) string {
 	if !strings.HasPrefix(hexColor, "#") || len(hexColor) != 7 {
 		return hexColor
 	}
@@ -362,9 +362,9 @@ func (cs *ColorService) darkenColor(hexColor string, factor float64) string {
 		return hexColor
 	}
 
-	r = int64(float64(r) * (1 - factor))
-	g = int64(float64(g) * (1 - factor))
-	b = int64(float64(b) * (1 - factor))
+	r = int64(float32(r) * (1 - factor))
+	g = int64(float32(g) * (1 - factor))
+	b = int64(float32(b) * (1 - factor))
 
 	if r < 0 {
 		r = 0

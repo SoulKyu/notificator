@@ -38,6 +38,17 @@ service AlertService {
   // User Notification Preferences
   rpc GetUserNotificationPreferences(GetUserNotificationPreferencesRequest) returns (GetUserNotificationPreferencesResponse);
   rpc SaveUserNotificationPreferences(SaveUserNotificationPreferencesRequest) returns (SaveUserNotificationPreferencesResponse);
+  
+  // User Hidden Alerts
+  rpc GetUserHiddenAlerts(GetUserHiddenAlertsRequest) returns (GetUserHiddenAlertsResponse);
+  rpc HideAlert(HideAlertRequest) returns (HideAlertResponse);
+  rpc UnhideAlert(UnhideAlertRequest) returns (UnhideAlertResponse);
+  rpc ClearAllHiddenAlerts(ClearAllHiddenAlertsRequest) returns (ClearAllHiddenAlertsResponse);
+  
+  // User Hidden Rules
+  rpc GetUserHiddenRules(GetUserHiddenRulesRequest) returns (GetUserHiddenRulesResponse);
+  rpc SaveHiddenRule(SaveHiddenRuleRequest) returns (SaveHiddenRuleResponse);
+  rpc RemoveHiddenRule(RemoveHiddenRuleRequest) returns (RemoveHiddenRuleResponse);
 }
 
 // Comment Messages
@@ -304,22 +315,112 @@ message UserNotificationPreference {
   int32 max_notifications = 7;                                    // Maximum simultaneous notifications
   bool respect_filters = 8;                                       // Respect UI filters when determining notifications
   map<string, bool> severity_rules = 9;                          // Map of severity -> enabled
-  SoundConfig sound_config = 10;                                  // Sound configuration (legacy static fields)
   string sound_config_json = 11;                                  // Full dynamic sound configuration as JSON
   google.protobuf.Timestamp created_at = 12;
   google.protobuf.Timestamp updated_at = 13;
 }
 
-message SoundConfig {
-  int32 critical_frequency = 1;                                   // Critical alert sound frequency
-  int32 critical_duration = 2;                                    // Critical alert sound duration (ms)
-  string critical_type = 3;                                       // Critical alert sound type (sine, square, etc.)
-  int32 warning_frequency = 4;                                    // Warning alert sound frequency
-  int32 warning_duration = 5;                                     // Warning alert sound duration (ms)
-  string warning_type = 6;                                        // Warning alert sound type
-  int32 info_frequency = 7;                                       // Info alert sound frequency
-  int32 info_duration = 8;                                        // Info alert sound duration (ms)
-  string info_type = 9;                                           // Info alert sound type
+
+// User Hidden Alerts Messages
+message GetUserHiddenAlertsRequest {
+  string session_id = 1;
+}
+
+message GetUserHiddenAlertsResponse {
+  repeated UserHiddenAlert hidden_alerts = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message HideAlertRequest {
+  string session_id = 1;
+  string fingerprint = 2;
+  string alert_name = 3;
+  string instance = 4;
+  string reason = 5;
+}
+
+message HideAlertResponse {
+  bool success = 1;
+  UserHiddenAlert hidden_alert = 2;
+  string message = 3;
+}
+
+message UnhideAlertRequest {
+  string session_id = 1;
+  string fingerprint = 2;
+}
+
+message UnhideAlertResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ClearAllHiddenAlertsRequest {
+  string session_id = 1;
+}
+
+message ClearAllHiddenAlertsResponse {
+  bool success = 1;
+  int32 cleared_count = 2;
+  string message = 3;
+}
+
+message UserHiddenAlert {
+  string id = 1;
+  string user_id = 2;
+  string fingerprint = 3;
+  string alert_name = 4;
+  string instance = 5;
+  string reason = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// User Hidden Rules Messages
+message GetUserHiddenRulesRequest {
+  string session_id = 1;
+}
+
+message GetUserHiddenRulesResponse {
+  repeated UserHiddenRule hidden_rules = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message SaveHiddenRuleRequest {
+  string session_id = 1;
+  UserHiddenRule rule = 2;
+}
+
+message SaveHiddenRuleResponse {
+  bool success = 1;
+  UserHiddenRule rule = 2;
+  string message = 3;
+}
+
+message RemoveHiddenRuleRequest {
+  string session_id = 1;
+  string rule_id = 2;
+}
+
+message RemoveHiddenRuleResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UserHiddenRule {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  string label_key = 5;
+  string label_value = 6;
+  bool is_regex = 7;
+  bool is_enabled = 8;
+  int32 priority = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
 }
 
 enum ResolvedAlertUpdateType {

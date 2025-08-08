@@ -39,6 +39,13 @@ const (
 	AlertService_DeleteUserColorPreference_FullMethodName       = "/notificator.alert.AlertService/DeleteUserColorPreference"
 	AlertService_GetUserNotificationPreferences_FullMethodName  = "/notificator.alert.AlertService/GetUserNotificationPreferences"
 	AlertService_SaveUserNotificationPreferences_FullMethodName = "/notificator.alert.AlertService/SaveUserNotificationPreferences"
+	AlertService_GetUserHiddenAlerts_FullMethodName             = "/notificator.alert.AlertService/GetUserHiddenAlerts"
+	AlertService_HideAlert_FullMethodName                       = "/notificator.alert.AlertService/HideAlert"
+	AlertService_UnhideAlert_FullMethodName                     = "/notificator.alert.AlertService/UnhideAlert"
+	AlertService_ClearAllHiddenAlerts_FullMethodName            = "/notificator.alert.AlertService/ClearAllHiddenAlerts"
+	AlertService_GetUserHiddenRules_FullMethodName              = "/notificator.alert.AlertService/GetUserHiddenRules"
+	AlertService_SaveHiddenRule_FullMethodName                  = "/notificator.alert.AlertService/SaveHiddenRule"
+	AlertService_RemoveHiddenRule_FullMethodName                = "/notificator.alert.AlertService/RemoveHiddenRule"
 )
 
 // AlertServiceClient is the client API for AlertService service.
@@ -71,6 +78,15 @@ type AlertServiceClient interface {
 	// User Notification Preferences
 	GetUserNotificationPreferences(ctx context.Context, in *GetUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*GetUserNotificationPreferencesResponse, error)
 	SaveUserNotificationPreferences(ctx context.Context, in *SaveUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*SaveUserNotificationPreferencesResponse, error)
+	// User Hidden Alerts
+	GetUserHiddenAlerts(ctx context.Context, in *GetUserHiddenAlertsRequest, opts ...grpc.CallOption) (*GetUserHiddenAlertsResponse, error)
+	HideAlert(ctx context.Context, in *HideAlertRequest, opts ...grpc.CallOption) (*HideAlertResponse, error)
+	UnhideAlert(ctx context.Context, in *UnhideAlertRequest, opts ...grpc.CallOption) (*UnhideAlertResponse, error)
+	ClearAllHiddenAlerts(ctx context.Context, in *ClearAllHiddenAlertsRequest, opts ...grpc.CallOption) (*ClearAllHiddenAlertsResponse, error)
+	// User Hidden Rules
+	GetUserHiddenRules(ctx context.Context, in *GetUserHiddenRulesRequest, opts ...grpc.CallOption) (*GetUserHiddenRulesResponse, error)
+	SaveHiddenRule(ctx context.Context, in *SaveHiddenRuleRequest, opts ...grpc.CallOption) (*SaveHiddenRuleResponse, error)
+	RemoveHiddenRule(ctx context.Context, in *RemoveHiddenRuleRequest, opts ...grpc.CallOption) (*RemoveHiddenRuleResponse, error)
 }
 
 type alertServiceClient struct {
@@ -279,6 +295,76 @@ func (c *alertServiceClient) SaveUserNotificationPreferences(ctx context.Context
 	return out, nil
 }
 
+func (c *alertServiceClient) GetUserHiddenAlerts(ctx context.Context, in *GetUserHiddenAlertsRequest, opts ...grpc.CallOption) (*GetUserHiddenAlertsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserHiddenAlertsResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetUserHiddenAlerts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) HideAlert(ctx context.Context, in *HideAlertRequest, opts ...grpc.CallOption) (*HideAlertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HideAlertResponse)
+	err := c.cc.Invoke(ctx, AlertService_HideAlert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) UnhideAlert(ctx context.Context, in *UnhideAlertRequest, opts ...grpc.CallOption) (*UnhideAlertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnhideAlertResponse)
+	err := c.cc.Invoke(ctx, AlertService_UnhideAlert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) ClearAllHiddenAlerts(ctx context.Context, in *ClearAllHiddenAlertsRequest, opts ...grpc.CallOption) (*ClearAllHiddenAlertsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearAllHiddenAlertsResponse)
+	err := c.cc.Invoke(ctx, AlertService_ClearAllHiddenAlerts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) GetUserHiddenRules(ctx context.Context, in *GetUserHiddenRulesRequest, opts ...grpc.CallOption) (*GetUserHiddenRulesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserHiddenRulesResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetUserHiddenRules_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SaveHiddenRule(ctx context.Context, in *SaveHiddenRuleRequest, opts ...grpc.CallOption) (*SaveHiddenRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveHiddenRuleResponse)
+	err := c.cc.Invoke(ctx, AlertService_SaveHiddenRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) RemoveHiddenRule(ctx context.Context, in *RemoveHiddenRuleRequest, opts ...grpc.CallOption) (*RemoveHiddenRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveHiddenRuleResponse)
+	err := c.cc.Invoke(ctx, AlertService_RemoveHiddenRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AlertServiceServer is the server API for AlertService service.
 // All implementations must embed UnimplementedAlertServiceServer
 // for forward compatibility.
@@ -309,6 +395,15 @@ type AlertServiceServer interface {
 	// User Notification Preferences
 	GetUserNotificationPreferences(context.Context, *GetUserNotificationPreferencesRequest) (*GetUserNotificationPreferencesResponse, error)
 	SaveUserNotificationPreferences(context.Context, *SaveUserNotificationPreferencesRequest) (*SaveUserNotificationPreferencesResponse, error)
+	// User Hidden Alerts
+	GetUserHiddenAlerts(context.Context, *GetUserHiddenAlertsRequest) (*GetUserHiddenAlertsResponse, error)
+	HideAlert(context.Context, *HideAlertRequest) (*HideAlertResponse, error)
+	UnhideAlert(context.Context, *UnhideAlertRequest) (*UnhideAlertResponse, error)
+	ClearAllHiddenAlerts(context.Context, *ClearAllHiddenAlertsRequest) (*ClearAllHiddenAlertsResponse, error)
+	// User Hidden Rules
+	GetUserHiddenRules(context.Context, *GetUserHiddenRulesRequest) (*GetUserHiddenRulesResponse, error)
+	SaveHiddenRule(context.Context, *SaveHiddenRuleRequest) (*SaveHiddenRuleResponse, error)
+	RemoveHiddenRule(context.Context, *RemoveHiddenRuleRequest) (*RemoveHiddenRuleResponse, error)
 	mustEmbedUnimplementedAlertServiceServer()
 }
 
@@ -372,6 +467,27 @@ func (UnimplementedAlertServiceServer) GetUserNotificationPreferences(context.Co
 }
 func (UnimplementedAlertServiceServer) SaveUserNotificationPreferences(context.Context, *SaveUserNotificationPreferencesRequest) (*SaveUserNotificationPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveUserNotificationPreferences not implemented")
+}
+func (UnimplementedAlertServiceServer) GetUserHiddenAlerts(context.Context, *GetUserHiddenAlertsRequest) (*GetUserHiddenAlertsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserHiddenAlerts not implemented")
+}
+func (UnimplementedAlertServiceServer) HideAlert(context.Context, *HideAlertRequest) (*HideAlertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HideAlert not implemented")
+}
+func (UnimplementedAlertServiceServer) UnhideAlert(context.Context, *UnhideAlertRequest) (*UnhideAlertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnhideAlert not implemented")
+}
+func (UnimplementedAlertServiceServer) ClearAllHiddenAlerts(context.Context, *ClearAllHiddenAlertsRequest) (*ClearAllHiddenAlertsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearAllHiddenAlerts not implemented")
+}
+func (UnimplementedAlertServiceServer) GetUserHiddenRules(context.Context, *GetUserHiddenRulesRequest) (*GetUserHiddenRulesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserHiddenRules not implemented")
+}
+func (UnimplementedAlertServiceServer) SaveHiddenRule(context.Context, *SaveHiddenRuleRequest) (*SaveHiddenRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveHiddenRule not implemented")
+}
+func (UnimplementedAlertServiceServer) RemoveHiddenRule(context.Context, *RemoveHiddenRuleRequest) (*RemoveHiddenRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveHiddenRule not implemented")
 }
 func (UnimplementedAlertServiceServer) mustEmbedUnimplementedAlertServiceServer() {}
 func (UnimplementedAlertServiceServer) testEmbeddedByValue()                      {}
@@ -704,6 +820,132 @@ func _AlertService_SaveUserNotificationPreferences_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AlertService_GetUserHiddenAlerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserHiddenAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetUserHiddenAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetUserHiddenAlerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetUserHiddenAlerts(ctx, req.(*GetUserHiddenAlertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_HideAlert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HideAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).HideAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_HideAlert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).HideAlert(ctx, req.(*HideAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_UnhideAlert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnhideAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UnhideAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_UnhideAlert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UnhideAlert(ctx, req.(*UnhideAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_ClearAllHiddenAlerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearAllHiddenAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).ClearAllHiddenAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_ClearAllHiddenAlerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).ClearAllHiddenAlerts(ctx, req.(*ClearAllHiddenAlertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_GetUserHiddenRules_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserHiddenRulesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetUserHiddenRules(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetUserHiddenRules_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetUserHiddenRules(ctx, req.(*GetUserHiddenRulesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SaveHiddenRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveHiddenRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SaveHiddenRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SaveHiddenRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SaveHiddenRule(ctx, req.(*SaveHiddenRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_RemoveHiddenRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveHiddenRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).RemoveHiddenRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_RemoveHiddenRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).RemoveHiddenRule(ctx, req.(*RemoveHiddenRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AlertService_ServiceDesc is the grpc.ServiceDesc for AlertService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -774,6 +1016,34 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SaveUserNotificationPreferences",
 			Handler:    _AlertService_SaveUserNotificationPreferences_Handler,
+		},
+		{
+			MethodName: "GetUserHiddenAlerts",
+			Handler:    _AlertService_GetUserHiddenAlerts_Handler,
+		},
+		{
+			MethodName: "HideAlert",
+			Handler:    _AlertService_HideAlert_Handler,
+		},
+		{
+			MethodName: "UnhideAlert",
+			Handler:    _AlertService_UnhideAlert_Handler,
+		},
+		{
+			MethodName: "ClearAllHiddenAlerts",
+			Handler:    _AlertService_ClearAllHiddenAlerts_Handler,
+		},
+		{
+			MethodName: "GetUserHiddenRules",
+			Handler:    _AlertService_GetUserHiddenRules_Handler,
+		},
+		{
+			MethodName: "SaveHiddenRule",
+			Handler:    _AlertService_SaveHiddenRule_Handler,
+		},
+		{
+			MethodName: "RemoveHiddenRule",
+			Handler:    _AlertService_RemoveHiddenRule_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

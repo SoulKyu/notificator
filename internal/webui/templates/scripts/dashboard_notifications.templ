@@ -19,15 +19,8 @@ templ DashboardNotifications() {
 					'unknown': false
 				},
 				soundConfig: {
-					criticalFrequency: 800,
-					criticalDuration: 200,
-					criticalType: 'square',
-					warningFrequency: 600,
-					warningDuration: 150,
-					warningType: 'sine',
-					infoFrequency: 400,
-					infoDuration: 100,
-					infoType: 'sine'
+					// Dynamic sound config - will be populated from backend
+					// Defaults will be used if no config is loaded
 				}
 			},
 
@@ -468,27 +461,28 @@ templ DashboardNotifications() {
 					};
 				}
 				
+				// Try to get specific sound config for this severity
+				let specificConfig = this.getSoundConfigForSeverity(severityLower, config);
+				if (specificConfig) {
+					return specificConfig;
+				}
+
+				// Fallback mapping for compatibility
 				switch (severityLower) {
 					case 'critical':
 					case 'major':
-						return {
-							frequency: config.criticalFrequency || 800,
-							duration: config.criticalDuration || 200,
-							type: config.criticalType || 'square'
+						return this.getSoundConfigForSeverity('critical', config) || {
+							frequency: 800, duration: 200, type: 'square'
 						};
 					case 'warning':
 					case 'minor':
-						return {
-							frequency: config.warningFrequency || 600,
-							duration: config.warningDuration || 150,
-							type: config.warningType || 'sine'
+						return this.getSoundConfigForSeverity('warning', config) || {
+							frequency: 600, duration: 150, type: 'sine'
 						};
 					case 'info':
 					case 'information':
-						return {
-							frequency: config.infoFrequency || 400,
-							duration: config.infoDuration || 100,
-							type: config.infoType || 'sine'
+						return this.getSoundConfigForSeverity('info', config) || {
+							frequency: 400, duration: 100, type: 'sine'
 						};
 					default:
 						return {
@@ -497,6 +491,27 @@ templ DashboardNotifications() {
 							type: 'triangle'
 						};
 				}
+			},
+
+			// Dynamic helper to get sound config for any severity
+			getSoundConfigForSeverity(severity, config) {
+				if (!config || !severity) return null;
+				
+				const severityLower = severity.toLowerCase();
+				const frequencyKey = severityLower + '_frequency';
+				const durationKey = severityLower + '_duration';
+				const typeKey = severityLower + '_type';
+				
+				// Check if all required fields exist for this severity
+				if (config[frequencyKey] !== undefined) {
+					return {
+						frequency: config[frequencyKey] || 500,
+						duration: config[durationKey] || 150,
+						type: config[typeKey] || 'sine'
+					};
+				}
+				
+				return null;
 			},
 
 			playSound(severity) {

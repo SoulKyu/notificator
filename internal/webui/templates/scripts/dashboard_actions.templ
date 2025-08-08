@@ -94,30 +94,42 @@ templ DashboardActions() {
 			},
 
 			async hideSelected() {
-				const request = {
-					alertFingerprints: this.selectedAlerts,
-					groupNames: this.selectedGroups,
-					action: 'hide'
-				};
+				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
+					this.showNotification('warning', 'Please select alerts to hide');
+					return;
+				}
 
 				try {
-					const response = await fetch('/api/v1/dashboard/bulk-action', {
-						method: 'POST',
-						credentials: 'include',
-						headers: {
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify(request)
-					});
-
-					const result = await response.json();
+					let hiddenCount = 0;
 					
-					if (result.success) {
-						this.showNotification('success', `Hidden ${result.data.processedCount} alerts`);
+					// Hide individual alerts
+					for (const fingerprint of this.selectedAlerts) {
+						const response = await fetch('/api/v1/dashboard/hidden-alerts', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								fingerprint: fingerprint,
+								reason: 'Hidden from dashboard bulk action'
+							})
+						});
+
+						const result = await response.json();
+						if (result.success) {
+							hiddenCount++;
+						}
+					}
+					
+					// TODO: Handle group hiding when groups are supported
+					
+					if (hiddenCount > 0) {
+						this.showNotification('success', `Hidden ${hiddenCount} alert${hiddenCount === 1 ? '' : 's'}`);
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to hide alerts: ' + result.error);
+						this.showNotification('error', 'Failed to hide any alerts');
 					}
 				} catch (error) {
 					console.error('Error hiding alerts:', error);
@@ -154,35 +166,6 @@ templ DashboardActions() {
 				this.showAckModal = true;
 			},
 
-			async hideAlert(fingerprint) {
-				const request = {
-					alertFingerprints: [fingerprint],
-					action: 'hide'
-				};
-
-				try {
-					const response = await fetch('/api/v1/dashboard/bulk-action', {
-						method: 'POST',
-						credentials: 'include',
-						headers: {
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify(request)
-					});
-
-					const result = await response.json();
-					
-					if (result.success) {
-						this.showNotification('success', 'Alert hidden');
-						this.loadDashboardData();
-					} else {
-						this.showNotification('error', 'Failed to hide alert: ' + result.error);
-					}
-				} catch (error) {
-					console.error('Error hiding alert:', error);
-					this.showNotification('error', 'Failed to hide alert');
-				}
-			},
 
 			async unacknowledgeSelected() {
 				const request = {
@@ -705,6 +688,25 @@ templ DashboardActions() {
 					console.error('Error unsilencing group:', error);
 					this.showNotification('error', 'Failed to unsilence group');
 				}
+			},
+
+
+			// Utility function to check if an alert is hidden
+			isAlertHidden(alert) {
+				// Check against cached hidden alerts in settings modal if available
+				if (window.currentSettingsModal && window.currentSettingsModal.hiddenAlerts) {
+					return window.currentSettingsModal.hiddenAlerts.some(hiddenAlert => 
+						hiddenAlert.fingerprint === alert.fingerprint
+					);
+				}
+				
+				// Fallback: check if the alert is in the hidden display mode results
+				// (This would mean it's currently being displayed in the hidden view)
+				if (this.displayMode === 'hidden') {
+					return true;
+				}
+				
+				return false;
 			}
 		};
 	</script>

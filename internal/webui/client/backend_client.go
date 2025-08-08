@@ -858,3 +858,187 @@ func (c *BackendClient) SyncUserGroups(userID, provider string) error {
 
 	return nil
 }
+
+// Hidden Alerts methods
+
+// GetUserHiddenAlerts retrieves hidden alerts for a user
+func (c *BackendClient) GetUserHiddenAlerts(sessionID string) ([]*alertpb.UserHiddenAlert, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetUserHiddenAlertsRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.alertClient.GetUserHiddenAlerts(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get hidden alerts: %s", resp.Message)
+	}
+
+	return resp.HiddenAlerts, nil
+}
+
+// HideAlert hides a specific alert for a user
+func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, reason string) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.HideAlertRequest{
+		SessionId:   sessionID,
+		Fingerprint: fingerprint,
+		AlertName:   alertName,
+		Instance:    instance,
+		Reason:      reason,
+	}
+
+	resp, err := c.alertClient.HideAlert(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to hide alert: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// UnhideAlert unhides a specific alert for a user
+func (c *BackendClient) UnhideAlert(sessionID, fingerprint string) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.UnhideAlertRequest{
+		SessionId:   sessionID,
+		Fingerprint: fingerprint,
+	}
+
+	resp, err := c.alertClient.UnhideAlert(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to unhide alert: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// ClearAllHiddenAlerts removes all hidden alerts for a user
+func (c *BackendClient) ClearAllHiddenAlerts(sessionID string) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.ClearAllHiddenAlertsRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.alertClient.ClearAllHiddenAlerts(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to clear hidden alerts: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// GetUserHiddenRules retrieves hidden rules for a user
+func (c *BackendClient) GetUserHiddenRules(sessionID string) ([]*alertpb.UserHiddenRule, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetUserHiddenRulesRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.alertClient.GetUserHiddenRules(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get hidden rules: %s", resp.Message)
+	}
+
+	return resp.HiddenRules, nil
+}
+
+// SaveHiddenRule saves or updates a hidden rule for a user
+func (c *BackendClient) SaveHiddenRule(sessionID string, rule *alertpb.UserHiddenRule) (*alertpb.UserHiddenRule, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.SaveHiddenRuleRequest{
+		SessionId: sessionID,
+		Rule:      rule,
+	}
+
+	resp, err := c.alertClient.SaveHiddenRule(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to save hidden rule: %s", resp.Message)
+	}
+
+	return resp.Rule, nil
+}
+
+// RemoveHiddenRule removes a hidden rule for a user
+func (c *BackendClient) RemoveHiddenRule(sessionID, ruleID string) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.RemoveHiddenRuleRequest{
+		SessionId: sessionID,
+		RuleId:    ruleID,
+	}
+
+	resp, err := c.alertClient.RemoveHiddenRule(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to remove hidden rule: %s", resp.Message)
+	}
+
+	return nil
+}

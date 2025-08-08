@@ -25,17 +25,8 @@ type UserNotificationPreference struct {
 
 type SeverityRulesMap map[string]bool
 
-type SoundConfigMap struct {
-	CriticalFrequency int    `json:"critical_frequency"`
-	CriticalDuration  int    `json:"critical_duration"`
-	CriticalType      string `json:"critical_type"`
-	WarningFrequency  int    `json:"warning_frequency"`
-	WarningDuration   int    `json:"warning_duration"`
-	WarningType       string `json:"warning_type"`
-	InfoFrequency     int    `json:"info_frequency"`
-	InfoDuration      int    `json:"info_duration"`
-	InfoType          string `json:"info_type"`
-}
+// Dynamic sound config map that can handle any severity types
+type SoundConfigMap map[string]interface{}
 
 func (UserNotificationPreference) TableName() string {
 	return "user_notification_preferences"
@@ -92,15 +83,16 @@ func GetDefaultSeverityRules() SeverityRulesMap {
 
 func GetDefaultSoundConfig() SoundConfigMap {
 	return SoundConfigMap{
-		CriticalFrequency: 800,
-		CriticalDuration:  200,
-		CriticalType:      "square",
-		WarningFrequency:  600,
-		WarningDuration:   150,
-		WarningType:       "sine",
-		InfoFrequency:     400,
-		InfoDuration:      100,
-		InfoType:          "sine",
+		"critical_frequency": 800,
+		"critical_duration":  200,
+		"critical_type":      "square",
+		"warning_frequency":  600,
+		"warning_duration":   150,
+		"warning_type":       "sine",
+		"info_frequency":     400,
+		"info_duration":      100,
+		"info_type":          "sine",
+		// Dynamic - any other severity types can be added by frontend
 	}
 }
 

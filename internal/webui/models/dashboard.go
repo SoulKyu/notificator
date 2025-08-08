@@ -1,6 +1,8 @@
 package models
 
 import (
+	"encoding/json"
+	"strconv"
 	"time"
 )
 
@@ -65,6 +67,7 @@ const (
 	DisplayModeFull        DashboardDisplayMode = "full"        // All alerts (acknowledged, resolved, standard)
 	DisplayModeResolved    DashboardDisplayMode = "resolved"    // Only resolved alerts
 	DisplayModeAcknowledge DashboardDisplayMode = "acknowledge" // Only acknowledged alerts
+	DisplayModeHidden      DashboardDisplayMode = "hidden"      // Only hidden alerts
 )
 
 // DashboardViewMode represents list vs group view
@@ -156,7 +159,7 @@ type AlertGroup struct {
 type DashboardMetadata struct {
 	TotalAlerts        int                       `json:"totalAlerts"`
 	FilteredCount      int                       `json:"filteredCount"`
-	TotalCount         int                       `json:"totalCount"`  // Total count for pagination
+	TotalCount         int                       `json:"totalCount"` // Total count for pagination
 	LastUpdate         time.Time                 `json:"lastUpdate"`
 	NextUpdate         time.Time                 `json:"nextUpdate"`
 	AlertmanagerStatus map[string]bool           `json:"alertmanagerStatus"`
@@ -267,8 +270,52 @@ type UserColorPreference struct {
 	Color              string            `json:"color"`              // Color value (e.g., "GRAY", "#FF5733", "red-500")
 	ColorType          string            `json:"colorType"`          // Type: "severity", "custom", "tailwind"
 	Priority           int               `json:"priority"`           // Higher numbers = higher priority
-	BgLightnessFactor  float64           `json:"bgLightnessFactor"`  // Background lightness factor (0.0-1.0)
-	TextDarknessFactor float64           `json:"textDarknessFactor"` // Text darkness factor (0.0-1.0)
+	BgLightnessFactor  float32           `json:"bgLightnessFactor"`  // Background lightness factor (0.0-1.0)
+	TextDarknessFactor float32           `json:"textDarknessFactor"` // Text darkness factor (0.0-1.0)
 	CreatedAt          time.Time         `json:"createdAt"`
 	UpdatedAt          time.Time         `json:"updatedAt"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling to handle string-to-int conversion for Priority field
+func (u *UserColorPreference) UnmarshalJSON(data []byte) error {
+	// Use an alias to avoid recursion
+	type Alias UserColorPreference
+	aux := &struct {
+		Priority interface{} `json:"priority"`
+		*Alias
+	}{
+		Alias: &Alias{},
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Copy all fields from aux to u
+	*u = UserColorPreference(*aux.Alias)
+
+	// Handle priority conversion from string or number to int
+	switch p := aux.Priority.(type) {
+	case float64:
+		u.Priority = int(p)
+	case string:
+		if p == "" {
+			u.Priority = 0
+		} else {
+			priority, err := strconv.Atoi(p)
+			if err != nil {
+				u.Priority = 0 // Default to 0 if conversion fails
+			} else {
+				u.Priority = priority
+			}
+		}
+	case int:
+		u.Priority = p
+	case nil:
+		u.Priority = 0
+	default:
+		u.Priority = 0
+	}
+
+	return nil
 }

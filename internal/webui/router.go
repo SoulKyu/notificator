@@ -89,6 +89,10 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	// Initialize color service for dynamic alert coloring
 	colorService := services.NewColorService(backendClient)
 	handlers.SetColorService(colorService)
+	
+	// Initialize hidden alerts service
+	hiddenAlertsService := services.NewHiddenAlertsService(backendClient)
+	handlers.SetHiddenAlertsService(hiddenAlertsService)
 
 	// Create auth middleware
 	authMiddleware := middleware.NewAuthMiddleware(backendClient)
@@ -199,6 +203,18 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.GET("/alert-colors", handlers.GetAlertColors)
 			dashboard.GET("/available-labels", handlers.GetAvailableAlertLabels)
 			dashboard.DELETE("/remove-resolved-alerts", handlers.RemoveAllResolvedAlerts)
+			
+			// Hidden alerts routes
+			dashboard.GET("/hidden-alerts", handlers.GetUserHiddenAlerts)
+			dashboard.POST("/hidden-alerts", handlers.HideAlert)
+			dashboard.DELETE("/hidden-alerts/:fingerprint", handlers.UnhideAlert)
+			dashboard.DELETE("/hidden-alerts", handlers.ClearAllHiddenAlerts)
+			
+			// Hidden rules routes
+			dashboard.GET("/hidden-rules", handlers.GetUserHiddenRules)
+			dashboard.POST("/hidden-rules", handlers.CreateHiddenRule)
+			dashboard.PUT("/hidden-rules/:id", handlers.UpdateHiddenRule)
+			dashboard.DELETE("/hidden-rules/:id", handlers.DeleteHiddenRule)
 		}
 	}
 

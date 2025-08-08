@@ -38,7 +38,7 @@ func (p *UserNotificationPreference) ToProtobuf() *alertpb.UserNotificationPrefe
 		SeverityRules:        p.SeverityRules,
 	}
 
-	// Convert sound config if present
+	// Convert sound config if present - use JSON only for complete dynamic data
 	if p.SoundConfig != nil {
 		sanitizedConfig := sanitizeSoundConfig(*p.SoundConfig)
 
@@ -48,18 +48,6 @@ func (p *UserNotificationPreference) ToProtobuf() *alertpb.UserNotificationPrefe
 			println("Warning: Failed to marshal sound config to JSON:", err.Error())
 			println("Original data:", fmt.Sprintf("%+v", *p.SoundConfig))
 			println("Sanitized data:", fmt.Sprintf("%+v", sanitizedConfig))
-		}
-
-		pbPref.SoundConfig = &alertpb.SoundConfig{
-			CriticalFrequency: getIntFromSoundConfig(*p.SoundConfig, "critical_frequency", 800),
-			CriticalDuration:  getIntFromSoundConfig(*p.SoundConfig, "critical_duration", 200),
-			CriticalType:      getStringFromSoundConfig(*p.SoundConfig, "critical_type", "square"),
-			WarningFrequency:  getIntFromSoundConfig(*p.SoundConfig, "warning_frequency", 600),
-			WarningDuration:   getIntFromSoundConfig(*p.SoundConfig, "warning_duration", 150),
-			WarningType:       getStringFromSoundConfig(*p.SoundConfig, "warning_type", "sine"),
-			InfoFrequency:     getIntFromSoundConfig(*p.SoundConfig, "info_frequency", 400),
-			InfoDuration:      getIntFromSoundConfig(*p.SoundConfig, "info_duration", 100),
-			InfoType:          getStringFromSoundConfig(*p.SoundConfig, "info_type", "sine"),
 		}
 	}
 
@@ -83,6 +71,7 @@ func UserNotificationPreferenceFromProtobuf(pb *alertpb.UserNotificationPreferen
 		SeverityRules:        pb.SeverityRules,
 	}
 
+	// Use JSON field for complete dynamic sound config
 	if pb.SoundConfigJson != "" {
 		var soundConfig SoundConfig
 		if err := json.Unmarshal([]byte(pb.SoundConfigJson), &soundConfig); err == nil {
@@ -90,10 +79,7 @@ func UserNotificationPreferenceFromProtobuf(pb *alertpb.UserNotificationPreferen
 		} else {
 			println("Warning: Failed to unmarshal sound config JSON:", err.Error())
 			println("JSON data:", pb.SoundConfigJson)
-			pref.SoundConfig = parseSoundConfigFromStaticFields(pb.SoundConfig)
 		}
-	} else if pb.SoundConfig != nil {
-		pref.SoundConfig = parseSoundConfigFromStaticFields(pb.SoundConfig)
 	}
 
 	if pb.CreatedAt != nil {
@@ -121,51 +107,6 @@ func GetDefaultNotificationPreference() *UserNotificationPreference {
 	}
 }
 
-func getIntFromSoundConfig(config SoundConfig, key string, defaultValue int) int32 {
-	if value, exists := config[key]; exists {
-		switch v := value.(type) {
-		case int:
-			return int32(v)
-		case int32:
-			return v
-		case int64:
-			return int32(v)
-		case float64:
-			return int32(v)
-		case float32:
-			return int32(v)
-		}
-	}
-	return int32(defaultValue)
-}
-
-func getStringFromSoundConfig(config SoundConfig, key string, defaultValue string) string {
-	if value, exists := config[key]; exists {
-		if str, ok := value.(string); ok {
-			return str
-		}
-	}
-	return defaultValue
-}
-
-func parseSoundConfigFromStaticFields(pbSoundConfig *alertpb.SoundConfig) *SoundConfig {
-	if pbSoundConfig == nil {
-		return nil
-	}
-
-	soundConfig := make(SoundConfig)
-	soundConfig["critical_frequency"] = int(pbSoundConfig.CriticalFrequency)
-	soundConfig["critical_duration"] = int(pbSoundConfig.CriticalDuration)
-	soundConfig["critical_type"] = pbSoundConfig.CriticalType
-	soundConfig["warning_frequency"] = int(pbSoundConfig.WarningFrequency)
-	soundConfig["warning_duration"] = int(pbSoundConfig.WarningDuration)
-	soundConfig["warning_type"] = pbSoundConfig.WarningType
-	soundConfig["info_frequency"] = int(pbSoundConfig.InfoFrequency)
-	soundConfig["info_duration"] = int(pbSoundConfig.InfoDuration)
-	soundConfig["info_type"] = pbSoundConfig.InfoType
-
-	return &soundConfig
-}
 
 func sanitizeSoundConfig(config SoundConfig) SoundConfig {
 	sanitized := make(SoundConfig)

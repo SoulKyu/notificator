@@ -94,6 +94,9 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.ResolvedAlert{},
 		&mainmodels.UserColorPreference{},
 		&mainmodels.UserNotificationPreference{},
+		// Hidden alerts tables
+		&models.UserHiddenAlert{},
+		&models.UserHiddenRule{},
 		// OAuth tables
 		&models.UserGroup{},
 		&models.OAuthToken{},
@@ -494,4 +497,172 @@ func generateUUID() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)
 	return fmt.Sprintf("%x-%x-%x-%x-%x", bytes[0:4], bytes[4:6], bytes[6:8], bytes[8:10], bytes[10:16])
+}
+
+// Hidden Alerts Methods
+
+// CreateUserHiddenAlert creates a new hidden alert for a user
+func (gdb *GormDB) CreateUserHiddenAlert(userID, fingerprint, alertName, instance, reason string) (*models.UserHiddenAlert, error) {
+	hiddenAlert := &models.UserHiddenAlert{
+		UserID:      userID,
+		Fingerprint: fingerprint,
+		AlertName:   alertName,
+		Instance:    instance,
+		Reason:      reason,
+	}
+
+	if err := gdb.db.Create(hiddenAlert).Error; err != nil {
+		return nil, fmt.Errorf("failed to create hidden alert: %w", err)
+	}
+	
+	return hiddenAlert, nil
+}
+
+// SaveHiddenAlert saves or updates a hidden alert for a user
+func (gdb *GormDB) SaveHiddenAlert(userID, fingerprint, alertName, instance, reason string) error {
+	hiddenAlert := &models.UserHiddenAlert{
+		UserID:      userID,
+		Fingerprint: fingerprint,
+		AlertName:   alertName,
+		Instance:    instance,
+		Reason:      reason,
+	}
+
+	// Check if already exists
+	var existing models.UserHiddenAlert
+	err := gdb.db.Where("user_id = ? AND fingerprint = ?", userID, fingerprint).First(&existing).Error
+	
+	if err == gorm.ErrRecordNotFound {
+		// Create new
+		if err := gdb.db.Create(hiddenAlert).Error; err != nil {
+			return fmt.Errorf("failed to create hidden alert: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to query existing hidden alert: %w", err)
+	} else {
+		// Update existing
+		existing.Reason = reason
+		existing.AlertName = alertName
+		existing.Instance = instance
+		if err := gdb.db.Save(&existing).Error; err != nil {
+			return fmt.Errorf("failed to update hidden alert: %w", err)
+		}
+	}
+	
+	return nil
+}
+
+// RemoveHiddenAlert removes a hidden alert for a user
+func (gdb *GormDB) RemoveHiddenAlert(userID, fingerprint string) error {
+	result := gdb.db.Where("user_id = ? AND fingerprint = ?", userID, fingerprint).Delete(&models.UserHiddenAlert{})
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+// RemoveUserHiddenAlert removes a hidden alert for a user (alias for consistency)
+func (gdb *GormDB) RemoveUserHiddenAlert(userID, fingerprint string) error {
+	return gdb.RemoveHiddenAlert(userID, fingerprint)
+}
+
+// GetUserHiddenAlerts gets all hidden alerts for a user
+func (gdb *GormDB) GetUserHiddenAlerts(userID string) ([]models.UserHiddenAlert, error) {
+	var hiddenAlerts []models.UserHiddenAlert
+	err := gdb.db.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&hiddenAlerts).Error
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user hidden alerts: %w", err)
+	}
+	
+	return hiddenAlerts, nil
+}
+
+// SaveHiddenRule saves or updates a hidden rule for a user
+func (gdb *GormDB) SaveHiddenRule(userID string, rule *models.UserHiddenRule) error {
+	rule.UserID = userID
+	
+	if rule.ID == "" {
+		// Create new
+		if err := gdb.db.Create(rule).Error; err != nil {
+			return fmt.Errorf("failed to create hidden rule: %w", err)
+		}
+	} else {
+		// Update existing
+		if err := gdb.db.Where("id = ? AND user_id = ?", rule.ID, userID).Updates(rule).Error; err != nil {
+			return fmt.Errorf("failed to update hidden rule: %w", err)
+		}
+	}
+	
+	return nil
+}
+
+// SaveUserHiddenRule saves or updates a hidden rule for a user (alias for consistency)
+func (gdb *GormDB) SaveUserHiddenRule(userID string, rule *models.UserHiddenRule) (*models.UserHiddenRule, error) {
+	rule.UserID = userID
+	
+	if rule.ID == "" {
+		// Create new
+		if err := gdb.db.Create(rule).Error; err != nil {
+			return nil, fmt.Errorf("failed to create hidden rule: %w", err)
+		}
+	} else {
+		// Update existing
+		if err := gdb.db.Where("id = ? AND user_id = ?", rule.ID, userID).Updates(rule).Error; err != nil {
+			return nil, fmt.Errorf("failed to update hidden rule: %w", err)
+		}
+	}
+	
+	return rule, nil
+}
+
+// RemoveHiddenRule removes a hidden rule for a user
+func (gdb *GormDB) RemoveHiddenRule(userID, ruleID string) error {
+	result := gdb.db.Where("id = ? AND user_id = ?", ruleID, userID).Delete(&models.UserHiddenRule{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("hidden rule not found or not authorized")
+	}
+	return nil
+}
+
+// RemoveUserHiddenRule removes a hidden rule for a user (alias for consistency)
+func (gdb *GormDB) RemoveUserHiddenRule(userID, ruleID string) error {
+	return gdb.RemoveHiddenRule(userID, ruleID)
+}
+
+// GetUserHiddenRules gets all hidden rules for a user
+func (gdb *GormDB) GetUserHiddenRules(userID string) ([]models.UserHiddenRule, error) {
+	var rules []models.UserHiddenRule
+	err := gdb.db.Where("user_id = ? AND is_enabled = ?", userID, true).
+		Order("priority DESC, created_at ASC").
+		Find(&rules).Error
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user hidden rules: %w", err)
+	}
+	
+	return rules, nil
+}
+
+// ClearAllHiddenAlerts removes all hidden alerts for a user
+func (gdb *GormDB) ClearAllHiddenAlerts(userID string) error {
+	result := gdb.db.Where("user_id = ?", userID).Delete(&models.UserHiddenAlert{})
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+// ClearUserHiddenAlerts removes all hidden alerts for a user (alias for consistency)
+func (gdb *GormDB) ClearUserHiddenAlerts(userID string) (int64, error) {
+	result := gdb.db.Where("user_id = ?", userID).Delete(&models.UserHiddenAlert{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }

@@ -795,36 +795,6 @@ templ DashboardScript() {
 					this.showAckModal = true;
 				},
 
-				async hideAlert(fingerprint) {
-					const request = {
-						alertFingerprints: [fingerprint],
-						action: 'hide'
-					};
-
-					try {
-						const response = await fetch('/api/v1/dashboard/bulk-action', {
-							method: 'POST',
-							credentials: 'include',
-							headers: {
-								'Content-Type': 'application/json',
-							},
-							body: JSON.stringify(request)
-						});
-
-						const result = await response.json();
-						
-						if (result.success) {
-							this.showNotification('success', 'Alert hidden');
-							this.loadDashboardData();
-						} else {
-							this.showNotification('error', 'Failed to hide alert: ' + result.error);
-						}
-					} catch (error) {
-						console.error('Error hiding alert:', error);
-						this.showNotification('error', 'Failed to hide alert');
-					}
-				},
-
 				// Unacknowledge actions
 				async unacknowledgeSelected() {
 					const request = {
@@ -964,61 +934,6 @@ templ DashboardScript() {
 							window.currentSettingsModal.loadColorPreferences();
 						}
 					}, 100); // Small delay to ensure modal is initialized
-				},
-
-				async saveSettings() {
-					try {
-						// Save regular settings
-						const settingsResponse = await fetch('/api/v1/dashboard/settings', {
-							method: 'POST',
-							credentials: 'include',
-							headers: {
-								'Content-Type': 'application/json',
-							},
-							body: JSON.stringify(this.settings)
-						});
-
-						const settingsResult = await settingsResponse.json();
-						
-						if (!settingsResult.success) {
-							this.showNotification('error', 'Failed to save settings: ' + settingsResult.error);
-							return;
-						}
-
-						// Save color preferences from the settings modal
-						// First try to use the modal's save method if available
-						let colorSaved = false;
-						if (window.currentSettingsModal && window.currentSettingsModal.saveColorPreferences) {
-							colorSaved = await window.currentSettingsModal.saveColorPreferences();
-						}
-						
-						// If modal method not available or failed, log a message
-						if (!colorSaved && window.currentSettingsModal && window.currentSettingsModal.colorPreferences && window.currentSettingsModal.colorPreferences.length > 0) {
-							console.log('Color preferences exist but could not be saved via modal method');
-						}
-						
-						// Always refresh alert colors to apply preference changes
-						await this.refreshAlertColors();
-
-						// Apply notification queue settings
-						this.applyNotificationSettings();
-
-						this.showNotification('success', 'Settings saved');
-						this.showSettings = false;
-						
-						// Apply theme change
-						if (this.settings.theme === 'dark') {
-							document.documentElement.classList.add('dark');
-						} else {
-							document.documentElement.classList.remove('dark');
-						}
-						
-						// Update auto-refresh interval
-						this.startAutoRefresh();
-					} catch (error) {
-						console.error('Error saving settings:', error);
-						this.showNotification('error', 'Failed to save settings');
-					}
 				},
 
 				// Apply notification queue settings when settings are saved

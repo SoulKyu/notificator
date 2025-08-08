@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"notificator/internal/backend/database"
+	"notificator/internal/backend/models"
 	alertpb "notificator/internal/backend/proto/alert"
 	authpb "notificator/internal/backend/proto/auth"
 	mainmodels "notificator/internal/models"
@@ -757,14 +758,16 @@ func (s *AlertServiceGorm) GetUserColorPreferences(ctx context.Context, req *ale
 		}
 
 		pbPreferences = append(pbPreferences, &alertpb.UserColorPreference{
-			Id:              pref.ID,
-			UserId:          pref.UserID,
-			LabelConditions: conditions,
-			Color:           pref.Color,
-			ColorType:       pref.ColorType,
-			Priority:        int32(pref.Priority),
-			CreatedAt:       timestamppb.New(pref.CreatedAt),
-			UpdatedAt:       timestamppb.New(pref.UpdatedAt),
+			Id:                 pref.ID,
+			UserId:             pref.UserID,
+			LabelConditions:    conditions,
+			Color:              pref.Color,
+			ColorType:          pref.ColorType,
+			Priority:           int32(pref.Priority),
+			BgLightnessFactor:  float32(pref.BgLightnessFactor),
+			TextDarknessFactor: float32(pref.TextDarknessFactor),
+			CreatedAt:          timestamppb.New(pref.CreatedAt),
+			UpdatedAt:          timestamppb.New(pref.UpdatedAt),
 		})
 	}
 
@@ -797,11 +800,13 @@ func (s *AlertServiceGorm) SaveUserColorPreferences(ctx context.Context, req *al
 	var modelPreferences []mainmodels.UserColorPreference
 	for _, pbPref := range req.Preferences {
 		modelPref := mainmodels.UserColorPreference{
-			ID:        pbPref.Id,
-			UserID:    user.ID,
-			Color:     pbPref.Color,
-			ColorType: pbPref.ColorType,
-			Priority:  int(pbPref.Priority),
+			ID:                 pbPref.Id,
+			UserID:             user.ID,
+			Color:              pbPref.Color,
+			ColorType:          pbPref.ColorType,
+			Priority:           int(pbPref.Priority),
+			BgLightnessFactor:  float32(pbPref.BgLightnessFactor),
+			TextDarknessFactor: float32(pbPref.TextDarknessFactor),
 		}
 
 		// Set label conditions
@@ -1582,17 +1587,17 @@ func (s *AlertServiceGorm) GetUserNotificationPreferences(ctx context.Context, r
 			SeverityRules:        map[string]bool{
 				// Empty map - frontend will populate with dynamic severities from GetAvailableAlertLabels
 			},
-			SoundConfig: &alertpb.SoundConfig{
-				CriticalFrequency: 800,
-				CriticalDuration:  1000,
-				CriticalType:      "sine",
-				WarningFrequency:  600,
-				WarningDuration:   500,
-				WarningType:       "sine",
-				InfoFrequency:     400,
-				InfoDuration:      300,
-				InfoType:          "sine",
-			},
+			SoundConfigJson: `{
+				"critical_frequency": 800,
+				"critical_duration": 200,
+				"critical_type": "square",
+				"warning_frequency": 600,
+				"warning_duration": 150,
+				"warning_type": "sine",
+				"info_frequency": 400,
+				"info_duration": 100,
+				"info_type": "sine"
+			}`,
 		}
 
 		return &alertpb.GetUserNotificationPreferencesResponse{
@@ -1624,47 +1629,10 @@ func (s *AlertServiceGorm) GetUserNotificationPreferences(ctx context.Context, r
 		}
 	}
 
-	// Handle sound config JSON
+	// Handle sound config JSON - send complete dynamic data
 	if preference.SoundConfig != nil {
-		var soundConfigMap map[string]interface{}
-		if err := json.Unmarshal(preference.SoundConfig, &soundConfigMap); err == nil {
-			// Convert to protobuf SoundConfig
-			soundConfig := &alertpb.SoundConfig{}
-			if val, ok := soundConfigMap["critical_frequency"].(float64); ok {
-				soundConfig.CriticalFrequency = int32(val)
-			}
-			if val, ok := soundConfigMap["critical_duration"].(float64); ok {
-				soundConfig.CriticalDuration = int32(val)
-			}
-			if val, ok := soundConfigMap["critical_type"].(string); ok {
-				soundConfig.CriticalType = val
-			}
-			if val, ok := soundConfigMap["warning_frequency"].(float64); ok {
-				soundConfig.WarningFrequency = int32(val)
-			}
-			if val, ok := soundConfigMap["warning_duration"].(float64); ok {
-				soundConfig.WarningDuration = int32(val)
-			}
-			if val, ok := soundConfigMap["warning_type"].(string); ok {
-				soundConfig.WarningType = val
-			}
-			if val, ok := soundConfigMap["info_frequency"].(float64); ok {
-				soundConfig.InfoFrequency = int32(val)
-			}
-			if val, ok := soundConfigMap["info_duration"].(float64); ok {
-				soundConfig.InfoDuration = int32(val)
-			}
-			if val, ok := soundConfigMap["info_type"].(string); ok {
-				soundConfig.InfoType = val
-			}
-
-			pbPreference.SoundConfig = soundConfig
-
-			// Also set JSON string for full config
-			if jsonBytes, err := json.Marshal(soundConfigMap); err == nil {
-				pbPreference.SoundConfigJson = string(jsonBytes)
-			}
-		}
+		// Send raw JSON directly for complete dynamic support
+		pbPreference.SoundConfigJson = string(preference.SoundConfig)
 	}
 
 	log.Printf("Retrieved notification preferences for user %s", user.ID)
@@ -1734,22 +1702,6 @@ func (s *AlertServiceGorm) SaveUserNotificationPreferences(ctx context.Context, 
 		} else {
 			log.Printf("Error parsing sound config JSON: %v", err)
 		}
-	} else if req.Preference.SoundConfig != nil {
-		// Convert structured config to SoundConfigMap
-		soundConfigMap := mainmodels.SoundConfigMap{
-			CriticalFrequency: int(req.Preference.SoundConfig.CriticalFrequency),
-			CriticalDuration:  int(req.Preference.SoundConfig.CriticalDuration),
-			CriticalType:      req.Preference.SoundConfig.CriticalType,
-			WarningFrequency:  int(req.Preference.SoundConfig.WarningFrequency),
-			WarningDuration:   int(req.Preference.SoundConfig.WarningDuration),
-			WarningType:       req.Preference.SoundConfig.WarningType,
-			InfoFrequency:     int(req.Preference.SoundConfig.InfoFrequency),
-			InfoDuration:      int(req.Preference.SoundConfig.InfoDuration),
-			InfoType:          req.Preference.SoundConfig.InfoType,
-		}
-		if err := preference.SetSoundConfig(soundConfigMap); err != nil {
-			log.Printf("Error setting sound config: %v", err)
-		}
 	}
 
 	// Save to database
@@ -1765,6 +1717,348 @@ func (s *AlertServiceGorm) SaveUserNotificationPreferences(ctx context.Context, 
 	return &alertpb.SaveUserNotificationPreferencesResponse{
 		Success: true,
 		Message: "Notification preferences saved successfully",
+	}, nil
+}
+
+// GetUserHiddenAlerts implements the GetUserHiddenAlerts RPC method
+func (s *AlertServiceGorm) GetUserHiddenAlerts(ctx context.Context, req *alertpb.GetUserHiddenAlertsRequest) (*alertpb.GetUserHiddenAlertsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetUserHiddenAlertsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetUserHiddenAlertsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get hidden alerts from database
+	hiddenAlerts, err := s.db.GetUserHiddenAlerts(user.ID)
+	if err != nil {
+		log.Printf("Error getting hidden alerts for user %s: %v", user.ID, err)
+		return &alertpb.GetUserHiddenAlertsResponse{
+			Success: false,
+			Message: "Failed to get hidden alerts",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	var pbHiddenAlerts []*alertpb.UserHiddenAlert
+	for _, hiddenAlert := range hiddenAlerts {
+		pbHiddenAlerts = append(pbHiddenAlerts, &alertpb.UserHiddenAlert{
+			Id:          hiddenAlert.ID,
+			UserId:      hiddenAlert.UserID,
+			Fingerprint: hiddenAlert.Fingerprint,
+			AlertName:   hiddenAlert.AlertName,
+			Instance:    hiddenAlert.Instance,
+			Reason:      hiddenAlert.Reason,
+			CreatedAt:   timestamppb.New(hiddenAlert.CreatedAt),
+			UpdatedAt:   timestamppb.New(hiddenAlert.UpdatedAt),
+		})
+	}
+
+	return &alertpb.GetUserHiddenAlertsResponse{
+		HiddenAlerts: pbHiddenAlerts,
+		Success:      true,
+		Message:      "Hidden alerts retrieved successfully",
+	}, nil
+}
+
+// HideAlert implements the HideAlert RPC method
+func (s *AlertServiceGorm) HideAlert(ctx context.Context, req *alertpb.HideAlertRequest) (*alertpb.HideAlertResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.HideAlertResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Fingerprint == "" {
+		return &alertpb.HideAlertResponse{
+			Success: false,
+			Message: "Fingerprint is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.HideAlertResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Create hidden alert in database
+	hiddenAlert, err := s.db.CreateUserHiddenAlert(user.ID, req.Fingerprint, req.AlertName, req.Instance, req.Reason)
+	if err != nil {
+		log.Printf("Error creating hidden alert for user %s: %v", user.ID, err)
+		return &alertpb.HideAlertResponse{
+			Success: false,
+			Message: "Failed to hide alert",
+		}, nil
+	}
+
+	pbHiddenAlert := &alertpb.UserHiddenAlert{
+		Id:          hiddenAlert.ID,
+		UserId:      hiddenAlert.UserID,
+		Fingerprint: hiddenAlert.Fingerprint,
+		AlertName:   hiddenAlert.AlertName,
+		Instance:    hiddenAlert.Instance,
+		Reason:      hiddenAlert.Reason,
+		CreatedAt:   timestamppb.New(hiddenAlert.CreatedAt),
+		UpdatedAt:   timestamppb.New(hiddenAlert.UpdatedAt),
+	}
+
+	return &alertpb.HideAlertResponse{
+		Success:     true,
+		HiddenAlert: pbHiddenAlert,
+		Message:     "Alert hidden successfully",
+	}, nil
+}
+
+// UnhideAlert implements the UnhideAlert RPC method
+func (s *AlertServiceGorm) UnhideAlert(ctx context.Context, req *alertpb.UnhideAlertRequest) (*alertpb.UnhideAlertResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.UnhideAlertResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Fingerprint == "" {
+		return &alertpb.UnhideAlertResponse{
+			Success: false,
+			Message: "Fingerprint is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.UnhideAlertResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Delete hidden alert from database
+	err = s.db.RemoveUserHiddenAlert(user.ID, req.Fingerprint)
+	if err != nil {
+		log.Printf("Error removing hidden alert for user %s: %v", user.ID, err)
+		return &alertpb.UnhideAlertResponse{
+			Success: false,
+			Message: "Failed to unhide alert",
+		}, nil
+	}
+
+	return &alertpb.UnhideAlertResponse{
+		Success: true,
+		Message: "Alert unhidden successfully",
+	}, nil
+}
+
+// ClearAllHiddenAlerts implements the ClearAllHiddenAlerts RPC method
+func (s *AlertServiceGorm) ClearAllHiddenAlerts(ctx context.Context, req *alertpb.ClearAllHiddenAlertsRequest) (*alertpb.ClearAllHiddenAlertsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.ClearAllHiddenAlertsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.ClearAllHiddenAlertsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Clear all hidden alerts for user
+	clearedCount, err := s.db.ClearUserHiddenAlerts(user.ID)
+	if err != nil {
+		log.Printf("Error clearing hidden alerts for user %s: %v", user.ID, err)
+		return &alertpb.ClearAllHiddenAlertsResponse{
+			Success: false,
+			Message: "Failed to clear hidden alerts",
+		}, nil
+	}
+
+	return &alertpb.ClearAllHiddenAlertsResponse{
+		Success:      true,
+		ClearedCount: int32(clearedCount),
+		Message:      fmt.Sprintf("Cleared %d hidden alerts", clearedCount),
+	}, nil
+}
+
+// GetUserHiddenRules implements the GetUserHiddenRules RPC method
+func (s *AlertServiceGorm) GetUserHiddenRules(ctx context.Context, req *alertpb.GetUserHiddenRulesRequest) (*alertpb.GetUserHiddenRulesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetUserHiddenRulesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetUserHiddenRulesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get hidden rules from database
+	hiddenRules, err := s.db.GetUserHiddenRules(user.ID)
+	if err != nil {
+		log.Printf("Error getting hidden rules for user %s: %v", user.ID, err)
+		return &alertpb.GetUserHiddenRulesResponse{
+			Success: false,
+			Message: "Failed to get hidden rules",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	var pbHiddenRules []*alertpb.UserHiddenRule
+	for _, rule := range hiddenRules {
+		pbHiddenRules = append(pbHiddenRules, &alertpb.UserHiddenRule{
+			Id:          rule.ID,
+			UserId:      rule.UserID,
+			Name:        rule.Name,
+			Description: rule.Description,
+			LabelKey:    rule.LabelKey,
+			LabelValue:  rule.LabelValue,
+			IsRegex:     rule.IsRegex,
+			IsEnabled:   rule.IsEnabled,
+			Priority:    int32(rule.Priority),
+			CreatedAt:   timestamppb.New(rule.CreatedAt),
+			UpdatedAt:   timestamppb.New(rule.UpdatedAt),
+		})
+	}
+
+	return &alertpb.GetUserHiddenRulesResponse{
+		HiddenRules: pbHiddenRules,
+		Success:     true,
+		Message:     "Hidden rules retrieved successfully",
+	}, nil
+}
+
+// SaveHiddenRule implements the SaveHiddenRule RPC method
+func (s *AlertServiceGorm) SaveHiddenRule(ctx context.Context, req *alertpb.SaveHiddenRuleRequest) (*alertpb.SaveHiddenRuleResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveHiddenRuleResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Rule == nil {
+		return &alertpb.SaveHiddenRuleResponse{
+			Success: false,
+			Message: "Rule data is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveHiddenRuleResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf to database model
+	rule := &models.UserHiddenRule{
+		ID:          req.Rule.Id,
+		UserID:      user.ID,
+		Name:        req.Rule.Name,
+		Description: req.Rule.Description,
+		LabelKey:    req.Rule.LabelKey,
+		LabelValue:  req.Rule.LabelValue,
+		IsRegex:     req.Rule.IsRegex,
+		IsEnabled:   req.Rule.IsEnabled,
+		Priority:    int(req.Rule.Priority),
+	}
+
+	// Save to database
+	savedRule, err := s.db.SaveUserHiddenRule(user.ID, rule)
+	if err != nil {
+		log.Printf("Error saving hidden rule for user %s: %v", user.ID, err)
+		return &alertpb.SaveHiddenRuleResponse{
+			Success: false,
+			Message: "Failed to save hidden rule",
+		}, nil
+	}
+
+	pbRule := &alertpb.UserHiddenRule{
+		Id:          savedRule.ID,
+		UserId:      savedRule.UserID,
+		Name:        savedRule.Name,
+		Description: savedRule.Description,
+		LabelKey:    savedRule.LabelKey,
+		LabelValue:  savedRule.LabelValue,
+		IsRegex:     savedRule.IsRegex,
+		IsEnabled:   savedRule.IsEnabled,
+		Priority:    int32(savedRule.Priority),
+		CreatedAt:   timestamppb.New(savedRule.CreatedAt),
+		UpdatedAt:   timestamppb.New(savedRule.UpdatedAt),
+	}
+
+	return &alertpb.SaveHiddenRuleResponse{
+		Success: true,
+		Rule:    pbRule,
+		Message: "Hidden rule saved successfully",
+	}, nil
+}
+
+// RemoveHiddenRule implements the RemoveHiddenRule RPC method
+func (s *AlertServiceGorm) RemoveHiddenRule(ctx context.Context, req *alertpb.RemoveHiddenRuleRequest) (*alertpb.RemoveHiddenRuleResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.RemoveHiddenRuleResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.RuleId == "" {
+		return &alertpb.RemoveHiddenRuleResponse{
+			Success: false,
+			Message: "Rule ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.RemoveHiddenRuleResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Remove from database
+	err = s.db.RemoveUserHiddenRule(user.ID, req.RuleId)
+	if err != nil {
+		log.Printf("Error removing hidden rule for user %s: %v", user.ID, err)
+		return &alertpb.RemoveHiddenRuleResponse{
+			Success: false,
+			Message: "Failed to remove hidden rule",
+		}, nil
+	}
+
+	return &alertpb.RemoveHiddenRuleResponse{
+		Success: true,
+		Message: "Hidden rule removed successfully",
 	}, nil
 }
 
