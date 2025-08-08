@@ -11,6 +11,7 @@ templ DashboardUtilities() {
 				if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
 				if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
 				if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+				if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 				if (this.displayMode !== 'classic') params.set('displayMode', this.displayMode);
 				if (this.viewMode !== 'list') params.set('viewMode', this.viewMode);
 				if (this.sortField !== 'duration') params.set('sortField', this.sortField);
@@ -34,6 +35,7 @@ templ DashboardUtilities() {
 				this.filters.severities = params.get('severities') ? params.get('severities').split(',') : [];
 				this.filters.statuses = params.get('statuses') ? params.get('statuses').split(',') : [];
 				this.filters.teams = params.get('teams') ? params.get('teams').split(',') : [];
+				this.filters.alertNames = params.get('alertNames') ? params.get('alertNames').split(',') : [];
 				this.displayMode = params.get('displayMode') || 'classic';
 				this.viewMode = params.get('viewMode') || 'list';
 				this.sortField = params.get('sortField') || 'duration';
@@ -90,7 +92,8 @@ templ DashboardUtilities() {
 					alertmanagers: [],
 					severities: [],
 					statuses: [],
-					teams: []
+					teams: [],
+					alertNames: []
 				};
 				this.acknowledgmentFilter = null;
 				this.commentsFilter = null;
@@ -116,6 +119,7 @@ templ DashboardUtilities() {
 					   this.filters.severities.length > 0 ||
 					   this.filters.statuses.length > 0 ||
 					   this.filters.teams.length > 0 ||
+					   this.filters.alertNames.length > 0 ||
 					   this.acknowledgmentFilter !== null ||
 					   this.commentsFilter !== null;
 			},
@@ -476,15 +480,108 @@ templ DashboardUtilities() {
 					const minutes = Math.floor(seconds / 60);
 					const remainingSeconds = Math.floor(seconds % 60);
 					return `${minutes}m ${remainingSeconds}s`;
-				} else {
+				} else if (seconds < 86400) { // Less than 24 hours
 					const hours = Math.floor(seconds / 3600);
 					const remainingMinutes = Math.floor((seconds % 3600) / 60);
 					return `${hours}h ${remainingMinutes}m`;
+				} else { // 24 hours or more - show days and hours
+					const days = Math.floor(seconds / 86400);
+					const remainingHours = Math.floor((seconds % 86400) / 3600);
+					if (remainingHours > 0) {
+						return `${days}d ${remainingHours}h`;
+					} else {
+						return `${days}d`;
+					}
 				}
 			},
 
 			formatTimestamp(timestamp) {
 				return new Date(timestamp).toLocaleString();
+			},
+			
+			// Pagination utilities
+			getTotalPages() {
+				return Math.ceil(this.totalItems / this.itemsPerPage);
+			},
+			
+			getPaginationStartIndex() {
+				if (this.totalItems === 0) return 0;
+				return ((this.currentPage - 1) * this.itemsPerPage) + 1;
+			},
+			
+			getPaginationEndIndex() {
+				const end = this.currentPage * this.itemsPerPage;
+				return end > this.totalItems ? this.totalItems : end;
+			},
+			
+			getPageNumbers() {
+				const totalPages = this.getTotalPages();
+				const pages = [];
+				
+				if (totalPages <= 7) {
+					// Show all pages if 7 or less
+					for (let i = 1; i <= totalPages; i++) {
+						pages.push(i);
+					}
+				} else {
+					// Show first, last, and pages around current
+					if (this.currentPage <= 3) {
+						for (let i = 1; i <= 5; i++) {
+							pages.push(i);
+						}
+						pages.push('...');
+						pages.push(totalPages);
+					} else if (this.currentPage >= totalPages - 2) {
+						pages.push(1);
+						pages.push('...');
+						for (let i = totalPages - 4; i <= totalPages; i++) {
+							pages.push(i);
+						}
+					} else {
+						pages.push(1);
+						pages.push('...');
+						for (let i = this.currentPage - 1; i <= this.currentPage + 1; i++) {
+							pages.push(i);
+						}
+						pages.push('...');
+						pages.push(totalPages);
+					}
+				}
+				
+				return pages;
+			},
+			
+			setItemsPerPage(value) {
+				this.itemsPerPage = parseInt(value);
+				this.currentPage = 1; // Reset to first page
+				this.loadDashboardData();
+			},
+			
+			goToPage(page) {
+				if (page !== '...' && page !== this.currentPage) {
+					this.currentPage = page;
+					this.loadDashboardData();
+				}
+			},
+			
+			nextPage() {
+				if (this.currentPage < this.getTotalPages()) {
+					this.currentPage++;
+					this.loadDashboardData();
+				}
+			},
+			
+			previousPage() {
+				if (this.currentPage > 1) {
+					this.currentPage--;
+					this.loadDashboardData();
+				}
+			},
+			
+			// Group-by selector
+			setGroupByLabel(label) {
+				this.groupByLabel = label;
+				this.loadDashboardData();
 			},
 
 			// Alert color utilities

@@ -63,6 +63,7 @@ func GetDashboardData(c *gin.Context) {
 	// Parse filters from query parameters
 	filters := parseDashboardFilters(c)
 	sorting := parseDashboardSorting(c)
+	pagination := parsePagination(c)
 
 	// Get user settings
 	settings := getUserSettings(userID)
@@ -98,15 +99,22 @@ func GetDashboardData(c *gin.Context) {
 
 	// Apply sorting
 	sortedAlerts := applySorting(filteredAlerts, sorting)
+	
+	// Store total count before pagination
+	totalCount := len(sortedAlerts)
+
+	// Apply pagination
+	paginatedAlerts := applyPagination(sortedAlerts, pagination)
 
 	// Prepare response based on view mode
 	var response webuimodels.DashboardResponse
 
 	if filters.ViewMode == webuimodels.ViewModeGroup {
-		response.Groups = groupAlerts(sortedAlerts)
+		groupBy := c.DefaultQuery("groupBy", "alertname")
+		response.Groups = groupAlertsByLabel(paginatedAlerts, groupBy)
 		response.Alerts = []webuimodels.DashboardAlert{} // Empty in group mode
 	} else {
-		response.Alerts = convertToResponseAlerts(sortedAlerts)
+		response.Alerts = convertToResponseAlerts(paginatedAlerts)
 		response.Groups = []webuimodels.AlertGroup{} // Empty in list mode
 	}
 
@@ -120,6 +128,7 @@ func GetDashboardData(c *gin.Context) {
 		metadataAllAlerts = allAlerts
 	}
 	response.Metadata = buildDashboardMetadata(metadataAllAlerts, filteredAlerts, filters, userID)
+	response.Metadata.TotalCount = totalCount // Add total count for pagination
 	response.Settings = *settings
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(response))
@@ -132,6 +141,7 @@ func parseDashboardFilters(c *gin.Context) webuimodels.DashboardFilters {
 		Severities:    parseStringArray(c.Query("severities")),
 		Statuses:      parseStringArray(c.Query("statuses")),
 		Teams:         parseStringArray(c.Query("teams")),
+		AlertNames:    parseStringArray(c.Query("alertNames")),
 		DisplayMode:   webuimodels.DashboardDisplayMode(c.DefaultQuery("displayMode", "classic")),
 		ViewMode:      webuimodels.DashboardViewMode(c.DefaultQuery("viewMode", "list")),
 	}
@@ -163,6 +173,32 @@ func parseDashboardSorting(c *gin.Context) webuimodels.DashboardSorting {
 	return webuimodels.DashboardSorting{
 		Field:     c.DefaultQuery("sortField", "duration"),
 		Direction: c.DefaultQuery("sortDirection", "desc"),
+	}
+}
+
+func parsePagination(c *gin.Context) webuimodels.Pagination {
+	page := 1
+	limit := 50
+	
+	if p := c.Query("page"); p != "" {
+		if val, err := strconv.Atoi(p); err == nil && val > 0 {
+			page = val
+		}
+	}
+	
+	if l := c.Query("limit"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+			limit = val
+			// Cap limit at 500
+			if limit > 500 {
+				limit = 500
+			}
+		}
+	}
+	
+	return webuimodels.Pagination{
+		Page:  page,
+		Limit: limit,
 	}
 }
 
@@ -272,6 +308,11 @@ func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimo
 			continue
 		}
 
+		// Apply alert name filter
+		if len(filters.AlertNames) > 0 && !contains(filters.AlertNames, alert.AlertName) {
+			continue
+		}
+
 		// Apply acknowledgment filter
 		if filters.Acknowledged != nil && alert.IsAcknowledged != *filters.Acknowledged {
 			continue
@@ -326,6 +367,23 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func applyPagination(alerts []*webuimodels.DashboardAlert, pagination webuimodels.Pagination) []*webuimodels.DashboardAlert {
+	// Calculate offset
+	offset := (pagination.Page - 1) * pagination.Limit
+	
+	// Check bounds
+	if offset >= len(alerts) {
+		return []*webuimodels.DashboardAlert{}
+	}
+	
+	end := offset + pagination.Limit
+	if end > len(alerts) {
+		end = len(alerts)
+	}
+	
+	return alerts[offset:end]
 }
 
 func applySorting(alerts []*webuimodels.DashboardAlert, sorting webuimodels.DashboardSorting) []*webuimodels.DashboardAlert {
@@ -392,11 +450,31 @@ func getStatusPriority(status string) int {
 	}
 }
 
-func groupAlerts(alerts []*webuimodels.DashboardAlert) []webuimodels.AlertGroup {
+func groupAlertsByLabel(alerts []*webuimodels.DashboardAlert, groupByLabel string) []webuimodels.AlertGroup {
 	groups := make(map[string]*webuimodels.AlertGroup)
 
 	for _, alert := range alerts {
-		groupName := alert.GroupName
+		// Determine group name based on the label
+		var groupName string
+		
+		switch groupByLabel {
+		case "alertname":
+			groupName = alert.AlertName
+		case "severity":
+			groupName = alert.Severity
+		case "team":
+			groupName = alert.Team
+		case "instance":
+			groupName = alert.Instance
+		default:
+			// Try to get the value from labels map
+			if val, exists := alert.Labels[groupByLabel]; exists && val != "" {
+				groupName = val
+			} else {
+				groupName = "Other"
+			}
+		}
+		
 		if groupName == "" {
 			groupName = "Other"
 		}
@@ -448,6 +526,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		Severities:    []string{},
 		Statuses:      []string{},
 		Teams:         []string{},
+		AlertNames:    []string{},
 	}
 
 	// Track unique values for filters
@@ -455,6 +534,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 	severitySet := make(map[string]bool)
 	statusSet := make(map[string]bool)
 	teamSet := make(map[string]bool)
+	alertNameSet := make(map[string]bool)
 
 	// Count statistics from filtered alerts only
 	for _, alert := range filteredAlerts {
@@ -521,6 +601,9 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		severitySet[alert.Severity] = true
 		statusSet[alert.Status.State] = true
 		teamSet[alert.Team] = true
+		if alert.AlertName != "" {
+			alertNameSet[alert.AlertName] = true
+		}
 	}
 
 	for am := range alertmanagerSet {
@@ -535,12 +618,16 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 	for team := range teamSet {
 		availableFilters.Teams = append(availableFilters.Teams, team)
 	}
+	for alertName := range alertNameSet {
+		availableFilters.AlertNames = append(availableFilters.AlertNames, alertName)
+	}
 
 	// Sort filter options
 	sort.Strings(availableFilters.Alertmanagers)
 	sort.Strings(availableFilters.Severities)
 	sort.Strings(availableFilters.Statuses)
 	sort.Strings(availableFilters.Teams)
+	sort.Strings(availableFilters.AlertNames)
 
 	return webuimodels.DashboardMetadata{
 		TotalAlerts:      len(filteredAlerts), // Now respects filtering

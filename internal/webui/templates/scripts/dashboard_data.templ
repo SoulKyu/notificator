@@ -14,11 +14,21 @@ templ DashboardData() {
 					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
 					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 					
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
 					params.set('sortField', this.sortField);
 					params.set('sortDirection', this.sortDirection);
+					
+					// Add group-by parameter
+					if (this.viewMode === 'group' && this.groupByLabel) {
+						params.set('groupBy', this.groupByLabel);
+					}
+					
+					// Add pagination parameters
+					params.set('page', this.currentPage.toString());
+					params.set('limit', this.itemsPerPage.toString());
 					
 					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
 					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
@@ -36,6 +46,7 @@ templ DashboardData() {
 						this.alerts = result.data.alerts || [];
 						this.groups = result.data.groups || [];
 						this.metadata = result.data.metadata;
+						this.totalItems = result.data.metadata.totalCount || result.data.metadata.totalAlerts || 0;
 						this.settings = { ...this.settings, ...result.data.settings };
 						this.lastUpdateTime = Date.now();
 						
@@ -63,11 +74,21 @@ templ DashboardData() {
 					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
 					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 					
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
 					params.set('sortField', this.sortField);
 					params.set('sortDirection', this.sortDirection);
+					
+					// Add group-by parameter
+					if (this.viewMode === 'group' && this.groupByLabel) {
+						params.set('groupBy', this.groupByLabel);
+					}
+					
+					// Add pagination parameters
+					params.set('page', this.currentPage.toString());
+					params.set('limit', this.itemsPerPage.toString());
 					
 					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
 					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
@@ -125,11 +146,21 @@ templ DashboardData() {
 					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
 					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 					
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
 					params.set('sortField', this.sortField);
 					params.set('sortDirection', this.sortDirection);
+					
+					// Add group-by parameter
+					if (this.viewMode === 'group' && this.groupByLabel) {
+						params.set('groupBy', this.groupByLabel);
+					}
+					
+					// Add pagination parameters
+					params.set('page', this.currentPage.toString());
+					params.set('limit', this.itemsPerPage.toString());
 					
 					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
 					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);

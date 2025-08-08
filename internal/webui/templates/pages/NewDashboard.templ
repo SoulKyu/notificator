@@ -74,6 +74,24 @@ templ NewDashboardContent() {
 								</svg>
 							</button>
 						</div>
+						
+						<!-- Group By Selector (only shown in group view) -->
+						<div x-show="viewMode === 'group'" class="flex items-center space-x-2">
+							<span class="text-sm text-gray-600 dark:text-gray-400">Group by:</span>
+							<select x-model="groupByLabel" @change="setGroupByLabel($event.target.value)"
+									class="rounded-md border border-gray-300 dark:border-dark-border-DEFAULT bg-white dark:bg-dark-bg-tertiary text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-3 py-1.5">
+								<option value="alertname">Alert Name</option>
+								<option value="severity">Severity</option>
+								<option value="team">Team</option>
+								<option value="namespace">Namespace</option>
+								<option value="service">Service</option>
+								<option value="instance">Instance</option>
+								<option value="job">Job</option>
+								<template x-for="label in metadata.availableGroupLabels" :key="label">
+									<option :value="label" x-text="label"></option>
+								</template>
+							</select>
+						</div>
 
 						<!-- Settings Button -->
 						<button @click="openSettings()" 
@@ -442,6 +460,61 @@ templ NewDashboardContent() {
 								</div>
 							</div>
 
+							<!-- Alert Name Filter -->
+							<div class="relative" x-data="{ open: false, searchTerm: '' }">
+								<button @click="open = !open" type="button"
+										class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
+										:class="{ 'ring-2 ring-blue-500 ring-opacity-50': filters.alertNames.length > 0 }">
+									<span>Alert Name</span>
+									<span x-show="filters.alertNames.length > 0" class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" x-text="filters.alertNames.length"></span>
+									<svg class="ml-2 -mr-1 h-4 w-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+										<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+									</svg>
+								</button>
+								<div x-show="open" @click.away="open = false; searchTerm = ''" x-transition
+									 class="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
+									<div class="py-2">
+										<div class="px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT">
+											<div class="flex items-center justify-between mb-2">
+												<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Alert Names</span>
+												<button x-text="`Clear (${filters.alertNames.length})`" 
+														@click="clearFilter('alertNames'); searchTerm = ''" 
+														class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500"
+														x-show="filters.alertNames.length > 0">
+												</button>
+											</div>
+											<!-- Search input for alert names -->
+											<div class="relative">
+												<input type="text" 
+													   x-model="searchTerm" 
+													   placeholder="Search alert names..."
+													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+												<svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+													<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+												</svg>
+											</div>
+										</div>
+										<div class="max-h-48 overflow-y-auto">
+											<template x-for="option in metadata.availableFilters.alertNames.filter(name => searchTerm === '' || name.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
+												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+													<input type="checkbox" 
+														   x-model="filters.alertNames" 
+														   :value="option" 
+														   @change="applyFilters()"
+														   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
+													<span x-text="option" class="truncate"></span>
+												</label>
+											</template>
+											<div x-show="metadata.availableFilters.alertNames.filter(name => searchTerm === '' || name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0" 
+												 class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+												<span x-show="searchTerm === ''">No alert names available</span>
+												<span x-show="searchTerm !== ''">No matching alert names</span>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+
 							<!-- Additional Filters -->
 							<div class="relative" x-data="{ open: false }">
 								<button @click="open = !open" type="button"
@@ -603,6 +676,60 @@ templ NewDashboardContent() {
 				<!-- Group View -->
 				<div x-show="viewMode === 'group'">
 					@components.AlertsGroupView()
+				</div>
+				
+				<!-- Pagination Controls -->
+				<div class="px-6 py-4 bg-white dark:bg-dark-bg-secondary border-t border-gray-200 dark:border-dark-border-subtle">
+					<div class="flex items-center justify-between">
+						<!-- Items per page selector -->
+						<div class="flex items-center space-x-3">
+							<span class="text-sm text-gray-700 dark:text-gray-300">Items per page:</span>
+							<select x-model="itemsPerPage" @change="setItemsPerPage($event.target.value)"
+									class="rounded-md border border-gray-300 dark:border-dark-border-DEFAULT bg-white dark:bg-dark-bg-tertiary text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-3 py-1.5">
+								<option value="10">10</option>
+								<option value="20">20</option>
+								<option value="50">50</option>
+								<option value="100">100</option>
+								<option value="500">500</option>
+							</select>
+							
+							<!-- Results info -->
+							<span class="text-sm text-gray-700 dark:text-gray-400">
+								Showing <span x-text="getPaginationStartIndex()"></span> to <span x-text="getPaginationEndIndex()"></span> of <span x-text="totalItems"></span> results
+							</span>
+						</div>
+						
+						<!-- Page navigation -->
+						<div class="flex items-center space-x-2">
+							<!-- Previous button -->
+							<button @click="previousPage()" 
+									:disabled="currentPage === 1"
+									class="px-3 py-1.5 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed">
+								<svg class="h-4 w-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+								</svg>
+							</button>
+							
+							<!-- Page numbers -->
+							<template x-for="page in getPageNumbers()" :key="page">
+								<button @click="page !== '...' && goToPage(page)" 
+										:class="currentPage === page ? 'bg-blue-500 text-white border-blue-500' : 'text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary'"
+										:disabled="page === '...'"
+										class="px-3 py-1.5 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md text-sm font-medium disabled:cursor-default">
+									<span x-text="page"></span>
+								</button>
+							</template>
+							
+							<!-- Next button -->
+							<button @click="nextPage()" 
+									:disabled="currentPage >= getTotalPages()"
+									class="px-3 py-1.5 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed">
+								<svg class="h-4 w-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+								</svg>
+							</button>
+						</div>
+					</div>
 				</div>
 			</div>
 		</main>

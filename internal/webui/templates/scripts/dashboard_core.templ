@@ -24,7 +24,8 @@ templ DashboardCore() {
 						alertmanagers: [],
 						severities: [],
 						statuses: [],
-						teams: []
+						teams: [],
+						alertNames: []
 					}
 				},
 				settings: {
@@ -43,6 +44,7 @@ templ DashboardCore() {
 				viewMode: 'list',
 				sortField: 'duration',
 				sortDirection: 'asc',
+				groupByLabel: 'alertname', // Default group by alert name
 				showSettings: false,
 				
 				showAckModal: false,
@@ -79,7 +81,8 @@ templ DashboardCore() {
 					alertmanagers: [],
 					severities: [],
 					statuses: [],
-					teams: []
+					teams: [],
+					alertNames: []
 				},
 				acknowledgmentFilter: null,
 				commentsFilter: null,
@@ -87,6 +90,11 @@ templ DashboardCore() {
 				selectedAlerts: [],
 				selectedGroups: [],
 				expandedGroups: [],
+				
+				// Pagination
+				currentPage: 1,
+				itemsPerPage: 50,
+				totalItems: 0,
 				
 				refreshInterval: null,
 				lastUpdateTime: null,

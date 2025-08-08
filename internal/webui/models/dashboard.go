@@ -82,6 +82,7 @@ type DashboardFilters struct {
 	Severities          []string             `json:"severities"`
 	Statuses            []string             `json:"statuses"`
 	Teams               []string             `json:"teams"`
+	AlertNames          []string             `json:"alertNames"`
 	Acknowledged        *bool                `json:"acknowledged,omitempty"` // nil = all, true = only ack, false = only non-ack
 	HasComments         *bool                `json:"hasComments,omitempty"`  // nil = all, true = with comments, false = without
 	DisplayMode         DashboardDisplayMode `json:"displayMode"`
@@ -93,6 +94,12 @@ type DashboardFilters struct {
 type DashboardSorting struct {
 	Field     string `json:"field"`     // Column to sort by
 	Direction string `json:"direction"` // "asc" or "desc"
+}
+
+// Pagination represents pagination configuration
+type Pagination struct {
+	Page  int `json:"page"`  // Current page (1-based)
+	Limit int `json:"limit"` // Items per page
 }
 
 // DashboardSettings represents user-specific dashboard settings
@@ -149,6 +156,7 @@ type AlertGroup struct {
 type DashboardMetadata struct {
 	TotalAlerts        int                       `json:"totalAlerts"`
 	FilteredCount      int                       `json:"filteredCount"`
+	TotalCount         int                       `json:"totalCount"`  // Total count for pagination
 	LastUpdate         time.Time                 `json:"lastUpdate"`
 	NextUpdate         time.Time                 `json:"nextUpdate"`
 	AlertmanagerStatus map[string]bool           `json:"alertmanagerStatus"`
@@ -173,6 +181,7 @@ type DashboardAvailableFilters struct {
 	Severities    []string `json:"severities"`
 	Statuses      []string `json:"statuses"`
 	Teams         []string `json:"teams"`
+	AlertNames    []string `json:"alertNames"`
 }
 
 // BulkActionRequest represents a request to perform actions on multiple alerts
