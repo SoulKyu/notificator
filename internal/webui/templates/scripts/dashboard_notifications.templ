@@ -462,7 +462,7 @@ templ DashboardNotifications() {
 				}
 				
 				// Try to get specific sound config for this severity
-				let specificConfig = this.getSoundConfigForSeverity(severityLower, config);
+				let specificConfig = this.getSoundConfigBySeverity(severityLower, config);
 				if (specificConfig) {
 					return specificConfig;
 				}
@@ -471,17 +471,17 @@ templ DashboardNotifications() {
 				switch (severityLower) {
 					case 'critical':
 					case 'major':
-						return this.getSoundConfigForSeverity('critical', config) || {
+						return this.getSoundConfigBySeverity('critical', config) || {
 							frequency: 800, duration: 200, type: 'square'
 						};
 					case 'warning':
 					case 'minor':
-						return this.getSoundConfigForSeverity('warning', config) || {
+						return this.getSoundConfigBySeverity('warning', config) || {
 							frequency: 600, duration: 150, type: 'sine'
 						};
 					case 'info':
 					case 'information':
-						return this.getSoundConfigForSeverity('info', config) || {
+						return this.getSoundConfigBySeverity('info', config) || {
 							frequency: 400, duration: 100, type: 'sine'
 						};
 					default:
@@ -494,7 +494,7 @@ templ DashboardNotifications() {
 			},
 
 			// Dynamic helper to get sound config for any severity
-			getSoundConfigForSeverity(severity, config) {
+			getSoundConfigBySeverity(severity, config) {
 				if (!config || !severity) return null;
 				
 				const severityLower = severity.toLowerCase();
