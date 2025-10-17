@@ -25,6 +25,12 @@ service AuthService {
   // User Groups
   rpc GetUserGroups(GetUserGroupsRequest) returns (GetUserGroupsResponse);
   rpc SyncUserGroups(SyncUserGroupsRequest) returns (SyncUserGroupsResponse);
+  
+  // Sentry Integration
+  rpc GetUserSentryConfig(GetUserSentryConfigRequest) returns (GetUserSentryConfigResponse);
+  rpc GetUserSentryToken(GetUserSentryTokenRequest) returns (GetUserSentryTokenResponse);
+  rpc SaveUserSentryConfig(SaveUserSentryConfigRequest) returns (SaveUserSentryConfigResponse);
+  rpc DeleteUserSentryConfig(DeleteUserSentryConfigRequest) returns (DeleteUserSentryConfigResponse);
 }
 
 // Messages
@@ -174,4 +180,57 @@ message SyncUserGroupsResponse {
   bool success = 1;
   string error = 2;
   int32 groups_synced = 3;
+}
+
+// Sentry Integration Messages
+message GetUserSentryConfigRequest {
+  string user_id = 1;
+}
+
+message GetUserSentryConfigResponse {
+  bool success = 1;
+  string error = 2;
+  UserSentryConfig config = 3;
+}
+
+message SaveUserSentryConfigRequest {
+  string user_id = 1;
+  string personal_token = 2;
+  string base_url = 3;
+  string session_id = 4; // Required for authorization
+}
+
+message SaveUserSentryConfigResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message DeleteUserSentryConfigRequest {
+  string user_id = 1;
+  string session_id = 2; // Required for authorization
+}
+
+message DeleteUserSentryConfigResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetUserSentryTokenRequest {
+  string user_id = 1;
+  string session_id = 2; // Required for authorization
+}
+
+message GetUserSentryTokenResponse {
+  bool success = 1;
+  string error = 2;
+  string personal_token = 3; // Only returned for authenticated requests
+  bool has_token = 4;
+}
+
+message UserSentryConfig {
+  string user_id = 1;
+  string base_url = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  // Note: personal_token is intentionally omitted for security
 }

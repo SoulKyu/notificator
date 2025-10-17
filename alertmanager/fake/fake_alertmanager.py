@@ -143,6 +143,18 @@ ALERT_TEMPLATES = [
         "team": "infrastructure",
         "description": "Load balancer {instance} is healthy and operational",
         "summary": "Load balancer {instance} operational"
+    },
+    {
+        "alertname": "QuerylyApplicationError",
+        "severity": "critical",
+        "instance": "queryly-back-{instance}.company.net",
+        "job": "queryly-back",
+        "team": "queryly",
+        "service": "queryly-back",
+        "environment": "production",
+        "sentry": "https://sentry.numberly.net/organizations/numberly/projects/queryly-queryly-back?project=39",
+        "description": "Queryly backend application is experiencing critical errors on {instance}",
+        "summary": "Critical errors detected in Queryly backend on {instance}"
     }
 ]
 
@@ -271,14 +283,22 @@ def generate_random_alert():
     starts_at = datetime.now(UTC) - timedelta(minutes=random.randint(1, 30))
     ends_at = starts_at + timedelta(hours=random.randint(1, 6))
     
+    # Build base labels
+    labels = {
+        "alertname": template["alertname"],
+        "severity": severity,
+        "instance": instance_name,
+        "job": template["job"],
+        "team": template["team"]
+    }
+    
+    # Add additional labels if present in template
+    for key in ["service", "environment", "sentry"]:
+        if key in template:
+            labels[key] = template[key]
+    
     alert = {
-        "labels": {
-            "alertname": template["alertname"],
-            "severity": severity,
-            "instance": instance_name,
-            "job": template["job"],
-            "team": template["team"]
-        },
+        "labels": labels,
         "annotations": {
             "description": template["description"].format(instance=instance_name),
             "summary": template["summary"].format(instance=instance_name),
@@ -709,6 +729,38 @@ if __name__ == '__main__':
     # Generate some initial alerts (increased for more active alerts)
     for _ in range(20):
         alerts.append(generate_random_alert())
+    
+    # Add a specific Sentry alert for testing
+    sentry_alert = {
+        "labels": {
+            "alertname": "QuerylyApplicationError",
+            "severity": "critical",
+            "instance": "queryly-back-1.company.net",
+            "job": "queryly-back",
+            "team": "queryly",
+            "service": "queryly-back",
+            "environment": "production",
+            "sentry": "https://sentry.numberly.net/organizations/numberly/projects/queryly-queryly-back?project=39"
+        },
+        "annotations": {
+            "description": "Queryly backend application is experiencing critical errors on queryly-back-1.company.net",
+            "summary": "Critical errors detected in Queryly backend on queryly-back-1.company.net",
+            "runbook_url": "https://runbooks.example.com/querylyapplicationerror"
+        },
+        "startsAt": (datetime.now(UTC) - timedelta(minutes=15)).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+        "endsAt": (datetime.now(UTC) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+        "updatedAt": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+        "generatorURL": "http://prometheus:9090/graph?g0.expr=up{job=\"queryly-back\"}&g0.tab=1",
+        "fingerprint": generate_fingerprint(),
+        "receivers": [{"name": "web.hook"}],
+        "status": {
+            "state": "active",
+            "silencedBy": [],
+            "inhibitedBy": [],
+            "mutedBy": []
+        }
+    }
+    alerts.append(sentry_alert)
     
     # Generate some initial silences (reduced for fewer silenced alerts)
     for _ in range(1):

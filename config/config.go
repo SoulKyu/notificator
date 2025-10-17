@@ -22,6 +22,7 @@ type Config struct {
 	ResolvedAlerts ResolvedAlertsConfig `json:"resolved_alerts"`
 	WebUI          WebUIConfig          `json:"webui"`
 	OAuth          *OAuthPortalConfig   `json:"oauth,omitempty"`
+	Sentry         *SentryConfig        `json:"sentry,omitempty"`
 }
 
 type BackendConfig struct {
@@ -104,6 +105,12 @@ type PollingConfig struct {
 
 type WebUIConfig struct {
 	Playground bool `json:"playground"`
+}
+
+type SentryConfig struct {
+	Enabled     bool   `json:"enabled"`
+	BaseURL     string `json:"base_url"`     // Default Sentry instance URL (e.g., "https://sentry.io")
+	GlobalToken string `json:"global_token"` // Admin-configured fallback token
 }
 
 func DefaultConfig() *Config {
@@ -278,6 +285,16 @@ func LoadConfigWithViper() (*Config, error) {
 	}
 
 	initializeFilterStates(cfg)
+
+	// Load Sentry configuration if enabled
+	if viper.GetBool("sentry.enabled") {
+		cfg.Sentry = &SentryConfig{
+			Enabled:     true,
+			BaseURL:     viper.GetString("sentry.base_url"),
+			GlobalToken: viper.GetString("sentry.global_token"),
+		}
+		log.Printf("DEBUG: Sentry config loaded - enabled: %v, base_url: %v", cfg.Sentry.Enabled, cfg.Sentry.BaseURL)
+	}
 
 	oauthEnabled := viper.GetBool("oauth.enabled")
 	log.Printf("DEBUG: OAuth enabled check: %v", oauthEnabled)
@@ -461,6 +478,11 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("oauth.debug", oauthDefaults.Debug)
 	viper.SetDefault("oauth.log_level", oauthDefaults.LogLevel)
 
+	// Sentry defaults
+	viper.SetDefault("sentry.enabled", false)
+	viper.SetDefault("sentry.base_url", "https://sentry.io")
+	viper.SetDefault("sentry.global_token", "")
+
 	// Group sync defaults
 	viper.SetDefault("oauth.group_sync.enabled", oauthDefaults.GroupSync.Enabled)
 	viper.SetDefault("oauth.group_sync.sync_on_login", oauthDefaults.GroupSync.SyncOnLogin)
@@ -477,6 +499,11 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("oauth.security.validate_issuer", oauthDefaults.Security.ValidateIssuer)
 	viper.SetDefault("oauth.security.token_encryption", oauthDefaults.Security.TokenEncryption)
 	viper.SetDefault("oauth.security.csrf_protection", oauthDefaults.Security.CSRFProtection)
+
+	// Sentry environment variable bindings
+	viper.BindEnv("sentry.enabled", "NOTIFICATOR_SENTRY_ENABLED")
+	viper.BindEnv("sentry.base_url", "NOTIFICATOR_SENTRY_BASE_URL")
+	viper.BindEnv("sentry.global_token", "NOTIFICATOR_SENTRY_GLOBAL_TOKEN")
 
 	// Alertmanager defaults - DISABLED to allow JSON config to work properly
 	// The alertmanager configuration should come from the config file, not defaults

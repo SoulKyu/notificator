@@ -2062,6 +2062,202 @@ func (s *AlertServiceGorm) RemoveHiddenRule(ctx context.Context, req *alertpb.Re
 	}, nil
 }
 
+// Sentry Integration Methods
+
+// GetUserSentryConfig implements the GetUserSentryConfig RPC method
+func (s *AuthServiceGorm) GetUserSentryConfig(ctx context.Context, req *authpb.GetUserSentryConfigRequest) (*authpb.GetUserSentryConfigResponse, error) {
+	if req.UserId == "" {
+		return &authpb.GetUserSentryConfigResponse{
+			Success: false,
+			Error:   "User ID is required",
+		}, nil
+	}
+
+	// Get user Sentry config from database using string user ID
+	config, err := s.db.GetUserSentryConfig(req.UserId)
+	if err != nil {
+		// Config not found is not an error, just return empty config
+		return &authpb.GetUserSentryConfigResponse{
+			Success: true,
+			Config:  nil, // No config found
+		}, nil
+	}
+
+	// Convert to protobuf format (excluding sensitive token)
+	pbConfig := &authpb.UserSentryConfig{
+		UserId:    req.UserId,
+		BaseUrl:   config.SentryBaseURL,
+		CreatedAt: timestamppb.New(config.CreatedAt),
+		UpdatedAt: timestamppb.New(config.UpdatedAt),
+	}
+
+	return &authpb.GetUserSentryConfigResponse{
+		Success: true,
+		Config:  pbConfig,
+	}, nil
+}
+
+// GetUserSentryToken implements the GetUserSentryToken RPC method
+// This method returns the user's decrypted Sentry token for API calls
+func (s *AuthServiceGorm) GetUserSentryToken(ctx context.Context, req *authpb.GetUserSentryTokenRequest) (*authpb.GetUserSentryTokenResponse, error) {
+	if req.UserId == "" {
+		return &authpb.GetUserSentryTokenResponse{
+			Success: false,
+			Error:   "User ID is required",
+		}, nil
+	}
+
+	if req.SessionId == "" {
+		return &authpb.GetUserSentryTokenResponse{
+			Success: false,
+			Error:   "Session ID is required for authorization",
+		}, nil
+	}
+
+	// Validate session and get authenticated user
+	authenticatedUser, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.GetUserSentryTokenResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	// CRITICAL SECURITY CHECK: Ensure user can only access their own token
+	if authenticatedUser.ID != req.UserId {
+		return &authpb.GetUserSentryTokenResponse{
+			Success: false,
+			Error:   "Unauthorized: Cannot access another user's token",
+		}, nil
+	}
+
+	// Get user Sentry config from database with decrypted token
+	config, err := s.db.GetUserSentryConfig(req.UserId)
+	if err != nil {
+		// Config not found is not an error, just return no token
+		return &authpb.GetUserSentryTokenResponse{
+			Success:  true,
+			HasToken: false,
+		}, nil
+	}
+
+	// Return the decrypted token
+	return &authpb.GetUserSentryTokenResponse{
+		Success:       true,
+		PersonalToken: config.PersonalToken, // This is already decrypted by the database layer
+		HasToken:      config.PersonalToken != "",
+	}, nil
+}
+
+// SaveUserSentryConfig implements the SaveUserSentryConfig RPC method
+func (s *AuthServiceGorm) SaveUserSentryConfig(ctx context.Context, req *authpb.SaveUserSentryConfigRequest) (*authpb.SaveUserSentryConfigResponse, error) {
+	if req.UserId == "" {
+		return &authpb.SaveUserSentryConfigResponse{
+			Success: false,
+			Error:   "User ID is required",
+		}, nil
+	}
+
+	if req.SessionId == "" {
+		return &authpb.SaveUserSentryConfigResponse{
+			Success: false,
+			Error:   "Session ID is required",
+		}, nil
+	}
+
+	if req.PersonalToken == "" {
+		return &authpb.SaveUserSentryConfigResponse{
+			Success: false,
+			Error:   "Personal token is required",
+		}, nil
+	}
+
+	// Validate session and get authenticated user
+	authenticatedUser, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.SaveUserSentryConfigResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	// CRITICAL SECURITY CHECK: Ensure user can only save their own config
+	if authenticatedUser.ID != req.UserId {
+		return &authpb.SaveUserSentryConfigResponse{
+			Success: false,
+			Error:   "Unauthorized: Cannot save another user's Sentry configuration",
+		}, nil
+	}
+
+	// Use default base URL if not provided
+	baseURL := req.BaseUrl
+	if baseURL == "" {
+		baseURL = "https://sentry.io"
+	}
+
+	// Save to database using string user ID
+	err = s.db.SaveUserSentryConfig(req.UserId, req.PersonalToken, baseURL)
+	if err != nil {
+		log.Printf("Error saving user Sentry config for user %s: %v", req.UserId, err)
+		return &authpb.SaveUserSentryConfigResponse{
+			Success: false,
+			Error:   "Failed to save Sentry configuration",
+		}, nil
+	}
+
+	return &authpb.SaveUserSentryConfigResponse{
+		Success: true,
+	}, nil
+}
+
+// DeleteUserSentryConfig implements the DeleteUserSentryConfig RPC method
+func (s *AuthServiceGorm) DeleteUserSentryConfig(ctx context.Context, req *authpb.DeleteUserSentryConfigRequest) (*authpb.DeleteUserSentryConfigResponse, error) {
+	if req.UserId == "" {
+		return &authpb.DeleteUserSentryConfigResponse{
+			Success: false,
+			Error:   "User ID is required",
+		}, nil
+	}
+
+	if req.SessionId == "" {
+		return &authpb.DeleteUserSentryConfigResponse{
+			Success: false,
+			Error:   "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get authenticated user
+	authenticatedUser, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.DeleteUserSentryConfigResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	// CRITICAL SECURITY CHECK: Ensure user can only delete their own config
+	if authenticatedUser.ID != req.UserId {
+		return &authpb.DeleteUserSentryConfigResponse{
+			Success: false,
+			Error:   "Unauthorized: Cannot delete another user's Sentry configuration",
+		}, nil
+	}
+
+	// Delete from database using string user ID
+	err = s.db.DeleteUserSentryConfig(req.UserId)
+	if err != nil {
+		log.Printf("Error deleting user Sentry config for user %s: %v", req.UserId, err)
+		return &authpb.DeleteUserSentryConfigResponse{
+			Success: false,
+			Error:   "Failed to delete Sentry configuration",
+		}, nil
+	}
+
+	return &authpb.DeleteUserSentryConfigResponse{
+		Success: true,
+	}, nil
+}
+
 func generateUUID() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)

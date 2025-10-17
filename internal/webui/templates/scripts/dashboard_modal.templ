@@ -351,6 +351,122 @@ templ DashboardModal() {
 					console.error('Error unacknowledging alert:', error);
 					this.showNotification('error', 'Failed to unacknowledge alert');
 				}
+			},
+
+			// Sentry Integration Functions  
+			async loadSentryDataForTab() {
+				// This function is called from the tab button click
+				// Find the Sentry data component using document.querySelector since $refs doesn't work across components
+				const sentryComponent = document.querySelector('[x-ref="sentryDataComponent"]');
+				
+				if (sentryComponent && sentryComponent._x_dataStack && sentryComponent._x_dataStack[0]) {
+					// Get the Alpine component data
+					const componentData = sentryComponent._x_dataStack[0];
+					// Set loading state
+					componentData.sentryLoading = true;
+					componentData.sentryError = null;
+					
+					await this.loadSentryData(componentData);
+				} else {
+					console.error('Could not find Sentry data component. Element found:', !!sentryComponent, 
+						'Has _x_dataStack:', !!(sentryComponent && sentryComponent._x_dataStack));
+				}
+			},
+
+			async loadSentryData(component) {
+				try {
+					// Get current alert from the component that has alert details
+					let alert = null;
+					let fingerprint = null;
+					
+					// Try to get alert from the component's alert details
+					if (component && component.alertDetails?.alert) {
+						alert = component.alertDetails.alert;
+						fingerprint = alert.fingerprint;
+					} 
+					// Fallback to current alert from dashboard instance
+					else if (window.dashboardInstance && window.dashboardInstance.currentAlert) {
+						alert = window.dashboardInstance.currentAlert;
+						fingerprint = alert.fingerprint;
+					}
+					// Last resort: use alertDetails from parent modal component
+					else if (this.alertDetails?.alert) {
+						alert = this.alertDetails.alert;
+						fingerprint = alert.fingerprint;
+					}
+					
+					if (!alert || !fingerprint) {
+						console.error('No current alert available for Sentry data');
+						if (component) {
+							component.sentryError = 'No alert data available';
+							component.sentryLoading = false;
+						}
+						return;
+					}
+
+					console.log('Loading Sentry data for alert fingerprint:', fingerprint);
+
+					const response = await fetch(`/api/v1/dashboard/sentry/${encodeURIComponent(fingerprint)}`, {
+						credentials: 'include'
+					});
+
+					if (response.ok) {
+						const result = await response.json();
+						
+						if (result.has_sentry_label) {
+							if (result.auth_status?.has_api_token) {
+								// User has token and can view data
+								if (component) {
+									component.sentryData = result;
+									component.sentryError = null;
+									component.hasSentryToken = true;
+								}
+							} else {
+								// User needs to configure token
+								if (component) {
+									component.sentryData = null;
+									component.sentryError = 'Sentry token not configured';
+									component.hasSentryToken = false;
+								}
+							}
+						} else {
+							// Alert doesn't have sentry label
+							if (component) {
+								component.sentryData = null;
+								component.sentryError = 'This alert does not have Sentry integration data';
+								component.hasSentryToken = false;
+							}
+						}
+					} else {
+						console.error('Failed to load Sentry data:', response.status);
+						if (component) {
+							component.sentryError = 'Failed to load Sentry data';
+						}
+					}
+				} catch (error) {
+					console.error('Error loading Sentry data:', error);
+					if (component) {
+						component.sentryError = 'Error loading Sentry data: ' + error.message;
+					}
+				} finally {
+					if (component) {
+						component.sentryLoading = false;
+					}
+				}
+			}
+		};
+
+		// Global function for Sentry data loading that can be called from Alpine.js components
+		window.loadSentryData = function() {
+			// Get the parent dashboard component that has the modal mixin
+			const dashboardComponent = window.dashboardInstance;
+			if (dashboardComponent && dashboardComponent.loadSentryData) {
+				// Pass the current Alpine.js component (this) to the function
+				dashboardComponent.loadSentryData(this);
+			} else {
+				console.error('Dashboard instance not found or loadSentryData method not available');
+				this.sentryError = 'Dashboard not properly initialized';
+				this.sentryLoading = false;
 			}
 		};
 	</script>

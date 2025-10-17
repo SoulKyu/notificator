@@ -21,18 +21,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_Register_FullMethodName          = "/notificator.auth.AuthService/Register"
-	AuthService_Login_FullMethodName             = "/notificator.auth.AuthService/Login"
-	AuthService_Logout_FullMethodName            = "/notificator.auth.AuthService/Logout"
-	AuthService_ValidateSession_FullMethodName   = "/notificator.auth.AuthService/ValidateSession"
-	AuthService_GetProfile_FullMethodName        = "/notificator.auth.AuthService/GetProfile"
-	AuthService_SearchUsers_FullMethodName       = "/notificator.auth.AuthService/SearchUsers"
-	AuthService_GetOAuthAuthURL_FullMethodName   = "/notificator.auth.AuthService/GetOAuthAuthURL"
-	AuthService_OAuthCallback_FullMethodName     = "/notificator.auth.AuthService/OAuthCallback"
-	AuthService_GetOAuthProviders_FullMethodName = "/notificator.auth.AuthService/GetOAuthProviders"
-	AuthService_GetOAuthConfig_FullMethodName    = "/notificator.auth.AuthService/GetOAuthConfig"
-	AuthService_GetUserGroups_FullMethodName     = "/notificator.auth.AuthService/GetUserGroups"
-	AuthService_SyncUserGroups_FullMethodName    = "/notificator.auth.AuthService/SyncUserGroups"
+	AuthService_Register_FullMethodName               = "/notificator.auth.AuthService/Register"
+	AuthService_Login_FullMethodName                  = "/notificator.auth.AuthService/Login"
+	AuthService_Logout_FullMethodName                 = "/notificator.auth.AuthService/Logout"
+	AuthService_ValidateSession_FullMethodName        = "/notificator.auth.AuthService/ValidateSession"
+	AuthService_GetProfile_FullMethodName             = "/notificator.auth.AuthService/GetProfile"
+	AuthService_SearchUsers_FullMethodName            = "/notificator.auth.AuthService/SearchUsers"
+	AuthService_GetOAuthAuthURL_FullMethodName        = "/notificator.auth.AuthService/GetOAuthAuthURL"
+	AuthService_OAuthCallback_FullMethodName          = "/notificator.auth.AuthService/OAuthCallback"
+	AuthService_GetOAuthProviders_FullMethodName      = "/notificator.auth.AuthService/GetOAuthProviders"
+	AuthService_GetOAuthConfig_FullMethodName         = "/notificator.auth.AuthService/GetOAuthConfig"
+	AuthService_GetUserGroups_FullMethodName          = "/notificator.auth.AuthService/GetUserGroups"
+	AuthService_SyncUserGroups_FullMethodName         = "/notificator.auth.AuthService/SyncUserGroups"
+	AuthService_GetUserSentryConfig_FullMethodName    = "/notificator.auth.AuthService/GetUserSentryConfig"
+	AuthService_GetUserSentryToken_FullMethodName     = "/notificator.auth.AuthService/GetUserSentryToken"
+	AuthService_SaveUserSentryConfig_FullMethodName   = "/notificator.auth.AuthService/SaveUserSentryConfig"
+	AuthService_DeleteUserSentryConfig_FullMethodName = "/notificator.auth.AuthService/DeleteUserSentryConfig"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -55,6 +59,11 @@ type AuthServiceClient interface {
 	// User Groups
 	GetUserGroups(ctx context.Context, in *GetUserGroupsRequest, opts ...grpc.CallOption) (*GetUserGroupsResponse, error)
 	SyncUserGroups(ctx context.Context, in *SyncUserGroupsRequest, opts ...grpc.CallOption) (*SyncUserGroupsResponse, error)
+	// Sentry Integration
+	GetUserSentryConfig(ctx context.Context, in *GetUserSentryConfigRequest, opts ...grpc.CallOption) (*GetUserSentryConfigResponse, error)
+	GetUserSentryToken(ctx context.Context, in *GetUserSentryTokenRequest, opts ...grpc.CallOption) (*GetUserSentryTokenResponse, error)
+	SaveUserSentryConfig(ctx context.Context, in *SaveUserSentryConfigRequest, opts ...grpc.CallOption) (*SaveUserSentryConfigResponse, error)
+	DeleteUserSentryConfig(ctx context.Context, in *DeleteUserSentryConfigRequest, opts ...grpc.CallOption) (*DeleteUserSentryConfigResponse, error)
 }
 
 type authServiceClient struct {
@@ -185,6 +194,46 @@ func (c *authServiceClient) SyncUserGroups(ctx context.Context, in *SyncUserGrou
 	return out, nil
 }
 
+func (c *authServiceClient) GetUserSentryConfig(ctx context.Context, in *GetUserSentryConfigRequest, opts ...grpc.CallOption) (*GetUserSentryConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserSentryConfigResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetUserSentryConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetUserSentryToken(ctx context.Context, in *GetUserSentryTokenRequest, opts ...grpc.CallOption) (*GetUserSentryTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserSentryTokenResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetUserSentryToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) SaveUserSentryConfig(ctx context.Context, in *SaveUserSentryConfigRequest, opts ...grpc.CallOption) (*SaveUserSentryConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveUserSentryConfigResponse)
+	err := c.cc.Invoke(ctx, AuthService_SaveUserSentryConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteUserSentryConfig(ctx context.Context, in *DeleteUserSentryConfigRequest, opts ...grpc.CallOption) (*DeleteUserSentryConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteUserSentryConfigResponse)
+	err := c.cc.Invoke(ctx, AuthService_DeleteUserSentryConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -205,6 +254,11 @@ type AuthServiceServer interface {
 	// User Groups
 	GetUserGroups(context.Context, *GetUserGroupsRequest) (*GetUserGroupsResponse, error)
 	SyncUserGroups(context.Context, *SyncUserGroupsRequest) (*SyncUserGroupsResponse, error)
+	// Sentry Integration
+	GetUserSentryConfig(context.Context, *GetUserSentryConfigRequest) (*GetUserSentryConfigResponse, error)
+	GetUserSentryToken(context.Context, *GetUserSentryTokenRequest) (*GetUserSentryTokenResponse, error)
+	SaveUserSentryConfig(context.Context, *SaveUserSentryConfigRequest) (*SaveUserSentryConfigResponse, error)
+	DeleteUserSentryConfig(context.Context, *DeleteUserSentryConfigRequest) (*DeleteUserSentryConfigResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -250,6 +304,18 @@ func (UnimplementedAuthServiceServer) GetUserGroups(context.Context, *GetUserGro
 }
 func (UnimplementedAuthServiceServer) SyncUserGroups(context.Context, *SyncUserGroupsRequest) (*SyncUserGroupsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SyncUserGroups not implemented")
+}
+func (UnimplementedAuthServiceServer) GetUserSentryConfig(context.Context, *GetUserSentryConfigRequest) (*GetUserSentryConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserSentryConfig not implemented")
+}
+func (UnimplementedAuthServiceServer) GetUserSentryToken(context.Context, *GetUserSentryTokenRequest) (*GetUserSentryTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserSentryToken not implemented")
+}
+func (UnimplementedAuthServiceServer) SaveUserSentryConfig(context.Context, *SaveUserSentryConfigRequest) (*SaveUserSentryConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveUserSentryConfig not implemented")
+}
+func (UnimplementedAuthServiceServer) DeleteUserSentryConfig(context.Context, *DeleteUserSentryConfigRequest) (*DeleteUserSentryConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserSentryConfig not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -488,6 +554,78 @@ func _AuthService_SyncUserGroups_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetUserSentryConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserSentryConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetUserSentryConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetUserSentryConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetUserSentryConfig(ctx, req.(*GetUserSentryConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetUserSentryToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserSentryTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetUserSentryToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetUserSentryToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetUserSentryToken(ctx, req.(*GetUserSentryTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_SaveUserSentryConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveUserSentryConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SaveUserSentryConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SaveUserSentryConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SaveUserSentryConfig(ctx, req.(*SaveUserSentryConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteUserSentryConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserSentryConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteUserSentryConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_DeleteUserSentryConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteUserSentryConfig(ctx, req.(*DeleteUserSentryConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -542,6 +680,22 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SyncUserGroups",
 			Handler:    _AuthService_SyncUserGroups_Handler,
+		},
+		{
+			MethodName: "GetUserSentryConfig",
+			Handler:    _AuthService_GetUserSentryConfig_Handler,
+		},
+		{
+			MethodName: "GetUserSentryToken",
+			Handler:    _AuthService_GetUserSentryToken_Handler,
+		},
+		{
+			MethodName: "SaveUserSentryConfig",
+			Handler:    _AuthService_SaveUserSentryConfig_Handler,
+		},
+		{
+			MethodName: "DeleteUserSentryConfig",
+			Handler:    _AuthService_DeleteUserSentryConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

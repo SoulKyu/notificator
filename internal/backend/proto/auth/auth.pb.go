@@ -1491,6 +1491,523 @@ func (x *SyncUserGroupsResponse) GetGroupsSynced() int32 {
 	return 0
 }
 
+// Sentry Integration Messages
+type GetUserSentryConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserSentryConfigRequest) Reset() {
+	*x = GetUserSentryConfigRequest{}
+	mi := &file_proto_auth_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserSentryConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserSentryConfigRequest) ProtoMessage() {}
+
+func (x *GetUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserSentryConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetUserSentryConfigRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *GetUserSentryConfigRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type GetUserSentryConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	Config        *UserSentryConfig      `protobuf:"bytes,3,opt,name=config,proto3" json:"config,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserSentryConfigResponse) Reset() {
+	*x = GetUserSentryConfigResponse{}
+	mi := &file_proto_auth_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserSentryConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserSentryConfigResponse) ProtoMessage() {}
+
+func (x *GetUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserSentryConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetUserSentryConfigResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *GetUserSentryConfigResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetUserSentryConfigResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *GetUserSentryConfigResponse) GetConfig() *UserSentryConfig {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+type SaveUserSentryConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	PersonalToken string                 `protobuf:"bytes,2,opt,name=personal_token,json=personalToken,proto3" json:"personal_token,omitempty"`
+	BaseUrl       string                 `protobuf:"bytes,3,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	SessionId     string                 `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Required for authorization
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveUserSentryConfigRequest) Reset() {
+	*x = SaveUserSentryConfigRequest{}
+	mi := &file_proto_auth_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveUserSentryConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveUserSentryConfigRequest) ProtoMessage() {}
+
+func (x *SaveUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveUserSentryConfigRequest.ProtoReflect.Descriptor instead.
+func (*SaveUserSentryConfigRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *SaveUserSentryConfigRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SaveUserSentryConfigRequest) GetPersonalToken() string {
+	if x != nil {
+		return x.PersonalToken
+	}
+	return ""
+}
+
+func (x *SaveUserSentryConfigRequest) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *SaveUserSentryConfigRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type SaveUserSentryConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveUserSentryConfigResponse) Reset() {
+	*x = SaveUserSentryConfigResponse{}
+	mi := &file_proto_auth_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveUserSentryConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveUserSentryConfigResponse) ProtoMessage() {}
+
+func (x *SaveUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveUserSentryConfigResponse.ProtoReflect.Descriptor instead.
+func (*SaveUserSentryConfigResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *SaveUserSentryConfigResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SaveUserSentryConfigResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type DeleteUserSentryConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Required for authorization
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserSentryConfigRequest) Reset() {
+	*x = DeleteUserSentryConfigRequest{}
+	mi := &file_proto_auth_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserSentryConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserSentryConfigRequest) ProtoMessage() {}
+
+func (x *DeleteUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserSentryConfigRequest.ProtoReflect.Descriptor instead.
+func (*DeleteUserSentryConfigRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *DeleteUserSentryConfigRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *DeleteUserSentryConfigRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type DeleteUserSentryConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserSentryConfigResponse) Reset() {
+	*x = DeleteUserSentryConfigResponse{}
+	mi := &file_proto_auth_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserSentryConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserSentryConfigResponse) ProtoMessage() {}
+
+func (x *DeleteUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserSentryConfigResponse.ProtoReflect.Descriptor instead.
+func (*DeleteUserSentryConfigResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *DeleteUserSentryConfigResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteUserSentryConfigResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type GetUserSentryTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Required for authorization
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserSentryTokenRequest) Reset() {
+	*x = GetUserSentryTokenRequest{}
+	mi := &file_proto_auth_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserSentryTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserSentryTokenRequest) ProtoMessage() {}
+
+func (x *GetUserSentryTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserSentryTokenRequest.ProtoReflect.Descriptor instead.
+func (*GetUserSentryTokenRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *GetUserSentryTokenRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetUserSentryTokenRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type GetUserSentryTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	PersonalToken string                 `protobuf:"bytes,3,opt,name=personal_token,json=personalToken,proto3" json:"personal_token,omitempty"` // Only returned for authenticated requests
+	HasToken      bool                   `protobuf:"varint,4,opt,name=has_token,json=hasToken,proto3" json:"has_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserSentryTokenResponse) Reset() {
+	*x = GetUserSentryTokenResponse{}
+	mi := &file_proto_auth_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserSentryTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserSentryTokenResponse) ProtoMessage() {}
+
+func (x *GetUserSentryTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserSentryTokenResponse.ProtoReflect.Descriptor instead.
+func (*GetUserSentryTokenResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *GetUserSentryTokenResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetUserSentryTokenResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *GetUserSentryTokenResponse) GetPersonalToken() string {
+	if x != nil {
+		return x.PersonalToken
+	}
+	return ""
+}
+
+func (x *GetUserSentryTokenResponse) GetHasToken() bool {
+	if x != nil {
+		return x.HasToken
+	}
+	return false
+}
+
+type UserSentryConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	BaseUrl       string                 `protobuf:"bytes,2,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // Note: personal_token is intentionally omitted for security
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserSentryConfig) Reset() {
+	*x = UserSentryConfig{}
+	mi := &file_proto_auth_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserSentryConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserSentryConfig) ProtoMessage() {}
+
+func (x *UserSentryConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserSentryConfig.ProtoReflect.Descriptor instead.
+func (*UserSentryConfig) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *UserSentryConfig) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UserSentryConfig) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *UserSentryConfig) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *UserSentryConfig) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
 var File_proto_auth_proto protoreflect.FileDescriptor
 
 const file_proto_auth_proto_rawDesc = "" +
@@ -1595,7 +2112,45 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\x16SyncUserGroupsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12#\n" +
-	"\rgroups_synced\x18\x03 \x01(\x05R\fgroupsSynced2\xea\b\n" +
+	"\rgroups_synced\x18\x03 \x01(\x05R\fgroupsSynced\"5\n" +
+	"\x1aGetUserSentryConfigRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x89\x01\n" +
+	"\x1bGetUserSentryConfigResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12:\n" +
+	"\x06config\x18\x03 \x01(\v2\".notificator.auth.UserSentryConfigR\x06config\"\x97\x01\n" +
+	"\x1bSaveUserSentryConfigRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12%\n" +
+	"\x0epersonal_token\x18\x02 \x01(\tR\rpersonalToken\x12\x19\n" +
+	"\bbase_url\x18\x03 \x01(\tR\abaseUrl\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x04 \x01(\tR\tsessionId\"N\n" +
+	"\x1cSaveUserSentryConfigResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"W\n" +
+	"\x1dDeleteUserSentryConfigRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"P\n" +
+	"\x1eDeleteUserSentryConfigResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"S\n" +
+	"\x19GetUserSentryTokenRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"\x90\x01\n" +
+	"\x1aGetUserSentryTokenResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12%\n" +
+	"\x0epersonal_token\x18\x03 \x01(\tR\rpersonalToken\x12\x1b\n" +
+	"\thas_token\x18\x04 \x01(\bR\bhasToken\"\xbc\x01\n" +
+	"\x10UserSentryConfig\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
+	"\bbase_url\x18\x02 \x01(\tR\abaseUrl\x129\n" +
+	"\n" +
+	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt2\xc3\f\n" +
 	"\vAuthService\x12Q\n" +
 	"\bRegister\x12!.notificator.auth.RegisterRequest\x1a\".notificator.auth.RegisterResponse\x12H\n" +
 	"\x05Login\x12\x1e.notificator.auth.LoginRequest\x1a\x1f.notificator.auth.LoginResponse\x12K\n" +
@@ -1609,7 +2164,11 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\x11GetOAuthProviders\x12*.notificator.auth.GetOAuthProvidersRequest\x1a+.notificator.auth.GetOAuthProvidersResponse\x12c\n" +
 	"\x0eGetOAuthConfig\x12'.notificator.auth.GetOAuthConfigRequest\x1a(.notificator.auth.GetOAuthConfigResponse\x12`\n" +
 	"\rGetUserGroups\x12&.notificator.auth.GetUserGroupsRequest\x1a'.notificator.auth.GetUserGroupsResponse\x12c\n" +
-	"\x0eSyncUserGroups\x12'.notificator.auth.SyncUserGroupsRequest\x1a(.notificator.auth.SyncUserGroupsResponseB)Z'notificator/internal/backend/proto/authb\x06proto3"
+	"\x0eSyncUserGroups\x12'.notificator.auth.SyncUserGroupsRequest\x1a(.notificator.auth.SyncUserGroupsResponse\x12r\n" +
+	"\x13GetUserSentryConfig\x12,.notificator.auth.GetUserSentryConfigRequest\x1a-.notificator.auth.GetUserSentryConfigResponse\x12o\n" +
+	"\x12GetUserSentryToken\x12+.notificator.auth.GetUserSentryTokenRequest\x1a,.notificator.auth.GetUserSentryTokenResponse\x12u\n" +
+	"\x14SaveUserSentryConfig\x12-.notificator.auth.SaveUserSentryConfigRequest\x1a..notificator.auth.SaveUserSentryConfigResponse\x12{\n" +
+	"\x16DeleteUserSentryConfig\x12/.notificator.auth.DeleteUserSentryConfigRequest\x1a0.notificator.auth.DeleteUserSentryConfigResponseB)Z'notificator/internal/backend/proto/authb\x06proto3"
 
 var (
 	file_proto_auth_proto_rawDescOnce sync.Once
@@ -1623,76 +2182,96 @@ func file_proto_auth_proto_rawDescGZIP() []byte {
 	return file_proto_auth_proto_rawDescData
 }
 
-var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_proto_auth_proto_goTypes = []any{
-	(*RegisterRequest)(nil),           // 0: notificator.auth.RegisterRequest
-	(*RegisterResponse)(nil),          // 1: notificator.auth.RegisterResponse
-	(*LoginRequest)(nil),              // 2: notificator.auth.LoginRequest
-	(*LoginResponse)(nil),             // 3: notificator.auth.LoginResponse
-	(*LogoutRequest)(nil),             // 4: notificator.auth.LogoutRequest
-	(*LogoutResponse)(nil),            // 5: notificator.auth.LogoutResponse
-	(*ValidateSessionRequest)(nil),    // 6: notificator.auth.ValidateSessionRequest
-	(*ValidateSessionResponse)(nil),   // 7: notificator.auth.ValidateSessionResponse
-	(*GetProfileRequest)(nil),         // 8: notificator.auth.GetProfileRequest
-	(*GetProfileResponse)(nil),        // 9: notificator.auth.GetProfileResponse
-	(*User)(nil),                      // 10: notificator.auth.User
-	(*SearchUsersRequest)(nil),        // 11: notificator.auth.SearchUsersRequest
-	(*SearchUsersResponse)(nil),       // 12: notificator.auth.SearchUsersResponse
-	(*OAuthAuthURLRequest)(nil),       // 13: notificator.auth.OAuthAuthURLRequest
-	(*OAuthAuthURLResponse)(nil),      // 14: notificator.auth.OAuthAuthURLResponse
-	(*OAuthCallbackRequest)(nil),      // 15: notificator.auth.OAuthCallbackRequest
-	(*GetOAuthProvidersRequest)(nil),  // 16: notificator.auth.GetOAuthProvidersRequest
-	(*GetOAuthProvidersResponse)(nil), // 17: notificator.auth.GetOAuthProvidersResponse
-	(*GetOAuthConfigRequest)(nil),     // 18: notificator.auth.GetOAuthConfigRequest
-	(*GetOAuthConfigResponse)(nil),    // 19: notificator.auth.GetOAuthConfigResponse
-	(*OAuthProvider)(nil),             // 20: notificator.auth.OAuthProvider
-	(*GetUserGroupsRequest)(nil),      // 21: notificator.auth.GetUserGroupsRequest
-	(*GetUserGroupsResponse)(nil),     // 22: notificator.auth.GetUserGroupsResponse
-	(*UserGroup)(nil),                 // 23: notificator.auth.UserGroup
-	(*SyncUserGroupsRequest)(nil),     // 24: notificator.auth.SyncUserGroupsRequest
-	(*SyncUserGroupsResponse)(nil),    // 25: notificator.auth.SyncUserGroupsResponse
-	(*timestamppb.Timestamp)(nil),     // 26: google.protobuf.Timestamp
+	(*RegisterRequest)(nil),                // 0: notificator.auth.RegisterRequest
+	(*RegisterResponse)(nil),               // 1: notificator.auth.RegisterResponse
+	(*LoginRequest)(nil),                   // 2: notificator.auth.LoginRequest
+	(*LoginResponse)(nil),                  // 3: notificator.auth.LoginResponse
+	(*LogoutRequest)(nil),                  // 4: notificator.auth.LogoutRequest
+	(*LogoutResponse)(nil),                 // 5: notificator.auth.LogoutResponse
+	(*ValidateSessionRequest)(nil),         // 6: notificator.auth.ValidateSessionRequest
+	(*ValidateSessionResponse)(nil),        // 7: notificator.auth.ValidateSessionResponse
+	(*GetProfileRequest)(nil),              // 8: notificator.auth.GetProfileRequest
+	(*GetProfileResponse)(nil),             // 9: notificator.auth.GetProfileResponse
+	(*User)(nil),                           // 10: notificator.auth.User
+	(*SearchUsersRequest)(nil),             // 11: notificator.auth.SearchUsersRequest
+	(*SearchUsersResponse)(nil),            // 12: notificator.auth.SearchUsersResponse
+	(*OAuthAuthURLRequest)(nil),            // 13: notificator.auth.OAuthAuthURLRequest
+	(*OAuthAuthURLResponse)(nil),           // 14: notificator.auth.OAuthAuthURLResponse
+	(*OAuthCallbackRequest)(nil),           // 15: notificator.auth.OAuthCallbackRequest
+	(*GetOAuthProvidersRequest)(nil),       // 16: notificator.auth.GetOAuthProvidersRequest
+	(*GetOAuthProvidersResponse)(nil),      // 17: notificator.auth.GetOAuthProvidersResponse
+	(*GetOAuthConfigRequest)(nil),          // 18: notificator.auth.GetOAuthConfigRequest
+	(*GetOAuthConfigResponse)(nil),         // 19: notificator.auth.GetOAuthConfigResponse
+	(*OAuthProvider)(nil),                  // 20: notificator.auth.OAuthProvider
+	(*GetUserGroupsRequest)(nil),           // 21: notificator.auth.GetUserGroupsRequest
+	(*GetUserGroupsResponse)(nil),          // 22: notificator.auth.GetUserGroupsResponse
+	(*UserGroup)(nil),                      // 23: notificator.auth.UserGroup
+	(*SyncUserGroupsRequest)(nil),          // 24: notificator.auth.SyncUserGroupsRequest
+	(*SyncUserGroupsResponse)(nil),         // 25: notificator.auth.SyncUserGroupsResponse
+	(*GetUserSentryConfigRequest)(nil),     // 26: notificator.auth.GetUserSentryConfigRequest
+	(*GetUserSentryConfigResponse)(nil),    // 27: notificator.auth.GetUserSentryConfigResponse
+	(*SaveUserSentryConfigRequest)(nil),    // 28: notificator.auth.SaveUserSentryConfigRequest
+	(*SaveUserSentryConfigResponse)(nil),   // 29: notificator.auth.SaveUserSentryConfigResponse
+	(*DeleteUserSentryConfigRequest)(nil),  // 30: notificator.auth.DeleteUserSentryConfigRequest
+	(*DeleteUserSentryConfigResponse)(nil), // 31: notificator.auth.DeleteUserSentryConfigResponse
+	(*GetUserSentryTokenRequest)(nil),      // 32: notificator.auth.GetUserSentryTokenRequest
+	(*GetUserSentryTokenResponse)(nil),     // 33: notificator.auth.GetUserSentryTokenResponse
+	(*UserSentryConfig)(nil),               // 34: notificator.auth.UserSentryConfig
+	(*timestamppb.Timestamp)(nil),          // 35: google.protobuf.Timestamp
 }
 var file_proto_auth_proto_depIdxs = []int32{
 	10, // 0: notificator.auth.LoginResponse.user:type_name -> notificator.auth.User
-	26, // 1: notificator.auth.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	35, // 1: notificator.auth.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
 	10, // 2: notificator.auth.ValidateSessionResponse.user:type_name -> notificator.auth.User
 	10, // 3: notificator.auth.GetProfileResponse.user:type_name -> notificator.auth.User
-	26, // 4: notificator.auth.User.created_at:type_name -> google.protobuf.Timestamp
-	26, // 5: notificator.auth.User.last_login:type_name -> google.protobuf.Timestamp
+	35, // 4: notificator.auth.User.created_at:type_name -> google.protobuf.Timestamp
+	35, // 5: notificator.auth.User.last_login:type_name -> google.protobuf.Timestamp
 	10, // 6: notificator.auth.SearchUsersResponse.users:type_name -> notificator.auth.User
 	20, // 7: notificator.auth.GetOAuthProvidersResponse.providers:type_name -> notificator.auth.OAuthProvider
 	20, // 8: notificator.auth.GetOAuthConfigResponse.providers:type_name -> notificator.auth.OAuthProvider
 	23, // 9: notificator.auth.GetUserGroupsResponse.groups:type_name -> notificator.auth.UserGroup
-	0,  // 10: notificator.auth.AuthService.Register:input_type -> notificator.auth.RegisterRequest
-	2,  // 11: notificator.auth.AuthService.Login:input_type -> notificator.auth.LoginRequest
-	4,  // 12: notificator.auth.AuthService.Logout:input_type -> notificator.auth.LogoutRequest
-	6,  // 13: notificator.auth.AuthService.ValidateSession:input_type -> notificator.auth.ValidateSessionRequest
-	8,  // 14: notificator.auth.AuthService.GetProfile:input_type -> notificator.auth.GetProfileRequest
-	11, // 15: notificator.auth.AuthService.SearchUsers:input_type -> notificator.auth.SearchUsersRequest
-	13, // 16: notificator.auth.AuthService.GetOAuthAuthURL:input_type -> notificator.auth.OAuthAuthURLRequest
-	15, // 17: notificator.auth.AuthService.OAuthCallback:input_type -> notificator.auth.OAuthCallbackRequest
-	16, // 18: notificator.auth.AuthService.GetOAuthProviders:input_type -> notificator.auth.GetOAuthProvidersRequest
-	18, // 19: notificator.auth.AuthService.GetOAuthConfig:input_type -> notificator.auth.GetOAuthConfigRequest
-	21, // 20: notificator.auth.AuthService.GetUserGroups:input_type -> notificator.auth.GetUserGroupsRequest
-	24, // 21: notificator.auth.AuthService.SyncUserGroups:input_type -> notificator.auth.SyncUserGroupsRequest
-	1,  // 22: notificator.auth.AuthService.Register:output_type -> notificator.auth.RegisterResponse
-	3,  // 23: notificator.auth.AuthService.Login:output_type -> notificator.auth.LoginResponse
-	5,  // 24: notificator.auth.AuthService.Logout:output_type -> notificator.auth.LogoutResponse
-	7,  // 25: notificator.auth.AuthService.ValidateSession:output_type -> notificator.auth.ValidateSessionResponse
-	9,  // 26: notificator.auth.AuthService.GetProfile:output_type -> notificator.auth.GetProfileResponse
-	12, // 27: notificator.auth.AuthService.SearchUsers:output_type -> notificator.auth.SearchUsersResponse
-	14, // 28: notificator.auth.AuthService.GetOAuthAuthURL:output_type -> notificator.auth.OAuthAuthURLResponse
-	3,  // 29: notificator.auth.AuthService.OAuthCallback:output_type -> notificator.auth.LoginResponse
-	17, // 30: notificator.auth.AuthService.GetOAuthProviders:output_type -> notificator.auth.GetOAuthProvidersResponse
-	19, // 31: notificator.auth.AuthService.GetOAuthConfig:output_type -> notificator.auth.GetOAuthConfigResponse
-	22, // 32: notificator.auth.AuthService.GetUserGroups:output_type -> notificator.auth.GetUserGroupsResponse
-	25, // 33: notificator.auth.AuthService.SyncUserGroups:output_type -> notificator.auth.SyncUserGroupsResponse
-	22, // [22:34] is the sub-list for method output_type
-	10, // [10:22] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	34, // 10: notificator.auth.GetUserSentryConfigResponse.config:type_name -> notificator.auth.UserSentryConfig
+	35, // 11: notificator.auth.UserSentryConfig.created_at:type_name -> google.protobuf.Timestamp
+	35, // 12: notificator.auth.UserSentryConfig.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 13: notificator.auth.AuthService.Register:input_type -> notificator.auth.RegisterRequest
+	2,  // 14: notificator.auth.AuthService.Login:input_type -> notificator.auth.LoginRequest
+	4,  // 15: notificator.auth.AuthService.Logout:input_type -> notificator.auth.LogoutRequest
+	6,  // 16: notificator.auth.AuthService.ValidateSession:input_type -> notificator.auth.ValidateSessionRequest
+	8,  // 17: notificator.auth.AuthService.GetProfile:input_type -> notificator.auth.GetProfileRequest
+	11, // 18: notificator.auth.AuthService.SearchUsers:input_type -> notificator.auth.SearchUsersRequest
+	13, // 19: notificator.auth.AuthService.GetOAuthAuthURL:input_type -> notificator.auth.OAuthAuthURLRequest
+	15, // 20: notificator.auth.AuthService.OAuthCallback:input_type -> notificator.auth.OAuthCallbackRequest
+	16, // 21: notificator.auth.AuthService.GetOAuthProviders:input_type -> notificator.auth.GetOAuthProvidersRequest
+	18, // 22: notificator.auth.AuthService.GetOAuthConfig:input_type -> notificator.auth.GetOAuthConfigRequest
+	21, // 23: notificator.auth.AuthService.GetUserGroups:input_type -> notificator.auth.GetUserGroupsRequest
+	24, // 24: notificator.auth.AuthService.SyncUserGroups:input_type -> notificator.auth.SyncUserGroupsRequest
+	26, // 25: notificator.auth.AuthService.GetUserSentryConfig:input_type -> notificator.auth.GetUserSentryConfigRequest
+	32, // 26: notificator.auth.AuthService.GetUserSentryToken:input_type -> notificator.auth.GetUserSentryTokenRequest
+	28, // 27: notificator.auth.AuthService.SaveUserSentryConfig:input_type -> notificator.auth.SaveUserSentryConfigRequest
+	30, // 28: notificator.auth.AuthService.DeleteUserSentryConfig:input_type -> notificator.auth.DeleteUserSentryConfigRequest
+	1,  // 29: notificator.auth.AuthService.Register:output_type -> notificator.auth.RegisterResponse
+	3,  // 30: notificator.auth.AuthService.Login:output_type -> notificator.auth.LoginResponse
+	5,  // 31: notificator.auth.AuthService.Logout:output_type -> notificator.auth.LogoutResponse
+	7,  // 32: notificator.auth.AuthService.ValidateSession:output_type -> notificator.auth.ValidateSessionResponse
+	9,  // 33: notificator.auth.AuthService.GetProfile:output_type -> notificator.auth.GetProfileResponse
+	12, // 34: notificator.auth.AuthService.SearchUsers:output_type -> notificator.auth.SearchUsersResponse
+	14, // 35: notificator.auth.AuthService.GetOAuthAuthURL:output_type -> notificator.auth.OAuthAuthURLResponse
+	3,  // 36: notificator.auth.AuthService.OAuthCallback:output_type -> notificator.auth.LoginResponse
+	17, // 37: notificator.auth.AuthService.GetOAuthProviders:output_type -> notificator.auth.GetOAuthProvidersResponse
+	19, // 38: notificator.auth.AuthService.GetOAuthConfig:output_type -> notificator.auth.GetOAuthConfigResponse
+	22, // 39: notificator.auth.AuthService.GetUserGroups:output_type -> notificator.auth.GetUserGroupsResponse
+	25, // 40: notificator.auth.AuthService.SyncUserGroups:output_type -> notificator.auth.SyncUserGroupsResponse
+	27, // 41: notificator.auth.AuthService.GetUserSentryConfig:output_type -> notificator.auth.GetUserSentryConfigResponse
+	33, // 42: notificator.auth.AuthService.GetUserSentryToken:output_type -> notificator.auth.GetUserSentryTokenResponse
+	29, // 43: notificator.auth.AuthService.SaveUserSentryConfig:output_type -> notificator.auth.SaveUserSentryConfigResponse
+	31, // 44: notificator.auth.AuthService.DeleteUserSentryConfig:output_type -> notificator.auth.DeleteUserSentryConfigResponse
+	29, // [29:45] is the sub-list for method output_type
+	13, // [13:29] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_proto_auth_proto_init() }
@@ -1706,7 +2285,7 @@ func file_proto_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_auth_proto_rawDesc), len(file_proto_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

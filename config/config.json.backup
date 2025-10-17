@@ -2,7 +2,7 @@
   "alertmanagers": [
     {
       "name": "Main Alertmanager",
-      "url": "https://alertmanager.prometheus1.numberly.in",
+      "url": "https://alertmanager.prometheus1.company.in",
       "username": "",
       "password": "",
       "token": "",

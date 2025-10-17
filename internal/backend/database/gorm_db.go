@@ -86,6 +86,11 @@ func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 func (gdb *GormDB) AutoMigrate() error {
 	log.Println("🔄 Running database migrations...")
 
+	// Run custom migrations first (for data type changes that AutoMigrate can't handle)
+	if err := gdb.RunCustomMigrations(); err != nil {
+		return fmt.Errorf("custom migrations failed: %w", err)
+	}
+
 	err := gdb.db.AutoMigrate(
 		&models.User{},
 		&models.Session{},
@@ -104,6 +109,8 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.OAuthSession{},
 		&models.OAuthAuditLog{},
 		&models.OAuthGroupCache{},
+		// Sentry integration
+		&models.UserSentryConfig{},
 	)
 
 	if err != nil {

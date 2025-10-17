@@ -1042,3 +1042,131 @@ func (c *BackendClient) RemoveHiddenRule(sessionID, ruleID string) error {
 
 	return nil
 }
+
+// Sentry Configuration Methods
+
+// SentryConfig represents a user's Sentry configuration
+type SentryConfig struct {
+	BaseUrl   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// GetUserSentryConfig retrieves a user's Sentry configuration
+func (c *BackendClient) GetUserSentryConfig(userID string) (*SentryConfig, error) {
+	if c.authClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &authpb.GetUserSentryConfigRequest{
+		UserId: userID,
+	}
+
+	resp, err := c.authClient.GetUserSentryConfig(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		if resp.Error != "" {
+			return nil, fmt.Errorf(resp.Error)
+		}
+		return nil, nil // No config found
+	}
+
+	if resp.Config == nil {
+		return nil, nil // No config found
+	}
+
+	return &SentryConfig{
+		BaseUrl:   resp.Config.BaseUrl,
+		CreatedAt: resp.Config.CreatedAt.AsTime(),
+		UpdatedAt: resp.Config.UpdatedAt.AsTime(),
+	}, nil
+}
+
+// GetUserSentryToken retrieves a user's decrypted Sentry personal token
+func (c *BackendClient) GetUserSentryToken(userID, sessionID string) (string, bool, error) {
+	if c.authClient == nil {
+		return "", false, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &authpb.GetUserSentryTokenRequest{
+		UserId:    userID,
+		SessionId: sessionID,
+	}
+
+	resp, err := c.authClient.GetUserSentryToken(ctx, req)
+	if err != nil {
+		return "", false, err
+	}
+
+	if !resp.Success {
+		if resp.Error != "" {
+			return "", false, fmt.Errorf(resp.Error)
+		}
+		return "", false, nil // No error, but no token
+	}
+
+	return resp.PersonalToken, resp.HasToken, nil
+}
+
+// SaveUserSentryConfig saves a user's Sentry configuration
+func (c *BackendClient) SaveUserSentryConfig(userID, token, baseURL, sessionID string) error {
+	if c.authClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &authpb.SaveUserSentryConfigRequest{
+		UserId:        userID,
+		PersonalToken: token,
+		BaseUrl:       baseURL,
+		SessionId:     sessionID,
+	}
+
+	resp, err := c.authClient.SaveUserSentryConfig(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to save Sentry config: %s", resp.Error)
+	}
+
+	return nil
+}
+
+// DeleteUserSentryConfig deletes a user's Sentry configuration
+func (c *BackendClient) DeleteUserSentryConfig(userID, sessionID string) error {
+	if c.authClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &authpb.DeleteUserSentryConfigRequest{
+		UserId:    userID,
+		SessionId: sessionID,
+	}
+
+	resp, err := c.authClient.DeleteUserSentryConfig(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to delete Sentry config: %s", resp.Error)
+	}
+
+	return nil
+}

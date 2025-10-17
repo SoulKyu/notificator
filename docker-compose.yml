@@ -63,6 +63,8 @@ services:
       # Alertmanager configuration
       - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager
       - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093
+      - NOTIFICATOR_ALERTMANAGERS_1_NAME=AlertManager Numberly
+      - NOTIFICATOR_ALERTMANAGERS_1_URL=https://alertmanager.prometheus1.numberly.in
 
       # OAuth Configuration
       - OAUTH_ENABLED=false
@@ -80,7 +82,10 @@ services:
       - OAUTH_GITHUB_CLIENT_ID=Ov23li8tCIe0AsftXBqY
       - OAUTH_GITHUB_CLIENT_SECRET=3fdcf3dc5bdcc90357d8eaca4e43160e0a7cddb9
       - OAUTH_GITHUB_SCOPES=user:email,read:org,read:user
-      
+
+      - NOTIFICATOR_SENTRY_ENABLED=true
+      - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.numberly.net
+      - NOTIFICATOR_SENTRY_GLOBAL_TOKEN=""
 
       # Logging
       - NOTIFICATOR_LOG_LEVEL=info
@@ -116,9 +121,16 @@ services:
       - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093
       - NOTIFICATOR_ALERTMANAGERS_0_OAUTH_ENABLED=false
       - NOTIFICATOR_ALERTMANAGERS_0_OAUTH_PROXY_MODE=true
+      - NOTIFICATOR_ALERTMANAGERS_1_NAME=AlertManager Numberly
+      - NOTIFICATOR_ALERTMANAGERS_1_URL=https://alertmanager.prometheus1.numberly.in
+      - NOTIFICATOR_ALERTMANAGERS_1_OAUTH_ENABLED=false
+      - NOTIFICATOR_ALERTMANAGERS_1_OAUTH_PROXY_MODE=true
       # Logging
       - NOTIFICATOR_LOG_LEVEL=info
-      
+      - NOTIFICATOR_SENTRY_ENABLED=true
+      - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.numberly.net
+      - NOTIFICATOR_SENTRY_GLOBAL_TOKEN=""
+
     depends_on:
       backend:
         condition: service_healthy

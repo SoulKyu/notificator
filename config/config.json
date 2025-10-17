@@ -71,5 +71,10 @@
   "polling": {
     "interval": 30000000000
   },
-  "column_widths": null
+  "column_widths": null,
+  "sentry": {
+    "enabled": true,
+    "base_url": "https://sentry.io",
+    "global_token": ""
+  }
 }
