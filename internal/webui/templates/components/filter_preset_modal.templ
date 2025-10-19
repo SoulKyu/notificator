@@ -1,0 +1,150 @@
+package components
+
+// Filter Presets Modal
+templ FilterPresetsModal() {
+	<div x-show="showFilterPresetsModal" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
+		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+			<!-- Background overlay -->
+			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showFilterPresetsModal = false"></div>
+
+			<!-- Modal panel -->
+			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh]">
+				<div class="bg-white dark:bg-dark-bg-secondary px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+					<div class="w-full">
+						<!-- Header -->
+						<div class="flex justify-between items-center mb-6">
+							<h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+								Saved Filters
+							</h3>
+							<button @click="showFilterPresetsModal = false" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+								<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+								</svg>
+							</button>
+						</div>
+
+						<!-- Tab Navigation -->
+						<div class="border-b border-gray-200 dark:border-dark-border-DEFAULT mb-6">
+							<nav class="-mb-px flex space-x-8">
+								<button @click="activeTab = 'list'"
+										:class="activeTab === 'list' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
+										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+									My Filters
+								</button>
+								<button @click="activeTab = 'save'"
+										:class="activeTab === 'save' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
+										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+									Save Current Filters
+								</button>
+							</nav>
+						</div>
+
+						<!-- Tab Content -->
+						<div class="max-h-96 overflow-y-auto">
+							<!-- List Tab -->
+							<div x-show="activeTab === 'list'" class="space-y-4">
+								<template x-if="presets.length === 0">
+									<div class="text-center py-8 text-gray-500 dark:text-gray-400">
+										<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/>
+										</svg>
+										<p class="mt-2">No saved filters yet</p>
+										<p class="text-sm">Switch to "Save Current Filters" tab to create one</p>
+									</div>
+								</template>
+
+								<template x-for="preset in presets" :key="preset.id">
+									<div class="border border-gray-200 dark:border-dark-border-DEFAULT rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary transition-colors">
+										<div class="flex justify-between items-start">
+											<div class="flex-1">
+												<div class="flex items-center gap-2">
+													<h4 class="text-sm font-medium text-gray-900 dark:text-white" x-text="preset.name"></h4>
+													<span x-show="preset.is_default" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+														Default
+													</span>
+													<span x-show="preset.is_shared" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+														Shared
+													</span>
+												</div>
+												<p x-show="preset.description" class="mt-1 text-sm text-gray-500 dark:text-gray-400" x-text="preset.description"></p>
+												<p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+													<span x-text="'Created ' + formatDate(preset.created_at)"></span>
+												</p>
+											</div>
+
+											<div class="flex gap-2 ml-4">
+												<button @click="loadPreset(preset)"
+														class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+													Load
+												</button>
+												<button x-show="!preset.is_default" @click="setDefaultPreset(preset.id)"
+														class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-dark-border-DEFAULT text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-gray-700">
+													Set Default
+												</button>
+												<button @click="editPreset(preset)"
+														class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-dark-border-DEFAULT text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-gray-700">
+													Edit
+												</button>
+												<button @click="deletePreset(preset.id)"
+														class="inline-flex items-center px-3 py-1.5 border border-red-300 text-xs font-medium rounded text-red-700 dark:text-red-400 bg-white dark:bg-dark-bg-tertiary hover:bg-red-50 dark:hover:bg-red-900">
+													Delete
+												</button>
+											</div>
+										</div>
+									</div>
+								</template>
+							</div>
+
+							<!-- Save Tab -->
+							<div x-show="activeTab === 'save'" class="space-y-4">
+								<div>
+									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+										Filter Name <span class="text-red-500">*</span>
+									</label>
+									<input type="text" x-model="newPreset.name"
+										   placeholder="e.g., Critical Production Alerts"
+										   class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white sm:text-sm">
+								</div>
+
+								<div>
+									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+										Description (optional)
+									</label>
+									<textarea x-model="newPreset.description" rows="2"
+											  placeholder="What is this filter for?"
+											  class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white sm:text-sm"></textarea>
+								</div>
+
+								<div class="flex items-center">
+									<input type="checkbox" x-model="newPreset.is_shared" id="share-preset"
+										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
+									<label for="share-preset" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+										Share with team (visible to all users)
+									</label>
+								</div>
+
+								<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-md p-3">
+									<p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Current filters to be saved:</p>
+									<div class="text-xs text-gray-600 dark:text-gray-400 space-y-1" x-html="getFilterSummary()"></div>
+								</div>
+
+								<div class="flex gap-2">
+									<button @click="saveNewPreset" :disabled="!newPreset.name"
+											:class="!newPreset.name ? 'opacity-50 cursor-not-allowed' : ''"
+											class="flex-1 inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+										<span x-show="!editingPreset">Save Filter</span>
+										<span x-show="editingPreset">Update Filter</span>
+									</button>
+									<button x-show="editingPreset" @click="cancelEdit"
+											class="inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-gray-700">
+										Cancel
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}

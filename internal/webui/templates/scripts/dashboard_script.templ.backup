@@ -202,11 +202,11 @@ templ DashboardScript() {
 							
 							this.updateURL();
 						} else {
-							this.showNotification('error', 'Failed to load alerts: ' + result.error);
+							console.error('Failed to load alerts: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error loading dashboard data:', error);
-						this.showNotification('error', 'Failed to load dashboard data');
+						console.error('Failed to load dashboard data');
 					} finally {
 						this.loading = false;
 					}
@@ -758,11 +758,11 @@ templ DashboardScript() {
 							this.clearSelection();
 							this.loadDashboardData();
 						} else {
-							this.showNotification('error', 'Failed to hide alerts: ' + result.error);
+							console.error('Failed to hide alerts: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error hiding alerts:', error);
-						this.showNotification('error', 'Failed to hide alerts');
+						console.error('Failed to hide alerts');
 					}
 				},
 
@@ -806,11 +806,11 @@ templ DashboardScript() {
 							this.showNotification('success', 'Alert hidden');
 							this.loadDashboardData();
 						} else {
-							this.showNotification('error', 'Failed to hide alert: ' + result.error);
+							console.error('Failed to hide alert: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error hiding alert:', error);
-						this.showNotification('error', 'Failed to hide alert');
+						console.error('Failed to hide alert');
 					}
 				},
 
@@ -840,11 +840,11 @@ templ DashboardScript() {
 							this.clearSelection();
 							this.loadDashboardData();
 						} else {
-							this.showNotification('error', 'Failed to unacknowledge alerts: ' + result.error);
+							console.error('Failed to unacknowledge alerts: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error unacknowledging alerts:', error);
-						this.showNotification('error', 'Failed to unacknowledge alerts');
+						console.error('Failed to unacknowledge alerts');
 					}
 				},
 
@@ -871,11 +871,11 @@ templ DashboardScript() {
 							this.showNotification('success', 'Alert unacknowledged');
 							this.loadDashboardData();
 						} else {
-							this.showNotification('error', 'Failed to unacknowledge alert: ' + result.error);
+							console.error('Failed to unacknowledge alert: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error unacknowledging alert:', error);
-						this.showNotification('error', 'Failed to unacknowledge alert');
+						console.error('Failed to unacknowledge alert');
 					}
 				},
 
@@ -905,11 +905,11 @@ templ DashboardScript() {
 							this.clearSelection();
 							this.loadDashboardData();
 						} else {
-							this.showNotification('error', 'Failed to resolve alerts: ' + result.error);
+							console.error('Failed to resolve alerts: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error resolving alerts:', error);
-						this.showNotification('error', 'Failed to resolve alerts');
+						console.error('Failed to resolve alerts');
 					}
 				},
 
@@ -936,11 +936,11 @@ templ DashboardScript() {
 							this.showNotification('success', 'Alert resolved');
 							this.loadDashboardData();
 						} else {
-							this.showNotification('error', 'Failed to resolve alert: ' + result.error);
+							console.error('Failed to resolve alert: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error resolving alert:', error);
-						this.showNotification('error', 'Failed to resolve alert');
+						console.error('Failed to resolve alert');
 					}
 				},
 
@@ -970,7 +970,7 @@ templ DashboardScript() {
 						const settingsResult = await settingsResponse.json();
 						
 						if (!settingsResult.success) {
-							this.showNotification('error', 'Failed to save settings: ' + settingsResult.error);
+							console.error('Failed to save settings: ' + settingsResult.error);
 							return;
 						}
 
@@ -1006,7 +1006,7 @@ templ DashboardScript() {
 						this.startAutoRefresh();
 					} catch (error) {
 						console.error('Error saving settings:', error);
-						this.showNotification('error', 'Failed to save settings');
+						console.error('Failed to save settings');
 					}
 				},
 
@@ -1738,12 +1738,12 @@ templ DashboardScript() {
 						if (result.success) {
 							this.alertDetails = result.data;
 						} else {
-							this.showNotification('error', 'Failed to load alert details: ' + result.error);
+							console.error('Failed to load alert details: ' + result.error);
 							this.closeAlertModal();
 						}
 					} catch (error) {
 						console.error('Error loading alert details:', error);
-						this.showNotification('error', 'Failed to load alert details');
+						console.error('Failed to load alert details');
 						this.closeAlertModal();
 					} finally {
 						this.alertDetailsLoading = false;
@@ -1781,7 +1781,7 @@ templ DashboardScript() {
 						navigator.clipboard.writeText(text).then(() => {
 							this.showNotification('success', 'Copied to clipboard');
 						}).catch(() => {
-							this.showNotification('error', 'Failed to copy to clipboard');
+							console.error('Failed to copy to clipboard');
 						});
 					} else {
 						// Fallback for older browsers
@@ -1793,7 +1793,7 @@ templ DashboardScript() {
 							document.execCommand('copy');
 							this.showNotification('success', 'Copied to clipboard');
 						} catch (err) {
-							this.showNotification('error', 'Failed to copy to clipboard');
+							console.error('Failed to copy to clipboard');
 						}
 						document.body.removeChild(textArea);
 					}
@@ -1821,7 +1821,7 @@ templ DashboardScript() {
 					}
 
 					if (!this.alertDetails?.alert?.fingerprint) {
-						this.showNotification('error', 'Alert information not available');
+						console.error('Alert information not available');
 						return;
 					}
 
@@ -1848,11 +1848,11 @@ templ DashboardScript() {
 							// Refresh alert details to show the new comment
 							await this.refreshComments();
 						} else {
-							this.showNotification('error', 'Failed to add comment: ' + result.error);
+							console.error('Failed to add comment: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error adding comment:', error);
-						this.showNotification('error', 'Failed to add comment');
+						console.error('Failed to add comment');
 					} finally {
 						this.commentSubmitting = false;
 					}
@@ -1860,7 +1860,7 @@ templ DashboardScript() {
 
 				async deleteComment(commentId) {
 					if (!commentId || !this.alertDetails?.alert?.fingerprint) {
-						this.showNotification('error', 'Comment information not available');
+						console.error('Comment information not available');
 						return;
 					}
 
@@ -1881,11 +1881,11 @@ templ DashboardScript() {
 							// Refresh alert details to remove the deleted comment
 							await this.refreshComments();
 						} else {
-							this.showNotification('error', 'Failed to delete comment: ' + result.error);
+							console.error('Failed to delete comment: ' + result.error);
 						}
 					} catch (error) {
 						console.error('Error deleting comment:', error);
-						this.showNotification('error', 'Failed to delete comment');
+						console.error('Failed to delete comment');
 					} finally {
 						// Remove deleting state for this comment
 						delete this.commentDeleting[commentId];

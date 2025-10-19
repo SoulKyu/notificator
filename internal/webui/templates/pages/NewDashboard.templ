@@ -133,6 +133,41 @@ templ NewDashboardContent() {
 			</div>
 		</header>
 
+		<!-- Notification Enable Banner -->
+		<div x-show="shouldShowNotificationBanner()"
+		     x-transition
+		     class="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
+			<div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center space-x-3">
+						<svg class="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+						</svg>
+						<div>
+							<p class="text-sm font-medium text-blue-900 dark:text-blue-100">
+								Enable browser notifications to get real-time alerts
+							</p>
+							<p class="text-xs text-blue-700 dark:text-blue-300">
+								You'll be notified when new critical or warning alerts appear
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center space-x-2">
+						<button @click="enableNotifications()"
+						        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+							Enable Notifications
+						</button>
+						<button @click="dismissNotificationBanner()"
+						        class="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors">
+							<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+							</svg>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<!-- Main Content -->
 		<main class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 			<!-- Stats Bar -->
@@ -564,8 +599,17 @@ templ NewDashboardContent() {
 								</div>
 							</div>
 
+							<!-- Saved Filters Button -->
+							<button @click="showFilterPresetsModal = true; loadFilterPresets()"
+									class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+								<svg class="h-4 w-4 mr-1" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+								</svg>
+								Saved Filters
+							</button>
+
 							<!-- Clear All Filters -->
-							<button @click="clearAllFilters()" x-show="hasActiveFilters()" 
+							<button @click="clearAllFilters()" x-show="hasActiveFilters()"
 									class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
 								<svg class="h-4 w-4 mr-1" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
 									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -744,14 +788,16 @@ templ NewDashboardContent() {
 		<!-- Alert Details Modal -->
 		@components.AlertDetailsModal()
 
-		<!-- Notification Container -->
-		<div id="notifications" class="fixed top-4 right-4 z-50 space-y-2"></div>
+		<!-- Filter Presets Modal -->
+		@components.FilterPresetsModal()
+
 	</div>
 
+	@scripts.NotificationService()
+	@scripts.DashboardFilterPresetsMixin()
 	@scripts.DashboardCore()
 	@scripts.DashboardData()
 	@scripts.DashboardActions()
-	@scripts.DashboardNotifications()
 	@scripts.DashboardUtilities()
 	@scripts.DashboardModal()
 	@scripts.DashboardSettings()

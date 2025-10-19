@@ -33,9 +33,10 @@ RUN make webui-full-rebuild
 # Also run the explicit tailwindcss build command
 RUN npx tailwindcss build -i ./internal/webui/static/css/input.css -o ./internal/webui/static/css/output.css --minify
 
-# Build the webui binary from unified main.go (without GUI dependencies)
+# Build the webui binary from unified main.go (without desktop GUI dependencies)
 # Enable CGO for potential SQLite support
-RUN CGO_ENABLED=1 GOOS=linux go build -a -tags nogui -o webui .
+# Use both 'nogui' (exclude desktop) and 'webui' (include webui command) tags
+RUN CGO_ENABLED=1 GOOS=linux go build -a -tags "nogui,webui" -o webui .
 
 # Stage 2: Runtime
 FROM alpine:latest

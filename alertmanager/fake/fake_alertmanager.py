@@ -101,7 +101,7 @@ ALERT_TEMPLATES = [
     },
     {
         "alertname": "NetworkLatencyHigh",
-        "severity": "minor",
+        "severity": "critical",
         "instance": "network-{instance}.example.com",
         "job": "ping-exporter",
         "team": "network",
@@ -119,7 +119,7 @@ ALERT_TEMPLATES = [
     },
     {
         "alertname": "LogErrorRateHigh",
-        "severity": "minor",
+        "severity": "critical",
         "instance": "app-{instance}.example.com",
         "job": "log-exporter",
         "team": "application",
@@ -128,7 +128,7 @@ ALERT_TEMPLATES = [
     },
     {
         "alertname": "BackupFailed",
-        "severity": "major",
+        "severity": "warning",
         "instance": "backup-{instance}.example.com",
         "job": "backup-exporter",
         "team": "operations",
@@ -160,10 +160,8 @@ ALERT_TEMPLATES = [
 
 # Severity levels with weights for random selection (higher weight = more frequent)
 SEVERITY_WEIGHTS = {
-    "critical": 10,
-    "major": 15,
+    "critical": 20,
     "warning": 30,
-    "minor": 25,
     "info": 20
 }
 
@@ -276,11 +274,12 @@ def generate_random_alert():
     template = random.choice(ALERT_TEMPLATES)
     instance_id = random.randint(1, 20)
     instance_name = template["instance"].format(instance=instance_id)
-    
+
     # 20% chance to override template severity with weighted random severity
     severity = get_weighted_severity() if random.random() < 0.2 else template["severity"]
-    
-    starts_at = datetime.now(UTC) - timedelta(minutes=random.randint(1, 30))
+
+    # New alerts start at current time (0s duration)
+    starts_at = datetime.now(UTC)
     ends_at = starts_at + timedelta(hours=random.randint(1, 6))
     
     # Build base labels
@@ -730,7 +729,7 @@ if __name__ == '__main__':
     for _ in range(20):
         alerts.append(generate_random_alert())
     
-    # Add a specific Sentry alert for testing
+    # Add a specific Sentry alert for testing (starts at current time with 0s duration)
     sentry_alert = {
         "labels": {
             "alertname": "QuerylyApplicationError",
@@ -747,7 +746,7 @@ if __name__ == '__main__':
             "summary": "Critical errors detected in Queryly backend on queryly-back-1.company.net",
             "runbook_url": "https://runbooks.example.com/querylyapplicationerror"
         },
-        "startsAt": (datetime.now(UTC) - timedelta(minutes=15)).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+        "startsAt": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
         "endsAt": (datetime.now(UTC) + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
         "updatedAt": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
         "generatorURL": "http://prometheus:9090/graph?g0.expr=up{job=\"queryly-back\"}&g0.tab=1",

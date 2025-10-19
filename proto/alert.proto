@@ -34,11 +34,7 @@ service AlertService {
   rpc GetUserColorPreferences(GetUserColorPreferencesRequest) returns (GetUserColorPreferencesResponse);
   rpc SaveUserColorPreferences(SaveUserColorPreferencesRequest) returns (SaveUserColorPreferencesResponse);
   rpc DeleteUserColorPreference(DeleteUserColorPreferenceRequest) returns (DeleteUserColorPreferenceResponse);
-  
-  // User Notification Preferences
-  rpc GetUserNotificationPreferences(GetUserNotificationPreferencesRequest) returns (GetUserNotificationPreferencesResponse);
-  rpc SaveUserNotificationPreferences(SaveUserNotificationPreferencesRequest) returns (SaveUserNotificationPreferencesResponse);
-  
+
   // User Hidden Alerts
   rpc GetUserHiddenAlerts(GetUserHiddenAlertsRequest) returns (GetUserHiddenAlertsResponse);
   rpc HideAlert(HideAlertRequest) returns (HideAlertResponse);
@@ -49,6 +45,17 @@ service AlertService {
   rpc GetUserHiddenRules(GetUserHiddenRulesRequest) returns (GetUserHiddenRulesResponse);
   rpc SaveHiddenRule(SaveHiddenRuleRequest) returns (SaveHiddenRuleResponse);
   rpc RemoveHiddenRule(RemoveHiddenRuleRequest) returns (RemoveHiddenRuleResponse);
+
+  // Notification Preferences
+  rpc GetNotificationPreferences(GetNotificationPreferencesRequest) returns (GetNotificationPreferencesResponse);
+  rpc SaveNotificationPreferences(SaveNotificationPreferencesRequest) returns (SaveNotificationPreferencesResponse);
+
+  // Filter Presets
+  rpc GetFilterPresets(GetFilterPresetsRequest) returns (GetFilterPresetsResponse);
+  rpc SaveFilterPreset(SaveFilterPresetRequest) returns (SaveFilterPresetResponse);
+  rpc UpdateFilterPreset(UpdateFilterPresetRequest) returns (UpdateFilterPresetResponse);
+  rpc DeleteFilterPreset(DeleteFilterPresetRequest) returns (DeleteFilterPresetResponse);
+  rpc SetDefaultFilterPreset(SetDefaultFilterPresetRequest) returns (SetDefaultFilterPresetResponse);
 }
 
 // Comment Messages
@@ -284,43 +291,6 @@ message ResolvedAlertInfo {
   google.protobuf.Timestamp updated_at = 10;
 }
 
-// User Notification Preferences Messages
-message GetUserNotificationPreferencesRequest {
-  string session_id = 1;
-}
-
-message GetUserNotificationPreferencesResponse {
-  UserNotificationPreference preference = 1;
-  bool success = 2;
-  string message = 3;
-}
-
-message SaveUserNotificationPreferencesRequest {
-  string session_id = 1;
-  UserNotificationPreference preference = 2;
-}
-
-message SaveUserNotificationPreferencesResponse {
-  bool success = 1;
-  string message = 2;
-}
-
-message UserNotificationPreference {
-  string id = 1;                                                  // Unique ID for the preference
-  string user_id = 2;                                             // User who owns this preference
-  bool enabled = 3;                                               // Notifications enabled
-  bool sound_enabled = 4;                                         // Sound notifications enabled
-  bool browser_notifications = 5;                                 // Browser notifications enabled
-  int32 cooldown_seconds = 6;                                     // Cooldown between notifications (seconds)
-  int32 max_notifications = 7;                                    // Maximum simultaneous notifications
-  bool respect_filters = 8;                                       // Respect UI filters when determining notifications
-  map<string, bool> severity_rules = 9;                          // Map of severity -> enabled
-  string sound_config_json = 11;                                  // Full dynamic sound configuration as JSON
-  google.protobuf.Timestamp created_at = 12;
-  google.protobuf.Timestamp updated_at = 13;
-}
-
-
 // User Hidden Alerts Messages
 message GetUserHiddenAlertsRequest {
   string session_id = 1;
@@ -427,4 +397,111 @@ enum ResolvedAlertUpdateType {
   UNKNOWN_RESOLVED_UPDATE = 0;
   RESOLVED_ALERT_CREATED = 1;
   RESOLVED_ALERT_EXPIRED = 2;
+}
+
+// Notification Preferences Messages
+message GetNotificationPreferencesRequest {
+  string session_id = 1;
+}
+
+message GetNotificationPreferencesResponse {
+  bool success = 1;
+  NotificationPreference preferences = 2;
+  string message = 3;
+}
+
+message SaveNotificationPreferencesRequest {
+  string session_id = 1;
+  bool browser_notifications_enabled = 2;
+  repeated string enabled_severities = 3;
+  bool sound_notifications_enabled = 4;
+}
+
+message SaveNotificationPreferencesResponse {
+  bool success = 1;
+  NotificationPreference preferences = 2;
+  string message = 3;
+}
+
+message NotificationPreference {
+  string id = 1;
+  string user_id = 2;
+  bool browser_notifications_enabled = 3;
+  repeated string enabled_severities = 4;
+  bool sound_notifications_enabled = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// Filter Presets Messages
+message GetFilterPresetsRequest {
+  string session_id = 1;
+  bool include_shared = 2;
+}
+
+message GetFilterPresetsResponse {
+  bool success = 1;
+  repeated FilterPreset presets = 2;
+  string message = 3;
+}
+
+message SaveFilterPresetRequest {
+  string session_id = 1;
+  string name = 2;
+  string description = 3;
+  bool is_shared = 4;
+  bytes filter_data = 5;  // JSON serialized filter state
+}
+
+message SaveFilterPresetResponse {
+  bool success = 1;
+  FilterPreset preset = 2;
+  string message = 3;
+}
+
+message UpdateFilterPresetRequest {
+  string session_id = 1;
+  string preset_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  bytes filter_data = 6;  // JSON serialized filter state
+}
+
+message UpdateFilterPresetResponse {
+  bool success = 1;
+  FilterPreset preset = 2;
+  string message = 3;
+}
+
+message DeleteFilterPresetRequest {
+  string session_id = 1;
+  string preset_id = 2;
+}
+
+message DeleteFilterPresetResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SetDefaultFilterPresetRequest {
+  string session_id = 1;
+  string preset_id = 2;
+}
+
+message SetDefaultFilterPresetResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message FilterPreset {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  bool is_default = 6;
+  bytes filter_data = 7;  // JSON serialized filter state
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
 }

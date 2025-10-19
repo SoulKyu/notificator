@@ -1,3 +1,6 @@
+//go:build webui
+// +build webui
+
 package cmd
 
 import (

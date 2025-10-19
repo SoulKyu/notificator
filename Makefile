@@ -206,7 +206,7 @@ docker: docker-build-all docker-push-all ## Build and push all Docker images
 	@echo "All Docker images built and pushed successfully!"
 
 # Test command - build all images and restart docker-compose
-test: docker-build-all ## Build all Docker images and restart docker-compose
+test: webui-full-rebuild docker-build-all ## Build all Docker images and restart docker-compose
 	@echo "Stopping docker-compose services..."
 	docker-compose down
 	@echo "Starting docker-compose services..."

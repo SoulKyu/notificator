@@ -38,8 +38,8 @@ templ DashboardCore() {
 				isRemovingResolvedAlerts: false,
 				
 				hasInitiallyLoaded: false,
-				sessionStorageKey: 'dashboard_notification_state',
-				
+				sessionStorageKey: 'dashboard_session_state',
+
 				displayMode: 'classic',
 				viewMode: 'list',
 				sortField: 'duration',
@@ -71,6 +71,9 @@ templ DashboardCore() {
 				currentAlertTab: 'overview',
 				alertDetailsLoading: false,
 				
+				// Filter presets modal state
+				showFilterPresetsModal: false,
+
 				newCommentContent: '',
 				commentSubmitting: false,
 				commentDeleting: {},
@@ -132,23 +135,19 @@ templ DashboardCore() {
 				init() {
 					Object.assign(this, window.dashboardDataMixin || {});
 					Object.assign(this, window.dashboardActionsMixin || {});
-					Object.assign(this, window.dashboardNotificationsMixin || {});
 					Object.assign(this, window.dashboardUtilitiesMixin || {});
 					Object.assign(this, window.dashboardModalMixin || {});
-					
+					Object.assign(this, window.dashboardFilterPresetsMixin || {});
+
 					window.dashboardInstance = this;
-					
+
 					this.initializeSessionTracking();
-					
+
 					this.loadSettings();
 					this.loadFiltersFromURL();
 					this.loadColumnWidths();
 					this.loadCurrentUser();
-					
-					if (this.initializeNotificationSystem) {
-						this.initializeNotificationSystem();
-					}
-					
+
 					this.startAutoRefresh();
 					this.loadDashboardData();
 					
@@ -242,6 +241,50 @@ templ DashboardCore() {
 						clearInterval(this.refreshInterval);
 						this.refreshInterval = null;
 					}
+				},
+				// Notification banner functions
+				shouldShowNotificationBanner() {
+					// Don't show if dismissed
+					if (this.notificationBannerDismissed) return false;
+
+					// Don't show if notification service not loaded
+					if (!window.notificationService) return false;
+
+					// Show if either permission not granted OR preference not enabled
+					const permissionGranted = 'Notification' in window && Notification.permission === 'granted';
+					const preferenceEnabled = window.notificationService.preferences.browserNotificationsEnabled;
+
+					return !permissionGranted || !preferenceEnabled;
+				},
+
+				async enableNotifications() {
+					if (!window.notificationService) return;
+
+					// Request permission if needed
+					if (!('Notification' in window)) {
+						console.warn('Browser does not support notifications');
+						return;
+					}
+
+					if (Notification.permission !== 'granted') {
+						const granted = await window.notificationService.requestPermission();
+						if (!granted) {
+							console.log('Notification permission denied');
+							return;
+						}
+					}
+
+					// Enable and save preference
+					window.notificationService.preferences.browserNotificationsEnabled = true;
+					await window.notificationService.savePreferences(window.notificationService.preferences);
+
+					console.log('Notifications enabled successfully');
+				},
+
+				dismissNotificationBanner() {
+					this.notificationBannerDismissed = true;
+					// Save to localStorage
+					localStorage.setItem('notificator_banner_dismissed', 'true');
 				}
 			}
 		}

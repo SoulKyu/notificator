@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -1545,181 +1544,6 @@ func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUs
 	}, nil
 }
 
-// GetUserNotificationPreferences implements the GetUserNotificationPreferences RPC method
-func (s *AlertServiceGorm) GetUserNotificationPreferences(ctx context.Context, req *alertpb.GetUserNotificationPreferencesRequest) (*alertpb.GetUserNotificationPreferencesResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.GetUserNotificationPreferencesResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.GetUserNotificationPreferencesResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get notification preference from database
-	preference, err := s.db.GetUserNotificationPreference(user.ID)
-	if err != nil {
-		log.Printf("Error getting notification preference for user %s: %v", user.ID, err)
-		return &alertpb.GetUserNotificationPreferencesResponse{
-			Success: false,
-			Message: "Failed to get notification preferences",
-		}, nil
-	}
-
-	// If no preference exists, return default
-	if preference == nil {
-		defaultPreference := &alertpb.UserNotificationPreference{
-			Id:                   "",
-			UserId:               user.ID,
-			Enabled:              true,
-			SoundEnabled:         true,
-			BrowserNotifications: true,
-			CooldownSeconds:      300,
-			MaxNotifications:     5,
-			RespectFilters:       true,
-			SeverityRules:        map[string]bool{
-				// Empty map - frontend will populate with dynamic severities from GetAvailableAlertLabels
-			},
-			SoundConfigJson: `{
-				"critical_frequency": 800,
-				"critical_duration": 200,
-				"critical_type": "square",
-				"warning_frequency": 600,
-				"warning_duration": 150,
-				"warning_type": "sine",
-				"info_frequency": 400,
-				"info_duration": 100,
-				"info_type": "sine"
-			}`,
-		}
-
-		return &alertpb.GetUserNotificationPreferencesResponse{
-			Preference: defaultPreference,
-			Success:    true,
-			Message:    "Default notification preferences",
-		}, nil
-	}
-
-	// Convert database model to protobuf
-	pbPreference := &alertpb.UserNotificationPreference{
-		Id:                   preference.ID,
-		UserId:               preference.UserID,
-		Enabled:              preference.Enabled,
-		SoundEnabled:         preference.SoundEnabled,
-		BrowserNotifications: preference.BrowserNotifications,
-		CooldownSeconds:      int32(preference.CooldownSeconds),
-		MaxNotifications:     int32(preference.MaxNotifications),
-		RespectFilters:       preference.RespectFilters,
-		CreatedAt:            timestamppb.New(preference.CreatedAt),
-		UpdatedAt:            timestamppb.New(preference.UpdatedAt),
-	}
-
-	// Handle severity rules JSON
-	if preference.SeverityRules != nil {
-		var severityRules map[string]bool
-		if err := json.Unmarshal(preference.SeverityRules, &severityRules); err == nil {
-			pbPreference.SeverityRules = severityRules
-		}
-	}
-
-	// Handle sound config JSON - send complete dynamic data
-	if preference.SoundConfig != nil {
-		// Send raw JSON directly for complete dynamic support
-		pbPreference.SoundConfigJson = string(preference.SoundConfig)
-	}
-
-	log.Printf("Retrieved notification preferences for user %s", user.ID)
-	return &alertpb.GetUserNotificationPreferencesResponse{
-		Preference: pbPreference,
-		Success:    true,
-		Message:    "Notification preferences retrieved successfully",
-	}, nil
-}
-
-// SaveUserNotificationPreferences implements the SaveUserNotificationPreferences RPC method
-func (s *AlertServiceGorm) SaveUserNotificationPreferences(ctx context.Context, req *alertpb.SaveUserNotificationPreferencesRequest) (*alertpb.SaveUserNotificationPreferencesResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.SaveUserNotificationPreferencesResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.Preference == nil {
-		return &alertpb.SaveUserNotificationPreferencesResponse{
-			Success: false,
-			Message: "Preference data is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.SaveUserNotificationPreferencesResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Convert protobuf to database model
-	preference := &mainmodels.UserNotificationPreference{
-		ID:                   req.Preference.Id,
-		UserID:               user.ID,
-		Enabled:              req.Preference.Enabled,
-		SoundEnabled:         req.Preference.SoundEnabled,
-		BrowserNotifications: req.Preference.BrowserNotifications,
-		CooldownSeconds:      int(req.Preference.CooldownSeconds),
-		MaxNotifications:     int(req.Preference.MaxNotifications),
-		RespectFilters:       req.Preference.RespectFilters,
-	}
-
-	// Handle severity rules
-	if req.Preference.SeverityRules != nil {
-		if err := preference.SetSeverityRules(req.Preference.SeverityRules); err != nil {
-			log.Printf("Error setting severity rules: %v", err)
-			return &alertpb.SaveUserNotificationPreferencesResponse{
-				Success: false,
-				Message: "Invalid severity rules format",
-			}, nil
-		}
-	}
-
-	// Handle sound config - prefer JSON string if available, otherwise use structured config
-	if req.Preference.SoundConfigJson != "" {
-		// Use the JSON string directly
-		var soundConfigMap mainmodels.SoundConfigMap
-		if err := json.Unmarshal([]byte(req.Preference.SoundConfigJson), &soundConfigMap); err == nil {
-			if err := preference.SetSoundConfig(soundConfigMap); err != nil {
-				log.Printf("Error setting sound config from JSON: %v", err)
-			}
-		} else {
-			log.Printf("Error parsing sound config JSON: %v", err)
-		}
-	}
-
-	// Save to database
-	if err := s.db.SaveUserNotificationPreference(user.ID, preference); err != nil {
-		log.Printf("Error saving notification preference for user %s: %v", user.ID, err)
-		return &alertpb.SaveUserNotificationPreferencesResponse{
-			Success: false,
-			Message: "Failed to save notification preferences",
-		}, nil
-	}
-
-	log.Printf("Saved notification preferences for user %s", user.ID)
-	return &alertpb.SaveUserNotificationPreferencesResponse{
-		Success: true,
-		Message: "Notification preferences saved successfully",
-	}, nil
-}
-
 // GetUserHiddenAlerts implements the GetUserHiddenAlerts RPC method
 func (s *AlertServiceGorm) GetUserHiddenAlerts(ctx context.Context, req *alertpb.GetUserHiddenAlertsRequest) (*alertpb.GetUserHiddenAlertsResponse, error) {
 	if req.SessionId == "" {
@@ -2255,6 +2079,425 @@ func (s *AuthServiceGorm) DeleteUserSentryConfig(ctx context.Context, req *authp
 
 	return &authpb.DeleteUserSentryConfigResponse{
 		Success: true,
+	}, nil
+}
+
+// GetNotificationPreferences implements the GetNotificationPreferences RPC method
+func (s *AlertServiceGorm) GetNotificationPreferences(ctx context.Context, req *alertpb.GetNotificationPreferencesRequest) (*alertpb.GetNotificationPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetNotificationPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetNotificationPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get notification preferences from database
+	prefs, err := s.db.GetUserNotificationPreference(user.ID)
+	if err != nil {
+		log.Printf("Failed to get notification preferences for user %s: %v", user.ID, err)
+		// Return default preferences if not found
+		defaultPrefs := models.DefaultNotificationPreference(user.ID)
+		return &alertpb.GetNotificationPreferencesResponse{
+			Success: true,
+			Preferences: &alertpb.NotificationPreference{
+				Id:                          defaultPrefs.ID,
+				UserId:                      defaultPrefs.UserID,
+				BrowserNotificationsEnabled: defaultPrefs.BrowserNotificationsEnabled,
+				EnabledSeverities:           defaultPrefs.EnabledSeverities,
+				SoundNotificationsEnabled:   defaultPrefs.SoundNotificationsEnabled,
+			},
+			Message: "Using default notification preferences",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbPrefs := &alertpb.NotificationPreference{
+		Id:                          prefs.ID,
+		UserId:                      prefs.UserID,
+		BrowserNotificationsEnabled: prefs.BrowserNotificationsEnabled,
+		EnabledSeverities:           prefs.EnabledSeverities,
+		SoundNotificationsEnabled:   prefs.SoundNotificationsEnabled,
+		CreatedAt:                   timestamppb.New(prefs.CreatedAt),
+		UpdatedAt:                   timestamppb.New(prefs.UpdatedAt),
+	}
+
+	return &alertpb.GetNotificationPreferencesResponse{
+		Success:     true,
+		Preferences: pbPrefs,
+		Message:     "Notification preferences retrieved successfully",
+	}, nil
+}
+
+// SaveNotificationPreferences implements the SaveNotificationPreferences RPC method
+func (s *AlertServiceGorm) SaveNotificationPreferences(ctx context.Context, req *alertpb.SaveNotificationPreferencesRequest) (*alertpb.SaveNotificationPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveNotificationPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveNotificationPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Validate severities
+	validSeverities := []string{}
+	validValues := map[string]bool{"critical": true, "warning": true, "info": true, "information": true}
+	for _, s := range req.EnabledSeverities {
+		if validValues[s] {
+			validSeverities = append(validSeverities, s)
+		}
+	}
+
+	// Create preference object
+	pref := &models.NotificationPreference{
+		UserID:                      user.ID,
+		BrowserNotificationsEnabled: req.BrowserNotificationsEnabled,
+		EnabledSeverities:           models.SeverityList(validSeverities),
+		SoundNotificationsEnabled:   req.SoundNotificationsEnabled,
+	}
+
+	// Save to database
+	err = s.db.SaveUserNotificationPreference(pref)
+	if err != nil {
+		log.Printf("Failed to save notification preferences for user %s: %v", user.ID, err)
+		return &alertpb.SaveNotificationPreferencesResponse{
+			Success: false,
+			Message: "Failed to save notification preferences",
+		}, nil
+	}
+
+	log.Printf("Notification preferences saved for user %s", user.ID)
+
+	// Get the updated preference from DB to return complete data
+	savedPrefs, err := s.db.GetUserNotificationPreference(user.ID)
+	if err != nil {
+		// Return success but with the data we tried to save
+		return &alertpb.SaveNotificationPreferencesResponse{
+			Success: true,
+			Preferences: &alertpb.NotificationPreference{
+				UserId:                      user.ID,
+				BrowserNotificationsEnabled: req.BrowserNotificationsEnabled,
+				EnabledSeverities:           validSeverities,
+				SoundNotificationsEnabled:   req.SoundNotificationsEnabled,
+			},
+			Message: "Notification preferences saved successfully",
+		}, nil
+	}
+
+	// Return the complete saved data
+	pbPrefs := &alertpb.NotificationPreference{
+		Id:                          savedPrefs.ID,
+		UserId:                      savedPrefs.UserID,
+		BrowserNotificationsEnabled: savedPrefs.BrowserNotificationsEnabled,
+		EnabledSeverities:           savedPrefs.EnabledSeverities,
+		SoundNotificationsEnabled:   savedPrefs.SoundNotificationsEnabled,
+		CreatedAt:                   timestamppb.New(savedPrefs.CreatedAt),
+		UpdatedAt:                   timestamppb.New(savedPrefs.UpdatedAt),
+	}
+
+	return &alertpb.SaveNotificationPreferencesResponse{
+		Success:     true,
+		Preferences: pbPrefs,
+		Message:     "Notification preferences saved successfully",
+	}, nil
+}
+
+// GetFilterPresets implements the GetFilterPresets RPC method
+func (s *AlertServiceGorm) GetFilterPresets(ctx context.Context, req *alertpb.GetFilterPresetsRequest) (*alertpb.GetFilterPresetsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetFilterPresetsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetFilterPresetsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get filter presets from database
+	presets, err := s.db.GetFilterPresets(user.ID, req.IncludeShared)
+	if err != nil {
+		log.Printf("Failed to get filter presets for user %s: %v", user.ID, err)
+		return &alertpb.GetFilterPresetsResponse{
+			Success: false,
+			Message: "Failed to retrieve filter presets",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbPresets := make([]*alertpb.FilterPreset, len(presets))
+	for i, preset := range presets {
+		pbPresets[i] = &alertpb.FilterPreset{
+			Id:          preset.ID,
+			UserId:      preset.UserID,
+			Name:        preset.Name,
+			Description: preset.Description,
+			IsShared:    preset.IsShared,
+			IsDefault:   preset.IsDefault,
+			FilterData:  []byte(preset.FilterData),
+			CreatedAt:   timestamppb.New(preset.CreatedAt),
+			UpdatedAt:   timestamppb.New(preset.UpdatedAt),
+		}
+	}
+
+	return &alertpb.GetFilterPresetsResponse{
+		Success: true,
+		Presets: pbPresets,
+		Message: "Filter presets retrieved successfully",
+	}, nil
+}
+
+// SaveFilterPreset implements the SaveFilterPreset RPC method
+func (s *AlertServiceGorm) SaveFilterPreset(ctx context.Context, req *alertpb.SaveFilterPresetRequest) (*alertpb.SaveFilterPresetResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveFilterPresetResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Name == "" {
+		return &alertpb.SaveFilterPresetResponse{
+			Success: false,
+			Message: "Preset name is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveFilterPresetResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Create filter preset
+	preset := &models.FilterPreset{
+		UserID:      user.ID,
+		Name:        req.Name,
+		Description: req.Description,
+		IsShared:    req.IsShared,
+		FilterData:  models.JSONB(req.FilterData),
+	}
+
+	// Save to database
+	savedPreset, err := s.db.CreateFilterPreset(preset)
+	if err != nil {
+		log.Printf("Failed to save filter preset for user %s: %v", user.ID, err)
+		return &alertpb.SaveFilterPresetResponse{
+			Success: false,
+			Message: "Failed to save filter preset",
+		}, nil
+	}
+
+	log.Printf("Filter preset '%s' saved for user %s", preset.Name, user.ID)
+
+	// Convert to protobuf format
+	pbPreset := &alertpb.FilterPreset{
+		Id:          savedPreset.ID,
+		UserId:      savedPreset.UserID,
+		Name:        savedPreset.Name,
+		Description: savedPreset.Description,
+		IsShared:    savedPreset.IsShared,
+		IsDefault:   savedPreset.IsDefault,
+		FilterData:  []byte(savedPreset.FilterData),
+		CreatedAt:   timestamppb.New(savedPreset.CreatedAt),
+		UpdatedAt:   timestamppb.New(savedPreset.UpdatedAt),
+	}
+
+	return &alertpb.SaveFilterPresetResponse{
+		Success: true,
+		Preset:  pbPreset,
+		Message: "Filter preset saved successfully",
+	}, nil
+}
+
+// UpdateFilterPreset implements the UpdateFilterPreset RPC method
+func (s *AlertServiceGorm) UpdateFilterPreset(ctx context.Context, req *alertpb.UpdateFilterPresetRequest) (*alertpb.UpdateFilterPresetResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.UpdateFilterPresetResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.PresetId == "" {
+		return &alertpb.UpdateFilterPresetResponse{
+			Success: false,
+			Message: "Preset ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.UpdateFilterPresetResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get existing preset
+	preset, err := s.db.GetFilterPresetByID(req.PresetId)
+	if err != nil {
+		return &alertpb.UpdateFilterPresetResponse{
+			Success: false,
+			Message: "Filter preset not found",
+		}, nil
+	}
+
+	// Check ownership
+	if preset.UserID != user.ID {
+		return &alertpb.UpdateFilterPresetResponse{
+			Success: false,
+			Message: "Not authorized to update this filter preset",
+		}, nil
+	}
+
+	// Update fields
+	preset.Name = req.Name
+	preset.Description = req.Description
+	preset.IsShared = req.IsShared
+	preset.FilterData = models.JSONB(req.FilterData)
+
+	// Save to database
+	err = s.db.UpdateFilterPreset(preset)
+	if err != nil {
+		log.Printf("Failed to update filter preset %s for user %s: %v", req.PresetId, user.ID, err)
+		return &alertpb.UpdateFilterPresetResponse{
+			Success: false,
+			Message: "Failed to update filter preset",
+		}, nil
+	}
+
+	log.Printf("Filter preset '%s' updated for user %s", preset.Name, user.ID)
+
+	// Convert to protobuf format
+	pbPreset := &alertpb.FilterPreset{
+		Id:          preset.ID,
+		UserId:      preset.UserID,
+		Name:        preset.Name,
+		Description: preset.Description,
+		IsShared:    preset.IsShared,
+		IsDefault:   preset.IsDefault,
+		FilterData:  []byte(preset.FilterData),
+		CreatedAt:   timestamppb.New(preset.CreatedAt),
+		UpdatedAt:   timestamppb.New(preset.UpdatedAt),
+	}
+
+	return &alertpb.UpdateFilterPresetResponse{
+		Success: true,
+		Preset:  pbPreset,
+		Message: "Filter preset updated successfully",
+	}, nil
+}
+
+// DeleteFilterPreset implements the DeleteFilterPreset RPC method
+func (s *AlertServiceGorm) DeleteFilterPreset(ctx context.Context, req *alertpb.DeleteFilterPresetRequest) (*alertpb.DeleteFilterPresetResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.DeleteFilterPresetResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.PresetId == "" {
+		return &alertpb.DeleteFilterPresetResponse{
+			Success: false,
+			Message: "Preset ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.DeleteFilterPresetResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Delete with ownership check
+	err = s.db.DeleteFilterPreset(req.PresetId, user.ID)
+	if err != nil {
+		log.Printf("Failed to delete filter preset %s for user %s: %v", req.PresetId, user.ID, err)
+		return &alertpb.DeleteFilterPresetResponse{
+			Success: false,
+			Message: "Failed to delete filter preset or not authorized",
+		}, nil
+	}
+
+	log.Printf("Filter preset %s deleted for user %s", req.PresetId, user.ID)
+
+	return &alertpb.DeleteFilterPresetResponse{
+		Success: true,
+		Message: "Filter preset deleted successfully",
+	}, nil
+}
+
+// SetDefaultFilterPreset implements the SetDefaultFilterPreset RPC method
+func (s *AlertServiceGorm) SetDefaultFilterPreset(ctx context.Context, req *alertpb.SetDefaultFilterPresetRequest) (*alertpb.SetDefaultFilterPresetResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SetDefaultFilterPresetResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.PresetId == "" {
+		return &alertpb.SetDefaultFilterPresetResponse{
+			Success: false,
+			Message: "Preset ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SetDefaultFilterPresetResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Set default with ownership check
+	err = s.db.SetDefaultFilterPreset(req.PresetId, user.ID)
+	if err != nil {
+		log.Printf("Failed to set default filter preset %s for user %s: %v", req.PresetId, user.ID, err)
+		return &alertpb.SetDefaultFilterPresetResponse{
+			Success: false,
+			Message: "Failed to set default filter preset or not authorized",
+		}, nil
+	}
+
+	log.Printf("Filter preset %s set as default for user %s", req.PresetId, user.ID)
+
+	return &alertpb.SetDefaultFilterPresetResponse{
+		Success: true,
+		Message: "Default filter preset set successfully",
 	}, nil
 }
 

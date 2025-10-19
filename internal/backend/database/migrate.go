@@ -9,6 +9,11 @@ import (
 func (gdb *GormDB) RunCustomMigrations() error {
 	log.Println("🔄 Running custom migrations...")
 
+	// Drop user_notification_preferences table (removed feature)
+	if err := gdb.dropUserNotificationPreferences(); err != nil {
+		return fmt.Errorf("failed to drop user_notification_preferences: %w", err)
+	}
+
 	// Check if UserSentryConfig table needs user_id column type migration
 	if err := gdb.migrateUserSentryConfigUserID(); err != nil {
 		return fmt.Errorf("failed to migrate UserSentryConfig.user_id: %w", err)
@@ -78,6 +83,38 @@ func (gdb *GormDB) migrateUserSentryConfigUserID() error {
 		log.Println("✅ Successfully migrated user_sentry_configs.user_id to varchar(32)")
 	} else {
 		log.Println("user_sentry_configs.user_id is already varchar type, no migration needed")
+	}
+
+	return nil
+}
+
+// dropUserNotificationPreferences drops the user_notification_preferences table if it exists
+func (gdb *GormDB) dropUserNotificationPreferences() error {
+	// Try PostgreSQL-style check first
+	var tableExists bool
+	err := gdb.db.Raw("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_notification_preferences')").Scan(&tableExists).Error
+
+	if err != nil {
+		// Probably SQLite - use simpler approach
+		log.Println("Using SQLite-compatible approach for user_notification_preferences table drop")
+		if err := gdb.db.Exec("DROP TABLE IF EXISTS user_notification_preferences").Error; err != nil {
+			log.Printf("Warning: Could not drop user_notification_preferences table: %v", err)
+			// Don't fail on this - table might not exist
+			return nil
+		}
+		log.Println("✅ Dropped user_notification_preferences table (if it existed)")
+		return nil
+	}
+
+	// PostgreSQL path
+	if tableExists {
+		log.Println("🔄 Dropping user_notification_preferences table")
+		if err := gdb.db.Exec("DROP TABLE IF EXISTS user_notification_preferences CASCADE").Error; err != nil {
+			return fmt.Errorf("failed to drop user_notification_preferences table: %w", err)
+		}
+		log.Println("✅ Successfully dropped user_notification_preferences table")
+	} else {
+		log.Println("user_notification_preferences table does not exist, skipping drop")
 	}
 
 	return nil

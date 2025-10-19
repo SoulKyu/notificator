@@ -49,16 +49,21 @@ templ DashboardData() {
 						this.totalItems = result.data.metadata.totalCount || result.data.metadata.totalAlerts || 0;
 						this.settings = { ...this.settings, ...result.data.settings };
 						this.lastUpdateTime = Date.now();
-						
+
 						await this.loadAlertColors();
-						
+
+						// Initialize notification service with seen alerts on first load
+						if (window.notificationService && this.currentUser) {
+							window.notificationService.initializeSeenAlerts(this.alerts, this.currentUser.id);
+						}
+
 						this.updateURL();
 					} else {
-						this.showNotification('error', 'Failed to load alerts: ' + result.error);
+						console.error('Failed to load alerts: ' + result.error);
 					}
 				} catch (error) {
 					console.error('Error loading dashboard data:', error);
-					this.showNotification('error', 'Failed to load dashboard data');
+					console.error('Failed to load dashboard data');
 				} finally {
 					this.loading = false;
 				}
@@ -258,11 +263,10 @@ templ DashboardData() {
 				
 				// Update timestamp
 				this.lastUpdateTime = update.lastUpdateTime * 1000; // Convert to milliseconds
-				
-				// Check for new alerts for notifications
-				if (update.newAlerts && update.newAlerts.length > 0) {
-					console.log(`Incremental update: Processing ${update.newAlerts.length} new alerts for notifications`);
-					this.checkForNewAlerts(oldAlerts, this.alerts);
+
+				// Process new alerts for notifications
+				if (window.notificationService && this.currentUser) {
+					window.notificationService.processNewAlerts(this.alerts, this.filters, this.currentUser.id);
 				}
 			},
 

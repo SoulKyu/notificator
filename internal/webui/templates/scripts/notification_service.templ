@@ -1,0 +1,309 @@
+package scripts
+
+templ NotificationService() {
+	<script>
+		// Browser Notification Service
+		window.NotificationService = {
+			// State
+			permissionGranted: false,
+			preferences: {
+				browserNotificationsEnabled: false,
+				enabledSeverities: ['critical', 'warning'],
+				soundNotificationsEnabled: true
+			},
+			seenAlerts: new Set(),
+
+			// Initialize the notification service
+			async init(userID) {
+				console.log('Initializing NotificationService...');
+
+				// Load preferences from backend
+				await this.loadPreferences();
+
+				// Check current browser permission status
+				if ('Notification' in window) {
+					this.permissionGranted = Notification.permission === 'granted';
+					console.log('Notification permission status:', Notification.permission);
+
+					// Auto-enable if browser permission granted but preference not saved
+					if (this.permissionGranted && !this.preferences.browserNotificationsEnabled) {
+						this.preferences.browserNotificationsEnabled = true;
+						await this.savePreferences(this.preferences);
+						console.log('Auto-enabled browser notifications (permission already granted)');
+					}
+				} else {
+					console.warn('Browser does not support notifications');
+				}
+
+				// Initialize seen alerts from sessionStorage
+				const storageKey = 'notificator_seen_alerts_' + userID;
+				const stored = sessionStorage.getItem(storageKey);
+				if (stored) {
+					try {
+						const fingerprints = JSON.parse(stored);
+						this.seenAlerts = new Set(fingerprints);
+						console.log('Loaded', this.seenAlerts.size, 'seen alerts from storage');
+					} catch (e) {
+						console.error('Failed to parse seen alerts:', e);
+						this.seenAlerts = new Set();
+					}
+				}
+			},
+
+			// Load notification preferences from backend
+			async loadPreferences() {
+				try {
+					const response = await fetch('/api/v1/notifications/preferences', {
+						credentials: 'include'
+					});
+
+					if (response.ok) {
+						const result = await response.json();
+						if (result.success && result.data) {
+							this.preferences = {
+								browserNotificationsEnabled: result.data.browser_notifications_enabled || false,
+								enabledSeverities: result.data.enabled_severities || ['critical', 'warning'],
+								soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
+							};
+							console.log('Loaded notification preferences:', this.preferences);
+						}
+					}
+				} catch (error) {
+					console.error('Failed to load notification preferences:', error);
+				}
+			},
+
+			// Save notification preferences to backend
+			async savePreferences(preferences) {
+				try {
+					const response = await fetch('/api/v1/notifications/preferences', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify({
+							browser_notifications_enabled: preferences.browserNotificationsEnabled,
+							enabled_severities: preferences.enabledSeverities
+						})
+					});
+
+					if (response.ok) {
+						const result = await response.json();
+						if (result.success) {
+							this.preferences = preferences;
+							console.log('Saved notification preferences');
+							return true;
+						}
+					}
+					return false;
+				} catch (error) {
+					console.error('Failed to save notification preferences:', error);
+					return false;
+				}
+			},
+
+			// Request browser notification permission
+			async requestPermission() {
+				if (!('Notification' in window)) {
+					console.warn('Browser does not support notifications');
+					return false;
+				}
+
+				try {
+					const permission = await Notification.requestPermission();
+					this.permissionGranted = permission === 'granted';
+					console.log('Notification permission:', permission);
+					return this.permissionGranted;
+				} catch (error) {
+					console.error('Failed to request notification permission:', error);
+					return false;
+				}
+			},
+
+			// Initialize seen alerts (call on dashboard load)
+			initializeSeenAlerts(alerts, userID) {
+				const fingerprints = alerts.map(a => a.fingerprint);
+				this.seenAlerts = new Set(fingerprints);
+
+				// Save to sessionStorage
+				const storageKey = 'notificator_seen_alerts_' + userID;
+				sessionStorage.setItem(storageKey, JSON.stringify(fingerprints));
+
+				console.log('Initialized', this.seenAlerts.size, 'seen alerts');
+			},
+
+			// Mark alerts as seen
+			markAsSeen(fingerprints, userID) {
+				fingerprints.forEach(fp => this.seenAlerts.add(fp));
+
+				// Save to sessionStorage
+				const storageKey = 'notificator_seen_alerts_' + userID;
+				sessionStorage.setItem(storageKey, JSON.stringify(Array.from(this.seenAlerts)));
+			},
+
+			// Detect new alerts (not in seen set)
+			detectNewAlerts(alerts) {
+				return alerts.filter(alert => !this.seenAlerts.has(alert.fingerprint));
+			},
+
+			// Check if we should notify for this alert
+			shouldNotify(alert) {
+				// Check if notifications are enabled
+				if (!this.preferences.browserNotificationsEnabled) {
+					return false;
+				}
+
+				// Check if browser permission granted
+				if (!this.permissionGranted) {
+					return false;
+				}
+
+				// Check if severity is enabled
+				const severity = alert.severity || alert.labels?.severity || 'info';
+				const normalizedSeverity = severity.toLowerCase();
+
+				// Handle 'information' as 'info'
+				const severityToCheck = normalizedSeverity === 'information' ? 'info' : normalizedSeverity;
+
+				if (!this.preferences.enabledSeverities.includes(severityToCheck)) {
+					return false;
+				}
+
+				return true;
+			},
+
+			// Get notification icon based on severity
+			getNotificationIcon(severity) {
+				const severityLower = severity.toLowerCase();
+				const iconMap = {
+					'critical': '/static/images/critical-icon.png',
+					'critical-daytime': '/static/images/critical-icon.png',
+					'warning': '/static/images/warning-icon.png',
+					'info': '/static/images/info-icon.png',
+					'information': '/static/images/info-icon.png',
+					'success': '/static/images/success-icon.png'
+				};
+				return iconMap[severityLower] || '/static/images/default-icon.png';
+			},
+
+			// Get notification sound based on severity
+			getNotificationSound(severity) {
+				const severityLower = severity.toLowerCase();
+				const soundMap = {
+					'critical': '/static/sounds/critical.mp3',
+					'critical-daytime': '/static/sounds/critical.mp3',
+					'warning': '/static/sounds/warning.mp3',
+					'info': '/static/sounds/info.mp3',
+					'information': '/static/sounds/info.mp3'
+				};
+				return soundMap[severityLower] || '/static/sounds/info.mp3';
+			},
+
+			// Play notification sound
+			playNotificationSound(severity) {
+				// Check if sounds are enabled
+				if (!this.preferences.soundNotificationsEnabled) {
+					return;
+				}
+
+				try {
+					const soundFile = this.getNotificationSound(severity);
+					const audio = new Audio(soundFile);
+					audio.volume = 0.7; // Fixed volume at 70%
+
+					// Play with error handling
+					audio.play().catch(err => {
+						// Browsers may block autoplay - this is expected
+						console.warn('Could not play notification sound (may be blocked by browser):', err.message);
+					});
+				} catch (error) {
+					console.error('Error creating audio for notification sound:', error);
+				}
+			},
+
+			// Show browser notification
+			showNotification(alert) {
+				if (!this.shouldNotify(alert)) {
+					return;
+				}
+
+				const alertName = alert.alertName || alert.labels?.alertname || 'Alert';
+				const summary = alert.summary || alert.annotations?.summary || '';
+				const severity = alert.severity || alert.labels?.severity || 'info';
+				const source = alert.source || '';
+
+				// Play notification sound
+				this.playNotificationSound(severity);
+
+				const title = `Alert: ${alertName}`;
+				const body = summary || `${severity.toUpperCase()} alert from ${source}`;
+
+				const options = {
+					body: body,
+					icon: this.getNotificationIcon(severity),
+					badge: '/static/images/default-icon.png',
+					tag: alert.fingerprint, // Prevents duplicates
+					requireInteraction: severity.toLowerCase() === 'critical',
+					data: {
+						fingerprint: alert.fingerprint,
+						alertName: alertName
+					}
+				};
+
+				try {
+					const notification = new Notification(title, options);
+
+					// Handle notification click - navigate to alert details
+					notification.onclick = () => {
+						window.focus();
+						// Navigate to alert detail URL
+						window.location.href = `/dashboard/alert/${alert.fingerprint}`;
+						notification.close();
+					};
+
+					console.log('Showed notification for alert:', alertName);
+				} catch (error) {
+					console.error('Failed to show notification:', error);
+				}
+			},
+
+			// Process new alerts and show notifications
+			processNewAlerts(allAlerts, currentFilters, userID) {
+				// Detect which alerts are new
+				const newAlerts = this.detectNewAlerts(allAlerts);
+
+				if (newAlerts.length === 0) {
+					return;
+				}
+
+				console.log('Processing', newAlerts.length, 'new alerts for notifications');
+
+				// Show notifications for new alerts
+				newAlerts.forEach(alert => {
+					this.showNotification(alert);
+				});
+
+				// Mark new alerts as seen
+				const newFingerprints = newAlerts.map(a => a.fingerprint);
+				this.markAsSeen(newFingerprints, userID);
+			},
+
+			// Get severity color for notification icons
+			getSeverityColor(severity) {
+				const colors = {
+					critical: '#dc2626',      // red-600
+					'critical-daytime': '#be123c', // rose-700
+					warning: '#d97706',       // amber-600
+					info: '#2563eb',          // blue-600
+					information: '#2563eb',   // blue-600
+					default: '#6b7280'        // gray-500
+				};
+				return colors[severity.toLowerCase()] || colors.default;
+			}
+		};
+
+		// Make it globally available
+		window.notificationService = window.NotificationService;
+	</script>
+}

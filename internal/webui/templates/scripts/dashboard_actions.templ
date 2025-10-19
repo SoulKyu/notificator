@@ -74,7 +74,6 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', successMessage);
 						this.showAckModal = false;
 						
 						if (this.ackAction === 'bulk') {
@@ -95,7 +94,6 @@ templ DashboardActions() {
 
 			async hideSelected() {
 				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
-					this.showNotification('warning', 'Please select alerts to hide');
 					return;
 				}
 
@@ -125,15 +123,15 @@ templ DashboardActions() {
 					// TODO: Handle group hiding when groups are supported
 					
 					if (hiddenCount > 0) {
-						this.showNotification('success', `Hidden ${hiddenCount} alert${hiddenCount === 1 ? '' : 's'}`);
+						
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to hide any alerts');
+						
 					}
 				} catch (error) {
 					console.error('Error hiding alerts:', error);
-					this.showNotification('error', 'Failed to hide alerts');
+					
 				}
 			},
 
@@ -156,7 +154,7 @@ templ DashboardActions() {
 
 			acknowledgeSelected() {
 				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
-					this.showNotification('warning', 'Please select alerts or groups to acknowledge');
+					
 					return;
 				}
 				
@@ -188,15 +186,15 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', `Unacknowledged ${result.data.processedCount} alerts`);
+						
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to unacknowledge alerts: ' + result.error);
+						
 					}
 				} catch (error) {
 					console.error('Error unacknowledging alerts:', error);
-					this.showNotification('error', 'Failed to unacknowledge alerts');
+					
 				}
 			},
 
@@ -220,14 +218,14 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'Alert unacknowledged');
+						
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to unacknowledge alert: ' + result.error);
+						
 					}
 				} catch (error) {
 					console.error('Error unacknowledging alert:', error);
-					this.showNotification('error', 'Failed to unacknowledge alert');
+					
 				}
 			},
 
@@ -252,15 +250,15 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', `Resolved ${result.data.processedCount} alerts`);
+						
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to resolve alerts: ' + result.error);
+						
 					}
 				} catch (error) {
 					console.error('Error resolving alerts:', error);
-					this.showNotification('error', 'Failed to resolve alerts');
+					
 				}
 			},
 
@@ -284,14 +282,14 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'Alert resolved');
+						
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to resolve alert: ' + result.error);
+						
 					}
 				} catch (error) {
 					console.error('Error resolving alert:', error);
-					this.showNotification('error', 'Failed to resolve alert');
+					
 				}
 			},
 
@@ -313,16 +311,16 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'All resolved alerts have been removed successfully');
+						
 						if (this.displayMode === 'resolved') {
 							await this.loadDashboardData();
 						}
 					} else {
-						this.showNotification('error', result.message || 'Failed to remove resolved alerts');
+						
 					}
 				} catch (error) {
 					console.error('Error removing resolved alerts:', error);
-					this.showNotification('error', 'Failed to remove resolved alerts');
+					
 				} finally {
 					this.isRemovingResolvedAlerts = false;
 				}
@@ -418,7 +416,7 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', successMessage);
+						
 						this.showSilenceModal = false;
 						
 						if (this.silenceAction === 'bulk') {
@@ -554,7 +552,7 @@ templ DashboardActions() {
 
 			silenceSelected() {
 				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
-					this.showNotification('warning', 'Please select alerts or groups to silence');
+					
 					return;
 				}
 				
@@ -570,7 +568,7 @@ templ DashboardActions() {
 
 			async unsilenceSelected() {
 				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
-					this.showNotification('warning', 'Please select alerts or groups to unsilence');
+					
 					return;
 				}
 
@@ -594,15 +592,15 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', `${this.selectedAlerts.length + this.selectedGroups.length} items unsilenced successfully`);
+						
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to unsilence: ' + (result.error || 'Unknown error'));
+						
 					}
 				} catch (error) {
 					console.error('Error unsilencing selected items:', error);
-					this.showNotification('error', 'Failed to unsilence selected items');
+					
 				}
 			},
 
@@ -650,14 +648,14 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'Alert unsilenced successfully');
+						
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to unsilence alert: ' + (result.error || 'Unknown error'));
+						
 					}
 				} catch (error) {
 					console.error('Error unsilencing alert:', error);
-					this.showNotification('error', 'Failed to unsilence alert');
+					
 				}
 			},
 
@@ -679,14 +677,14 @@ templ DashboardActions() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', `Group "${groupName}" unsilenced successfully`);
+						
 						this.loadDashboardData();
 					} else {
-						this.showNotification('error', 'Failed to unsilence group: ' + (result.error || 'Unknown error'));
+						
 					}
 				} catch (error) {
 					console.error('Error unsilencing group:', error);
-					this.showNotification('error', 'Failed to unsilence group');
+					
 				}
 			},
 

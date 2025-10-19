@@ -109,15 +109,11 @@ type Pagination struct {
 type DashboardSettings struct {
 	UserID                  string `json:"userId"`
 	Theme                   string `json:"theme"` // "light" or "dark"
-	NotificationsEnabled    bool   `json:"notificationsEnabled"`
-	SoundEnabled            bool   `json:"soundEnabled"`
 	CriticalSoundPath       string `json:"criticalSoundPath"`
 	WarningSoundPath        string `json:"warningSoundPath"`
 	ResolvedAlertsRetention int    `json:"resolvedAlertsRetention"` // Days to keep resolved alerts
 	RefreshInterval         int    `json:"refreshInterval"`         // Seconds between auto-refresh
-	// Simple notification settings
-	NotificationDelay int              `json:"notificationDelay"` // Milliseconds between notifications
-	DefaultFilters    DashboardFilters `json:"defaultFilters"`
+	DefaultFilters          DashboardFilters `json:"defaultFilters"`
 	DefaultSorting    DashboardSorting `json:"defaultSorting"`
 	HiddenColumns     []string         `json:"hiddenColumns"`
 }

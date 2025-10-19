@@ -1,0 +1,165 @@
+package components
+
+templ NotificationSettings() {
+	<!-- Notification Settings Tab Content -->
+	<div x-show="activeTab === 'notifications'" class="space-y-6">
+		<!-- Header -->
+		<div>
+			<h3 class="text-lg font-medium text-gray-900">Browser Notifications</h3>
+			<p class="mt-1 text-sm text-gray-600">
+				Configure desktop notifications for new alerts. You'll only receive notifications for alerts that haven't been seen yet.
+			</p>
+		</div>
+
+		<!-- Permission Status -->
+		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+			<div class="flex items-start">
+				<div class="flex-shrink-0">
+					<svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+					</svg>
+				</div>
+				<div class="ml-3 flex-1">
+					<h4 class="text-sm font-medium text-blue-800">Permission Status</h4>
+					<div class="mt-2 text-sm text-blue-700">
+						<!-- Not granted state -->
+						<span x-show="browserNotificationPermission !== 'granted'">
+							Browser notification permission has not been granted yet.
+							<button
+								@click="requestNotificationPermission()"
+								type="button"
+								class="underline font-medium hover:text-blue-900"
+							>
+								Click here to enable
+							</button>
+						</span>
+						<!-- Granted state -->
+						<span x-show="browserNotificationPermission === 'granted'" class="flex items-center">
+							<svg class="h-4 w-4 text-green-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
+								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+							</svg>
+							Permission granted
+						</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Enable/Disable Toggle -->
+		<div class="flex items-center justify-between py-4 border-b border-gray-200">
+			<div>
+				<h4 class="text-sm font-medium text-gray-900">Enable Browser Notifications</h4>
+				<p class="text-sm text-gray-500">Receive desktop notifications for new alerts</p>
+			</div>
+			<button
+				type="button"
+				@click="notificationPreferences.browserNotificationsEnabled = !notificationPreferences.browserNotificationsEnabled"
+				:class="notificationPreferences.browserNotificationsEnabled ? 'bg-blue-600' : 'bg-gray-200'"
+				class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+			>
+				<span
+					:class="notificationPreferences.browserNotificationsEnabled ? 'translate-x-5' : 'translate-x-0'"
+					class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"
+				></span>
+			</button>
+		</div>
+
+		<!-- Sound Notifications Toggle -->
+		<div class="flex items-center justify-between py-4 border-b border-gray-200">
+			<div>
+				<h4 class="text-sm font-medium text-gray-900">Sound Alerts</h4>
+				<p class="text-sm text-gray-500">Play a sound when notifications appear</p>
+			</div>
+			<button
+				type="button"
+				@click="notificationPreferences.soundNotificationsEnabled = !notificationPreferences.soundNotificationsEnabled"
+				:class="notificationPreferences.soundNotificationsEnabled ? 'bg-blue-600' : 'bg-gray-200'"
+				class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+			>
+				<span
+					:class="notificationPreferences.soundNotificationsEnabled ? 'translate-x-5' : 'translate-x-0'"
+					class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"
+				></span>
+			</button>
+		</div>
+
+		<!-- Severity Selection -->
+		<div>
+			<h4 class="text-sm font-medium text-gray-900 mb-3">Notify for Severities</h4>
+			<div class="space-y-3">
+				<!-- Critical -->
+				<label class="flex items-center">
+					<input
+						type="checkbox"
+						x-model="notificationPreferences.enabledSeverities"
+						value="critical"
+						class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+					/>
+					<span class="ml-3 flex items-center">
+						<span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+							Critical
+						</span>
+						<span class="ml-2 text-sm text-gray-600">High priority alerts</span>
+					</span>
+				</label>
+
+				<!-- Warning -->
+				<label class="flex items-center">
+					<input
+						type="checkbox"
+						x-model="notificationPreferences.enabledSeverities"
+						value="warning"
+						class="h-4 w-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+					/>
+					<span class="ml-3 flex items-center">
+						<span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+							Warning
+						</span>
+						<span class="ml-2 text-sm text-gray-600">Medium priority alerts</span>
+					</span>
+				</label>
+
+				<!-- Info -->
+				<label class="flex items-center">
+					<input
+						type="checkbox"
+						x-model="notificationPreferences.enabledSeverities"
+						value="info"
+						class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+					/>
+					<span class="ml-3 flex items-center">
+						<span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+							Info
+						</span>
+						<span class="ml-2 text-sm text-gray-600">Informational alerts</span>
+					</span>
+				</label>
+			</div>
+		</div>
+
+		<!-- Test Notification Button -->
+		<div class="pt-4">
+			<button
+				@click="testNotification()"
+				type="button"
+				class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+			>
+				<svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+				</svg>
+				Test Notification
+			</button>
+		</div>
+
+		<!-- How it works -->
+		<div class="bg-gray-50 rounded-lg p-4">
+			<h4 class="text-sm font-medium text-gray-900 mb-2">How it works</h4>
+			<ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+				<li>Notifications only appear for NEW alerts (not on initial dashboard load)</li>
+				<li>Alerts you've already seen won't trigger notifications again</li>
+				<li>Notifications respect your current dashboard filters</li>
+				<li>Critical alerts require interaction to dismiss</li>
+			</ul>
+		</div>
+	</div>
+}

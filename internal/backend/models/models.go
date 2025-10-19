@@ -171,6 +171,30 @@ func (ra *ResolvedAlert) BeforeCreate(tx *gorm.DB) error {
 
 func (ResolvedAlert) TableName() string { return "resolved_alerts" }
 
+// FilterPreset represents a saved filter configuration for the dashboard
+type FilterPreset struct {
+	ID          string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
+	UserID      string    `gorm:"not null;size:32;index" json:"user_id"`
+	Name        string    `gorm:"not null;size:255" json:"name"`
+	Description string    `gorm:"type:text" json:"description,omitempty"`
+	IsShared    bool      `gorm:"default:false;index" json:"is_shared"`
+	IsDefault   bool      `gorm:"default:false" json:"is_default"`
+	FilterData  JSONB     `gorm:"type:jsonb;not null" json:"filter_data"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+func (fp *FilterPreset) BeforeCreate(tx *gorm.DB) error {
+	if fp.ID == "" {
+		fp.ID = GenerateID()
+	}
+	return nil
+}
+
+func (FilterPreset) TableName() string { return "filter_presets" }
+
 func GenerateID() string {
 	return generateRandomString(32)
 }

@@ -49,6 +49,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 
 	// Set backend client for handlers
 	handlers.SetBackendClient(backendClient)
+	handlers.SetFilterPresetBackendClient(backendClient)
 
 	// Fetch OAuth configuration from backend and update local config
 	oauthEnabled, err := backendClient.IsOAuthEnabled()
@@ -205,8 +206,6 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.GET("/color-preferences", handlers.GetUserColorPreferences)
 			dashboard.POST("/color-preferences", handlers.SaveUserColorPreferences)
 			dashboard.DELETE("/color-preferences/:id", handlers.DeleteUserColorPreference)
-			dashboard.GET("/notification-preferences", handlers.GetUserNotificationPreferences)
-			dashboard.POST("/notification-preferences", handlers.SaveUserNotificationPreferences)
 			dashboard.GET("/alert-colors", handlers.GetAlertColors)
 			dashboard.GET("/available-labels", handlers.GetAvailableAlertLabels)
 			dashboard.DELETE("/remove-resolved-alerts", handlers.RemoveAllResolvedAlerts)
@@ -223,12 +222,28 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.PUT("/hidden-rules/:id", handlers.UpdateHiddenRule)
 			dashboard.DELETE("/hidden-rules/:id", handlers.DeleteHiddenRule)
 
+			// Filter presets routes
+			dashboard.GET("/filter-presets", handlers.GetFilterPresets)
+			dashboard.GET("/filter-presets/default", handlers.GetDefaultFilterPreset)
+			dashboard.POST("/filter-presets", handlers.CreateFilterPreset)
+			dashboard.PUT("/filter-presets/:id", handlers.UpdateFilterPreset)
+			dashboard.DELETE("/filter-presets/:id", handlers.DeleteFilterPreset)
+			dashboard.POST("/filter-presets/:id/default", handlers.SetDefaultFilterPreset)
+
 			// Sentry integration routes
 			dashboard.POST("/sentry/test-connection", handlers.TestSentryConnection)
 			dashboard.GET("/sentry/:fingerprint", handlers.GetSentryDataForAlert)
 			dashboard.GET("/sentry-config", handlers.GetUserSentryConfig)
 			dashboard.POST("/sentry-token", handlers.SaveUserSentryToken)
 			dashboard.DELETE("/sentry-token", handlers.DeleteUserSentryToken)
+		}
+
+		// Notification preferences routes
+		notifications := api.Group("/notifications")
+		notifications.Use(authMiddleware.RequireAuth())
+		{
+			notifications.GET("/preferences", handlers.GetNotificationPreferences)
+			notifications.POST("/preferences", handlers.SaveNotificationPreferences)
 		}
 	}
 

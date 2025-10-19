@@ -21,31 +21,36 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AlertService_AddComment_FullMethodName                      = "/notificator.alert.AlertService/AddComment"
-	AlertService_GetComments_FullMethodName                     = "/notificator.alert.AlertService/GetComments"
-	AlertService_DeleteComment_FullMethodName                   = "/notificator.alert.AlertService/DeleteComment"
-	AlertService_AddAcknowledgment_FullMethodName               = "/notificator.alert.AlertService/AddAcknowledgment"
-	AlertService_GetAcknowledgments_FullMethodName              = "/notificator.alert.AlertService/GetAcknowledgments"
-	AlertService_GetAllAcknowledgedAlerts_FullMethodName        = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
-	AlertService_DeleteAcknowledgment_FullMethodName            = "/notificator.alert.AlertService/DeleteAcknowledgment"
-	AlertService_SubscribeToAlertUpdates_FullMethodName         = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
-	AlertService_CreateResolvedAlert_FullMethodName             = "/notificator.alert.AlertService/CreateResolvedAlert"
-	AlertService_GetResolvedAlerts_FullMethodName               = "/notificator.alert.AlertService/GetResolvedAlerts"
-	AlertService_GetResolvedAlert_FullMethodName                = "/notificator.alert.AlertService/GetResolvedAlert"
-	AlertService_RemoveAllResolvedAlerts_FullMethodName         = "/notificator.alert.AlertService/RemoveAllResolvedAlerts"
-	AlertService_StreamResolvedAlertUpdates_FullMethodName      = "/notificator.alert.AlertService/StreamResolvedAlertUpdates"
-	AlertService_GetUserColorPreferences_FullMethodName         = "/notificator.alert.AlertService/GetUserColorPreferences"
-	AlertService_SaveUserColorPreferences_FullMethodName        = "/notificator.alert.AlertService/SaveUserColorPreferences"
-	AlertService_DeleteUserColorPreference_FullMethodName       = "/notificator.alert.AlertService/DeleteUserColorPreference"
-	AlertService_GetUserNotificationPreferences_FullMethodName  = "/notificator.alert.AlertService/GetUserNotificationPreferences"
-	AlertService_SaveUserNotificationPreferences_FullMethodName = "/notificator.alert.AlertService/SaveUserNotificationPreferences"
-	AlertService_GetUserHiddenAlerts_FullMethodName             = "/notificator.alert.AlertService/GetUserHiddenAlerts"
-	AlertService_HideAlert_FullMethodName                       = "/notificator.alert.AlertService/HideAlert"
-	AlertService_UnhideAlert_FullMethodName                     = "/notificator.alert.AlertService/UnhideAlert"
-	AlertService_ClearAllHiddenAlerts_FullMethodName            = "/notificator.alert.AlertService/ClearAllHiddenAlerts"
-	AlertService_GetUserHiddenRules_FullMethodName              = "/notificator.alert.AlertService/GetUserHiddenRules"
-	AlertService_SaveHiddenRule_FullMethodName                  = "/notificator.alert.AlertService/SaveHiddenRule"
-	AlertService_RemoveHiddenRule_FullMethodName                = "/notificator.alert.AlertService/RemoveHiddenRule"
+	AlertService_AddComment_FullMethodName                  = "/notificator.alert.AlertService/AddComment"
+	AlertService_GetComments_FullMethodName                 = "/notificator.alert.AlertService/GetComments"
+	AlertService_DeleteComment_FullMethodName               = "/notificator.alert.AlertService/DeleteComment"
+	AlertService_AddAcknowledgment_FullMethodName           = "/notificator.alert.AlertService/AddAcknowledgment"
+	AlertService_GetAcknowledgments_FullMethodName          = "/notificator.alert.AlertService/GetAcknowledgments"
+	AlertService_GetAllAcknowledgedAlerts_FullMethodName    = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
+	AlertService_DeleteAcknowledgment_FullMethodName        = "/notificator.alert.AlertService/DeleteAcknowledgment"
+	AlertService_SubscribeToAlertUpdates_FullMethodName     = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
+	AlertService_CreateResolvedAlert_FullMethodName         = "/notificator.alert.AlertService/CreateResolvedAlert"
+	AlertService_GetResolvedAlerts_FullMethodName           = "/notificator.alert.AlertService/GetResolvedAlerts"
+	AlertService_GetResolvedAlert_FullMethodName            = "/notificator.alert.AlertService/GetResolvedAlert"
+	AlertService_RemoveAllResolvedAlerts_FullMethodName     = "/notificator.alert.AlertService/RemoveAllResolvedAlerts"
+	AlertService_StreamResolvedAlertUpdates_FullMethodName  = "/notificator.alert.AlertService/StreamResolvedAlertUpdates"
+	AlertService_GetUserColorPreferences_FullMethodName     = "/notificator.alert.AlertService/GetUserColorPreferences"
+	AlertService_SaveUserColorPreferences_FullMethodName    = "/notificator.alert.AlertService/SaveUserColorPreferences"
+	AlertService_DeleteUserColorPreference_FullMethodName   = "/notificator.alert.AlertService/DeleteUserColorPreference"
+	AlertService_GetUserHiddenAlerts_FullMethodName         = "/notificator.alert.AlertService/GetUserHiddenAlerts"
+	AlertService_HideAlert_FullMethodName                   = "/notificator.alert.AlertService/HideAlert"
+	AlertService_UnhideAlert_FullMethodName                 = "/notificator.alert.AlertService/UnhideAlert"
+	AlertService_ClearAllHiddenAlerts_FullMethodName        = "/notificator.alert.AlertService/ClearAllHiddenAlerts"
+	AlertService_GetUserHiddenRules_FullMethodName          = "/notificator.alert.AlertService/GetUserHiddenRules"
+	AlertService_SaveHiddenRule_FullMethodName              = "/notificator.alert.AlertService/SaveHiddenRule"
+	AlertService_RemoveHiddenRule_FullMethodName            = "/notificator.alert.AlertService/RemoveHiddenRule"
+	AlertService_GetNotificationPreferences_FullMethodName  = "/notificator.alert.AlertService/GetNotificationPreferences"
+	AlertService_SaveNotificationPreferences_FullMethodName = "/notificator.alert.AlertService/SaveNotificationPreferences"
+	AlertService_GetFilterPresets_FullMethodName            = "/notificator.alert.AlertService/GetFilterPresets"
+	AlertService_SaveFilterPreset_FullMethodName            = "/notificator.alert.AlertService/SaveFilterPreset"
+	AlertService_UpdateFilterPreset_FullMethodName          = "/notificator.alert.AlertService/UpdateFilterPreset"
+	AlertService_DeleteFilterPreset_FullMethodName          = "/notificator.alert.AlertService/DeleteFilterPreset"
+	AlertService_SetDefaultFilterPreset_FullMethodName      = "/notificator.alert.AlertService/SetDefaultFilterPreset"
 )
 
 // AlertServiceClient is the client API for AlertService service.
@@ -75,9 +80,6 @@ type AlertServiceClient interface {
 	GetUserColorPreferences(ctx context.Context, in *GetUserColorPreferencesRequest, opts ...grpc.CallOption) (*GetUserColorPreferencesResponse, error)
 	SaveUserColorPreferences(ctx context.Context, in *SaveUserColorPreferencesRequest, opts ...grpc.CallOption) (*SaveUserColorPreferencesResponse, error)
 	DeleteUserColorPreference(ctx context.Context, in *DeleteUserColorPreferenceRequest, opts ...grpc.CallOption) (*DeleteUserColorPreferenceResponse, error)
-	// User Notification Preferences
-	GetUserNotificationPreferences(ctx context.Context, in *GetUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*GetUserNotificationPreferencesResponse, error)
-	SaveUserNotificationPreferences(ctx context.Context, in *SaveUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*SaveUserNotificationPreferencesResponse, error)
 	// User Hidden Alerts
 	GetUserHiddenAlerts(ctx context.Context, in *GetUserHiddenAlertsRequest, opts ...grpc.CallOption) (*GetUserHiddenAlertsResponse, error)
 	HideAlert(ctx context.Context, in *HideAlertRequest, opts ...grpc.CallOption) (*HideAlertResponse, error)
@@ -87,6 +89,15 @@ type AlertServiceClient interface {
 	GetUserHiddenRules(ctx context.Context, in *GetUserHiddenRulesRequest, opts ...grpc.CallOption) (*GetUserHiddenRulesResponse, error)
 	SaveHiddenRule(ctx context.Context, in *SaveHiddenRuleRequest, opts ...grpc.CallOption) (*SaveHiddenRuleResponse, error)
 	RemoveHiddenRule(ctx context.Context, in *RemoveHiddenRuleRequest, opts ...grpc.CallOption) (*RemoveHiddenRuleResponse, error)
+	// Notification Preferences
+	GetNotificationPreferences(ctx context.Context, in *GetNotificationPreferencesRequest, opts ...grpc.CallOption) (*GetNotificationPreferencesResponse, error)
+	SaveNotificationPreferences(ctx context.Context, in *SaveNotificationPreferencesRequest, opts ...grpc.CallOption) (*SaveNotificationPreferencesResponse, error)
+	// Filter Presets
+	GetFilterPresets(ctx context.Context, in *GetFilterPresetsRequest, opts ...grpc.CallOption) (*GetFilterPresetsResponse, error)
+	SaveFilterPreset(ctx context.Context, in *SaveFilterPresetRequest, opts ...grpc.CallOption) (*SaveFilterPresetResponse, error)
+	UpdateFilterPreset(ctx context.Context, in *UpdateFilterPresetRequest, opts ...grpc.CallOption) (*UpdateFilterPresetResponse, error)
+	DeleteFilterPreset(ctx context.Context, in *DeleteFilterPresetRequest, opts ...grpc.CallOption) (*DeleteFilterPresetResponse, error)
+	SetDefaultFilterPreset(ctx context.Context, in *SetDefaultFilterPresetRequest, opts ...grpc.CallOption) (*SetDefaultFilterPresetResponse, error)
 }
 
 type alertServiceClient struct {
@@ -275,26 +286,6 @@ func (c *alertServiceClient) DeleteUserColorPreference(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *alertServiceClient) GetUserNotificationPreferences(ctx context.Context, in *GetUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*GetUserNotificationPreferencesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetUserNotificationPreferencesResponse)
-	err := c.cc.Invoke(ctx, AlertService_GetUserNotificationPreferences_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *alertServiceClient) SaveUserNotificationPreferences(ctx context.Context, in *SaveUserNotificationPreferencesRequest, opts ...grpc.CallOption) (*SaveUserNotificationPreferencesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SaveUserNotificationPreferencesResponse)
-	err := c.cc.Invoke(ctx, AlertService_SaveUserNotificationPreferences_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *alertServiceClient) GetUserHiddenAlerts(ctx context.Context, in *GetUserHiddenAlertsRequest, opts ...grpc.CallOption) (*GetUserHiddenAlertsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUserHiddenAlertsResponse)
@@ -365,6 +356,76 @@ func (c *alertServiceClient) RemoveHiddenRule(ctx context.Context, in *RemoveHid
 	return out, nil
 }
 
+func (c *alertServiceClient) GetNotificationPreferences(ctx context.Context, in *GetNotificationPreferencesRequest, opts ...grpc.CallOption) (*GetNotificationPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNotificationPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetNotificationPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SaveNotificationPreferences(ctx context.Context, in *SaveNotificationPreferencesRequest, opts ...grpc.CallOption) (*SaveNotificationPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveNotificationPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_SaveNotificationPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) GetFilterPresets(ctx context.Context, in *GetFilterPresetsRequest, opts ...grpc.CallOption) (*GetFilterPresetsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetFilterPresetsResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetFilterPresets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SaveFilterPreset(ctx context.Context, in *SaveFilterPresetRequest, opts ...grpc.CallOption) (*SaveFilterPresetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveFilterPresetResponse)
+	err := c.cc.Invoke(ctx, AlertService_SaveFilterPreset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) UpdateFilterPreset(ctx context.Context, in *UpdateFilterPresetRequest, opts ...grpc.CallOption) (*UpdateFilterPresetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateFilterPresetResponse)
+	err := c.cc.Invoke(ctx, AlertService_UpdateFilterPreset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) DeleteFilterPreset(ctx context.Context, in *DeleteFilterPresetRequest, opts ...grpc.CallOption) (*DeleteFilterPresetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteFilterPresetResponse)
+	err := c.cc.Invoke(ctx, AlertService_DeleteFilterPreset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SetDefaultFilterPreset(ctx context.Context, in *SetDefaultFilterPresetRequest, opts ...grpc.CallOption) (*SetDefaultFilterPresetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetDefaultFilterPresetResponse)
+	err := c.cc.Invoke(ctx, AlertService_SetDefaultFilterPreset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AlertServiceServer is the server API for AlertService service.
 // All implementations must embed UnimplementedAlertServiceServer
 // for forward compatibility.
@@ -392,9 +453,6 @@ type AlertServiceServer interface {
 	GetUserColorPreferences(context.Context, *GetUserColorPreferencesRequest) (*GetUserColorPreferencesResponse, error)
 	SaveUserColorPreferences(context.Context, *SaveUserColorPreferencesRequest) (*SaveUserColorPreferencesResponse, error)
 	DeleteUserColorPreference(context.Context, *DeleteUserColorPreferenceRequest) (*DeleteUserColorPreferenceResponse, error)
-	// User Notification Preferences
-	GetUserNotificationPreferences(context.Context, *GetUserNotificationPreferencesRequest) (*GetUserNotificationPreferencesResponse, error)
-	SaveUserNotificationPreferences(context.Context, *SaveUserNotificationPreferencesRequest) (*SaveUserNotificationPreferencesResponse, error)
 	// User Hidden Alerts
 	GetUserHiddenAlerts(context.Context, *GetUserHiddenAlertsRequest) (*GetUserHiddenAlertsResponse, error)
 	HideAlert(context.Context, *HideAlertRequest) (*HideAlertResponse, error)
@@ -404,6 +462,15 @@ type AlertServiceServer interface {
 	GetUserHiddenRules(context.Context, *GetUserHiddenRulesRequest) (*GetUserHiddenRulesResponse, error)
 	SaveHiddenRule(context.Context, *SaveHiddenRuleRequest) (*SaveHiddenRuleResponse, error)
 	RemoveHiddenRule(context.Context, *RemoveHiddenRuleRequest) (*RemoveHiddenRuleResponse, error)
+	// Notification Preferences
+	GetNotificationPreferences(context.Context, *GetNotificationPreferencesRequest) (*GetNotificationPreferencesResponse, error)
+	SaveNotificationPreferences(context.Context, *SaveNotificationPreferencesRequest) (*SaveNotificationPreferencesResponse, error)
+	// Filter Presets
+	GetFilterPresets(context.Context, *GetFilterPresetsRequest) (*GetFilterPresetsResponse, error)
+	SaveFilterPreset(context.Context, *SaveFilterPresetRequest) (*SaveFilterPresetResponse, error)
+	UpdateFilterPreset(context.Context, *UpdateFilterPresetRequest) (*UpdateFilterPresetResponse, error)
+	DeleteFilterPreset(context.Context, *DeleteFilterPresetRequest) (*DeleteFilterPresetResponse, error)
+	SetDefaultFilterPreset(context.Context, *SetDefaultFilterPresetRequest) (*SetDefaultFilterPresetResponse, error)
 	mustEmbedUnimplementedAlertServiceServer()
 }
 
@@ -462,12 +529,6 @@ func (UnimplementedAlertServiceServer) SaveUserColorPreferences(context.Context,
 func (UnimplementedAlertServiceServer) DeleteUserColorPreference(context.Context, *DeleteUserColorPreferenceRequest) (*DeleteUserColorPreferenceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserColorPreference not implemented")
 }
-func (UnimplementedAlertServiceServer) GetUserNotificationPreferences(context.Context, *GetUserNotificationPreferencesRequest) (*GetUserNotificationPreferencesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetUserNotificationPreferences not implemented")
-}
-func (UnimplementedAlertServiceServer) SaveUserNotificationPreferences(context.Context, *SaveUserNotificationPreferencesRequest) (*SaveUserNotificationPreferencesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SaveUserNotificationPreferences not implemented")
-}
 func (UnimplementedAlertServiceServer) GetUserHiddenAlerts(context.Context, *GetUserHiddenAlertsRequest) (*GetUserHiddenAlertsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserHiddenAlerts not implemented")
 }
@@ -488,6 +549,27 @@ func (UnimplementedAlertServiceServer) SaveHiddenRule(context.Context, *SaveHidd
 }
 func (UnimplementedAlertServiceServer) RemoveHiddenRule(context.Context, *RemoveHiddenRuleRequest) (*RemoveHiddenRuleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveHiddenRule not implemented")
+}
+func (UnimplementedAlertServiceServer) GetNotificationPreferences(context.Context, *GetNotificationPreferencesRequest) (*GetNotificationPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNotificationPreferences not implemented")
+}
+func (UnimplementedAlertServiceServer) SaveNotificationPreferences(context.Context, *SaveNotificationPreferencesRequest) (*SaveNotificationPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveNotificationPreferences not implemented")
+}
+func (UnimplementedAlertServiceServer) GetFilterPresets(context.Context, *GetFilterPresetsRequest) (*GetFilterPresetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFilterPresets not implemented")
+}
+func (UnimplementedAlertServiceServer) SaveFilterPreset(context.Context, *SaveFilterPresetRequest) (*SaveFilterPresetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveFilterPreset not implemented")
+}
+func (UnimplementedAlertServiceServer) UpdateFilterPreset(context.Context, *UpdateFilterPresetRequest) (*UpdateFilterPresetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateFilterPreset not implemented")
+}
+func (UnimplementedAlertServiceServer) DeleteFilterPreset(context.Context, *DeleteFilterPresetRequest) (*DeleteFilterPresetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFilterPreset not implemented")
+}
+func (UnimplementedAlertServiceServer) SetDefaultFilterPreset(context.Context, *SetDefaultFilterPresetRequest) (*SetDefaultFilterPresetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetDefaultFilterPreset not implemented")
 }
 func (UnimplementedAlertServiceServer) mustEmbedUnimplementedAlertServiceServer() {}
 func (UnimplementedAlertServiceServer) testEmbeddedByValue()                      {}
@@ -784,42 +866,6 @@ func _AlertService_DeleteUserColorPreference_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AlertService_GetUserNotificationPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetUserNotificationPreferencesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AlertServiceServer).GetUserNotificationPreferences(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AlertService_GetUserNotificationPreferences_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AlertServiceServer).GetUserNotificationPreferences(ctx, req.(*GetUserNotificationPreferencesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AlertService_SaveUserNotificationPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SaveUserNotificationPreferencesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AlertServiceServer).SaveUserNotificationPreferences(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AlertService_SaveUserNotificationPreferences_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AlertServiceServer).SaveUserNotificationPreferences(ctx, req.(*SaveUserNotificationPreferencesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AlertService_GetUserHiddenAlerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetUserHiddenAlertsRequest)
 	if err := dec(in); err != nil {
@@ -946,6 +992,132 @@ func _AlertService_RemoveHiddenRule_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AlertService_GetNotificationPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNotificationPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetNotificationPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetNotificationPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetNotificationPreferences(ctx, req.(*GetNotificationPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SaveNotificationPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveNotificationPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SaveNotificationPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SaveNotificationPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SaveNotificationPreferences(ctx, req.(*SaveNotificationPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_GetFilterPresets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFilterPresetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetFilterPresets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetFilterPresets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetFilterPresets(ctx, req.(*GetFilterPresetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SaveFilterPreset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveFilterPresetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SaveFilterPreset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SaveFilterPreset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SaveFilterPreset(ctx, req.(*SaveFilterPresetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_UpdateFilterPreset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateFilterPresetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateFilterPreset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_UpdateFilterPreset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateFilterPreset(ctx, req.(*UpdateFilterPresetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_DeleteFilterPreset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFilterPresetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).DeleteFilterPreset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_DeleteFilterPreset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).DeleteFilterPreset(ctx, req.(*DeleteFilterPresetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SetDefaultFilterPreset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetDefaultFilterPresetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SetDefaultFilterPreset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SetDefaultFilterPreset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SetDefaultFilterPreset(ctx, req.(*SetDefaultFilterPresetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AlertService_ServiceDesc is the grpc.ServiceDesc for AlertService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1010,14 +1182,6 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AlertService_DeleteUserColorPreference_Handler,
 		},
 		{
-			MethodName: "GetUserNotificationPreferences",
-			Handler:    _AlertService_GetUserNotificationPreferences_Handler,
-		},
-		{
-			MethodName: "SaveUserNotificationPreferences",
-			Handler:    _AlertService_SaveUserNotificationPreferences_Handler,
-		},
-		{
 			MethodName: "GetUserHiddenAlerts",
 			Handler:    _AlertService_GetUserHiddenAlerts_Handler,
 		},
@@ -1044,6 +1208,34 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveHiddenRule",
 			Handler:    _AlertService_RemoveHiddenRule_Handler,
+		},
+		{
+			MethodName: "GetNotificationPreferences",
+			Handler:    _AlertService_GetNotificationPreferences_Handler,
+		},
+		{
+			MethodName: "SaveNotificationPreferences",
+			Handler:    _AlertService_SaveNotificationPreferences_Handler,
+		},
+		{
+			MethodName: "GetFilterPresets",
+			Handler:    _AlertService_GetFilterPresets_Handler,
+		},
+		{
+			MethodName: "SaveFilterPreset",
+			Handler:    _AlertService_SaveFilterPreset_Handler,
+		},
+		{
+			MethodName: "UpdateFilterPreset",
+			Handler:    _AlertService_UpdateFilterPreset_Handler,
+		},
+		{
+			MethodName: "DeleteFilterPreset",
+			Handler:    _AlertService_DeleteFilterPreset_Handler,
+		},
+		{
+			MethodName: "SetDefaultFilterPreset",
+			Handler:    _AlertService_SetDefaultFilterPreset_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -98,10 +98,13 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.Acknowledgment{},
 		&models.ResolvedAlert{},
 		&mainmodels.UserColorPreference{},
-		&mainmodels.UserNotificationPreference{},
+		// Browser notifications
+		&models.NotificationPreference{},
 		// Hidden alerts tables
 		&models.UserHiddenAlert{},
 		&models.UserHiddenRule{},
+		// Filter presets
+		&models.FilterPreset{},
 		// OAuth tables
 		&models.UserGroup{},
 		&models.OAuthToken{},
@@ -449,56 +452,6 @@ func (gdb *GormDB) DeleteUserColorPreference(userID, preferenceID string) error 
 	return nil
 }
 
-// GetUserNotificationPreference gets the notification preference for a user
-func (gdb *GormDB) GetUserNotificationPreference(userID string) (*mainmodels.UserNotificationPreference, error) {
-	var preference mainmodels.UserNotificationPreference
-	err := gdb.db.Where("user_id = ?", userID).First(&preference).Error
-
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			// Return nil, nil to indicate no preference exists (not an error)
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to get user notification preference: %w", err)
-	}
-
-	return &preference, nil
-}
-
-// SaveUserNotificationPreference saves or updates a user's notification preference
-func (gdb *GormDB) SaveUserNotificationPreference(userID string, pref *mainmodels.UserNotificationPreference) error {
-	// Set the user ID
-	pref.UserID = userID
-
-	// Generate ID if not set
-	if pref.ID == "" {
-		pref.ID = generateUUID()
-	}
-
-	// Try to find existing preference
-	var existing mainmodels.UserNotificationPreference
-	err := gdb.db.Where("user_id = ?", userID).First(&existing).Error
-
-	if err == gorm.ErrRecordNotFound {
-		// Create new preference
-		if err := gdb.db.Create(pref).Error; err != nil {
-			return fmt.Errorf("failed to create user notification preference: %w", err)
-		}
-		log.Printf("Created new notification preference for user %s", userID)
-	} else if err != nil {
-		return fmt.Errorf("failed to query existing preference: %w", err)
-	} else {
-		// Update existing preference (keep the original ID)
-		pref.ID = existing.ID
-		if err := gdb.db.Where("user_id = ?", userID).Updates(pref).Error; err != nil {
-			return fmt.Errorf("failed to update user notification preference: %w", err)
-		}
-		log.Printf("Updated notification preference for user %s", userID)
-	}
-
-	return nil
-}
-
 // generateUUID generates a simple UUID for database records
 func generateUUID() string {
 	bytes := make([]byte, 16)
@@ -672,4 +625,111 @@ func (gdb *GormDB) ClearUserHiddenAlerts(userID string) (int64, error) {
 		return 0, result.Error
 	}
 	return result.RowsAffected, nil
+}
+
+// Filter Presets Methods
+
+// CreateFilterPreset creates a new filter preset for a user
+func (gdb *GormDB) CreateFilterPreset(preset *models.FilterPreset) (*models.FilterPreset, error) {
+	if err := gdb.db.Create(preset).Error; err != nil {
+		return nil, fmt.Errorf("failed to create filter preset: %w", err)
+	}
+	return preset, nil
+}
+
+// GetFilterPresets gets all filter presets for a user (private + shared)
+func (gdb *GormDB) GetFilterPresets(userID string, includeShared bool) ([]models.FilterPreset, error) {
+	var presets []models.FilterPreset
+
+	query := gdb.db.Where("user_id = ?", userID)
+
+	if includeShared {
+		// Get user's own presets + shared presets from others
+		query = gdb.db.Where("user_id = ? OR is_shared = ?", userID, true)
+	}
+
+	err := query.Order("is_default DESC, created_at DESC").Find(&presets).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get filter presets: %w", err)
+	}
+
+	return presets, nil
+}
+
+// GetFilterPresetByID gets a specific filter preset by ID
+func (gdb *GormDB) GetFilterPresetByID(id string) (*models.FilterPreset, error) {
+	var preset models.FilterPreset
+	err := gdb.db.Where("id = ?", id).First(&preset).Error
+	if err != nil {
+		return nil, err
+	}
+	return &preset, nil
+}
+
+// UpdateFilterPreset updates an existing filter preset
+func (gdb *GormDB) UpdateFilterPreset(preset *models.FilterPreset) error {
+	if err := gdb.db.Save(preset).Error; err != nil {
+		return fmt.Errorf("failed to update filter preset: %w", err)
+	}
+	return nil
+}
+
+// DeleteFilterPreset deletes a filter preset (with ownership check)
+func (gdb *GormDB) DeleteFilterPreset(id, userID string) error {
+	result := gdb.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.FilterPreset{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("filter preset not found or not authorized")
+	}
+	return nil
+}
+
+// SetDefaultFilterPreset sets a filter preset as default (and unsets others)
+func (gdb *GormDB) SetDefaultFilterPreset(id, userID string) error {
+	tx := gdb.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Unset all defaults for this user
+	if err := tx.Model(&models.FilterPreset{}).
+		Where("user_id = ?", userID).
+		Update("is_default", false).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to unset existing defaults: %w", err)
+	}
+
+	// Set the new default (with ownership check)
+	result := tx.Model(&models.FilterPreset{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("is_default", true)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return fmt.Errorf("filter preset not found or not authorized")
+	}
+
+	return tx.Commit().Error
+}
+
+// GetDefaultFilterPreset gets the default filter preset for a user
+func (gdb *GormDB) GetDefaultFilterPreset(userID string) (*models.FilterPreset, error) {
+	var preset models.FilterPreset
+	err := gdb.db.Where("user_id = ? AND is_default = ?", userID, true).First(&preset).Error
+	if err != nil {
+		return nil, err
+	}
+	return &preset, nil
 }

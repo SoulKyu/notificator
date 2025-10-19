@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -606,59 +607,6 @@ func (c *BackendClient) DeleteUserColorPreference(sessionID, preferenceID string
 	return nil
 }
 
-// Notification Preference methods
-
-// GetUserNotificationPreferences retrieves user notification preferences from the backend
-func (c *BackendClient) GetUserNotificationPreferences(sessionID string) (*alertpb.UserNotificationPreference, error) {
-	if c.alertClient == nil {
-		return nil, fmt.Errorf("not connected to backend")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req := &alertpb.GetUserNotificationPreferencesRequest{
-		SessionId: sessionID,
-	}
-
-	resp, err := c.alertClient.GetUserNotificationPreferences(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	if !resp.Success {
-		return nil, fmt.Errorf("failed to get notification preferences: %s", resp.Message)
-	}
-
-	return resp.Preference, nil
-}
-
-// SaveUserNotificationPreferences saves user notification preferences to the backend
-func (c *BackendClient) SaveUserNotificationPreferences(sessionID string, preference *alertpb.UserNotificationPreference) error {
-	if c.alertClient == nil {
-		return fmt.Errorf("not connected to backend")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req := &alertpb.SaveUserNotificationPreferencesRequest{
-		SessionId:  sessionID,
-		Preference: preference,
-	}
-
-	resp, err := c.alertClient.SaveUserNotificationPreferences(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	if !resp.Success {
-		return fmt.Errorf("failed to save notification preferences: %s", resp.Message)
-	}
-
-	return nil
-}
-
 // OAuth methods
 
 // GetOAuthAuthURL gets the OAuth authorization URL for a provider
@@ -1166,6 +1114,274 @@ func (c *BackendClient) DeleteUserSentryConfig(userID, sessionID string) error {
 
 	if !resp.Success {
 		return fmt.Errorf("failed to delete Sentry config: %s", resp.Error)
+	}
+
+	return nil
+}
+
+// Notification Preferences methods
+
+// NotificationPreferences represents user notification preferences
+type NotificationPreferences struct {
+	BrowserNotificationsEnabled bool     `json:"browser_notifications_enabled"`
+	EnabledSeverities           []string `json:"enabled_severities"`
+	SoundNotificationsEnabled   bool     `json:"sound_notifications_enabled"`
+}
+
+// GetNotificationPreferences retrieves notification preferences for the authenticated user
+func (c *BackendClient) GetNotificationPreferences(sessionID string) (*NotificationPreferences, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetNotificationPreferencesRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.alertClient.GetNotificationPreferences(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get notification preferences: %s", resp.Message)
+	}
+
+	if resp.Preferences == nil {
+		// Return default preferences
+		return &NotificationPreferences{
+			BrowserNotificationsEnabled: false,
+			EnabledSeverities:           []string{"critical", "warning"},
+			SoundNotificationsEnabled:   true,
+		}, nil
+	}
+
+	return &NotificationPreferences{
+		BrowserNotificationsEnabled: resp.Preferences.BrowserNotificationsEnabled,
+		EnabledSeverities:           resp.Preferences.EnabledSeverities,
+		SoundNotificationsEnabled:   resp.Preferences.SoundNotificationsEnabled,
+	}, nil
+}
+
+// SaveNotificationPreferences saves notification preferences for the authenticated user
+func (c *BackendClient) SaveNotificationPreferences(sessionID string, prefs *NotificationPreferences) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.SaveNotificationPreferencesRequest{
+		SessionId:                   sessionID,
+		BrowserNotificationsEnabled: prefs.BrowserNotificationsEnabled,
+		EnabledSeverities:           prefs.EnabledSeverities,
+		SoundNotificationsEnabled:   prefs.SoundNotificationsEnabled,
+	}
+
+	resp, err := c.alertClient.SaveNotificationPreferences(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to save notification preferences: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// GetFilterPresets gets all filter presets for the current user
+func (c *BackendClient) GetFilterPresets(sessionID string, includeShared bool) ([]models.FilterPreset, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetFilterPresetsRequest{
+		SessionId:     sessionID,
+		IncludeShared: includeShared,
+	}
+
+	resp, err := c.alertClient.GetFilterPresets(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get filter presets: %s", resp.Message)
+	}
+
+	// Convert protobuf to model
+	presets := make([]models.FilterPreset, len(resp.Presets))
+	for i, pbPreset := range resp.Presets {
+		var filterData models.FilterPresetData
+		// Parse the JSON filter data
+		if len(pbPreset.FilterData) > 0 {
+			if err := json.Unmarshal(pbPreset.FilterData, &filterData); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal filter data: %w", err)
+			}
+		}
+
+		presets[i] = models.FilterPreset{
+			ID:          pbPreset.Id,
+			UserID:      pbPreset.UserId,
+			Name:        pbPreset.Name,
+			Description: pbPreset.Description,
+			IsShared:    pbPreset.IsShared,
+			IsDefault:   pbPreset.IsDefault,
+			FilterData:  filterData,
+			CreatedAt:   pbPreset.CreatedAt.AsTime(),
+			UpdatedAt:   pbPreset.UpdatedAt.AsTime(),
+		}
+	}
+
+	return presets, nil
+}
+
+// SaveFilterPreset creates a new filter preset
+func (c *BackendClient) SaveFilterPreset(sessionID, name, description string, isShared bool, filterData models.FilterPresetData) (*models.FilterPreset, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Marshal filter data to JSON
+	filterDataBytes, err := json.Marshal(filterData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal filter data: %w", err)
+	}
+
+	req := &alertpb.SaveFilterPresetRequest{
+		SessionId:   sessionID,
+		Name:        name,
+		Description: description,
+		IsShared:    isShared,
+		FilterData:  filterDataBytes,
+	}
+
+	resp, err := c.alertClient.SaveFilterPreset(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to save filter preset: %s", resp.Message)
+	}
+
+	// Convert protobuf to model
+	var parsedFilterData models.FilterPresetData
+	if len(resp.Preset.FilterData) > 0 {
+		if err := json.Unmarshal(resp.Preset.FilterData, &parsedFilterData); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal filter data: %w", err)
+		}
+	}
+
+	preset := &models.FilterPreset{
+		ID:          resp.Preset.Id,
+		UserID:      resp.Preset.UserId,
+		Name:        resp.Preset.Name,
+		Description: resp.Preset.Description,
+		IsShared:    resp.Preset.IsShared,
+		IsDefault:   resp.Preset.IsDefault,
+		FilterData:  parsedFilterData,
+		CreatedAt:   resp.Preset.CreatedAt.AsTime(),
+		UpdatedAt:   resp.Preset.UpdatedAt.AsTime(),
+	}
+
+	return preset, nil
+}
+
+// UpdateFilterPreset updates an existing filter preset
+func (c *BackendClient) UpdateFilterPreset(sessionID, presetID, name, description string, isShared bool, filterData models.FilterPresetData) (*models.FilterPreset, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Marshal filter data to JSON
+	filterDataBytes, err := json.Marshal(filterData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal filter data: %w", err)
+	}
+
+	req := &alertpb.UpdateFilterPresetRequest{
+		SessionId:   sessionID,
+		PresetId:    presetID,
+		Name:        name,
+		Description: description,
+		IsShared:    isShared,
+		FilterData:  filterDataBytes,
+	}
+
+	resp, err := c.alertClient.UpdateFilterPreset(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to update filter preset: %s", resp.Message)
+	}
+
+	// Convert protobuf to model
+	var parsedFilterData models.FilterPresetData
+	if len(resp.Preset.FilterData) > 0 {
+		if err := json.Unmarshal(resp.Preset.FilterData, &parsedFilterData); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal filter data: %w", err)
+		}
+	}
+
+	preset := &models.FilterPreset{
+		ID:          resp.Preset.Id,
+		UserID:      resp.Preset.UserId,
+		Name:        resp.Preset.Name,
+		Description: resp.Preset.Description,
+		IsShared:    resp.Preset.IsShared,
+		IsDefault:   resp.Preset.IsDefault,
+		FilterData:  parsedFilterData,
+		CreatedAt:   resp.Preset.CreatedAt.AsTime(),
+		UpdatedAt:   resp.Preset.UpdatedAt.AsTime(),
+	}
+
+	return preset, nil
+}
+
+// DeleteFilterPreset deletes a filter preset
+func (c *BackendClient) DeleteFilterPreset(sessionID, presetID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.DeleteFilterPresetRequest{
+		SessionId: sessionID,
+		PresetId:  presetID,
+	}
+
+	resp, err := c.alertClient.DeleteFilterPreset(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to delete filter preset: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// SetDefaultFilterPreset sets a filter preset as the default
+func (c *BackendClient) SetDefaultFilterPreset(sessionID, presetID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.SetDefaultFilterPresetRequest{
+		SessionId: sessionID,
+		PresetId:  presetID,
+	}
+
+	resp, err := c.alertClient.SetDefaultFilterPreset(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to set default filter preset: %s", resp.Message)
 	}
 
 	return nil

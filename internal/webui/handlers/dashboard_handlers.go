@@ -251,11 +251,8 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	defaultSettings := &webuimodels.DashboardSettings{
 		UserID:                  userID,
 		Theme:                   "light",
-		NotificationsEnabled:    true,
-		SoundEnabled:            true,
 		ResolvedAlertsRetention: 1,
 		RefreshInterval:         5,
-		NotificationDelay:       2000,
 		DefaultFilters: webuimodels.DashboardFilters{
 			DisplayMode: webuimodels.DisplayModeClassic,
 			ViewMode:    webuimodels.ViewModeList,
@@ -1743,77 +1740,3 @@ func processUnsilenceAction(c *gin.Context, fingerprint, userID string) error {
 	return nil
 }
 
-func GetUserNotificationPreferences(c *gin.Context) {
-	if backendClient == nil || !backendClient.IsConnected() {
-		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
-		return
-	}
-
-	// Get session ID for backend authentication
-	sessionID := middleware.GetSessionID(c)
-	if sessionID == "" {
-		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
-		return
-	}
-
-	// Get notification preferences from backend
-	pbPreference, err := backendClient.GetUserNotificationPreferences(sessionID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get notification preferences: "+err.Error()))
-		return
-	}
-
-	// Convert protobuf to WebUI format
-	preference := webuimodels.UserNotificationPreferenceFromProtobuf(pbPreference)
-	if preference == nil {
-		// Return default preferences if none exist
-		preference = webuimodels.GetDefaultNotificationPreference()
-	}
-
-	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
-		"preference": preference,
-	}))
-}
-
-func SaveUserNotificationPreferences(c *gin.Context) {
-	if backendClient == nil || !backendClient.IsConnected() {
-		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
-		return
-	}
-
-	// Get session ID for backend authentication
-	sessionID := middleware.GetSessionID(c)
-	if sessionID == "" {
-		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
-		return
-	}
-
-	// Parse request body
-	var request struct {
-		Preference *webuimodels.UserNotificationPreference `json:"preference"`
-	}
-
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request format: "+err.Error()))
-		return
-	}
-
-	if request.Preference == nil {
-		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Preference data is required"))
-		return
-	}
-
-	// Convert to protobuf format
-	pbPreference := request.Preference.ToProtobuf()
-
-	// Save preferences using backend client
-	err := backendClient.SaveUserNotificationPreferences(sessionID, pbPreference)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to save notification preferences: "+err.Error()))
-		return
-	}
-
-	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
-		"message": "Notification preferences saved successfully",
-	}))
-}

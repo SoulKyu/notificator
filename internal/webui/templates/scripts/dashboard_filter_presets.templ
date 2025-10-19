@@ -1,0 +1,378 @@
+package scripts
+
+// Filter Presets Mixin
+templ DashboardFilterPresetsMixin() {
+	<script type="text/javascript">
+	// Filter presets management functions
+	window.dashboardFilterPresetsMixin = {
+		presets: [],
+		newPreset: {
+			name: '',
+			description: '',
+			is_shared: false
+		},
+		editingPreset: null,
+		activeTab: 'list',
+
+		// Load all filter presets
+		async loadFilterPresets() {
+			try {
+				const response = await fetch('/api/v1/dashboard/filter-presets?include_shared=true');
+				const data = await response.json();
+
+				if (data.success) {
+					this.presets = data.presets || [];
+					console.log('Loaded', this.presets.length, 'filter presets');
+				} else {
+					console.error('Failed to load filter presets:', data.message);
+				}
+			} catch (error) {
+				console.error('Error loading filter presets:', error);
+			}
+		},
+
+		// Load default filter preset on init
+		async loadDefaultFilterPreset() {
+			try {
+				const response = await fetch('/api/v1/dashboard/filter-presets/default');
+				const data = await response.json();
+
+				if (data.success && data.preset) {
+					console.log('Loading default filter preset:', data.preset.name);
+					await this.applyFilterPreset(data.preset);
+				}
+			} catch (error) {
+				console.error('Error loading default filter preset:', error);
+			}
+		},
+
+		// Save new filter preset
+		async saveNewPreset() {
+			if (!this.newPreset.name.trim()) {
+				alert('Please enter a name for the filter preset');
+				return;
+			}
+
+			try {
+				const filterData = this.captureCurrentFilterState();
+				const payload = {
+					name: this.newPreset.name.trim(),
+					description: this.newPreset.description.trim(),
+					is_shared: this.newPreset.is_shared,
+					filter_data: filterData
+				};
+
+				let response;
+				if (this.editingPreset) {
+					// Update existing preset
+					response = await fetch(`/api/v1/dashboard/filter-presets/${this.editingPreset.id}`, {
+						method: 'PUT',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload)
+					});
+				} else {
+					// Create new preset
+					response = await fetch('/api/v1/dashboard/filter-presets', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload)
+					});
+				}
+
+				const data = await response.json();
+
+				if (data.success) {
+					alert(this.editingPreset ? 'Filter preset updated!' : 'Filter preset saved!');
+					await this.loadFilterPresets();
+					this.resetNewPresetForm();
+					this.activeTab = 'list';
+				} else {
+					alert('Failed to save filter preset: ' + data.message);
+				}
+			} catch (error) {
+				console.error('Error saving filter preset:', error);
+				alert('Error saving filter preset');
+			}
+		},
+
+		// Apply a filter preset to the dashboard
+		async applyFilterPreset(preset) {
+			console.log('Applying filter preset:', preset.name);
+			const data = preset.filter_data;
+
+			// Apply filters
+			this.searchQuery = data.search || '';
+			this.filters.alertmanagers = data.alertmanagers || [];
+			this.filters.severities = data.severities || [];
+			this.filters.statuses = data.statuses || [];
+			this.filters.teams = data.teams || [];
+			this.filters.alertNames = data.alert_names || [];
+			this.acknowledgmentFilter = data.acknowledged || 'all';
+			this.commentsFilter = data.comments || 'all';
+
+			// Apply display settings
+			if (data.display_mode) this.displayMode = data.display_mode;
+			if (data.view_mode) this.viewMode = data.view_mode;
+			if (data.group_by) this.groupByLabel = data.group_by;
+
+			// Apply sorting
+			if (data.sort_by) this.sortField = data.sort_by;
+			if (data.sort_direction) this.sortDirection = data.sort_direction;
+
+			// Apply pagination
+			if (data.items_per_page) this.itemsPerPage = data.items_per_page;
+
+			// Reload dashboard data with new filters
+			await this.loadDashboardData();
+
+			// Close modal
+			this.showFilterPresetsModal = false;
+		},
+
+
+		// Alias for applyFilterPreset (used by modal buttons)
+		async loadPreset(preset) {
+			await this.applyFilterPreset(preset);
+		},
+
+		// Load preset for editing
+		editPreset(preset) {
+			this.editingPreset = preset;
+			this.newPreset.name = preset.name;
+			this.newPreset.description = preset.description;
+			this.newPreset.is_shared = preset.is_shared;
+			this.activeTab = 'save';
+		},
+
+		// Delete a filter preset
+		async deletePreset(presetId) {
+			if (!confirm('Are you sure you want to delete this filter preset?')) {
+				return;
+			}
+
+			try {
+				const response = await fetch(`/api/v1/dashboard/filter-presets/${presetId}`, {
+					method: 'DELETE'
+				});
+
+				const data = await response.json();
+
+				if (data.success) {
+					alert('Filter preset deleted!');
+					await this.loadFilterPresets();
+				} else {
+					alert('Failed to delete filter preset: ' + data.message);
+				}
+			} catch (error) {
+				console.error('Error deleting filter preset:', error);
+				alert('Error deleting filter preset');
+			}
+		},
+
+		// Set a filter preset as default
+		async setDefaultPreset(presetId) {
+			try {
+				const response = await fetch(`/api/v1/dashboard/filter-presets/${presetId}/default`, {
+					method: 'POST'
+				});
+
+				const data = await response.json();
+
+				if (data.success) {
+					alert('Default filter preset updated!');
+					await this.loadFilterPresets();
+				} else {
+					alert('Failed to set default filter preset: ' + data.message);
+				}
+			} catch (error) {
+				console.error('Error setting default filter preset:', error);
+				alert('Error setting default filter preset');
+			}
+		},
+
+		// Capture current filter state
+		captureCurrentFilterState() {
+			return {
+				search: this.searchQuery,
+				alertmanagers: this.filters.alertmanagers,
+				severities: this.filters.severities,
+				statuses: this.filters.statuses,
+				teams: this.filters.teams,
+				alert_names: this.filters.alertNames,
+				acknowledged: this.acknowledgmentFilter,
+				comments: this.commentsFilter,
+				display_mode: this.displayMode,
+				view_mode: this.viewMode,
+				group_by: this.groupByLabel,
+				sort_by: this.sortField,
+				sort_direction: this.sortDirection,
+				items_per_page: this.itemsPerPage
+			};
+		},
+
+		// Get filter summary for display
+		getFilterSummary() {
+			const parts = [];
+
+			if (this.searchQuery) {
+				parts.push(`<div><strong>Search:</strong> ${this.searchQuery}</div>`);
+			}
+			if (this.filters.alertmanagers.length > 0) {
+				parts.push(`<div><strong>Alertmanagers:</strong> ${this.filters.alertmanagers.join(', ')}</div>`);
+			}
+			if (this.filters.severities.length > 0) {
+				parts.push(`<div><strong>Severities:</strong> ${this.filters.severities.join(', ')}</div>`);
+			}
+			if (this.filters.statuses.length > 0) {
+				parts.push(`<div><strong>Statuses:</strong> ${this.filters.statuses.join(', ')}</div>`);
+			}
+			if (this.filters.teams.length > 0) {
+				parts.push(`<div><strong>Teams:</strong> ${this.filters.teams.join(', ')}</div>`);
+			}
+			if (this.filters.alertNames.length > 0) {
+				parts.push(`<div><strong>Alert Names:</strong> ${this.filters.alertNames.join(', ')}</div>`);
+			}
+
+			parts.push(`<div><strong>Display Mode:</strong> ${this.displayMode}</div>`);
+			parts.push(`<div><strong>View Mode:</strong> ${this.viewMode}</div>`);
+
+			if (this.viewMode === 'group') {
+				parts.push(`<div><strong>Group By:</strong> ${this.groupByLabel}</div>`);
+			}
+
+			parts.push(`<div><strong>Sort:</strong> ${this.sortField} (${this.sortDirection})</div>`);
+			parts.push(`<div><strong>Items Per Page:</strong> ${this.itemsPerPage}</div>`);
+
+			return parts.length > 0 ? parts.join('') : '<div>No filters applied</div>';
+		},
+
+		// Reset new preset form
+		resetNewPresetForm() {
+			this.newPreset = {
+				name: '',
+				description: '',
+				is_shared: false
+			};
+			this.editingPreset = null;
+		},
+
+		// Cancel editing
+		cancelEdit() {
+			this.resetNewPresetForm();
+			this.activeTab = 'list';
+		},
+
+		// Format date for display
+		formatDate(dateString) {
+			const date = new Date(dateString);
+			const now = new Date();
+			const diffMs = now - date;
+			const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+			if (diffDays === 0) return 'today';
+			if (diffDays === 1) return 'yesterday';
+			if (diffDays < 7) return `${diffDays} days ago`;
+			if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+			if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+			return `${Math.floor(diffDays / 365)} years ago`;
+		}
+	};
+
+	// Filter presets modal data
+	function filterPresetsModalData() {
+		return {
+			presets: [],
+			newPreset: {
+				name: '',
+				description: '',
+				is_shared: false
+			},
+			editingPreset: null,
+			activeTab: 'list',
+
+			async init() {
+				// Load presets when modal opens
+				await this.loadFilterPresets();
+			},
+
+			async loadFilterPresets() {
+				try {
+					const response = await fetch('/api/v1/dashboard/filter-presets?include_shared=true');
+					const data = await response.json();
+
+					if (data.success) {
+						this.presets = data.presets || [];
+					}
+				} catch (error) {
+					console.error('Error loading filter presets:', error);
+				}
+			},
+
+			async loadPreset(preset) {
+				// Get the dashboard component and apply the preset
+				const dashboard = this.$root;
+				if (dashboard && dashboard.applyFilterPreset) {
+					await dashboard.applyFilterPreset(preset);
+				}
+			},
+
+			async setDefaultPreset(presetId) {
+				const dashboard = this.$root;
+				if (dashboard && dashboard.setDefaultPreset) {
+					await dashboard.setDefaultPreset(presetId);
+				}
+			},
+
+			editPreset(preset) {
+				const dashboard = this.$root;
+				if (dashboard && dashboard.editPreset) {
+					dashboard.editPreset(preset);
+				}
+			},
+
+			async deletePreset(presetId) {
+				const dashboard = this.$root;
+				if (dashboard && dashboard.deletePreset) {
+					await dashboard.deletePreset(presetId);
+				}
+			},
+
+			async saveNewPreset() {
+				const dashboard = this.$root;
+				if (dashboard && dashboard.saveNewPreset) {
+					await dashboard.saveNewPreset();
+				}
+			},
+
+			cancelEdit() {
+				const dashboard = this.$root;
+				if (dashboard && dashboard.cancelEdit) {
+					dashboard.cancelEdit();
+				}
+			},
+
+			getFilterSummary() {
+				const dashboard = this.$root;
+				if (dashboard && dashboard.getFilterSummary) {
+					return dashboard.getFilterSummary();
+				}
+				return '';
+			},
+
+			formatDate(dateString) {
+				const date = new Date(dateString);
+				const now = new Date();
+				const diffMs = now - date;
+				const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+				if (diffDays === 0) return 'today';
+				if (diffDays === 1) return 'yesterday';
+				if (diffDays < 7) return `${diffDays} days ago`;
+				if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+				if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+				return `${Math.floor(diffDays / 365)} years ago`;
+			}
+		};
+	}
+	</script>
+}

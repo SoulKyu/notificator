@@ -24,12 +24,12 @@ templ DashboardModal() {
 					if (result.success) {
 						this.alertDetails = result.data;
 					} else {
-						this.showNotification('error', 'Failed to load alert details: ' + result.error);
+						console.error('Failed to load alert details: ' + result.error);
 						this.closeAlertModal();
 					}
 				} catch (error) {
 					console.error('Error loading alert details:', error);
-					this.showNotification('error', 'Failed to load alert details');
+					console.error('Failed to load alert details');
 					this.closeAlertModal();
 				} finally {
 					this.alertDetailsLoading = false;
@@ -98,17 +98,17 @@ templ DashboardModal() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'Alert unsilenced successfully');
+						console.log('Alert unsilenced successfully');
 						// Refresh alert details to show updated state
 						if (this.alertDetails?.alert?.fingerprint) {
 							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
 						}
 					} else {
-						this.showNotification('error', 'Failed to unsilence alert: ' + (result.error || 'Unknown error'));
+						console.error('Failed to unsilence alert: ' + (result.error || 'Unknown error'));
 					}
 				} catch (error) {
 					console.error('Error unsilencing alert:', error);
-					this.showNotification('error', 'Failed to unsilence alert');
+					console.error('Failed to unsilence alert');
 				}
 			},
 
@@ -128,12 +128,12 @@ templ DashboardModal() {
 			// Comment Management Functions
 			async addComment() {
 				if (!this.newCommentContent.trim()) {
-					this.showNotification('warning', 'Please enter a comment');
+					console.log('Please enter a comment');
 					return;
 				}
 
 				if (!this.alertDetails?.alert?.fingerprint) {
-					this.showNotification('error', 'Alert information not available');
+					console.error('Alert information not available');
 					return;
 				}
 
@@ -154,17 +154,17 @@ templ DashboardModal() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'Comment added successfully');
+						console.log('Comment added successfully');
 						this.newCommentContent = '';
 						
 						// Refresh alert details to show the new comment
 						await this.refreshComments();
 					} else {
-						this.showNotification('error', 'Failed to add comment: ' + result.error);
+						console.error('Failed to add comment: ' + result.error);
 					}
 				} catch (error) {
 					console.error('Error adding comment:', error);
-					this.showNotification('error', 'Failed to add comment');
+					console.error('Failed to add comment');
 				} finally {
 					this.commentSubmitting = false;
 				}
@@ -172,7 +172,7 @@ templ DashboardModal() {
 
 			async deleteComment(commentId) {
 				if (!commentId || !this.alertDetails?.alert?.fingerprint) {
-					this.showNotification('error', 'Comment information not available');
+					console.error('Comment information not available');
 					return;
 				}
 
@@ -187,16 +187,16 @@ templ DashboardModal() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'Comment deleted successfully');
+						console.log('Comment deleted successfully');
 						
 						// Refresh alert details to remove the deleted comment
 						await this.refreshComments();
 					} else {
-						this.showNotification('error', 'Failed to delete comment: ' + result.error);
+						console.error('Failed to delete comment: ' + result.error);
 					}
 				} catch (error) {
 					console.error('Error deleting comment:', error);
-					this.showNotification('error', 'Failed to delete comment');
+					console.error('Failed to delete comment');
 				} finally {
 					// Remove deleting state for this comment
 					delete this.commentDeleting[commentId];
@@ -229,7 +229,7 @@ templ DashboardModal() {
 
 			copyAlertAsIssue() {
 				if (!this.alertDetails?.alert) {
-					this.showNotification('error', 'No alert data available');
+					console.error('No alert data available');
 					return;
 				}
 
@@ -311,12 +311,12 @@ templ DashboardModal() {
 
 				// Copy to clipboard
 				this.copyToClipboard(markdown);
-				this.showNotification('success', 'Alert copied as issue template');
+				console.log('Alert copied as issue template');
 			},
 
 			async unacknowledgeCurrentAlert() {
 				if (!this.alertDetails?.alert?.fingerprint) {
-					this.showNotification('error', 'No alert information available');
+					console.error('No alert information available');
 					return;
 				}
 				
@@ -339,17 +339,17 @@ templ DashboardModal() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.showNotification('success', 'Alert unacknowledged successfully');
+						console.log('Alert unacknowledged successfully');
 						// Refresh alert details to show updated state
 						if (this.alertDetails?.alert?.fingerprint) {
 							await this.showAlertDetails(this.alertDetails.alert.fingerprint);
 						}
 					} else {
-						this.showNotification('error', 'Failed to unacknowledge alert: ' + (result.error || 'Unknown error'));
+						console.error('Failed to unacknowledge alert: ' + (result.error || 'Unknown error'));
 					}
 				} catch (error) {
 					console.error('Error unacknowledging alert:', error);
-					this.showNotification('error', 'Failed to unacknowledge alert');
+					console.error('Failed to unacknowledge alert');
 				}
 			},
 

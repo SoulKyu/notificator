@@ -61,9 +61,9 @@ templ DashboardUtilities() {
 			copyToClipboard(text) {
 				if (navigator.clipboard) {
 					navigator.clipboard.writeText(text).then(() => {
-						this.showNotification('success', 'Copied to clipboard');
+						console.log('Copied to clipboard')
 					}).catch(() => {
-						this.showNotification('error', 'Failed to copy to clipboard');
+						console.error('Failed to copy to clipboard')
 					});
 				} else {
 					const textArea = document.createElement('textarea');
@@ -72,9 +72,9 @@ templ DashboardUtilities() {
 					textArea.select();
 					try {
 						document.execCommand('copy');
-						this.showNotification('success', 'Copied to clipboard');
+						console.log('Copied to clipboard')
 					} catch (err) {
-						this.showNotification('error', 'Failed to copy to clipboard');
+						console.log('Failed to copy to clipboard')
 					}
 					document.body.removeChild(textArea);
 				}
@@ -198,30 +198,32 @@ templ DashboardUtilities() {
 				}
 				
 				this.applyTheme();
-				this.applyNotificationSettings();
 			},
 
 			async saveSettings() {
 				try {
 					// Get the settings modal instance to check active tab
 					const settingsModal = window.currentSettingsModal;
-					
+
 					// Check which tab is active and save appropriate settings
 					if (settingsModal && settingsModal.activeTab === 'colors') {
 						// Save color preferences
 						const success = await settingsModal.saveColorPreferences();
 						if (success) {
-							this.showNotification('success', 'Color preferences saved');
 							this.showSettings = false;
 						}
 						return;
-					} else if (settingsModal && settingsModal.activeTab === 'notifications') {
+					}
+
+					if (settingsModal && settingsModal.activeTab === 'notifications') {
 						// Save notification preferences
-						await settingsModal.saveNotificationPreferences();
-						this.showSettings = false;
+						const success = await settingsModal.saveNotificationPreferences();
+						if (success) {
+							this.showSettings = false;
+						}
 						return;
 					}
-					
+
 					// Otherwise, save general settings
 					const settingsResponse = await fetch('/api/v1/dashboard/settings', {
 						method: 'POST',
@@ -235,7 +237,6 @@ templ DashboardUtilities() {
 					const settingsResult = await settingsResponse.json();
 					
 					if (!settingsResult.success) {
-						this.showNotification('error', 'Failed to save settings: ' + settingsResult.error);
 						return;
 					}
 
@@ -245,10 +246,6 @@ templ DashboardUtilities() {
 					// Apply theme change
 					this.applyTheme();
 
-					// Apply notification queue settings
-					this.applyNotificationSettings();
-
-					this.showNotification('success', 'Settings saved');
 					this.showSettings = false;
 					
 					// Apply theme change
@@ -258,101 +255,17 @@ templ DashboardUtilities() {
 					this.startAutoRefresh();
 				} catch (error) {
 					console.error('Error saving settings:', error);
-					this.showNotification('error', 'Failed to save settings');
 				}
 			},
 
 			applyTheme() {
 				const isDark = this.settings.theme === 'dark';
 				document.documentElement.classList.toggle('dark', isDark);
-				
+
 				// Update meta theme-color for mobile browsers
 				const metaThemeColor = document.querySelector('meta[name="theme-color"]');
 				if (metaThemeColor) {
 					metaThemeColor.setAttribute('content', isDark ? '#1f2937' : '#ffffff');
-				}
-			},
-
-			applyNotificationSettings() {
-				// Update notification delay from settings
-				this.notificationDelay = this.settings.notificationDelay || 1500;
-				
-				// Update max concurrent notifications from settings  
-				this.maxConcurrentNotifications = this.settings.maxConcurrentNotifications || 3;
-				
-				// Log the updated settings for debugging
-				console.log('Notification settings applied:', {
-					notificationDelay: this.notificationDelay,
-					maxConcurrentNotifications: this.maxConcurrentNotifications,
-					notificationBatching: this.settings.notificationBatching,
-					prioritizedNotifications: this.settings.prioritizedNotifications
-				});
-			},
-
-			async testNotification() {
-				// Check if browser notifications are supported
-				if (!('Notification' in window)) {
-					this.showNotification('error', 'Browser notifications are not supported');
-					return;
-				}
-
-				// Check current permission status
-				if (Notification.permission === 'denied') {
-					this.showNotification('error', 'Notifications are blocked. Please enable them in your browser settings.');
-					return;
-				}
-
-				// Request permission if not granted
-				if (Notification.permission !== 'granted') {
-					try {
-						const permission = await Notification.requestPermission();
-						if (permission !== 'granted') {
-							this.showNotification('warning', 'Notification permission denied. Please enable notifications to receive alerts.');
-							return;
-						}
-					} catch (error) {
-						this.showNotification('error', 'Failed to request notification permission');
-						return;
-					}
-				}
-
-				// Create test alert object
-				const testAlert = {
-					fingerprint: 'test-notification',
-					alertname: 'Test Notification',
-					summary: 'This is a test notification from the Notificator dashboard',
-					severity: 'info',
-					status: 'firing',
-					labels: {
-						alertname: 'Test Notification',
-						severity: 'info'
-					},
-					annotations: {
-						summary: 'This is a test notification from the Notificator dashboard'
-					}
-				};
-
-				// Send both in-app and browser notifications
-				this.showInAppNotification(testAlert, 'Test notification sent successfully!');
-				
-				// Send browser notification with heroicon
-				try {
-					const notification = new Notification('Test Notification', {
-						body: 'This is a test notification from the Notificator dashboard',
-						icon: '/static/images/info-icon.png',
-						tag: 'test-notification',
-						requireInteraction: false
-					});
-
-					// Auto-close after 5 seconds
-					setTimeout(() => {
-						notification.close();
-					}, 5000);
-
-					this.showNotification('success', 'Test notification sent! Check your system notifications.');
-				} catch (error) {
-					console.error('Failed to send browser notification:', error);
-					this.showNotification('warning', 'In-app notification sent, but browser notification failed');
 				}
 			},
 
@@ -674,10 +587,6 @@ templ DashboardUtilities() {
 						localStorage.removeItem('dashboardSettings');
 						localStorage.removeItem('dashboardColumnWidths');
 						
-						// Show success message briefly before redirect
-						if (window.dashboardInstance && window.dashboardInstance.showNotification) {
-							window.dashboardInstance.showNotification('success', 'Logged out successfully');
-						}
 						
 						// Redirect to login page after a brief delay
 						setTimeout(() => {
@@ -685,22 +594,14 @@ templ DashboardUtilities() {
 						}, 500);
 					} else {
 						// Logout failed
-						if (window.dashboardInstance && window.dashboardInstance.showNotification) {
-							window.dashboardInstance.showNotification('error', 'Logout failed: ' + (response.error || 'Unknown error'));
-						}
+						console.error('Logout Failed')
 					}
 				} else {
 					// HTTP error status
-					if (window.dashboardInstance && window.dashboardInstance.showNotification) {
-						window.dashboardInstance.showNotification('error', 'Logout failed with status: ' + xhr.status);
-					}
+					console.log('HTTP error status')
 				}
 			} catch (error) {
 				console.error('Error handling logout response:', error);
-				if (window.dashboardInstance && window.dashboardInstance.showNotification) {
-					window.dashboardInstance.showNotification('error', 'Error processing logout response');
-				}
-				
 				// Fallback: redirect to login anyway in case of error
 				setTimeout(() => {
 					window.location.href = '/login';

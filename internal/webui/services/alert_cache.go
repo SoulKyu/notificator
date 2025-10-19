@@ -54,11 +54,6 @@ type AlertCache struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	refreshTicker *time.Ticker
-
-	// Callbacks for notifications
-	onNewAlert      func(alert *webuimodels.DashboardAlert)
-	onResolvedAlert func(alert *webuimodels.DashboardAlert)
-	onAlertChanged  func(alert *webuimodels.DashboardAlert)
 }
 
 func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient) *AlertCache {
@@ -105,19 +100,6 @@ func (ac *AlertCache) SetRefreshInterval(interval time.Duration) {
 	}
 }
 
-func (ac *AlertCache) SetNotificationCallbacks(
-	onNew func(alert *webuimodels.DashboardAlert),
-	onResolved func(alert *webuimodels.DashboardAlert),
-	onChange func(alert *webuimodels.DashboardAlert),
-) {
-	ac.mu.Lock()
-	defer ac.mu.Unlock()
-
-	ac.onNewAlert = onNew
-	ac.onResolvedAlert = onResolved
-	ac.onAlertChanged = onChange
-}
-
 func (ac *AlertCache) backgroundRefresh() {
 	for {
 		select {
@@ -160,17 +142,8 @@ func (ac *AlertCache) refreshAlerts() {
 			ac.alerts[fingerprint] = dashAlert
 			ac.newAlerts = append(ac.newAlerts, fingerprint)
 
-			if ac.onNewAlert != nil {
-				go ac.onNewAlert(dashAlert)
-			}
 		} else {
-			hasChanged := ac.alertHasChanged(existingAlert, dashAlert)
-
 			ac.updateExistingAlert(existingAlert, dashAlert)
-
-			if hasChanged && ac.onAlertChanged != nil {
-				go ac.onAlertChanged(dashAlert)
-			}
 		}
 	}
 
@@ -190,10 +163,6 @@ func (ac *AlertCache) refreshAlerts() {
 
 			ac.resolvedAlertsSince = append(ac.resolvedAlertsSince, fingerprint)
 			resolvedCount++
-
-			if ac.onResolvedAlert != nil {
-				go ac.onResolvedAlert(alert)
-			}
 		}
 	}
 
@@ -264,12 +233,12 @@ func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string)
 	return dashAlert
 }
 
-func (ac *AlertCache) alertHasChanged(old, new *webuimodels.DashboardAlert) bool {
-	return old.Status.State != new.Status.State ||
-		len(old.Status.SilencedBy) != len(new.Status.SilencedBy) ||
-		len(old.Status.InhibitedBy) != len(new.Status.InhibitedBy) ||
-		!old.EndsAt.Equal(new.EndsAt)
-}
+// func (ac *AlertCache) alertHasChanged(old, new *webuimodels.DashboardAlert) bool {
+// 	return old.Status.State != new.Status.State ||
+// 		len(old.Status.SilencedBy) != len(new.Status.SilencedBy) ||
+// 		len(old.Status.InhibitedBy) != len(new.Status.InhibitedBy) ||
+// 		!old.EndsAt.Equal(new.EndsAt)
+// }
 
 func (ac *AlertCache) updateExistingAlert(existing, new *webuimodels.DashboardAlert) {
 	existing.Status = new.Status
