@@ -32,6 +32,7 @@ templ DashboardFilterPresetsMixin() {
 		},
 
 		// Load default filter preset on init
+		// Returns true if a default preset was loaded, false otherwise
 		async loadDefaultFilterPreset() {
 			try {
 				const response = await fetch('/api/v1/dashboard/filter-presets/default');
@@ -40,10 +41,14 @@ templ DashboardFilterPresetsMixin() {
 				if (data.success && data.preset) {
 					console.log('Loading default filter preset:', data.preset.name);
 					await this.applyFilterPreset(data.preset);
+					// Track that this is the active default preset
+					this.activePresetName = data.preset.name;
+					return true;
 				}
 			} catch (error) {
 				console.error('Error loading default filter preset:', error);
 			}
+			return false;
 		},
 
 		// Save new filter preset

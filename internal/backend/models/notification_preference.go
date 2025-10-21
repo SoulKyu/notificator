@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -37,12 +38,12 @@ func (s SeverityList) Value() (driver.Value, error) {
 
 // NotificationPreference stores user preferences for browser notifications
 type NotificationPreference struct {
-	ID        string    `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	ID        string    `gorm:"primaryKey;type:varchar(36)" json:"id"`
 	UserID    string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"user_id"`
 
 	// Browser notification settings
 	BrowserNotificationsEnabled bool         `gorm:"default:false" json:"browser_notifications_enabled"`
-	EnabledSeverities          SeverityList `gorm:"type:jsonb" json:"enabled_severities"`
+	EnabledSeverities          SeverityList `json:"enabled_severities"` // Type handled by Scanner/Valuer
 	SoundNotificationsEnabled   bool         `gorm:"default:true" json:"sound_notifications_enabled"`
 
 	// Timestamps
@@ -93,4 +94,12 @@ func (n *NotificationPreference) SetEnabledSeverities(severities []string) {
 	}
 
 	n.EnabledSeverities = SeverityList(validSeverities)
+}
+
+// BeforeCreate generates a UUID for the ID field before creating a new record
+func (n *NotificationPreference) BeforeCreate(tx *gorm.DB) error {
+	if n.ID == "" {
+		n.ID = uuid.New().String()
+	}
+	return nil
 }

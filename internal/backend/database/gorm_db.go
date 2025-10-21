@@ -19,7 +19,8 @@ import (
 )
 
 type GormDB struct {
-	db *gorm.DB
+	db     *gorm.DB
+	dbType string // "sqlite" or "postgres"
 }
 
 func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
@@ -80,7 +81,25 @@ func NewGormDB(dbType string, cfg config.DatabaseConfig) (*GormDB, error) {
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	return &GormDB{db: db}, nil
+	return &GormDB{
+		db:     db,
+		dbType: dbType,
+	}, nil
+}
+
+// GetDBType returns the database type ("sqlite" or "postgres")
+func (gdb *GormDB) GetDBType() string {
+	return gdb.dbType
+}
+
+// IsSQLite returns true if the database is SQLite
+func (gdb *GormDB) IsSQLite() bool {
+	return gdb.dbType == "sqlite"
+}
+
+// IsPostgreSQL returns true if the database is PostgreSQL
+func (gdb *GormDB) IsPostgreSQL() bool {
+	return gdb.dbType == "postgres"
 }
 
 func (gdb *GormDB) AutoMigrate() error {

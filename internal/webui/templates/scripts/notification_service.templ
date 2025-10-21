@@ -232,6 +232,14 @@ templ NotificationService() {
 				const summary = alert.summary || alert.annotations?.summary || '';
 				const severity = alert.severity || alert.labels?.severity || 'info';
 				const source = alert.source || '';
+				// Capture fingerprint to ensure it's available in the click handler closure
+				const fingerprint = alert.fingerprint;
+
+				// Validate fingerprint exists
+				if (!fingerprint) {
+					console.error('Cannot show notification: alert fingerprint is missing', alert);
+					return;
+				}
 
 				// Play notification sound
 				this.playNotificationSound(severity);
@@ -243,10 +251,10 @@ templ NotificationService() {
 					body: body,
 					icon: this.getNotificationIcon(severity),
 					badge: '/static/images/default-icon.png',
-					tag: alert.fingerprint, // Prevents duplicates
+					tag: fingerprint, // Prevents duplicates
 					requireInteraction: severity.toLowerCase() === 'critical',
 					data: {
-						fingerprint: alert.fingerprint,
+						fingerprint: fingerprint,
 						alertName: alertName
 					}
 				};
@@ -256,13 +264,34 @@ templ NotificationService() {
 
 					// Handle notification click - navigate to alert details
 					notification.onclick = () => {
-						window.focus();
-						// Navigate to alert detail URL
-						window.location.href = `/dashboard/alert/${alert.fingerprint}`;
-						notification.close();
-					};
+							window.focus();
 
-					console.log('Showed notification for alert:', alertName);
+							// Validate fingerprint before navigation
+							if (!fingerprint) {
+								console.error('Cannot navigate: fingerprint is missing');
+								return;
+							}
+
+							console.log('Notification clicked, navigating to alert:', fingerprint);
+
+							// Check if we're already on the dashboard
+							if (window.location.pathname.startsWith('/dashboard')) {
+								// Already on dashboard - just open the modal directly
+								if (window.dashboardInstance && window.dashboardInstance.showAlertDetails) {
+									window.dashboardInstance.showAlertDetails(fingerprint);
+								} else {
+									// Fallback: navigate to the URL
+									window.location.href = `/dashboard/alert/${fingerprint}`;
+								}
+							} else {
+								// Navigate to dashboard with alert ID
+								window.location.href = `/dashboard/alert/${fingerprint}`;
+							}
+
+							notification.close();
+						};
+
+					console.log('Showed notification for alert:', alertName, 'fingerprint:', fingerprint);
 				} catch (error) {
 					console.error('Failed to show notification:', error);
 				}
@@ -279,9 +308,11 @@ templ NotificationService() {
 
 				console.log('Processing', newAlerts.length, 'new alerts for notifications');
 
-				// Show notifications for new alerts
-				newAlerts.forEach(alert => {
-					this.showNotification(alert);
+				// Show notifications for new alerts with staggered delay to avoid browser spam
+				newAlerts.forEach((alert, index) => {
+					setTimeout(() => {
+						this.showNotification(alert);
+					}, index * 500); // 500ms stagger between each notification
 				});
 
 				// Mark new alerts as seen
