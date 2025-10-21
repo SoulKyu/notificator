@@ -73,6 +73,7 @@ templ DashboardCore() {
 				
 				// Filter presets modal state
 				showFilterPresetsModal: false,
+				activePresetName: null, // Track active default preset name
 
 				newCommentContent: '',
 				commentSubmitting: false,
@@ -132,7 +133,7 @@ templ DashboardCore() {
 					return displayStatus === value;
 				},
 
-				init() {
+				async init() {
 					Object.assign(this, window.dashboardDataMixin || {});
 					Object.assign(this, window.dashboardActionsMixin || {});
 					Object.assign(this, window.dashboardUtilitiesMixin || {});
@@ -144,12 +145,32 @@ templ DashboardCore() {
 					this.initializeSessionTracking();
 
 					this.loadSettings();
-					this.loadFiltersFromURL();
 					this.loadColumnWidths();
 					this.loadCurrentUser();
 
+					// Check if URL has filter parameters
+					const params = new URLSearchParams(window.location.search);
+					const hasURLFilters = params.has('search') || params.has('alertmanagers') ||
+										  params.has('severities') || params.has('statuses') ||
+										  params.has('teams') || params.has('alertNames') ||
+										  params.has('acknowledged') || params.has('hasComments');
+
+					let defaultPresetLoaded = false;
+
+					if (!hasURLFilters) {
+						// No URL filters - try to load default preset (if exists, it will also load data)
+						defaultPresetLoaded = await this.loadDefaultFilterPreset();
+					}
+
+					// Load filters from URL (will override default preset if URL has filters)
+					this.loadFiltersFromURL();
+
 					this.startAutoRefresh();
-					this.loadDashboardData();
+
+					// Load data if default preset wasn't loaded or URL has filters
+					if (!defaultPresetLoaded) {
+						this.loadDashboardData();
+					}
 					
 					this.checkAlertFromURL();
 					
