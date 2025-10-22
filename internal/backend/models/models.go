@@ -179,7 +179,7 @@ type FilterPreset struct {
 	Description string    `gorm:"type:text" json:"description,omitempty"`
 	IsShared    bool      `gorm:"default:false;index" json:"is_shared"`
 	IsDefault   bool      `gorm:"default:false" json:"is_default"`
-	FilterData  JSONB     `gorm:"not null" json:"filter_data"` // Type handled by Scanner/Valuer
+	FilterData  JSONB     `gorm:"type:jsonb;not null" json:"filter_data"` // Type handled by Scanner/Valuer
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 

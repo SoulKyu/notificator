@@ -43,7 +43,7 @@ type NotificationPreference struct {
 
 	// Browser notification settings
 	BrowserNotificationsEnabled bool         `gorm:"default:false" json:"browser_notifications_enabled"`
-	EnabledSeverities          SeverityList `json:"enabled_severities"` // Type handled by Scanner/Valuer
+	EnabledSeverities          SeverityList `gorm:"type:jsonb" json:"enabled_severities"` // Type handled by Scanner/Valuer
 	SoundNotificationsEnabled   bool         `gorm:"default:true" json:"sound_notifications_enabled"`
 
 	// Timestamps
