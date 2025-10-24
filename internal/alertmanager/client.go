@@ -64,7 +64,6 @@ func NewClient(baseURL string) *Client {
 
 func (c *Client) DebugRequest(endpoint string) {
 	url := fmt.Sprintf("%s%s", c.BaseURL, endpoint)
-	fmt.Printf("Debug: Making request to %s\n", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -605,7 +604,7 @@ func min(a, b int) int {
 }
 
 func (c *Client) DebugURL() {
-	fmt.Printf("Debug: Using Alertmanager URL: %s/api/v2/alerts\n", c.BaseURL)
+
 }
 
 func (c *Client) TestAPIEndpoints() {

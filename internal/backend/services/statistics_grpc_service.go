@@ -876,6 +876,7 @@ func (s *StatisticsServiceGorm) QueryRecentlyResolved(ctx context.Context, req *
 
 	// Build query request
 	queryReq := &ResolvedAlertsQueryRequest{
+		UserID:          user.ID,
 		StartDate:       startDate,
 		EndDate:         endDate,
 		Severity:        req.Severity,

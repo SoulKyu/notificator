@@ -231,15 +231,10 @@ func GetConfigPath() string {
 
 func LoadConfigWithViper() (*Config, error) {
 	// Debug: Check if config file is loaded
-	fmt.Printf("DEBUG: Config file used: %s\n", viper.ConfigFileUsed())
-	fmt.Printf("DEBUG: backend.database.type from viper = %s\n", viper.GetString("backend.database.type"))
 
 	cfg := DefaultConfig()
 	setViperDefaults(cfg)
 
-	fmt.Printf("DEBUG: After setViperDefaults - backend.database.type = %s\n", viper.GetString("backend.database.type"))
-	fmt.Printf("DEBUG: Viper alertmanagers.0.url = %s\n", viper.GetString("alertmanagers.0.url"))
-	fmt.Printf("DEBUG: Viper alertmanagers.0.name = %s\n", viper.GetString("alertmanagers.0.name"))
 	if err := viper.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
@@ -272,7 +267,7 @@ func LoadConfigWithViper() (*Config, error) {
 
 	if len(alertmanagers) > 0 {
 		cfg.Alertmanagers = alertmanagers
-		fmt.Printf("DEBUG: Loaded %d alertmanagers from environment\n", len(alertmanagers))
+
 	}
 
 	if cfg.Notifications.SeverityRules == nil {
@@ -360,8 +355,6 @@ func LoadConfigWithViper() (*Config, error) {
 
 func setViperDefaults(cfg *Config) {
 	// DEBUG: Check what viper has before setting defaults
-	fmt.Printf("DEBUG: In setViperDefaults - viper.IsSet('backend.database.type') = %v\n", viper.IsSet("backend.database.type"))
-	fmt.Printf("DEBUG: In setViperDefaults - viper.Get('backend.database.type') = %v\n", viper.Get("backend.database.type"))
 
 	// Backend defaults
 	viper.SetDefault("backend.enabled", cfg.Backend.Enabled)

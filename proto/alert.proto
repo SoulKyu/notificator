@@ -751,6 +751,8 @@ message QueryRecentlyResolvedRequest {
   int32 offset = 8;                  // For pagination
   bool include_silenced = 9;         // Whether to include silenced (suppressed) alerts (default: false)
   string search_query = 10;          // Search across alert name, instance, summary, description
+  string user_id = 11;               // User ID for hidden alerts filtering
+  reserved 12;                       // Was silenced_fingerprints, no longer needed (backend handles filtering via metadata)
 }
 
 message ResolvedAlertItem {

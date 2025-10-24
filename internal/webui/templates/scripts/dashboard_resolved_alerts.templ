@@ -88,6 +88,7 @@ templ DashboardResolvedAlertsMixin() {
 					const startDate = new Date(this.resolvedTimeRange.start);
 					const endDate = new Date(this.resolvedTimeRange.end);
 
+
 					// Build request using main dashboard filters
 					const requestBody = {
 						start_date: startDate.toISOString(),

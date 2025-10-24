@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"regexp"
 	"time"
 
 	"gorm.io/gorm"
@@ -671,15 +672,16 @@ func (sqs *StatisticsQueryService) GetStatisticsSummary(userID string) (map[stri
 
 // ResolvedAlertsQueryRequest represents a query for recently resolved alerts
 type ResolvedAlertsQueryRequest struct {
-	StartDate       time.Time
-	EndDate         time.Time
-	Severity        []string // Optional filter
-	Team            string   // Optional filter
-	AlertName       string   // Optional filter (supports LIKE)
-	SearchQuery     string   // Search across alert name, instance, summary, description
-	IncludeSilenced bool     // Whether to include silenced (suppressed) alerts (default: false)
-	Limit           int
-	Offset          int
+	UserID               string   // User ID for hidden alerts filtering
+	StartDate            time.Time
+	EndDate              time.Time
+	Severity             []string // Optional filter
+	Team                 string   // Optional filter
+	AlertName            string   // Optional filter (supports LIKE)
+	SearchQuery          string   // Search across alert name, instance, summary, description
+	IncludeSilenced      bool     // Whether to include silenced (suppressed) alerts (default: false)
+	Limit                int
+	Offset               int
 }
 
 // ResolvedAlertItem represents a single resolved alert with full details
@@ -708,6 +710,119 @@ type ResolvedAlertsQueryResponse struct {
 	TotalCount int64
 	StartDate  time.Time
 	EndDate    time.Time
+}
+
+// getHiddenFingerprints returns fingerprints hidden by user via direct hiding or rules
+func (sqs *StatisticsQueryService) getHiddenFingerprints(userID string, allFingerprints []string) ([]string, error) {
+	if userID == "" || len(allFingerprints) == 0 {
+		return []string{}, nil
+	}
+
+	var hiddenFingerprints []string
+
+	// Get directly hidden alerts for this user
+	var directHidden []string
+	err := sqs.db.GetDB().Table("user_hidden_alerts").
+		Where("user_id = ?", userID).
+		Where("fingerprint IN ?", allFingerprints).
+		Pluck("fingerprint", &directHidden).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query hidden alerts: %w", err)
+	}
+	hiddenFingerprints = append(hiddenFingerprints, directHidden...)
+
+	// Get hidden rules for this user
+	var rules []models.UserHiddenRule
+	err = sqs.db.GetDB().
+		Where("user_id = ? AND is_enabled = ?", userID, true).
+		Find(&rules).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query hidden rules: %w", err)
+	}
+
+	// For each rule, find matching fingerprints based on label matching
+	if len(rules) > 0 {
+		// Query alert statistics to get labels for fingerprints
+		// Use array_agg to get the latest metadata for each fingerprint
+		var stats []struct {
+			Fingerprint string
+			Metadata    string
+		}
+		err = sqs.db.GetDB().Table("alert_statistics").
+			Where("fingerprint IN ?", allFingerprints).
+			Select("fingerprint, (array_agg(metadata ORDER BY resolved_at DESC))[1] as metadata").
+			Group("fingerprint").
+			Scan(&stats).Error
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to query alert metadata: %w", err)
+		}
+
+		// Check each alert against rules
+		for _, stat := range stats {
+			// Parse metadata to get labels
+			var metadata map[string]interface{}
+			if err := json.Unmarshal([]byte(stat.Metadata), &metadata); err != nil {
+				continue
+			}
+
+			labelsRaw, ok := metadata["labels"]
+			if !ok {
+				continue
+			}
+
+			labels, ok := labelsRaw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Check if any rule matches
+			for _, rule := range rules {
+				labelValue, exists := labels[rule.LabelKey]
+				if !exists {
+					continue
+				}
+
+				labelStr, ok := labelValue.(string)
+				if !ok {
+					continue
+				}
+
+				matches := false
+				if rule.IsRegex {
+					// Regex match
+					re, err := regexp.Compile(rule.LabelValue)
+					if err != nil {
+						log.Printf("Warning: invalid regex in hidden rule %s: %v", rule.ID, err)
+						continue
+					}
+					matches = re.MatchString(labelStr)
+				} else {
+					// Exact match
+					matches = labelStr == rule.LabelValue
+				}
+
+				if matches {
+					hiddenFingerprints = append(hiddenFingerprints, stat.Fingerprint)
+					break // Don't check more rules for this fingerprint
+				}
+			}
+		}
+	}
+
+	// Remove duplicates
+	seen := make(map[string]bool)
+	unique := []string{}
+	for _, fp := range hiddenFingerprints {
+		if !seen[fp] {
+			seen[fp] = true
+			unique = append(unique, fp)
+		}
+	}
+
+	return unique, nil
 }
 
 // QueryResolvedAlerts queries recently resolved alerts
@@ -748,30 +863,63 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 		)
 	}
 
-	// Exclude silenced alerts by default (unless explicitly included)
-	var currentlySilencedFingerprints []string
-	if !req.IncludeSilenced {
-		// Filter 1: Exclude alerts that were silenced when they resolved (historical)
-		// Use COALESCE to handle NULL values (alerts without status field should be included)
-		baseQuery = baseQuery.Where("COALESCE(metadata->'status'->>'state', '') != ?", "suppressed")
-
-		// Filter 2: Query for currently firing alerts that are silenced
-		// Get their fingerprints and exclude them from results
-		err := sqs.db.GetDB().Model(&models.AlertStatistic{}).
+	// Apply hidden alerts filtering
+	// Get hidden fingerprints for this user in the time range BEFORE executing any queries
+	var hiddenFingerprints []string
+	if req.UserID != "" {
+		// Create a separate query to get potentially matching fingerprints
+		// This query is independent and won't interfere with baseQuery
+		fingerprintCheckQuery := sqs.db.GetDB().Model(&models.AlertStatistic{}).
 			Select("DISTINCT fingerprint").
-			Where("resolved_at IS NULL"). // Currently firing
-			Where("metadata->'status'->>'state' = ?", "suppressed"). // And silenced
-			Pluck("fingerprint", &currentlySilencedFingerprints).Error
+			Where("resolved_at IS NOT NULL").
+			Where("resolved_at >= ?", req.StartDate).
+			Where("resolved_at <= ?", req.EndDate)
+
+		// Apply the same filters to get accurate fingerprint list
+		if len(req.Severity) > 0 {
+			fingerprintCheckQuery = fingerprintCheckQuery.Where("severity IN ?", req.Severity)
+		}
+		if req.AlertName != "" {
+			fingerprintCheckQuery = fingerprintCheckQuery.Where("alert_name LIKE ?", "%"+req.AlertName+"%")
+		}
+		if req.Team != "" {
+			fingerprintCheckQuery = fingerprintCheckQuery.Where("metadata->'labels'->>'team' = ?", req.Team)
+		}
+		if req.SearchQuery != "" {
+			searchPattern := "%" + req.SearchQuery + "%"
+			fingerprintCheckQuery = fingerprintCheckQuery.Where(
+				"alert_name ILIKE ? OR fingerprint ILIKE ? OR "+
+					"metadata->>'source' ILIKE ? OR metadata->>'instance' ILIKE ? OR "+
+					"metadata->'annotations'->>'summary' ILIKE ? OR metadata->'annotations'->>'description' ILIKE ?",
+				searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern,
+			)
+		}
+
+		var allFingerprints []string
+		err := fingerprintCheckQuery.Pluck("fingerprint", &allFingerprints).Error
 
 		if err != nil {
-			log.Printf("Warning: failed to query currently silenced fingerprints: %v", err)
-			// Continue without this filter rather than failing the whole request
+			log.Printf("Warning: failed to get fingerprints for hidden alerts check: %v", err)
+		} else if len(allFingerprints) > 0 {
+			hiddenFingerprints, err = sqs.getHiddenFingerprints(req.UserID, allFingerprints)
+			if err != nil {
+				log.Printf("Warning: failed to get hidden fingerprints: %v", err)
+				hiddenFingerprints = []string{} // Reset on error
+			}
 		}
 
-		// Exclude currently silenced fingerprints if any found
-		if len(currentlySilencedFingerprints) > 0 {
-			baseQuery = baseQuery.Where("fingerprint NOT IN ?", currentlySilencedFingerprints)
+		// Apply the filter to baseQuery BEFORE it gets executed
+		if len(hiddenFingerprints) > 0 {
+			baseQuery = baseQuery.Where("fingerprint NOT IN ?", hiddenFingerprints)
 		}
+	}
+
+	// Exclude silenced alerts by default (unless explicitly included)
+	if !req.IncludeSilenced {
+		// Exclude alerts that were silenced when they resolved
+		// Since we now update metadata on resolution, this accurately captures the silenced state
+		// Use COALESCE to handle NULL values (alerts without status field should be included)
+		baseQuery = baseQuery.Where("COALESCE(metadata->'status'->>'state', '') != ?", "suppressed")
 	}
 
 	// Get aggregated results grouped by fingerprint
@@ -824,16 +972,25 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 	if req.Team != "" {
 		countQuery = countQuery.Where("metadata->'labels'->>'team' = ?", req.Team)
 	}
+	if req.SearchQuery != "" {
+		searchPattern := "%" + req.SearchQuery + "%"
+		countQuery = countQuery.Where(
+			"alert_name ILIKE ? OR fingerprint ILIKE ? OR "+
+				"metadata->>'source' ILIKE ? OR metadata->>'instance' ILIKE ? OR "+
+				"metadata->'annotations'->>'summary' ILIKE ? OR metadata->'annotations'->>'description' ILIKE ?",
+			searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern,
+		)
+	}
 
-	// Apply the same silenced filters to count query
+	// Apply hidden alerts filtering to count query
+	// Reuse hiddenFingerprints we already calculated above
+	if len(hiddenFingerprints) > 0 {
+		countQuery = countQuery.Where("fingerprint NOT IN ?", hiddenFingerprints)
+	}
+
+	// Apply the same silenced filter to count query
 	if !req.IncludeSilenced {
-		// Filter 1: Historical silenced alerts
 		countQuery = countQuery.Where("COALESCE(metadata->'status'->>'state', '') != ?", "suppressed")
-
-		// Filter 2: Currently silenced fingerprints
-		if len(currentlySilencedFingerprints) > 0 {
-			countQuery = countQuery.Where("fingerprint NOT IN ?", currentlySilencedFingerprints)
-		}
 	}
 
 	if err := countQuery.Count(&totalCount).Error; err != nil {

@@ -6303,6 +6303,7 @@ type QueryRecentlyResolvedRequest struct {
 	Offset          int32                  `protobuf:"varint,8,opt,name=offset,proto3" json:"offset,omitempty"`                                          // For pagination
 	IncludeSilenced bool                   `protobuf:"varint,9,opt,name=include_silenced,json=includeSilenced,proto3" json:"include_silenced,omitempty"` // Whether to include silenced (suppressed) alerts (default: false)
 	SearchQuery     string                 `protobuf:"bytes,10,opt,name=search_query,json=searchQuery,proto3" json:"search_query,omitempty"`             // Search across alert name, instance, summary, description
+	UserId          string                 `protobuf:"bytes,11,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                            // User ID for hidden alerts filtering
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -6403,6 +6404,13 @@ func (x *QueryRecentlyResolvedRequest) GetIncludeSilenced() bool {
 func (x *QueryRecentlyResolvedRequest) GetSearchQuery() string {
 	if x != nil {
 		return x.SearchQuery
+	}
+	return ""
+}
+
+func (x *QueryRecentlyResolvedRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
 	}
 	return ""
 }
@@ -7184,7 +7192,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x0facknowledged_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x0eacknowledgedAt\"U\n" +
 	"\x1fUpdateAlertAcknowledgedResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xfa\x02\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x99\x03\n" +
 	"\x1cQueryRecentlyResolvedRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
@@ -7199,7 +7207,8 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x06offset\x18\b \x01(\x05R\x06offset\x12)\n" +
 	"\x10include_silenced\x18\t \x01(\bR\x0fincludeSilenced\x12!\n" +
 	"\fsearch_query\x18\n" +
-	" \x01(\tR\vsearchQuery\"\x8d\x06\n" +
+	" \x01(\tR\vsearchQuery\x12\x17\n" +
+	"\auser_id\x18\v \x01(\tR\x06userIdJ\x04\b\f\x10\r\"\x8d\x06\n" +
 	"\x11ResolvedAlertItem\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12\x1d\n" +
 	"\n" +

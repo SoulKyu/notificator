@@ -74,6 +74,21 @@ func (scs *StatisticsCaptureService) UpdateAlertResolved(alert *webuimodels.Dash
 	durationSec := int(duration.Seconds())
 	stat.DurationSeconds = &durationSec
 
+	// IMPORTANT: Update metadata to capture current status at resolution time
+	// This ensures we have the correct silenced/suppressed state when the alert resolved
+	metadata, err := scs.extractMetadata(alert)
+	if err != nil {
+		log.Printf("⚠️  Failed to extract metadata for resolved alert %s: %v", alert.Fingerprint, err)
+	} else {
+		metadataJSON, err := database.BuildMetadataJSON(metadata)
+		if err != nil {
+			log.Printf("⚠️  Failed to build metadata JSON for resolved alert %s: %v", alert.Fingerprint, err)
+		} else {
+			stat.Metadata = metadataJSON
+			log.Printf("📊 Updated metadata for resolved alert: %s (state: %s)", alert.AlertName, alert.Status.State)
+		}
+	}
+
 	// Update in database
 	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
 		return fmt.Errorf("failed to update alert statistic: %w", err)
