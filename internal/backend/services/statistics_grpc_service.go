@@ -842,3 +842,89 @@ func (s *StatisticsServiceGorm) UpdateAlertAcknowledged(ctx context.Context, req
 		Message: "Alert statistic updated successfully",
 	}, nil
 }
+
+// ==================== Recently Resolved Alerts ====================
+
+// QueryRecentlyResolved implements the QueryRecentlyResolved RPC method
+func (s *StatisticsServiceGorm) QueryRecentlyResolved(ctx context.Context, req *alertpb.QueryRecentlyResolvedRequest) (*alertpb.QueryRecentlyResolvedResponse, error) {
+	// Validate session
+	if req.SessionId == "" {
+		return &alertpb.QueryRecentlyResolvedResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.QueryRecentlyResolvedResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Default to last 24 hours if not specified
+	startDate := req.StartDate.AsTime()
+	endDate := req.EndDate.AsTime()
+
+	if startDate.IsZero() {
+		startDate = time.Now().Add(-24 * time.Hour)
+	}
+	if endDate.IsZero() {
+		endDate = time.Now()
+	}
+
+	// Build query request
+	queryReq := &ResolvedAlertsQueryRequest{
+		StartDate:       startDate,
+		EndDate:         endDate,
+		Severity:        req.Severity,
+		Team:            req.Team,
+		AlertName:       req.AlertName,
+		SearchQuery:     req.SearchQuery,
+		IncludeSilenced: req.IncludeSilenced,
+		Limit:           int(req.Limit),
+		Offset:          int(req.Offset),
+	}
+
+	// Execute query
+	result, err := s.queryService.QueryResolvedAlerts(queryReq)
+	if err != nil {
+		log.Printf("Failed to query recently resolved alerts for user %s: %v", user.ID, err)
+		return &alertpb.QueryRecentlyResolvedResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to query: %v", err),
+		}, nil
+	}
+
+	// Convert to proto
+	alerts := make([]*alertpb.ResolvedAlertItem, len(result.Alerts))
+	for i, item := range result.Alerts {
+		alerts[i] = &alertpb.ResolvedAlertItem{
+			Fingerprint:      item.Fingerprint,
+			AlertName:        item.AlertName,
+			Severity:         item.Severity,
+			OccurrenceCount:  int32(item.OccurrenceCount),
+			FirstFiredAt:     timestamppb.New(item.FirstFiredAt),
+			LastResolvedAt:   timestamppb.New(item.LastResolvedAt),
+			TotalDuration:    int32(item.TotalDuration),
+			AvgDuration:      item.AvgDuration,
+			TotalMttr:        int32(item.TotalMTTR),
+			AvgMttr:          item.AvgMTTR,
+			Labels:           item.Labels,
+			Annotations:      item.Annotations,
+			Source:           item.Source,
+			Instance:         item.Instance,
+			Team:             item.Team,
+		}
+	}
+
+	return &alertpb.QueryRecentlyResolvedResponse{
+		Success:    true,
+		Message:    fmt.Sprintf("Found %d resolved alerts", len(alerts)),
+		Alerts:     alerts,
+		TotalCount: result.TotalCount,
+		StartDate:  timestamppb.New(result.StartDate),
+		EndDate:    timestamppb.New(result.EndDate),
+	}, nil
+}

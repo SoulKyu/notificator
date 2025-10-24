@@ -99,7 +99,12 @@ templ DashboardCore() {
 				currentPage: 1,
 				itemsPerPage: 50,
 				totalItems: 0,
-				
+
+				// Resolved alerts state (mixin will add more properties)
+				resolvedAlerts: [],
+				resolvedTotalCount: 0,
+				resolvedLoading: false,
+
 				refreshInterval: null,
 				lastUpdateTime: null,
 				
@@ -139,6 +144,7 @@ templ DashboardCore() {
 					Object.assign(this, window.dashboardUtilitiesMixin || {});
 					Object.assign(this, window.dashboardModalMixin || {});
 					Object.assign(this, window.dashboardFilterPresetsMixin || {});
+					Object.assign(this, window.dashboardResolvedAlertsMixin || {});
 
 					window.dashboardInstance = this;
 

@@ -1265,6 +1265,7 @@ const (
 	StatisticsService_CaptureAlertFired_FullMethodName       = "/notificator.alert.StatisticsService/CaptureAlertFired"
 	StatisticsService_UpdateAlertResolved_FullMethodName     = "/notificator.alert.StatisticsService/UpdateAlertResolved"
 	StatisticsService_UpdateAlertAcknowledged_FullMethodName = "/notificator.alert.StatisticsService/UpdateAlertAcknowledged"
+	StatisticsService_QueryRecentlyResolved_FullMethodName   = "/notificator.alert.StatisticsService/QueryRecentlyResolved"
 )
 
 // StatisticsServiceClient is the client API for StatisticsService service.
@@ -1288,6 +1289,8 @@ type StatisticsServiceClient interface {
 	CaptureAlertFired(ctx context.Context, in *CaptureAlertFiredRequest, opts ...grpc.CallOption) (*CaptureAlertFiredResponse, error)
 	UpdateAlertResolved(ctx context.Context, in *UpdateAlertResolvedRequest, opts ...grpc.CallOption) (*UpdateAlertResolvedResponse, error)
 	UpdateAlertAcknowledged(ctx context.Context, in *UpdateAlertAcknowledgedRequest, opts ...grpc.CallOption) (*UpdateAlertAcknowledgedResponse, error)
+	// Recently Resolved Alerts (replaces old resolved alerts system)
+	QueryRecentlyResolved(ctx context.Context, in *QueryRecentlyResolvedRequest, opts ...grpc.CallOption) (*QueryRecentlyResolvedResponse, error)
 }
 
 type statisticsServiceClient struct {
@@ -1408,6 +1411,16 @@ func (c *statisticsServiceClient) UpdateAlertAcknowledged(ctx context.Context, i
 	return out, nil
 }
 
+func (c *statisticsServiceClient) QueryRecentlyResolved(ctx context.Context, in *QueryRecentlyResolvedRequest, opts ...grpc.CallOption) (*QueryRecentlyResolvedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryRecentlyResolvedResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_QueryRecentlyResolved_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // StatisticsServiceServer is the server API for StatisticsService service.
 // All implementations must embed UnimplementedStatisticsServiceServer
 // for forward compatibility.
@@ -1429,6 +1442,8 @@ type StatisticsServiceServer interface {
 	CaptureAlertFired(context.Context, *CaptureAlertFiredRequest) (*CaptureAlertFiredResponse, error)
 	UpdateAlertResolved(context.Context, *UpdateAlertResolvedRequest) (*UpdateAlertResolvedResponse, error)
 	UpdateAlertAcknowledged(context.Context, *UpdateAlertAcknowledgedRequest) (*UpdateAlertAcknowledgedResponse, error)
+	// Recently Resolved Alerts (replaces old resolved alerts system)
+	QueryRecentlyResolved(context.Context, *QueryRecentlyResolvedRequest) (*QueryRecentlyResolvedResponse, error)
 	mustEmbedUnimplementedStatisticsServiceServer()
 }
 
@@ -1471,6 +1486,9 @@ func (UnimplementedStatisticsServiceServer) UpdateAlertResolved(context.Context,
 }
 func (UnimplementedStatisticsServiceServer) UpdateAlertAcknowledged(context.Context, *UpdateAlertAcknowledgedRequest) (*UpdateAlertAcknowledgedResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAlertAcknowledged not implemented")
+}
+func (UnimplementedStatisticsServiceServer) QueryRecentlyResolved(context.Context, *QueryRecentlyResolvedRequest) (*QueryRecentlyResolvedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryRecentlyResolved not implemented")
 }
 func (UnimplementedStatisticsServiceServer) mustEmbedUnimplementedStatisticsServiceServer() {}
 func (UnimplementedStatisticsServiceServer) testEmbeddedByValue()                           {}
@@ -1691,6 +1709,24 @@ func _StatisticsService_UpdateAlertAcknowledged_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StatisticsService_QueryRecentlyResolved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryRecentlyResolvedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).QueryRecentlyResolved(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_QueryRecentlyResolved_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).QueryRecentlyResolved(ctx, req.(*QueryRecentlyResolvedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // StatisticsService_ServiceDesc is the grpc.ServiceDesc for StatisticsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1741,6 +1777,10 @@ var StatisticsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateAlertAcknowledged",
 			Handler:    _StatisticsService_UpdateAlertAcknowledged_Handler,
+		},
+		{
+			MethodName: "QueryRecentlyResolved",
+			Handler:    _StatisticsService_QueryRecentlyResolved_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

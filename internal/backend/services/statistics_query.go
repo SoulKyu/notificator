@@ -1,7 +1,10 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
+	"reflect"
 	"time"
 
 	"gorm.io/gorm"
@@ -662,4 +665,315 @@ func (sqs *StatisticsQueryService) GetStatisticsSummary(userID string) (map[stri
 	}
 
 	return summary, nil
+}
+
+// ==================== Recently Resolved Alerts ====================
+
+// ResolvedAlertsQueryRequest represents a query for recently resolved alerts
+type ResolvedAlertsQueryRequest struct {
+	StartDate       time.Time
+	EndDate         time.Time
+	Severity        []string // Optional filter
+	Team            string   // Optional filter
+	AlertName       string   // Optional filter (supports LIKE)
+	SearchQuery     string   // Search across alert name, instance, summary, description
+	IncludeSilenced bool     // Whether to include silenced (suppressed) alerts (default: false)
+	Limit           int
+	Offset          int
+}
+
+// ResolvedAlertItem represents a single resolved alert with full details
+type ResolvedAlertItem struct {
+	Fingerprint        string
+	AlertName          string
+	Severity           string
+	OccurrenceCount    int                    // How many times this alert resolved in time range
+	FirstFiredAt       time.Time              // Earliest fired_at
+	LastResolvedAt     time.Time              // Most recent resolved_at
+	TotalDuration      int                    // Sum of all durations
+	AvgDuration        float64                // Average duration
+	TotalMTTR          int                    // Sum of all MTTR
+	AvgMTTR            float64                // Average MTTR
+	Metadata           map[string]interface{} // Parsed JSONB
+	Source             string
+	Instance           string
+	Team               string
+	Labels             map[string]string
+	Annotations        map[string]string
+}
+
+// ResolvedAlertsQueryResponse represents the response
+type ResolvedAlertsQueryResponse struct {
+	Alerts     []*ResolvedAlertItem
+	TotalCount int64
+	StartDate  time.Time
+	EndDate    time.Time
+}
+
+// QueryResolvedAlerts queries recently resolved alerts
+func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryRequest) (*ResolvedAlertsQueryResponse, error) {
+	// Validate request
+	if req.Limit <= 0 {
+		req.Limit = 100
+	}
+	if req.Limit > 1000 {
+		req.Limit = 1000
+	}
+
+	// Build base query - only resolved alerts
+	baseQuery := sqs.db.GetDB().Model(&models.AlertStatistic{}).
+		Where("resolved_at IS NOT NULL").
+		Where("resolved_at >= ?", req.StartDate).
+		Where("resolved_at <= ?", req.EndDate)
+
+	// Apply filters
+	if len(req.Severity) > 0 {
+		baseQuery = baseQuery.Where("severity IN ?", req.Severity)
+	}
+	if req.AlertName != "" {
+		baseQuery = baseQuery.Where("alert_name LIKE ?", "%"+req.AlertName+"%")
+	}
+	if req.Team != "" {
+		// Query JSONB metadata
+		baseQuery = baseQuery.Where("metadata->'labels'->>'team' = ?", req.Team)
+	}
+	if req.SearchQuery != "" {
+		// Search across multiple fields: alert_name, fingerprint, and JSONB metadata fields
+		searchPattern := "%" + req.SearchQuery + "%"
+		baseQuery = baseQuery.Where(
+			"alert_name ILIKE ? OR fingerprint ILIKE ? OR "+
+				"metadata->>'source' ILIKE ? OR metadata->>'instance' ILIKE ? OR "+
+				"metadata->'annotations'->>'summary' ILIKE ? OR metadata->'annotations'->>'description' ILIKE ?",
+			searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern,
+		)
+	}
+
+	// Exclude silenced alerts by default (unless explicitly included)
+	var currentlySilencedFingerprints []string
+	if !req.IncludeSilenced {
+		// Filter 1: Exclude alerts that were silenced when they resolved (historical)
+		// Use COALESCE to handle NULL values (alerts without status field should be included)
+		baseQuery = baseQuery.Where("COALESCE(metadata->'status'->>'state', '') != ?", "suppressed")
+
+		// Filter 2: Query for currently firing alerts that are silenced
+		// Get their fingerprints and exclude them from results
+		err := sqs.db.GetDB().Model(&models.AlertStatistic{}).
+			Select("DISTINCT fingerprint").
+			Where("resolved_at IS NULL"). // Currently firing
+			Where("metadata->'status'->>'state' = ?", "suppressed"). // And silenced
+			Pluck("fingerprint", &currentlySilencedFingerprints).Error
+
+		if err != nil {
+			log.Printf("Warning: failed to query currently silenced fingerprints: %v", err)
+			// Continue without this filter rather than failing the whole request
+		}
+
+		// Exclude currently silenced fingerprints if any found
+		if len(currentlySilencedFingerprints) > 0 {
+			baseQuery = baseQuery.Where("fingerprint NOT IN ?", currentlySilencedFingerprints)
+		}
+	}
+
+	// Get aggregated results grouped by fingerprint
+	type AggregatedResult struct {
+		Fingerprint      string
+		AlertName        string
+		Severity         string
+		OccurrenceCount  int
+		FirstFiredAt     time.Time
+		LastResolvedAt   time.Time
+		TotalDuration    int64
+		AvgDuration      float64
+		TotalMTTR        int64
+		AvgMTTR          float64
+		Metadata         string // Latest metadata (JSONB as string)
+	}
+
+	// Aggregate query - note: source and instance are in metadata JSONB, not separate columns
+	var aggregatedResults []AggregatedResult
+	aggregateQuery := baseQuery.
+		Select(`
+			fingerprint,
+			alert_name,
+			severity,
+			COUNT(*) as occurrence_count,
+			MIN(fired_at) as first_fired_at,
+			MAX(resolved_at) as last_resolved_at,
+			COALESCE(SUM(duration_seconds), 0) as total_duration,
+			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration,
+			COALESCE(SUM(mttr_seconds), 0) as total_mttr,
+			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr,
+			(array_agg(metadata ORDER BY resolved_at DESC))[1] as metadata
+		`).
+		Group("fingerprint, alert_name, severity")
+
+	// Get total count of unique fingerprints (before pagination)
+	var totalCount int64
+	countQuery := sqs.db.GetDB().Model(&models.AlertStatistic{}).
+		Select("COUNT(DISTINCT fingerprint)").
+		Where("resolved_at IS NOT NULL").
+		Where("resolved_at >= ?", req.StartDate).
+		Where("resolved_at <= ?", req.EndDate)
+
+	if len(req.Severity) > 0 {
+		countQuery = countQuery.Where("severity IN ?", req.Severity)
+	}
+	if req.AlertName != "" {
+		countQuery = countQuery.Where("alert_name LIKE ?", "%"+req.AlertName+"%")
+	}
+	if req.Team != "" {
+		countQuery = countQuery.Where("metadata->'labels'->>'team' = ?", req.Team)
+	}
+
+	// Apply the same silenced filters to count query
+	if !req.IncludeSilenced {
+		// Filter 1: Historical silenced alerts
+		countQuery = countQuery.Where("COALESCE(metadata->'status'->>'state', '') != ?", "suppressed")
+
+		// Filter 2: Currently silenced fingerprints
+		if len(currentlySilencedFingerprints) > 0 {
+			countQuery = countQuery.Where("fingerprint NOT IN ?", currentlySilencedFingerprints)
+		}
+	}
+
+	if err := countQuery.Count(&totalCount).Error; err != nil {
+		return nil, fmt.Errorf("failed to count unique fingerprints: %w", err)
+	}
+
+	// Execute aggregated query with pagination
+	err := aggregateQuery.
+		Order("last_resolved_at DESC").
+		Limit(req.Limit).
+		Offset(req.Offset).
+		Scan(&aggregatedResults).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query resolved alerts: %w", err)
+	}
+
+	// Convert to response items
+	items := make([]*ResolvedAlertItem, 0, len(aggregatedResults))
+	for _, result := range aggregatedResults {
+		item, err := sqs.convertAggregatedToResolvedAlertItem(result)
+		if err != nil {
+			log.Printf("Warning: failed to convert aggregated result for %s: %v", result.Fingerprint, err)
+			continue
+		}
+		items = append(items, item)
+	}
+
+	return &ResolvedAlertsQueryResponse{
+		Alerts:     items,
+		TotalCount: totalCount,
+		StartDate:  req.StartDate,
+		EndDate:    req.EndDate,
+	}, nil
+}
+
+// convertAggregatedToResolvedAlertItem converts aggregated result to ResolvedAlertItem
+func (sqs *StatisticsQueryService) convertAggregatedToResolvedAlertItem(result interface{}) (*ResolvedAlertItem, error) {
+	// Type assertion to get the AggregatedResult struct
+	type AggregatedResult struct {
+		Fingerprint      string
+		AlertName        string
+		Severity         string
+		OccurrenceCount  int
+		FirstFiredAt     time.Time
+		LastResolvedAt   time.Time
+		TotalDuration    int64
+		AvgDuration      float64
+		TotalMTTR        int64
+		AvgMTTR          float64
+		Metadata         string
+	}
+
+	// Convert result interface to struct using reflection or type assertion
+	var aggResult AggregatedResult
+	switch v := result.(type) {
+	case AggregatedResult:
+		aggResult = v
+	default:
+		// Use reflection to convert
+		resultValue := reflect.ValueOf(result)
+		aggResult = AggregatedResult{
+			Fingerprint:      resultValue.FieldByName("Fingerprint").String(),
+			AlertName:        resultValue.FieldByName("AlertName").String(),
+			Severity:         resultValue.FieldByName("Severity").String(),
+			OccurrenceCount:  int(resultValue.FieldByName("OccurrenceCount").Int()),
+			FirstFiredAt:     resultValue.FieldByName("FirstFiredAt").Interface().(time.Time),
+			LastResolvedAt:   resultValue.FieldByName("LastResolvedAt").Interface().(time.Time),
+			TotalDuration:    resultValue.FieldByName("TotalDuration").Int(),
+			AvgDuration:      resultValue.FieldByName("AvgDuration").Float(),
+			TotalMTTR:        resultValue.FieldByName("TotalMTTR").Int(),
+			AvgMTTR:          resultValue.FieldByName("AvgMTTR").Float(),
+			Metadata:         resultValue.FieldByName("Metadata").String(),
+		}
+	}
+
+	// Parse metadata
+	var metadata map[string]interface{}
+	if err := json.Unmarshal([]byte(aggResult.Metadata), &metadata); err != nil {
+		return nil, fmt.Errorf("failed to parse metadata: %w", err)
+	}
+
+	item := &ResolvedAlertItem{
+		Fingerprint:     aggResult.Fingerprint,
+		AlertName:       aggResult.AlertName,
+		Severity:        aggResult.Severity,
+		OccurrenceCount: aggResult.OccurrenceCount,
+		FirstFiredAt:    aggResult.FirstFiredAt,
+		LastResolvedAt:  aggResult.LastResolvedAt,
+		TotalDuration:   int(aggResult.TotalDuration),
+		AvgDuration:     aggResult.AvgDuration,
+		TotalMTTR:       int(aggResult.TotalMTTR),
+		AvgMTTR:         aggResult.AvgMTTR,
+		Metadata:        metadata,
+		// Source and Instance will be extracted from metadata below
+	}
+
+	// Extract nested fields from metadata
+	if labels, ok := metadata["labels"].(map[string]interface{}); ok {
+		item.Labels = make(map[string]string)
+		for k, v := range labels {
+			if str, ok := v.(string); ok {
+				item.Labels[k] = str
+			}
+		}
+		// Extract commonly used fields
+		if team, ok := labels["team"].(string); ok {
+			item.Team = team
+		}
+	}
+
+	if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
+		item.Annotations = make(map[string]string)
+		for k, v := range annotations {
+			if str, ok := v.(string); ok {
+				item.Annotations[k] = str
+			}
+		}
+	}
+
+	if source, ok := metadata["source"].(string); ok {
+		item.Source = source
+	}
+
+	if instance, ok := metadata["instance"].(string); ok {
+		item.Instance = instance
+	}
+
+	return item, nil
+}
+
+// GetRecentlyResolvedAlerts gets resolved alerts from last N hours
+func (sqs *StatisticsQueryService) GetRecentlyResolvedAlerts(hours int, limit int) (*ResolvedAlertsQueryResponse, error) {
+	now := time.Now()
+	startDate := now.Add(-time.Duration(hours) * time.Hour)
+
+	return sqs.QueryResolvedAlerts(&ResolvedAlertsQueryRequest{
+		StartDate: startDate,
+		EndDate:   now,
+		Limit:     limit,
+		Offset:    0,
+	})
 }

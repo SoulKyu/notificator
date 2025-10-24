@@ -528,6 +528,9 @@ service StatisticsService {
   rpc CaptureAlertFired(CaptureAlertFiredRequest) returns (CaptureAlertFiredResponse);
   rpc UpdateAlertResolved(UpdateAlertResolvedRequest) returns (UpdateAlertResolvedResponse);
   rpc UpdateAlertAcknowledged(UpdateAlertAcknowledgedRequest) returns (UpdateAlertAcknowledgedResponse);
+
+  // Recently Resolved Alerts (replaces old resolved alerts system)
+  rpc QueryRecentlyResolved(QueryRecentlyResolvedRequest) returns (QueryRecentlyResolvedResponse);
 }
 
 // ==================== Statistics Query Messages ====================
@@ -733,4 +736,46 @@ message UpdateAlertAcknowledgedRequest {
 message UpdateAlertAcknowledgedResponse {
   bool success = 1;
   string message = 2;
+}
+
+// ==================== Recently Resolved Alerts ====================
+
+message QueryRecentlyResolvedRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+  repeated string severity = 4;      // Optional filter
+  string team = 5;                   // Optional filter
+  string alert_name = 6;             // Optional filter (LIKE search)
+  int32 limit = 7;                   // Default 100, max 1000
+  int32 offset = 8;                  // For pagination
+  bool include_silenced = 9;         // Whether to include silenced (suppressed) alerts (default: false)
+  string search_query = 10;          // Search across alert name, instance, summary, description
+}
+
+message ResolvedAlertItem {
+  string fingerprint = 1;
+  string alert_name = 2;
+  string severity = 3;
+  int32 occurrence_count = 4;              // How many times resolved in time range
+  google.protobuf.Timestamp first_fired_at = 5;    // Earliest fired_at
+  google.protobuf.Timestamp last_resolved_at = 6;  // Most recent resolved_at
+  int32 total_duration = 7;                // Sum of all durations
+  double avg_duration = 8;                 // Average duration
+  int32 total_mttr = 9;                    // Sum of all MTTR
+  double avg_mttr = 10;                    // Average MTTR
+  map<string, string> labels = 11;
+  map<string, string> annotations = 12;
+  string source = 13;
+  string instance = 14;
+  string team = 15;
+}
+
+message QueryRecentlyResolvedResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ResolvedAlertItem alerts = 3;
+  int64 total_count = 4;
+  google.protobuf.Timestamp start_date = 5;
+  google.protobuf.Timestamp end_date = 6;
 }

@@ -1636,3 +1636,65 @@ func (c *BackendClient) UpdateAlertAcknowledged(alert *models.DashboardAlert) er
 
 	return nil
 }
+
+// QueryRecentlyResolved queries recently resolved alerts from statistics
+func (c *BackendClient) QueryRecentlyResolved(sessionID string, startDate, endDate time.Time, severity []string, team, alertName, searchQuery string, includeSilenced bool, limit, offset int) (map[string]interface{}, error) {
+	if !c.IsConnected() {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.QueryRecentlyResolvedRequest{
+		SessionId:       sessionID,
+		StartDate:       timestamppb.New(startDate),
+		EndDate:         timestamppb.New(endDate),
+		Severity:        severity,
+		Team:            team,
+		AlertName:       alertName,
+		SearchQuery:     searchQuery,
+		IncludeSilenced: includeSilenced,
+		Limit:           int32(limit),
+		Offset:          int32(offset),
+	}
+
+	resp, err := c.statisticsClient.QueryRecentlyResolved(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query recently resolved: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("query failed: %s", resp.Message)
+	}
+
+	// Convert to map for JSON
+	alerts := make([]map[string]interface{}, len(resp.Alerts))
+	for i, alert := range resp.Alerts {
+		alerts[i] = map[string]interface{}{
+			"fingerprint":        alert.Fingerprint,
+			"alert_name":         alert.AlertName,
+			"severity":           alert.Severity,
+			"occurrence_count":   alert.OccurrenceCount,
+			"first_fired_at":     alert.FirstFiredAt.AsTime(),
+			"last_resolved_at":   alert.LastResolvedAt.AsTime(),
+			"total_duration":     alert.TotalDuration,
+			"avg_duration":       alert.AvgDuration,
+			"total_mttr":         alert.TotalMttr,
+			"avg_mttr":           alert.AvgMttr,
+			"labels":             alert.Labels,
+			"annotations":        alert.Annotations,
+			"source":             alert.Source,
+			"instance":           alert.Instance,
+			"team":               alert.Team,
+		}
+	}
+
+	return map[string]interface{}{
+		"success":     true,
+		"alerts":      alerts,
+		"total_count": resp.TotalCount,
+		"start_date":  resp.StartDate.AsTime(),
+		"end_date":    resp.EndDate.AsTime(),
+	}, nil
+}

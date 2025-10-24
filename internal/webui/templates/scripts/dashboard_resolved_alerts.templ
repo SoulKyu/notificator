@@ -1,0 +1,189 @@
+package scripts
+
+templ DashboardResolvedAlertsMixin() {
+	<script>
+		window.dashboardResolvedAlertsMixin = {
+			// State (will be merged into dashboard)
+			resolvedAlerts: [],
+			resolvedTotalCount: 0,
+			resolvedLoading: false,
+
+			// Time range for resolved alerts (separate from main filters)
+			resolvedTimeRange: {
+				start: '', // datetime-local format
+				end: '',   // datetime-local format
+			},
+
+			// Include silenced alerts in results (default: false - exclude silenced)
+			resolvedIncludeSilenced: false,
+
+			// Pagination for resolved alerts
+			resolvedPagination: {
+				limit: 100,
+				offset: 0
+			},
+
+			// Initialize time range on component init
+			initResolvedTimeRange() {
+				const now = new Date();
+				const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+				// Format for datetime-local input (YYYY-MM-DDTHH:mm)
+				this.resolvedTimeRange.end = this.formatDateTimeLocal(now);
+				this.resolvedTimeRange.start = this.formatDateTimeLocal(oneDayAgo);
+			},
+
+			// Format date for datetime-local input
+			formatDateTimeLocal(date) {
+				const year = date.getFullYear();
+				const month = String(date.getMonth() + 1).padStart(2, '0');
+				const day = String(date.getDate()).padStart(2, '0');
+				const hours = String(date.getHours()).padStart(2, '0');
+				const minutes = String(date.getMinutes()).padStart(2, '0');
+				return `${year}-${month}-${day}T${hours}:${minutes}`;
+			},
+
+			// Set time range with preset (hours from now)
+			async setResolvedTimeRange(hours) {
+				const now = new Date();
+				const startDate = new Date(now.getTime() - (hours * 60 * 60 * 1000));
+
+				this.resolvedTimeRange.start = this.formatDateTimeLocal(startDate);
+				this.resolvedTimeRange.end = this.formatDateTimeLocal(now);
+
+				await this.applyResolvedTimeRange();
+			},
+
+			// Apply time range change and reload
+			async applyResolvedTimeRange() {
+				this.resolvedPagination.offset = 0; // Reset pagination
+				await this.loadResolvedAlerts();
+			},
+
+			// Count active filters from main dashboard
+			getActiveFiltersCount() {
+				let count = 0;
+				if (this.filters.alertmanagers && this.filters.alertmanagers.length > 0) count++;
+				if (this.filters.severities && this.filters.severities.length > 0) count++;
+				if (this.filters.statuses && this.filters.statuses.length > 0) count++;
+				if (this.filters.teams && this.filters.teams.length > 0) count++;
+				if (this.filters.alertNames && this.filters.alertNames.length > 0) count++;
+				if (this.searchQuery && this.searchQuery.trim().length > 0) count++;
+				if (this.acknowledgmentFilter !== null) count++;
+				if (this.commentsFilter !== null) count++;
+				return count;
+			},
+
+			// Load recently resolved alerts using main dashboard filters + time range
+			async loadResolvedAlerts() {
+				// Initialize time range if not set
+				if (!this.resolvedTimeRange.start || !this.resolvedTimeRange.end) {
+					this.initResolvedTimeRange();
+				}
+
+				this.resolvedLoading = true;
+
+				try {
+					// Parse datetime-local to ISO string
+					const startDate = new Date(this.resolvedTimeRange.start);
+					const endDate = new Date(this.resolvedTimeRange.end);
+
+					// Build request using main dashboard filters
+					const requestBody = {
+						start_date: startDate.toISOString(),
+						end_date: endDate.toISOString(),
+						severity: this.filters.severities || [],
+						team: (this.filters.teams && this.filters.teams.length > 0) ? this.filters.teams.join(',') : '',
+						alert_name: (this.filters.alertNames && this.filters.alertNames.length > 0) ? this.filters.alertNames.join(',') : '',
+						search_query: this.searchQuery || '',
+						include_silenced: this.resolvedIncludeSilenced,
+						limit: this.resolvedPagination.limit,
+						offset: this.resolvedPagination.offset
+					};
+
+					console.log('Loading resolved alerts with filters:', requestBody);
+
+					const response = await fetch('/api/v1/statistics/recently-resolved', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(requestBody)
+					});
+
+					const data = await response.json();
+
+					if (data.success && data.data) {
+						this.resolvedAlerts = data.data.alerts || [];
+						this.resolvedTotalCount = data.data.total_count || 0;
+						console.log(`Loaded ${this.resolvedAlerts.length} unique fingerprints (${this.resolvedTotalCount} total)`);
+						console.log('Sample alert:', this.resolvedAlerts[0]);
+					} else {
+						console.error('Failed to load resolved alerts:', data.message || 'Unknown error');
+						this.resolvedAlerts = [];
+						this.resolvedTotalCount = 0;
+					}
+				} catch (error) {
+					console.error('Error loading resolved alerts:', error);
+					this.resolvedAlerts = [];
+					this.resolvedTotalCount = 0;
+				} finally {
+					this.resolvedLoading = false;
+				}
+			},
+
+			// Pagination
+			async loadResolvedPage(offset) {
+				this.resolvedPagination.offset = offset;
+				await this.loadResolvedAlerts();
+			},
+
+			// Format duration for display
+			formatResolvedDuration(seconds) {
+				if (!seconds || seconds === 0) return '0s';
+
+				const hours = Math.floor(seconds / 3600);
+				const minutes = Math.floor((seconds % 3600) / 60);
+				const secs = seconds % 60;
+
+				const parts = [];
+				if (hours > 0) parts.push(`${hours}h`);
+				if (minutes > 0) parts.push(`${minutes}m`);
+				if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+
+				return parts.join(' ');
+			},
+
+			// Get severity badge class
+			getResolvedSeverityClass(severity) {
+				const classes = {
+					'critical': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+					'warning': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+					'info': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+				};
+				return classes[severity.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+			},
+
+			// Show alert details from resolved tab
+			async showResolvedAlertDetails(alert) {
+				// Reuse existing modal infrastructure
+				// Convert resolved alert back to DashboardAlert format for compatibility
+				const dashboardAlert = {
+					fingerprint: alert.fingerprint,
+					alertName: alert.alert_name,
+					severity: alert.severity,
+					startsAt: alert.fired_at,
+					endsAt: alert.resolved_at,
+					labels: alert.labels || {},
+					annotations: alert.annotations || {},
+					source: alert.source,
+					instance: alert.instance,
+					isResolved: true,
+					resolvedAt: alert.resolved_at,
+					status: { state: 'resolved' }
+				};
+
+				// Use existing modal
+				await this.showAlertModal(dashboardAlert);
+			}
+		};
+	</script>
+}

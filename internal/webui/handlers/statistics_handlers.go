@@ -571,3 +571,78 @@ func StatisticsDashboardPage(c *gin.Context) {
 
 	templ.Handler(pages.StatisticsDashboard(pageData)).ServeHTTP(c.Writer, c.Request)
 }
+
+// QueryRecentlyResolved handles querying recently resolved alerts
+func QueryRecentlyResolved(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	// Check backend availability
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	var req struct {
+		StartDate       string   `json:"start_date"`
+		EndDate         string   `json:"end_date"`
+		Severity        []string `json:"severity"`
+		Team            string   `json:"team"`
+		AlertName       string   `json:"alert_name"`
+		SearchQuery     string   `json:"search_query"`
+		IncludeSilenced bool     `json:"include_silenced"`
+		Limit           int      `json:"limit"`
+		Offset          int      `json:"offset"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request: "+err.Error()))
+		return
+	}
+
+	// Parse dates
+	startDate, err := time.Parse(time.RFC3339, req.StartDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid start_date format: "+err.Error()))
+		return
+	}
+
+	endDate, err := time.Parse(time.RFC3339, req.EndDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid end_date format: "+err.Error()))
+		return
+	}
+
+	// Default limit
+	if req.Limit <= 0 {
+		req.Limit = 100
+	}
+	if req.Limit > 1000 {
+		req.Limit = 1000
+	}
+
+	// Query backend
+	result, err := backendClient.QueryRecentlyResolved(
+		sessionID,
+		startDate,
+		endDate,
+		req.Severity,
+		req.Team,
+		req.AlertName,
+		req.SearchQuery,
+		req.IncludeSilenced,
+		req.Limit,
+		req.Offset,
+	)
+
+	if err != nil {
+		log.Printf("Failed to query recently resolved alerts: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to query recently resolved alerts"))
+		return
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(result))
+}
