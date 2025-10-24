@@ -1252,3 +1252,497 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "proto/alert.proto",
 }
+
+const (
+	StatisticsService_QueryStatistics_FullMethodName         = "/notificator.alert.StatisticsService/QueryStatistics"
+	StatisticsService_SaveOnCallRule_FullMethodName          = "/notificator.alert.StatisticsService/SaveOnCallRule"
+	StatisticsService_GetOnCallRules_FullMethodName          = "/notificator.alert.StatisticsService/GetOnCallRules"
+	StatisticsService_GetOnCallRule_FullMethodName           = "/notificator.alert.StatisticsService/GetOnCallRule"
+	StatisticsService_UpdateOnCallRule_FullMethodName        = "/notificator.alert.StatisticsService/UpdateOnCallRule"
+	StatisticsService_DeleteOnCallRule_FullMethodName        = "/notificator.alert.StatisticsService/DeleteOnCallRule"
+	StatisticsService_TestOnCallRule_FullMethodName          = "/notificator.alert.StatisticsService/TestOnCallRule"
+	StatisticsService_GetStatisticsSummary_FullMethodName    = "/notificator.alert.StatisticsService/GetStatisticsSummary"
+	StatisticsService_CaptureAlertFired_FullMethodName       = "/notificator.alert.StatisticsService/CaptureAlertFired"
+	StatisticsService_UpdateAlertResolved_FullMethodName     = "/notificator.alert.StatisticsService/UpdateAlertResolved"
+	StatisticsService_UpdateAlertAcknowledged_FullMethodName = "/notificator.alert.StatisticsService/UpdateAlertAcknowledged"
+)
+
+// StatisticsServiceClient is the client API for StatisticsService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Statistics Service for on-call alert analytics
+type StatisticsServiceClient interface {
+	// Query statistics with filters and aggregations
+	QueryStatistics(ctx context.Context, in *QueryStatisticsRequest, opts ...grpc.CallOption) (*QueryStatisticsResponse, error)
+	// On-Call Rules Management
+	SaveOnCallRule(ctx context.Context, in *SaveOnCallRuleRequest, opts ...grpc.CallOption) (*SaveOnCallRuleResponse, error)
+	GetOnCallRules(ctx context.Context, in *GetOnCallRulesRequest, opts ...grpc.CallOption) (*GetOnCallRulesResponse, error)
+	GetOnCallRule(ctx context.Context, in *GetOnCallRuleRequest, opts ...grpc.CallOption) (*GetOnCallRuleResponse, error)
+	UpdateOnCallRule(ctx context.Context, in *UpdateOnCallRuleRequest, opts ...grpc.CallOption) (*UpdateOnCallRuleResponse, error)
+	DeleteOnCallRule(ctx context.Context, in *DeleteOnCallRuleRequest, opts ...grpc.CallOption) (*DeleteOnCallRuleResponse, error)
+	TestOnCallRule(ctx context.Context, in *TestOnCallRuleRequest, opts ...grpc.CallOption) (*TestOnCallRuleResponse, error)
+	// Summary and overview
+	GetStatisticsSummary(ctx context.Context, in *GetStatisticsSummaryRequest, opts ...grpc.CallOption) (*GetStatisticsSummaryResponse, error)
+	// Alert statistics capture events
+	CaptureAlertFired(ctx context.Context, in *CaptureAlertFiredRequest, opts ...grpc.CallOption) (*CaptureAlertFiredResponse, error)
+	UpdateAlertResolved(ctx context.Context, in *UpdateAlertResolvedRequest, opts ...grpc.CallOption) (*UpdateAlertResolvedResponse, error)
+	UpdateAlertAcknowledged(ctx context.Context, in *UpdateAlertAcknowledgedRequest, opts ...grpc.CallOption) (*UpdateAlertAcknowledgedResponse, error)
+}
+
+type statisticsServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewStatisticsServiceClient(cc grpc.ClientConnInterface) StatisticsServiceClient {
+	return &statisticsServiceClient{cc}
+}
+
+func (c *statisticsServiceClient) QueryStatistics(ctx context.Context, in *QueryStatisticsRequest, opts ...grpc.CallOption) (*QueryStatisticsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryStatisticsResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_QueryStatistics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) SaveOnCallRule(ctx context.Context, in *SaveOnCallRuleRequest, opts ...grpc.CallOption) (*SaveOnCallRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveOnCallRuleResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_SaveOnCallRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) GetOnCallRules(ctx context.Context, in *GetOnCallRulesRequest, opts ...grpc.CallOption) (*GetOnCallRulesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOnCallRulesResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_GetOnCallRules_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) GetOnCallRule(ctx context.Context, in *GetOnCallRuleRequest, opts ...grpc.CallOption) (*GetOnCallRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOnCallRuleResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_GetOnCallRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) UpdateOnCallRule(ctx context.Context, in *UpdateOnCallRuleRequest, opts ...grpc.CallOption) (*UpdateOnCallRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateOnCallRuleResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_UpdateOnCallRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) DeleteOnCallRule(ctx context.Context, in *DeleteOnCallRuleRequest, opts ...grpc.CallOption) (*DeleteOnCallRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteOnCallRuleResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_DeleteOnCallRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) TestOnCallRule(ctx context.Context, in *TestOnCallRuleRequest, opts ...grpc.CallOption) (*TestOnCallRuleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestOnCallRuleResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_TestOnCallRule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) GetStatisticsSummary(ctx context.Context, in *GetStatisticsSummaryRequest, opts ...grpc.CallOption) (*GetStatisticsSummaryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetStatisticsSummaryResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_GetStatisticsSummary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) CaptureAlertFired(ctx context.Context, in *CaptureAlertFiredRequest, opts ...grpc.CallOption) (*CaptureAlertFiredResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CaptureAlertFiredResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_CaptureAlertFired_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) UpdateAlertResolved(ctx context.Context, in *UpdateAlertResolvedRequest, opts ...grpc.CallOption) (*UpdateAlertResolvedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateAlertResolvedResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_UpdateAlertResolved_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) UpdateAlertAcknowledged(ctx context.Context, in *UpdateAlertAcknowledgedRequest, opts ...grpc.CallOption) (*UpdateAlertAcknowledgedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateAlertAcknowledgedResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_UpdateAlertAcknowledged_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// StatisticsServiceServer is the server API for StatisticsService service.
+// All implementations must embed UnimplementedStatisticsServiceServer
+// for forward compatibility.
+//
+// Statistics Service for on-call alert analytics
+type StatisticsServiceServer interface {
+	// Query statistics with filters and aggregations
+	QueryStatistics(context.Context, *QueryStatisticsRequest) (*QueryStatisticsResponse, error)
+	// On-Call Rules Management
+	SaveOnCallRule(context.Context, *SaveOnCallRuleRequest) (*SaveOnCallRuleResponse, error)
+	GetOnCallRules(context.Context, *GetOnCallRulesRequest) (*GetOnCallRulesResponse, error)
+	GetOnCallRule(context.Context, *GetOnCallRuleRequest) (*GetOnCallRuleResponse, error)
+	UpdateOnCallRule(context.Context, *UpdateOnCallRuleRequest) (*UpdateOnCallRuleResponse, error)
+	DeleteOnCallRule(context.Context, *DeleteOnCallRuleRequest) (*DeleteOnCallRuleResponse, error)
+	TestOnCallRule(context.Context, *TestOnCallRuleRequest) (*TestOnCallRuleResponse, error)
+	// Summary and overview
+	GetStatisticsSummary(context.Context, *GetStatisticsSummaryRequest) (*GetStatisticsSummaryResponse, error)
+	// Alert statistics capture events
+	CaptureAlertFired(context.Context, *CaptureAlertFiredRequest) (*CaptureAlertFiredResponse, error)
+	UpdateAlertResolved(context.Context, *UpdateAlertResolvedRequest) (*UpdateAlertResolvedResponse, error)
+	UpdateAlertAcknowledged(context.Context, *UpdateAlertAcknowledgedRequest) (*UpdateAlertAcknowledgedResponse, error)
+	mustEmbedUnimplementedStatisticsServiceServer()
+}
+
+// UnimplementedStatisticsServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedStatisticsServiceServer struct{}
+
+func (UnimplementedStatisticsServiceServer) QueryStatistics(context.Context, *QueryStatisticsRequest) (*QueryStatisticsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryStatistics not implemented")
+}
+func (UnimplementedStatisticsServiceServer) SaveOnCallRule(context.Context, *SaveOnCallRuleRequest) (*SaveOnCallRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveOnCallRule not implemented")
+}
+func (UnimplementedStatisticsServiceServer) GetOnCallRules(context.Context, *GetOnCallRulesRequest) (*GetOnCallRulesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOnCallRules not implemented")
+}
+func (UnimplementedStatisticsServiceServer) GetOnCallRule(context.Context, *GetOnCallRuleRequest) (*GetOnCallRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOnCallRule not implemented")
+}
+func (UnimplementedStatisticsServiceServer) UpdateOnCallRule(context.Context, *UpdateOnCallRuleRequest) (*UpdateOnCallRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateOnCallRule not implemented")
+}
+func (UnimplementedStatisticsServiceServer) DeleteOnCallRule(context.Context, *DeleteOnCallRuleRequest) (*DeleteOnCallRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteOnCallRule not implemented")
+}
+func (UnimplementedStatisticsServiceServer) TestOnCallRule(context.Context, *TestOnCallRuleRequest) (*TestOnCallRuleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestOnCallRule not implemented")
+}
+func (UnimplementedStatisticsServiceServer) GetStatisticsSummary(context.Context, *GetStatisticsSummaryRequest) (*GetStatisticsSummaryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStatisticsSummary not implemented")
+}
+func (UnimplementedStatisticsServiceServer) CaptureAlertFired(context.Context, *CaptureAlertFiredRequest) (*CaptureAlertFiredResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CaptureAlertFired not implemented")
+}
+func (UnimplementedStatisticsServiceServer) UpdateAlertResolved(context.Context, *UpdateAlertResolvedRequest) (*UpdateAlertResolvedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAlertResolved not implemented")
+}
+func (UnimplementedStatisticsServiceServer) UpdateAlertAcknowledged(context.Context, *UpdateAlertAcknowledgedRequest) (*UpdateAlertAcknowledgedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAlertAcknowledged not implemented")
+}
+func (UnimplementedStatisticsServiceServer) mustEmbedUnimplementedStatisticsServiceServer() {}
+func (UnimplementedStatisticsServiceServer) testEmbeddedByValue()                           {}
+
+// UnsafeStatisticsServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StatisticsServiceServer will
+// result in compilation errors.
+type UnsafeStatisticsServiceServer interface {
+	mustEmbedUnimplementedStatisticsServiceServer()
+}
+
+func RegisterStatisticsServiceServer(s grpc.ServiceRegistrar, srv StatisticsServiceServer) {
+	// If the following call pancis, it indicates UnimplementedStatisticsServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&StatisticsService_ServiceDesc, srv)
+}
+
+func _StatisticsService_QueryStatistics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryStatisticsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).QueryStatistics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_QueryStatistics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).QueryStatistics(ctx, req.(*QueryStatisticsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_SaveOnCallRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveOnCallRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).SaveOnCallRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_SaveOnCallRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).SaveOnCallRule(ctx, req.(*SaveOnCallRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_GetOnCallRules_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOnCallRulesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).GetOnCallRules(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_GetOnCallRules_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).GetOnCallRules(ctx, req.(*GetOnCallRulesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_GetOnCallRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOnCallRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).GetOnCallRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_GetOnCallRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).GetOnCallRule(ctx, req.(*GetOnCallRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_UpdateOnCallRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateOnCallRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).UpdateOnCallRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_UpdateOnCallRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).UpdateOnCallRule(ctx, req.(*UpdateOnCallRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_DeleteOnCallRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteOnCallRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).DeleteOnCallRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_DeleteOnCallRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).DeleteOnCallRule(ctx, req.(*DeleteOnCallRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_TestOnCallRule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestOnCallRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).TestOnCallRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_TestOnCallRule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).TestOnCallRule(ctx, req.(*TestOnCallRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_GetStatisticsSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStatisticsSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).GetStatisticsSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_GetStatisticsSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).GetStatisticsSummary(ctx, req.(*GetStatisticsSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_CaptureAlertFired_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CaptureAlertFiredRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).CaptureAlertFired(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_CaptureAlertFired_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).CaptureAlertFired(ctx, req.(*CaptureAlertFiredRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_UpdateAlertResolved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAlertResolvedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).UpdateAlertResolved(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_UpdateAlertResolved_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).UpdateAlertResolved(ctx, req.(*UpdateAlertResolvedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_UpdateAlertAcknowledged_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAlertAcknowledgedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).UpdateAlertAcknowledged(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_UpdateAlertAcknowledged_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).UpdateAlertAcknowledged(ctx, req.(*UpdateAlertAcknowledgedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// StatisticsService_ServiceDesc is the grpc.ServiceDesc for StatisticsService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var StatisticsService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "notificator.alert.StatisticsService",
+	HandlerType: (*StatisticsServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "QueryStatistics",
+			Handler:    _StatisticsService_QueryStatistics_Handler,
+		},
+		{
+			MethodName: "SaveOnCallRule",
+			Handler:    _StatisticsService_SaveOnCallRule_Handler,
+		},
+		{
+			MethodName: "GetOnCallRules",
+			Handler:    _StatisticsService_GetOnCallRules_Handler,
+		},
+		{
+			MethodName: "GetOnCallRule",
+			Handler:    _StatisticsService_GetOnCallRule_Handler,
+		},
+		{
+			MethodName: "UpdateOnCallRule",
+			Handler:    _StatisticsService_UpdateOnCallRule_Handler,
+		},
+		{
+			MethodName: "DeleteOnCallRule",
+			Handler:    _StatisticsService_DeleteOnCallRule_Handler,
+		},
+		{
+			MethodName: "TestOnCallRule",
+			Handler:    _StatisticsService_TestOnCallRule_Handler,
+		},
+		{
+			MethodName: "GetStatisticsSummary",
+			Handler:    _StatisticsService_GetStatisticsSummary_Handler,
+		},
+		{
+			MethodName: "CaptureAlertFired",
+			Handler:    _StatisticsService_CaptureAlertFired_Handler,
+		},
+		{
+			MethodName: "UpdateAlertResolved",
+			Handler:    _StatisticsService_UpdateAlertResolved_Handler,
+		},
+		{
+			MethodName: "UpdateAlertAcknowledged",
+			Handler:    _StatisticsService_UpdateAlertAcknowledged_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/alert.proto",
+}

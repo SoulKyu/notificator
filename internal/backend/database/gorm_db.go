@@ -92,6 +92,12 @@ func (gdb *GormDB) GetDBType() string {
 	return gdb.dbType
 }
 
+// GetDB returns the underlying *gorm.DB instance
+// Used by services that need direct database access (e.g., rule engine)
+func (gdb *GormDB) GetDB() *gorm.DB {
+	return gdb.db
+}
+
 // IsSQLite returns true if the database is SQLite
 func (gdb *GormDB) IsSQLite() bool {
 	return gdb.dbType == "sqlite"
@@ -133,6 +139,10 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.OAuthGroupCache{},
 		// Sentry integration
 		&models.UserSentryConfig{},
+		// Alert statistics
+		&models.AlertStatistic{},
+		&models.OnCallRule{},
+		&models.StatisticsAggregate{},
 	)
 
 	if err != nil {

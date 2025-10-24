@@ -766,6 +766,15 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 		// Always increment comment count since we add an acknowledgment comment
 		alert.CommentCount++
 
+		// Capture acknowledgment statistics
+		if backendClient != nil && backendClient.IsConnected() {
+			go func(ackAlert *webuimodels.DashboardAlert) {
+				if err := backendClient.UpdateAlertAcknowledged(ackAlert); err != nil {
+					fmt.Printf("Failed to capture alert acknowledged statistics for %s: %v", ackAlert.Fingerprint, err)
+				}
+			}(alert)
+		}
+
 	case "unacknowledge":
 		// Remove acknowledgment from backend
 		if backendClient != nil && backendClient.IsConnected() {
@@ -1739,4 +1748,3 @@ func processUnsilenceAction(c *gin.Context, fingerprint, userID string) error {
 
 	return nil
 }
-

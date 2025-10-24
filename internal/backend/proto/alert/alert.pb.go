@@ -4367,6 +4367,1930 @@ func (x *FilterPreset) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+type QueryStatisticsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	StartDate     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	EndDate       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
+	ApplyRules    bool                   `protobuf:"varint,4,opt,name=apply_rules,json=applyRules,proto3" json:"apply_rules,omitempty"` // Apply user's on-call rules
+	GroupBy       string                 `protobuf:"bytes,5,opt,name=group_by,json=groupBy,proto3" json:"group_by,omitempty"`           // "severity", "team", "period", "alert_name", or empty for overall
+	PeriodType    string                 `protobuf:"bytes,6,opt,name=period_type,json=periodType,proto3" json:"period_type,omitempty"`  // "hour", "day", "week", "month" (required if group_by="period")
+	Limit         int32                  `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`                             // Limit results (for alert_name grouping)
+	Offset        int32                  `protobuf:"varint,8,opt,name=offset,proto3" json:"offset,omitempty"`                           // Pagination offset
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryStatisticsRequest) Reset() {
+	*x = QueryStatisticsRequest{}
+	mi := &file_proto_alert_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryStatisticsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryStatisticsRequest) ProtoMessage() {}
+
+func (x *QueryStatisticsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryStatisticsRequest.ProtoReflect.Descriptor instead.
+func (*QueryStatisticsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *QueryStatisticsRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *QueryStatisticsRequest) GetStartDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartDate
+	}
+	return nil
+}
+
+func (x *QueryStatisticsRequest) GetEndDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndDate
+	}
+	return nil
+}
+
+func (x *QueryStatisticsRequest) GetApplyRules() bool {
+	if x != nil {
+		return x.ApplyRules
+	}
+	return false
+}
+
+func (x *QueryStatisticsRequest) GetGroupBy() string {
+	if x != nil {
+		return x.GroupBy
+	}
+	return ""
+}
+
+func (x *QueryStatisticsRequest) GetPeriodType() string {
+	if x != nil {
+		return x.PeriodType
+	}
+	return ""
+}
+
+func (x *QueryStatisticsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *QueryStatisticsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type QueryStatisticsResponse struct {
+	state         protoimpl.MessageState           `protogen:"open.v1"`
+	Success       bool                             `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	TimeRange     *TimeRange                       `protobuf:"bytes,2,opt,name=time_range,json=timeRange,proto3" json:"time_range,omitempty"`
+	TotalAlerts   int64                            `protobuf:"varint,3,opt,name=total_alerts,json=totalAlerts,proto3" json:"total_alerts,omitempty"`
+	Statistics    map[string]*AggregatedStatistics `protobuf:"bytes,4,rep,name=statistics,proto3" json:"statistics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Key varies by group_by
+	Breakdown     []*BreakdownItem                 `protobuf:"bytes,5,rep,name=breakdown,proto3" json:"breakdown,omitempty"`                                                                             // Used for period grouping
+	Message       string                           `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryStatisticsResponse) Reset() {
+	*x = QueryStatisticsResponse{}
+	mi := &file_proto_alert_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryStatisticsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryStatisticsResponse) ProtoMessage() {}
+
+func (x *QueryStatisticsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryStatisticsResponse.ProtoReflect.Descriptor instead.
+func (*QueryStatisticsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *QueryStatisticsResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *QueryStatisticsResponse) GetTimeRange() *TimeRange {
+	if x != nil {
+		return x.TimeRange
+	}
+	return nil
+}
+
+func (x *QueryStatisticsResponse) GetTotalAlerts() int64 {
+	if x != nil {
+		return x.TotalAlerts
+	}
+	return 0
+}
+
+func (x *QueryStatisticsResponse) GetStatistics() map[string]*AggregatedStatistics {
+	if x != nil {
+		return x.Statistics
+	}
+	return nil
+}
+
+func (x *QueryStatisticsResponse) GetBreakdown() []*BreakdownItem {
+	if x != nil {
+		return x.Breakdown
+	}
+	return nil
+}
+
+func (x *QueryStatisticsResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type TimeRange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Start         *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
+	End           *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end,proto3" json:"end,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TimeRange) Reset() {
+	*x = TimeRange{}
+	mi := &file_proto_alert_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TimeRange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TimeRange) ProtoMessage() {}
+
+func (x *TimeRange) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TimeRange.ProtoReflect.Descriptor instead.
+func (*TimeRange) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *TimeRange) GetStart() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Start
+	}
+	return nil
+}
+
+func (x *TimeRange) GetEnd() *timestamppb.Timestamp {
+	if x != nil {
+		return x.End
+	}
+	return nil
+}
+
+type AggregatedStatistics struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Count                int32                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
+	AvgDurationSeconds   float64                `protobuf:"fixed64,2,opt,name=avg_duration_seconds,json=avgDurationSeconds,proto3" json:"avg_duration_seconds,omitempty"`
+	TotalDurationSeconds int32                  `protobuf:"varint,3,opt,name=total_duration_seconds,json=totalDurationSeconds,proto3" json:"total_duration_seconds,omitempty"`
+	AvgMttrSeconds       float64                `protobuf:"fixed64,4,opt,name=avg_mttr_seconds,json=avgMttrSeconds,proto3" json:"avg_mttr_seconds,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *AggregatedStatistics) Reset() {
+	*x = AggregatedStatistics{}
+	mi := &file_proto_alert_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AggregatedStatistics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AggregatedStatistics) ProtoMessage() {}
+
+func (x *AggregatedStatistics) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AggregatedStatistics.ProtoReflect.Descriptor instead.
+func (*AggregatedStatistics) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *AggregatedStatistics) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+func (x *AggregatedStatistics) GetAvgDurationSeconds() float64 {
+	if x != nil {
+		return x.AvgDurationSeconds
+	}
+	return 0
+}
+
+func (x *AggregatedStatistics) GetTotalDurationSeconds() int32 {
+	if x != nil {
+		return x.TotalDurationSeconds
+	}
+	return 0
+}
+
+func (x *AggregatedStatistics) GetAvgMttrSeconds() float64 {
+	if x != nil {
+		return x.AvgMttrSeconds
+	}
+	return 0
+}
+
+type BreakdownItem struct {
+	state         protoimpl.MessageState           `protogen:"open.v1"`
+	Period        string                           `protobuf:"bytes,1,opt,name=period,proto3" json:"period,omitempty"` // e.g., "2025-10-22" or "Week of 2025-10-20"
+	StartTime     *timestamppb.Timestamp           `protobuf:"bytes,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	EndTime       *timestamppb.Timestamp           `protobuf:"bytes,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	TotalCount    int32                            `protobuf:"varint,4,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Statistics    map[string]*AggregatedStatistics `protobuf:"bytes,5,rep,name=statistics,proto3" json:"statistics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Breakdown by severity within period
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BreakdownItem) Reset() {
+	*x = BreakdownItem{}
+	mi := &file_proto_alert_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BreakdownItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BreakdownItem) ProtoMessage() {}
+
+func (x *BreakdownItem) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BreakdownItem.ProtoReflect.Descriptor instead.
+func (*BreakdownItem) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *BreakdownItem) GetPeriod() string {
+	if x != nil {
+		return x.Period
+	}
+	return ""
+}
+
+func (x *BreakdownItem) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *BreakdownItem) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *BreakdownItem) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *BreakdownItem) GetStatistics() map[string]*AggregatedStatistics {
+	if x != nil {
+		return x.Statistics
+	}
+	return nil
+}
+
+type SaveOnCallRuleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RuleName      string                 `protobuf:"bytes,2,opt,name=rule_name,json=ruleName,proto3" json:"rule_name,omitempty"`
+	RuleConfig    *RuleConfig            `protobuf:"bytes,3,opt,name=rule_config,json=ruleConfig,proto3" json:"rule_config,omitempty"`
+	IsActive      bool                   `protobuf:"varint,4,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveOnCallRuleRequest) Reset() {
+	*x = SaveOnCallRuleRequest{}
+	mi := &file_proto_alert_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveOnCallRuleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveOnCallRuleRequest) ProtoMessage() {}
+
+func (x *SaveOnCallRuleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveOnCallRuleRequest.ProtoReflect.Descriptor instead.
+func (*SaveOnCallRuleRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *SaveOnCallRuleRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SaveOnCallRuleRequest) GetRuleName() string {
+	if x != nil {
+		return x.RuleName
+	}
+	return ""
+}
+
+func (x *SaveOnCallRuleRequest) GetRuleConfig() *RuleConfig {
+	if x != nil {
+		return x.RuleConfig
+	}
+	return nil
+}
+
+func (x *SaveOnCallRuleRequest) GetIsActive() bool {
+	if x != nil {
+		return x.IsActive
+	}
+	return false
+}
+
+type SaveOnCallRuleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Rule          *OnCallRule            `protobuf:"bytes,2,opt,name=rule,proto3" json:"rule,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveOnCallRuleResponse) Reset() {
+	*x = SaveOnCallRuleResponse{}
+	mi := &file_proto_alert_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveOnCallRuleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveOnCallRuleResponse) ProtoMessage() {}
+
+func (x *SaveOnCallRuleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveOnCallRuleResponse.ProtoReflect.Descriptor instead.
+func (*SaveOnCallRuleResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *SaveOnCallRuleResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SaveOnCallRuleResponse) GetRule() *OnCallRule {
+	if x != nil {
+		return x.Rule
+	}
+	return nil
+}
+
+func (x *SaveOnCallRuleResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type GetOnCallRulesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ActiveOnly    bool                   `protobuf:"varint,2,opt,name=active_only,json=activeOnly,proto3" json:"active_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOnCallRulesRequest) Reset() {
+	*x = GetOnCallRulesRequest{}
+	mi := &file_proto_alert_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOnCallRulesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOnCallRulesRequest) ProtoMessage() {}
+
+func (x *GetOnCallRulesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOnCallRulesRequest.ProtoReflect.Descriptor instead.
+func (*GetOnCallRulesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *GetOnCallRulesRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *GetOnCallRulesRequest) GetActiveOnly() bool {
+	if x != nil {
+		return x.ActiveOnly
+	}
+	return false
+}
+
+type GetOnCallRulesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Rules         []*OnCallRule          `protobuf:"bytes,2,rep,name=rules,proto3" json:"rules,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOnCallRulesResponse) Reset() {
+	*x = GetOnCallRulesResponse{}
+	mi := &file_proto_alert_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOnCallRulesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOnCallRulesResponse) ProtoMessage() {}
+
+func (x *GetOnCallRulesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOnCallRulesResponse.ProtoReflect.Descriptor instead.
+func (*GetOnCallRulesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *GetOnCallRulesResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetOnCallRulesResponse) GetRules() []*OnCallRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+func (x *GetOnCallRulesResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type GetOnCallRuleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RuleId        string                 `protobuf:"bytes,2,opt,name=rule_id,json=ruleId,proto3" json:"rule_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOnCallRuleRequest) Reset() {
+	*x = GetOnCallRuleRequest{}
+	mi := &file_proto_alert_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOnCallRuleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOnCallRuleRequest) ProtoMessage() {}
+
+func (x *GetOnCallRuleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOnCallRuleRequest.ProtoReflect.Descriptor instead.
+func (*GetOnCallRuleRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *GetOnCallRuleRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *GetOnCallRuleRequest) GetRuleId() string {
+	if x != nil {
+		return x.RuleId
+	}
+	return ""
+}
+
+type GetOnCallRuleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Rule          *OnCallRule            `protobuf:"bytes,2,opt,name=rule,proto3" json:"rule,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOnCallRuleResponse) Reset() {
+	*x = GetOnCallRuleResponse{}
+	mi := &file_proto_alert_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOnCallRuleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOnCallRuleResponse) ProtoMessage() {}
+
+func (x *GetOnCallRuleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOnCallRuleResponse.ProtoReflect.Descriptor instead.
+func (*GetOnCallRuleResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *GetOnCallRuleResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetOnCallRuleResponse) GetRule() *OnCallRule {
+	if x != nil {
+		return x.Rule
+	}
+	return nil
+}
+
+func (x *GetOnCallRuleResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type UpdateOnCallRuleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RuleId        string                 `protobuf:"bytes,2,opt,name=rule_id,json=ruleId,proto3" json:"rule_id,omitempty"`
+	RuleName      string                 `protobuf:"bytes,3,opt,name=rule_name,json=ruleName,proto3" json:"rule_name,omitempty"`
+	RuleConfig    *RuleConfig            `protobuf:"bytes,4,opt,name=rule_config,json=ruleConfig,proto3" json:"rule_config,omitempty"`
+	IsActive      bool                   `protobuf:"varint,5,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateOnCallRuleRequest) Reset() {
+	*x = UpdateOnCallRuleRequest{}
+	mi := &file_proto_alert_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateOnCallRuleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateOnCallRuleRequest) ProtoMessage() {}
+
+func (x *UpdateOnCallRuleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateOnCallRuleRequest.ProtoReflect.Descriptor instead.
+func (*UpdateOnCallRuleRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *UpdateOnCallRuleRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *UpdateOnCallRuleRequest) GetRuleId() string {
+	if x != nil {
+		return x.RuleId
+	}
+	return ""
+}
+
+func (x *UpdateOnCallRuleRequest) GetRuleName() string {
+	if x != nil {
+		return x.RuleName
+	}
+	return ""
+}
+
+func (x *UpdateOnCallRuleRequest) GetRuleConfig() *RuleConfig {
+	if x != nil {
+		return x.RuleConfig
+	}
+	return nil
+}
+
+func (x *UpdateOnCallRuleRequest) GetIsActive() bool {
+	if x != nil {
+		return x.IsActive
+	}
+	return false
+}
+
+type UpdateOnCallRuleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Rule          *OnCallRule            `protobuf:"bytes,2,opt,name=rule,proto3" json:"rule,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateOnCallRuleResponse) Reset() {
+	*x = UpdateOnCallRuleResponse{}
+	mi := &file_proto_alert_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateOnCallRuleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateOnCallRuleResponse) ProtoMessage() {}
+
+func (x *UpdateOnCallRuleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateOnCallRuleResponse.ProtoReflect.Descriptor instead.
+func (*UpdateOnCallRuleResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *UpdateOnCallRuleResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *UpdateOnCallRuleResponse) GetRule() *OnCallRule {
+	if x != nil {
+		return x.Rule
+	}
+	return nil
+}
+
+func (x *UpdateOnCallRuleResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type DeleteOnCallRuleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RuleId        string                 `protobuf:"bytes,2,opt,name=rule_id,json=ruleId,proto3" json:"rule_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteOnCallRuleRequest) Reset() {
+	*x = DeleteOnCallRuleRequest{}
+	mi := &file_proto_alert_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteOnCallRuleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteOnCallRuleRequest) ProtoMessage() {}
+
+func (x *DeleteOnCallRuleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteOnCallRuleRequest.ProtoReflect.Descriptor instead.
+func (*DeleteOnCallRuleRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *DeleteOnCallRuleRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *DeleteOnCallRuleRequest) GetRuleId() string {
+	if x != nil {
+		return x.RuleId
+	}
+	return ""
+}
+
+type DeleteOnCallRuleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteOnCallRuleResponse) Reset() {
+	*x = DeleteOnCallRuleResponse{}
+	mi := &file_proto_alert_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteOnCallRuleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteOnCallRuleResponse) ProtoMessage() {}
+
+func (x *DeleteOnCallRuleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteOnCallRuleResponse.ProtoReflect.Descriptor instead.
+func (*DeleteOnCallRuleResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *DeleteOnCallRuleResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteOnCallRuleResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type TestOnCallRuleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RuleConfig    *RuleConfig            `protobuf:"bytes,2,opt,name=rule_config,json=ruleConfig,proto3" json:"rule_config,omitempty"`
+	SampleSize    int32                  `protobuf:"varint,3,opt,name=sample_size,json=sampleSize,proto3" json:"sample_size,omitempty"` // Number of sample alerts to return
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestOnCallRuleRequest) Reset() {
+	*x = TestOnCallRuleRequest{}
+	mi := &file_proto_alert_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestOnCallRuleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestOnCallRuleRequest) ProtoMessage() {}
+
+func (x *TestOnCallRuleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestOnCallRuleRequest.ProtoReflect.Descriptor instead.
+func (*TestOnCallRuleRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *TestOnCallRuleRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *TestOnCallRuleRequest) GetRuleConfig() *RuleConfig {
+	if x != nil {
+		return x.RuleConfig
+	}
+	return nil
+}
+
+func (x *TestOnCallRuleRequest) GetSampleSize() int32 {
+	if x != nil {
+		return x.SampleSize
+	}
+	return 0
+}
+
+type TestOnCallRuleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	TotalMatches  int64                  `protobuf:"varint,2,opt,name=total_matches,json=totalMatches,proto3" json:"total_matches,omitempty"`
+	SampleAlerts  []*AlertStatistic      `protobuf:"bytes,3,rep,name=sample_alerts,json=sampleAlerts,proto3" json:"sample_alerts,omitempty"`
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestOnCallRuleResponse) Reset() {
+	*x = TestOnCallRuleResponse{}
+	mi := &file_proto_alert_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestOnCallRuleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestOnCallRuleResponse) ProtoMessage() {}
+
+func (x *TestOnCallRuleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestOnCallRuleResponse.ProtoReflect.Descriptor instead.
+func (*TestOnCallRuleResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *TestOnCallRuleResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *TestOnCallRuleResponse) GetTotalMatches() int64 {
+	if x != nil {
+		return x.TotalMatches
+	}
+	return 0
+}
+
+func (x *TestOnCallRuleResponse) GetSampleAlerts() []*AlertStatistic {
+	if x != nil {
+		return x.SampleAlerts
+	}
+	return nil
+}
+
+func (x *TestOnCallRuleResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type OnCallRule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	RuleName      string                 `protobuf:"bytes,3,opt,name=rule_name,json=ruleName,proto3" json:"rule_name,omitempty"`
+	RuleConfig    *RuleConfig            `protobuf:"bytes,4,opt,name=rule_config,json=ruleConfig,proto3" json:"rule_config,omitempty"`
+	IsActive      bool                   `protobuf:"varint,5,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OnCallRule) Reset() {
+	*x = OnCallRule{}
+	mi := &file_proto_alert_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OnCallRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OnCallRule) ProtoMessage() {}
+
+func (x *OnCallRule) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OnCallRule.ProtoReflect.Descriptor instead.
+func (*OnCallRule) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *OnCallRule) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *OnCallRule) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *OnCallRule) GetRuleName() string {
+	if x != nil {
+		return x.RuleName
+	}
+	return ""
+}
+
+func (x *OnCallRule) GetRuleConfig() *RuleConfig {
+	if x != nil {
+		return x.RuleConfig
+	}
+	return nil
+}
+
+func (x *OnCallRule) GetIsActive() bool {
+	if x != nil {
+		return x.IsActive
+	}
+	return false
+}
+
+func (x *OnCallRule) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *OnCallRule) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type RuleConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Criteria      []*RuleCriterion       `protobuf:"bytes,1,rep,name=criteria,proto3" json:"criteria,omitempty"`
+	Logic         string                 `protobuf:"bytes,2,opt,name=logic,proto3" json:"logic,omitempty"` // "AND" or "OR"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuleConfig) Reset() {
+	*x = RuleConfig{}
+	mi := &file_proto_alert_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuleConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuleConfig) ProtoMessage() {}
+
+func (x *RuleConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuleConfig.ProtoReflect.Descriptor instead.
+func (*RuleConfig) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *RuleConfig) GetCriteria() []*RuleCriterion {
+	if x != nil {
+		return x.Criteria
+	}
+	return nil
+}
+
+func (x *RuleConfig) GetLogic() string {
+	if x != nil {
+		return x.Logic
+	}
+	return ""
+}
+
+type RuleCriterion struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`         // "severity", "label", "alert_name"
+	Operator      string                 `protobuf:"bytes,2,opt,name=operator,proto3" json:"operator,omitempty"` // "equals", "in", "not_equals", "contains", "regex", "starts_with", "ends_with"
+	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`       // Single value (for equals, not_equals, contains, etc.)
+	Values        []string               `protobuf:"bytes,4,rep,name=values,proto3" json:"values,omitempty"`     // Multiple values (for "in" operator)
+	Key           string                 `protobuf:"bytes,5,opt,name=key,proto3" json:"key,omitempty"`           // Label key (for label type)
+	Pattern       string                 `protobuf:"bytes,6,opt,name=pattern,proto3" json:"pattern,omitempty"`   // Pattern/regex (for alert_name type)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuleCriterion) Reset() {
+	*x = RuleCriterion{}
+	mi := &file_proto_alert_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuleCriterion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuleCriterion) ProtoMessage() {}
+
+func (x *RuleCriterion) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuleCriterion.ProtoReflect.Descriptor instead.
+func (*RuleCriterion) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *RuleCriterion) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *RuleCriterion) GetOperator() string {
+	if x != nil {
+		return x.Operator
+	}
+	return ""
+}
+
+func (x *RuleCriterion) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *RuleCriterion) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+func (x *RuleCriterion) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *RuleCriterion) GetPattern() string {
+	if x != nil {
+		return x.Pattern
+	}
+	return ""
+}
+
+type AlertStatistic struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Fingerprint     string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AlertName       string                 `protobuf:"bytes,3,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
+	Severity        string                 `protobuf:"bytes,4,opt,name=severity,proto3" json:"severity,omitempty"`
+	Metadata        []byte                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"` // JSON serialized metadata
+	FiredAt         *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=fired_at,json=firedAt,proto3" json:"fired_at,omitempty"`
+	ResolvedAt      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	AcknowledgedAt  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=acknowledged_at,json=acknowledgedAt,proto3" json:"acknowledged_at,omitempty"`
+	DurationSeconds int32                  `protobuf:"varint,9,opt,name=duration_seconds,json=durationSeconds,proto3" json:"duration_seconds,omitempty"`
+	MttrSeconds     int32                  `protobuf:"varint,10,opt,name=mttr_seconds,json=mttrSeconds,proto3" json:"mttr_seconds,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *AlertStatistic) Reset() {
+	*x = AlertStatistic{}
+	mi := &file_proto_alert_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertStatistic) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertStatistic) ProtoMessage() {}
+
+func (x *AlertStatistic) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertStatistic.ProtoReflect.Descriptor instead.
+func (*AlertStatistic) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *AlertStatistic) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AlertStatistic) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *AlertStatistic) GetAlertName() string {
+	if x != nil {
+		return x.AlertName
+	}
+	return ""
+}
+
+func (x *AlertStatistic) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *AlertStatistic) GetMetadata() []byte {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *AlertStatistic) GetFiredAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FiredAt
+	}
+	return nil
+}
+
+func (x *AlertStatistic) GetResolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolvedAt
+	}
+	return nil
+}
+
+func (x *AlertStatistic) GetAcknowledgedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AcknowledgedAt
+	}
+	return nil
+}
+
+func (x *AlertStatistic) GetDurationSeconds() int32 {
+	if x != nil {
+		return x.DurationSeconds
+	}
+	return 0
+}
+
+func (x *AlertStatistic) GetMttrSeconds() int32 {
+	if x != nil {
+		return x.MttrSeconds
+	}
+	return 0
+}
+
+func (x *AlertStatistic) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *AlertStatistic) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type GetStatisticsSummaryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetStatisticsSummaryRequest) Reset() {
+	*x = GetStatisticsSummaryRequest{}
+	mi := &file_proto_alert_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetStatisticsSummaryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetStatisticsSummaryRequest) ProtoMessage() {}
+
+func (x *GetStatisticsSummaryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetStatisticsSummaryRequest.ProtoReflect.Descriptor instead.
+func (*GetStatisticsSummaryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *GetStatisticsSummaryRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type GetStatisticsSummaryResponse struct {
+	state           protoimpl.MessageState           `protogen:"open.v1"`
+	Success         bool                             `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	TotalStatistics int64                            `protobuf:"varint,2,opt,name=total_statistics,json=totalStatistics,proto3" json:"total_statistics,omitempty"`
+	BySeverity      map[string]*AggregatedStatistics `protobuf:"bytes,3,rep,name=by_severity,json=bySeverity,proto3" json:"by_severity,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	EarliestAlert   *timestamppb.Timestamp           `protobuf:"bytes,4,opt,name=earliest_alert,json=earliestAlert,proto3" json:"earliest_alert,omitempty"`
+	LatestAlert     *timestamppb.Timestamp           `protobuf:"bytes,5,opt,name=latest_alert,json=latestAlert,proto3" json:"latest_alert,omitempty"`
+	Message         string                           `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GetStatisticsSummaryResponse) Reset() {
+	*x = GetStatisticsSummaryResponse{}
+	mi := &file_proto_alert_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetStatisticsSummaryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetStatisticsSummaryResponse) ProtoMessage() {}
+
+func (x *GetStatisticsSummaryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetStatisticsSummaryResponse.ProtoReflect.Descriptor instead.
+func (*GetStatisticsSummaryResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *GetStatisticsSummaryResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetStatisticsSummaryResponse) GetTotalStatistics() int64 {
+	if x != nil {
+		return x.TotalStatistics
+	}
+	return 0
+}
+
+func (x *GetStatisticsSummaryResponse) GetBySeverity() map[string]*AggregatedStatistics {
+	if x != nil {
+		return x.BySeverity
+	}
+	return nil
+}
+
+func (x *GetStatisticsSummaryResponse) GetEarliestAlert() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EarliestAlert
+	}
+	return nil
+}
+
+func (x *GetStatisticsSummaryResponse) GetLatestAlert() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LatestAlert
+	}
+	return nil
+}
+
+func (x *GetStatisticsSummaryResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type CaptureAlertFiredRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AlertName     string                 `protobuf:"bytes,2,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
+	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`
+	StartsAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`
+	Metadata      []byte                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"` // JSON metadata containing labels, annotations, etc.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CaptureAlertFiredRequest) Reset() {
+	*x = CaptureAlertFiredRequest{}
+	mi := &file_proto_alert_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CaptureAlertFiredRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CaptureAlertFiredRequest) ProtoMessage() {}
+
+func (x *CaptureAlertFiredRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CaptureAlertFiredRequest.ProtoReflect.Descriptor instead.
+func (*CaptureAlertFiredRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *CaptureAlertFiredRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *CaptureAlertFiredRequest) GetAlertName() string {
+	if x != nil {
+		return x.AlertName
+	}
+	return ""
+}
+
+func (x *CaptureAlertFiredRequest) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *CaptureAlertFiredRequest) GetStartsAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartsAt
+	}
+	return nil
+}
+
+func (x *CaptureAlertFiredRequest) GetMetadata() []byte {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type CaptureAlertFiredResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CaptureAlertFiredResponse) Reset() {
+	*x = CaptureAlertFiredResponse{}
+	mi := &file_proto_alert_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CaptureAlertFiredResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CaptureAlertFiredResponse) ProtoMessage() {}
+
+func (x *CaptureAlertFiredResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CaptureAlertFiredResponse.ProtoReflect.Descriptor instead.
+func (*CaptureAlertFiredResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *CaptureAlertFiredResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CaptureAlertFiredResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type UpdateAlertResolvedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	ResolvedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAlertResolvedRequest) Reset() {
+	*x = UpdateAlertResolvedRequest{}
+	mi := &file_proto_alert_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAlertResolvedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAlertResolvedRequest) ProtoMessage() {}
+
+func (x *UpdateAlertResolvedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAlertResolvedRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAlertResolvedRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *UpdateAlertResolvedRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *UpdateAlertResolvedRequest) GetResolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolvedAt
+	}
+	return nil
+}
+
+type UpdateAlertResolvedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAlertResolvedResponse) Reset() {
+	*x = UpdateAlertResolvedResponse{}
+	mi := &file_proto_alert_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAlertResolvedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAlertResolvedResponse) ProtoMessage() {}
+
+func (x *UpdateAlertResolvedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAlertResolvedResponse.ProtoReflect.Descriptor instead.
+func (*UpdateAlertResolvedResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *UpdateAlertResolvedResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *UpdateAlertResolvedResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type UpdateAlertAcknowledgedRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint    string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AcknowledgedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=acknowledged_at,json=acknowledgedAt,proto3" json:"acknowledged_at,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *UpdateAlertAcknowledgedRequest) Reset() {
+	*x = UpdateAlertAcknowledgedRequest{}
+	mi := &file_proto_alert_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAlertAcknowledgedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAlertAcknowledgedRequest) ProtoMessage() {}
+
+func (x *UpdateAlertAcknowledgedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAlertAcknowledgedRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAlertAcknowledgedRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *UpdateAlertAcknowledgedRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *UpdateAlertAcknowledgedRequest) GetAcknowledgedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AcknowledgedAt
+	}
+	return nil
+}
+
+type UpdateAlertAcknowledgedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAlertAcknowledgedResponse) Reset() {
+	*x = UpdateAlertAcknowledgedResponse{}
+	mi := &file_proto_alert_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAlertAcknowledgedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAlertAcknowledgedResponse) ProtoMessage() {}
+
+func (x *UpdateAlertAcknowledgedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAlertAcknowledgedResponse.ProtoReflect.Descriptor instead.
+func (*UpdateAlertAcknowledgedResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *UpdateAlertAcknowledgedResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *UpdateAlertAcknowledgedResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_proto_alert_proto protoreflect.FileDescriptor
 
 const file_proto_alert_proto_rawDesc = "" +
@@ -4720,7 +6644,191 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt*~\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb4\x02\n" +
+	"\x16QueryStatisticsRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
+	"\n" +
+	"start_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x125\n" +
+	"\bend_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendDate\x12\x1f\n" +
+	"\vapply_rules\x18\x04 \x01(\bR\n" +
+	"applyRules\x12\x19\n" +
+	"\bgroup_by\x18\x05 \x01(\tR\agroupBy\x12\x1f\n" +
+	"\vperiod_type\x18\x06 \x01(\tR\n" +
+	"periodType\x12\x14\n" +
+	"\x05limit\x18\a \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\b \x01(\x05R\x06offset\"\xb1\x03\n" +
+	"\x17QueryStatisticsResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12;\n" +
+	"\n" +
+	"time_range\x18\x02 \x01(\v2\x1c.notificator.alert.TimeRangeR\ttimeRange\x12!\n" +
+	"\ftotal_alerts\x18\x03 \x01(\x03R\vtotalAlerts\x12Z\n" +
+	"\n" +
+	"statistics\x18\x04 \x03(\v2:.notificator.alert.QueryStatisticsResponse.StatisticsEntryR\n" +
+	"statistics\x12>\n" +
+	"\tbreakdown\x18\x05 \x03(\v2 .notificator.alert.BreakdownItemR\tbreakdown\x12\x18\n" +
+	"\amessage\x18\x06 \x01(\tR\amessage\x1af\n" +
+	"\x0fStatisticsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12=\n" +
+	"\x05value\x18\x02 \x01(\v2'.notificator.alert.AggregatedStatisticsR\x05value:\x028\x01\"k\n" +
+	"\tTimeRange\x120\n" +
+	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12,\n" +
+	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\"\xbe\x01\n" +
+	"\x14AggregatedStatistics\x12\x14\n" +
+	"\x05count\x18\x01 \x01(\x05R\x05count\x120\n" +
+	"\x14avg_duration_seconds\x18\x02 \x01(\x01R\x12avgDurationSeconds\x124\n" +
+	"\x16total_duration_seconds\x18\x03 \x01(\x05R\x14totalDurationSeconds\x12(\n" +
+	"\x10avg_mttr_seconds\x18\x04 \x01(\x01R\x0eavgMttrSeconds\"\xf4\x02\n" +
+	"\rBreakdownItem\x12\x16\n" +
+	"\x06period\x18\x01 \x01(\tR\x06period\x129\n" +
+	"\n" +
+	"start_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12\x1f\n" +
+	"\vtotal_count\x18\x04 \x01(\x05R\n" +
+	"totalCount\x12P\n" +
+	"\n" +
+	"statistics\x18\x05 \x03(\v20.notificator.alert.BreakdownItem.StatisticsEntryR\n" +
+	"statistics\x1af\n" +
+	"\x0fStatisticsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12=\n" +
+	"\x05value\x18\x02 \x01(\v2'.notificator.alert.AggregatedStatisticsR\x05value:\x028\x01\"\xb0\x01\n" +
+	"\x15SaveOnCallRuleRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
+	"\trule_name\x18\x02 \x01(\tR\bruleName\x12>\n" +
+	"\vrule_config\x18\x03 \x01(\v2\x1d.notificator.alert.RuleConfigR\n" +
+	"ruleConfig\x12\x1b\n" +
+	"\tis_active\x18\x04 \x01(\bR\bisActive\"\x7f\n" +
+	"\x16SaveOnCallRuleResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x121\n" +
+	"\x04rule\x18\x02 \x01(\v2\x1d.notificator.alert.OnCallRuleR\x04rule\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"W\n" +
+	"\x15GetOnCallRulesRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1f\n" +
+	"\vactive_only\x18\x02 \x01(\bR\n" +
+	"activeOnly\"\x81\x01\n" +
+	"\x16GetOnCallRulesResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x123\n" +
+	"\x05rules\x18\x02 \x03(\v2\x1d.notificator.alert.OnCallRuleR\x05rules\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"N\n" +
+	"\x14GetOnCallRuleRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
+	"\arule_id\x18\x02 \x01(\tR\x06ruleId\"~\n" +
+	"\x15GetOnCallRuleResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x121\n" +
+	"\x04rule\x18\x02 \x01(\v2\x1d.notificator.alert.OnCallRuleR\x04rule\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xcb\x01\n" +
+	"\x17UpdateOnCallRuleRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
+	"\arule_id\x18\x02 \x01(\tR\x06ruleId\x12\x1b\n" +
+	"\trule_name\x18\x03 \x01(\tR\bruleName\x12>\n" +
+	"\vrule_config\x18\x04 \x01(\v2\x1d.notificator.alert.RuleConfigR\n" +
+	"ruleConfig\x12\x1b\n" +
+	"\tis_active\x18\x05 \x01(\bR\bisActive\"\x81\x01\n" +
+	"\x18UpdateOnCallRuleResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x121\n" +
+	"\x04rule\x18\x02 \x01(\v2\x1d.notificator.alert.OnCallRuleR\x04rule\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"Q\n" +
+	"\x17DeleteOnCallRuleRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
+	"\arule_id\x18\x02 \x01(\tR\x06ruleId\"N\n" +
+	"\x18DeleteOnCallRuleResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x97\x01\n" +
+	"\x15TestOnCallRuleRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12>\n" +
+	"\vrule_config\x18\x02 \x01(\v2\x1d.notificator.alert.RuleConfigR\n" +
+	"ruleConfig\x12\x1f\n" +
+	"\vsample_size\x18\x03 \x01(\x05R\n" +
+	"sampleSize\"\xb9\x01\n" +
+	"\x16TestOnCallRuleResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
+	"\rtotal_matches\x18\x02 \x01(\x03R\ftotalMatches\x12F\n" +
+	"\rsample_alerts\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\fsampleAlerts\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\xa5\x02\n" +
+	"\n" +
+	"OnCallRule\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1b\n" +
+	"\trule_name\x18\x03 \x01(\tR\bruleName\x12>\n" +
+	"\vrule_config\x18\x04 \x01(\v2\x1d.notificator.alert.RuleConfigR\n" +
+	"ruleConfig\x12\x1b\n" +
+	"\tis_active\x18\x05 \x01(\bR\bisActive\x129\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"`\n" +
+	"\n" +
+	"RuleConfig\x12<\n" +
+	"\bcriteria\x18\x01 \x03(\v2 .notificator.alert.RuleCriterionR\bcriteria\x12\x14\n" +
+	"\x05logic\x18\x02 \x01(\tR\x05logic\"\x99\x01\n" +
+	"\rRuleCriterion\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1a\n" +
+	"\boperator\x18\x02 \x01(\tR\boperator\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12\x16\n" +
+	"\x06values\x18\x04 \x03(\tR\x06values\x12\x10\n" +
+	"\x03key\x18\x05 \x01(\tR\x03key\x12\x18\n" +
+	"\apattern\x18\x06 \x01(\tR\apattern\"\x96\x04\n" +
+	"\x0eAlertStatistic\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
+	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\x12\x1d\n" +
+	"\n" +
+	"alert_name\x18\x03 \x01(\tR\talertName\x12\x1a\n" +
+	"\bseverity\x18\x04 \x01(\tR\bseverity\x12\x1a\n" +
+	"\bmetadata\x18\x05 \x01(\fR\bmetadata\x125\n" +
+	"\bfired_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\afiredAt\x12;\n" +
+	"\vresolved_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"resolvedAt\x12C\n" +
+	"\x0facknowledged_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0eacknowledgedAt\x12)\n" +
+	"\x10duration_seconds\x18\t \x01(\x05R\x0fdurationSeconds\x12!\n" +
+	"\fmttr_seconds\x18\n" +
+	" \x01(\x05R\vmttrSeconds\x129\n" +
+	"\n" +
+	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"<\n" +
+	"\x1bGetStatisticsSummaryRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\xc9\x03\n" +
+	"\x1cGetStatisticsSummaryResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12)\n" +
+	"\x10total_statistics\x18\x02 \x01(\x03R\x0ftotalStatistics\x12`\n" +
+	"\vby_severity\x18\x03 \x03(\v2?.notificator.alert.GetStatisticsSummaryResponse.BySeverityEntryR\n" +
+	"bySeverity\x12A\n" +
+	"\x0eearliest_alert\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\rearliestAlert\x12=\n" +
+	"\flatest_alert\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vlatestAlert\x12\x18\n" +
+	"\amessage\x18\x06 \x01(\tR\amessage\x1af\n" +
+	"\x0fBySeverityEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12=\n" +
+	"\x05value\x18\x02 \x01(\v2'.notificator.alert.AggregatedStatisticsR\x05value:\x028\x01\"\xcc\x01\n" +
+	"\x18CaptureAlertFiredRequest\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12\x1d\n" +
+	"\n" +
+	"alert_name\x18\x02 \x01(\tR\talertName\x12\x1a\n" +
+	"\bseverity\x18\x03 \x01(\tR\bseverity\x127\n" +
+	"\tstarts_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x12\x1a\n" +
+	"\bmetadata\x18\x05 \x01(\fR\bmetadata\"O\n" +
+	"\x19CaptureAlertFiredResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"{\n" +
+	"\x1aUpdateAlertResolvedRequest\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12;\n" +
+	"\vresolved_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"resolvedAt\"Q\n" +
+	"\x1bUpdateAlertResolvedResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x87\x01\n" +
+	"\x1eUpdateAlertAcknowledgedRequest\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12C\n" +
+	"\x0facknowledged_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x0eacknowledgedAt\"U\n" +
+	"\x1fUpdateAlertAcknowledgedResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage*~\n" +
 	"\n" +
 	"UpdateType\x12\x12\n" +
 	"\x0eUNKNOWN_UPDATE\x10\x00\x12\x11\n" +
@@ -4763,7 +6871,19 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x10SaveFilterPreset\x12*.notificator.alert.SaveFilterPresetRequest\x1a+.notificator.alert.SaveFilterPresetResponse\x12q\n" +
 	"\x12UpdateFilterPreset\x12,.notificator.alert.UpdateFilterPresetRequest\x1a-.notificator.alert.UpdateFilterPresetResponse\x12q\n" +
 	"\x12DeleteFilterPreset\x12,.notificator.alert.DeleteFilterPresetRequest\x1a-.notificator.alert.DeleteFilterPresetResponse\x12}\n" +
-	"\x16SetDefaultFilterPreset\x120.notificator.alert.SetDefaultFilterPresetRequest\x1a1.notificator.alert.SetDefaultFilterPresetResponseB*Z(notificator/internal/backend/proto/alertb\x06proto3"
+	"\x16SetDefaultFilterPreset\x120.notificator.alert.SetDefaultFilterPresetRequest\x1a1.notificator.alert.SetDefaultFilterPresetResponse2\xd2\t\n" +
+	"\x11StatisticsService\x12h\n" +
+	"\x0fQueryStatistics\x12).notificator.alert.QueryStatisticsRequest\x1a*.notificator.alert.QueryStatisticsResponse\x12e\n" +
+	"\x0eSaveOnCallRule\x12(.notificator.alert.SaveOnCallRuleRequest\x1a).notificator.alert.SaveOnCallRuleResponse\x12e\n" +
+	"\x0eGetOnCallRules\x12(.notificator.alert.GetOnCallRulesRequest\x1a).notificator.alert.GetOnCallRulesResponse\x12b\n" +
+	"\rGetOnCallRule\x12'.notificator.alert.GetOnCallRuleRequest\x1a(.notificator.alert.GetOnCallRuleResponse\x12k\n" +
+	"\x10UpdateOnCallRule\x12*.notificator.alert.UpdateOnCallRuleRequest\x1a+.notificator.alert.UpdateOnCallRuleResponse\x12k\n" +
+	"\x10DeleteOnCallRule\x12*.notificator.alert.DeleteOnCallRuleRequest\x1a+.notificator.alert.DeleteOnCallRuleResponse\x12e\n" +
+	"\x0eTestOnCallRule\x12(.notificator.alert.TestOnCallRuleRequest\x1a).notificator.alert.TestOnCallRuleResponse\x12w\n" +
+	"\x14GetStatisticsSummary\x12..notificator.alert.GetStatisticsSummaryRequest\x1a/.notificator.alert.GetStatisticsSummaryResponse\x12n\n" +
+	"\x11CaptureAlertFired\x12+.notificator.alert.CaptureAlertFiredRequest\x1a,.notificator.alert.CaptureAlertFiredResponse\x12t\n" +
+	"\x13UpdateAlertResolved\x12-.notificator.alert.UpdateAlertResolvedRequest\x1a..notificator.alert.UpdateAlertResolvedResponse\x12\x80\x01\n" +
+	"\x17UpdateAlertAcknowledged\x121.notificator.alert.UpdateAlertAcknowledgedRequest\x1a2.notificator.alert.UpdateAlertAcknowledgedResponseB*Z(notificator/internal/backend/proto/alertb\x06proto3"
 
 var (
 	file_proto_alert_proto_rawDescOnce sync.Once
@@ -4778,7 +6898,7 @@ func file_proto_alert_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_alert_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_proto_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 70)
+var file_proto_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 102)
 var file_proto_alert_proto_goTypes = []any{
 	(UpdateType)(0),                             // 0: notificator.alert.UpdateType
 	(ResolvedAlertUpdateType)(0),                // 1: notificator.alert.ResolvedAlertUpdateType
@@ -4850,121 +6970,211 @@ var file_proto_alert_proto_goTypes = []any{
 	(*SetDefaultFilterPresetRequest)(nil),       // 67: notificator.alert.SetDefaultFilterPresetRequest
 	(*SetDefaultFilterPresetResponse)(nil),      // 68: notificator.alert.SetDefaultFilterPresetResponse
 	(*FilterPreset)(nil),                        // 69: notificator.alert.FilterPreset
-	nil,                                         // 70: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
-	nil,                                         // 71: notificator.alert.UserColorPreference.LabelConditionsEntry
-	(*timestamppb.Timestamp)(nil),               // 72: google.protobuf.Timestamp
+	(*QueryStatisticsRequest)(nil),              // 70: notificator.alert.QueryStatisticsRequest
+	(*QueryStatisticsResponse)(nil),             // 71: notificator.alert.QueryStatisticsResponse
+	(*TimeRange)(nil),                           // 72: notificator.alert.TimeRange
+	(*AggregatedStatistics)(nil),                // 73: notificator.alert.AggregatedStatistics
+	(*BreakdownItem)(nil),                       // 74: notificator.alert.BreakdownItem
+	(*SaveOnCallRuleRequest)(nil),               // 75: notificator.alert.SaveOnCallRuleRequest
+	(*SaveOnCallRuleResponse)(nil),              // 76: notificator.alert.SaveOnCallRuleResponse
+	(*GetOnCallRulesRequest)(nil),               // 77: notificator.alert.GetOnCallRulesRequest
+	(*GetOnCallRulesResponse)(nil),              // 78: notificator.alert.GetOnCallRulesResponse
+	(*GetOnCallRuleRequest)(nil),                // 79: notificator.alert.GetOnCallRuleRequest
+	(*GetOnCallRuleResponse)(nil),               // 80: notificator.alert.GetOnCallRuleResponse
+	(*UpdateOnCallRuleRequest)(nil),             // 81: notificator.alert.UpdateOnCallRuleRequest
+	(*UpdateOnCallRuleResponse)(nil),            // 82: notificator.alert.UpdateOnCallRuleResponse
+	(*DeleteOnCallRuleRequest)(nil),             // 83: notificator.alert.DeleteOnCallRuleRequest
+	(*DeleteOnCallRuleResponse)(nil),            // 84: notificator.alert.DeleteOnCallRuleResponse
+	(*TestOnCallRuleRequest)(nil),               // 85: notificator.alert.TestOnCallRuleRequest
+	(*TestOnCallRuleResponse)(nil),              // 86: notificator.alert.TestOnCallRuleResponse
+	(*OnCallRule)(nil),                          // 87: notificator.alert.OnCallRule
+	(*RuleConfig)(nil),                          // 88: notificator.alert.RuleConfig
+	(*RuleCriterion)(nil),                       // 89: notificator.alert.RuleCriterion
+	(*AlertStatistic)(nil),                      // 90: notificator.alert.AlertStatistic
+	(*GetStatisticsSummaryRequest)(nil),         // 91: notificator.alert.GetStatisticsSummaryRequest
+	(*GetStatisticsSummaryResponse)(nil),        // 92: notificator.alert.GetStatisticsSummaryResponse
+	(*CaptureAlertFiredRequest)(nil),            // 93: notificator.alert.CaptureAlertFiredRequest
+	(*CaptureAlertFiredResponse)(nil),           // 94: notificator.alert.CaptureAlertFiredResponse
+	(*UpdateAlertResolvedRequest)(nil),          // 95: notificator.alert.UpdateAlertResolvedRequest
+	(*UpdateAlertResolvedResponse)(nil),         // 96: notificator.alert.UpdateAlertResolvedResponse
+	(*UpdateAlertAcknowledgedRequest)(nil),      // 97: notificator.alert.UpdateAlertAcknowledgedRequest
+	(*UpdateAlertAcknowledgedResponse)(nil),     // 98: notificator.alert.UpdateAlertAcknowledgedResponse
+	nil,                                         // 99: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
+	nil,                                         // 100: notificator.alert.UserColorPreference.LabelConditionsEntry
+	nil,                                         // 101: notificator.alert.QueryStatisticsResponse.StatisticsEntry
+	nil,                                         // 102: notificator.alert.BreakdownItem.StatisticsEntry
+	nil,                                         // 103: notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry
+	(*timestamppb.Timestamp)(nil),               // 104: google.protobuf.Timestamp
 }
 var file_proto_alert_proto_depIdxs = []int32{
-	8,  // 0: notificator.alert.AddCommentResponse.comment:type_name -> notificator.alert.Comment
-	8,  // 1: notificator.alert.GetCommentsResponse.comments:type_name -> notificator.alert.Comment
-	72, // 2: notificator.alert.Comment.created_at:type_name -> google.protobuf.Timestamp
-	17, // 3: notificator.alert.AddAcknowledgmentResponse.acknowledgment:type_name -> notificator.alert.Acknowledgment
-	17, // 4: notificator.alert.GetAcknowledgmentsResponse.acknowledgments:type_name -> notificator.alert.Acknowledgment
-	70, // 5: notificator.alert.GetAllAcknowledgedAlertsResponse.acknowledged_alerts:type_name -> notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
-	72, // 6: notificator.alert.Acknowledgment.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 7: notificator.alert.AlertUpdate.update_type:type_name -> notificator.alert.UpdateType
-	8,  // 8: notificator.alert.AlertUpdate.comment:type_name -> notificator.alert.Comment
-	17, // 9: notificator.alert.AlertUpdate.acknowledgment:type_name -> notificator.alert.Acknowledgment
-	72, // 10: notificator.alert.AlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
-	26, // 11: notificator.alert.GetUserColorPreferencesResponse.preferences:type_name -> notificator.alert.UserColorPreference
-	26, // 12: notificator.alert.SaveUserColorPreferencesRequest.preferences:type_name -> notificator.alert.UserColorPreference
-	71, // 13: notificator.alert.UserColorPreference.label_conditions:type_name -> notificator.alert.UserColorPreference.LabelConditionsEntry
-	72, // 14: notificator.alert.UserColorPreference.created_at:type_name -> google.protobuf.Timestamp
-	72, // 15: notificator.alert.UserColorPreference.updated_at:type_name -> google.protobuf.Timestamp
-	37, // 16: notificator.alert.CreateResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
-	37, // 17: notificator.alert.GetResolvedAlertsResponse.resolved_alerts:type_name -> notificator.alert.ResolvedAlertInfo
-	37, // 18: notificator.alert.GetResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
-	1,  // 19: notificator.alert.ResolvedAlertUpdate.update_type:type_name -> notificator.alert.ResolvedAlertUpdateType
-	37, // 20: notificator.alert.ResolvedAlertUpdate.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
-	72, // 21: notificator.alert.ResolvedAlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
-	72, // 22: notificator.alert.ResolvedAlertInfo.resolved_at:type_name -> google.protobuf.Timestamp
-	72, // 23: notificator.alert.ResolvedAlertInfo.expires_at:type_name -> google.protobuf.Timestamp
-	72, // 24: notificator.alert.ResolvedAlertInfo.created_at:type_name -> google.protobuf.Timestamp
-	72, // 25: notificator.alert.ResolvedAlertInfo.updated_at:type_name -> google.protobuf.Timestamp
-	46, // 26: notificator.alert.GetUserHiddenAlertsResponse.hidden_alerts:type_name -> notificator.alert.UserHiddenAlert
-	46, // 27: notificator.alert.HideAlertResponse.hidden_alert:type_name -> notificator.alert.UserHiddenAlert
-	72, // 28: notificator.alert.UserHiddenAlert.created_at:type_name -> google.protobuf.Timestamp
-	72, // 29: notificator.alert.UserHiddenAlert.updated_at:type_name -> google.protobuf.Timestamp
-	53, // 30: notificator.alert.GetUserHiddenRulesResponse.hidden_rules:type_name -> notificator.alert.UserHiddenRule
-	53, // 31: notificator.alert.SaveHiddenRuleRequest.rule:type_name -> notificator.alert.UserHiddenRule
-	53, // 32: notificator.alert.SaveHiddenRuleResponse.rule:type_name -> notificator.alert.UserHiddenRule
-	72, // 33: notificator.alert.UserHiddenRule.created_at:type_name -> google.protobuf.Timestamp
-	72, // 34: notificator.alert.UserHiddenRule.updated_at:type_name -> google.protobuf.Timestamp
-	58, // 35: notificator.alert.GetNotificationPreferencesResponse.preferences:type_name -> notificator.alert.NotificationPreference
-	58, // 36: notificator.alert.SaveNotificationPreferencesResponse.preferences:type_name -> notificator.alert.NotificationPreference
-	72, // 37: notificator.alert.NotificationPreference.created_at:type_name -> google.protobuf.Timestamp
-	72, // 38: notificator.alert.NotificationPreference.updated_at:type_name -> google.protobuf.Timestamp
-	69, // 39: notificator.alert.GetFilterPresetsResponse.presets:type_name -> notificator.alert.FilterPreset
-	69, // 40: notificator.alert.SaveFilterPresetResponse.preset:type_name -> notificator.alert.FilterPreset
-	69, // 41: notificator.alert.UpdateFilterPresetResponse.preset:type_name -> notificator.alert.FilterPreset
-	72, // 42: notificator.alert.FilterPreset.created_at:type_name -> google.protobuf.Timestamp
-	72, // 43: notificator.alert.FilterPreset.updated_at:type_name -> google.protobuf.Timestamp
-	17, // 44: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry.value:type_name -> notificator.alert.Acknowledgment
-	2,  // 45: notificator.alert.AlertService.AddComment:input_type -> notificator.alert.AddCommentRequest
-	4,  // 46: notificator.alert.AlertService.GetComments:input_type -> notificator.alert.GetCommentsRequest
-	6,  // 47: notificator.alert.AlertService.DeleteComment:input_type -> notificator.alert.DeleteCommentRequest
-	9,  // 48: notificator.alert.AlertService.AddAcknowledgment:input_type -> notificator.alert.AddAcknowledgmentRequest
-	11, // 49: notificator.alert.AlertService.GetAcknowledgments:input_type -> notificator.alert.GetAcknowledgmentsRequest
-	13, // 50: notificator.alert.AlertService.GetAllAcknowledgedAlerts:input_type -> notificator.alert.GetAllAcknowledgedAlertsRequest
-	15, // 51: notificator.alert.AlertService.DeleteAcknowledgment:input_type -> notificator.alert.DeleteAcknowledgmentRequest
-	18, // 52: notificator.alert.AlertService.SubscribeToAlertUpdates:input_type -> notificator.alert.SubscribeToAlertUpdatesRequest
-	27, // 53: notificator.alert.AlertService.CreateResolvedAlert:input_type -> notificator.alert.CreateResolvedAlertRequest
-	29, // 54: notificator.alert.AlertService.GetResolvedAlerts:input_type -> notificator.alert.GetResolvedAlertsRequest
-	31, // 55: notificator.alert.AlertService.GetResolvedAlert:input_type -> notificator.alert.GetResolvedAlertRequest
-	33, // 56: notificator.alert.AlertService.RemoveAllResolvedAlerts:input_type -> notificator.alert.RemoveAllResolvedAlertsRequest
-	35, // 57: notificator.alert.AlertService.StreamResolvedAlertUpdates:input_type -> notificator.alert.StreamResolvedAlertUpdatesRequest
-	20, // 58: notificator.alert.AlertService.GetUserColorPreferences:input_type -> notificator.alert.GetUserColorPreferencesRequest
-	22, // 59: notificator.alert.AlertService.SaveUserColorPreferences:input_type -> notificator.alert.SaveUserColorPreferencesRequest
-	24, // 60: notificator.alert.AlertService.DeleteUserColorPreference:input_type -> notificator.alert.DeleteUserColorPreferenceRequest
-	38, // 61: notificator.alert.AlertService.GetUserHiddenAlerts:input_type -> notificator.alert.GetUserHiddenAlertsRequest
-	40, // 62: notificator.alert.AlertService.HideAlert:input_type -> notificator.alert.HideAlertRequest
-	42, // 63: notificator.alert.AlertService.UnhideAlert:input_type -> notificator.alert.UnhideAlertRequest
-	44, // 64: notificator.alert.AlertService.ClearAllHiddenAlerts:input_type -> notificator.alert.ClearAllHiddenAlertsRequest
-	47, // 65: notificator.alert.AlertService.GetUserHiddenRules:input_type -> notificator.alert.GetUserHiddenRulesRequest
-	49, // 66: notificator.alert.AlertService.SaveHiddenRule:input_type -> notificator.alert.SaveHiddenRuleRequest
-	51, // 67: notificator.alert.AlertService.RemoveHiddenRule:input_type -> notificator.alert.RemoveHiddenRuleRequest
-	54, // 68: notificator.alert.AlertService.GetNotificationPreferences:input_type -> notificator.alert.GetNotificationPreferencesRequest
-	56, // 69: notificator.alert.AlertService.SaveNotificationPreferences:input_type -> notificator.alert.SaveNotificationPreferencesRequest
-	59, // 70: notificator.alert.AlertService.GetFilterPresets:input_type -> notificator.alert.GetFilterPresetsRequest
-	61, // 71: notificator.alert.AlertService.SaveFilterPreset:input_type -> notificator.alert.SaveFilterPresetRequest
-	63, // 72: notificator.alert.AlertService.UpdateFilterPreset:input_type -> notificator.alert.UpdateFilterPresetRequest
-	65, // 73: notificator.alert.AlertService.DeleteFilterPreset:input_type -> notificator.alert.DeleteFilterPresetRequest
-	67, // 74: notificator.alert.AlertService.SetDefaultFilterPreset:input_type -> notificator.alert.SetDefaultFilterPresetRequest
-	3,  // 75: notificator.alert.AlertService.AddComment:output_type -> notificator.alert.AddCommentResponse
-	5,  // 76: notificator.alert.AlertService.GetComments:output_type -> notificator.alert.GetCommentsResponse
-	7,  // 77: notificator.alert.AlertService.DeleteComment:output_type -> notificator.alert.DeleteCommentResponse
-	10, // 78: notificator.alert.AlertService.AddAcknowledgment:output_type -> notificator.alert.AddAcknowledgmentResponse
-	12, // 79: notificator.alert.AlertService.GetAcknowledgments:output_type -> notificator.alert.GetAcknowledgmentsResponse
-	14, // 80: notificator.alert.AlertService.GetAllAcknowledgedAlerts:output_type -> notificator.alert.GetAllAcknowledgedAlertsResponse
-	16, // 81: notificator.alert.AlertService.DeleteAcknowledgment:output_type -> notificator.alert.DeleteAcknowledgmentResponse
-	19, // 82: notificator.alert.AlertService.SubscribeToAlertUpdates:output_type -> notificator.alert.AlertUpdate
-	28, // 83: notificator.alert.AlertService.CreateResolvedAlert:output_type -> notificator.alert.CreateResolvedAlertResponse
-	30, // 84: notificator.alert.AlertService.GetResolvedAlerts:output_type -> notificator.alert.GetResolvedAlertsResponse
-	32, // 85: notificator.alert.AlertService.GetResolvedAlert:output_type -> notificator.alert.GetResolvedAlertResponse
-	34, // 86: notificator.alert.AlertService.RemoveAllResolvedAlerts:output_type -> notificator.alert.RemoveAllResolvedAlertsResponse
-	36, // 87: notificator.alert.AlertService.StreamResolvedAlertUpdates:output_type -> notificator.alert.ResolvedAlertUpdate
-	21, // 88: notificator.alert.AlertService.GetUserColorPreferences:output_type -> notificator.alert.GetUserColorPreferencesResponse
-	23, // 89: notificator.alert.AlertService.SaveUserColorPreferences:output_type -> notificator.alert.SaveUserColorPreferencesResponse
-	25, // 90: notificator.alert.AlertService.DeleteUserColorPreference:output_type -> notificator.alert.DeleteUserColorPreferenceResponse
-	39, // 91: notificator.alert.AlertService.GetUserHiddenAlerts:output_type -> notificator.alert.GetUserHiddenAlertsResponse
-	41, // 92: notificator.alert.AlertService.HideAlert:output_type -> notificator.alert.HideAlertResponse
-	43, // 93: notificator.alert.AlertService.UnhideAlert:output_type -> notificator.alert.UnhideAlertResponse
-	45, // 94: notificator.alert.AlertService.ClearAllHiddenAlerts:output_type -> notificator.alert.ClearAllHiddenAlertsResponse
-	48, // 95: notificator.alert.AlertService.GetUserHiddenRules:output_type -> notificator.alert.GetUserHiddenRulesResponse
-	50, // 96: notificator.alert.AlertService.SaveHiddenRule:output_type -> notificator.alert.SaveHiddenRuleResponse
-	52, // 97: notificator.alert.AlertService.RemoveHiddenRule:output_type -> notificator.alert.RemoveHiddenRuleResponse
-	55, // 98: notificator.alert.AlertService.GetNotificationPreferences:output_type -> notificator.alert.GetNotificationPreferencesResponse
-	57, // 99: notificator.alert.AlertService.SaveNotificationPreferences:output_type -> notificator.alert.SaveNotificationPreferencesResponse
-	60, // 100: notificator.alert.AlertService.GetFilterPresets:output_type -> notificator.alert.GetFilterPresetsResponse
-	62, // 101: notificator.alert.AlertService.SaveFilterPreset:output_type -> notificator.alert.SaveFilterPresetResponse
-	64, // 102: notificator.alert.AlertService.UpdateFilterPreset:output_type -> notificator.alert.UpdateFilterPresetResponse
-	66, // 103: notificator.alert.AlertService.DeleteFilterPreset:output_type -> notificator.alert.DeleteFilterPresetResponse
-	68, // 104: notificator.alert.AlertService.SetDefaultFilterPreset:output_type -> notificator.alert.SetDefaultFilterPresetResponse
-	75, // [75:105] is the sub-list for method output_type
-	45, // [45:75] is the sub-list for method input_type
-	45, // [45:45] is the sub-list for extension type_name
-	45, // [45:45] is the sub-list for extension extendee
-	0,  // [0:45] is the sub-list for field type_name
+	8,   // 0: notificator.alert.AddCommentResponse.comment:type_name -> notificator.alert.Comment
+	8,   // 1: notificator.alert.GetCommentsResponse.comments:type_name -> notificator.alert.Comment
+	104, // 2: notificator.alert.Comment.created_at:type_name -> google.protobuf.Timestamp
+	17,  // 3: notificator.alert.AddAcknowledgmentResponse.acknowledgment:type_name -> notificator.alert.Acknowledgment
+	17,  // 4: notificator.alert.GetAcknowledgmentsResponse.acknowledgments:type_name -> notificator.alert.Acknowledgment
+	99,  // 5: notificator.alert.GetAllAcknowledgedAlertsResponse.acknowledged_alerts:type_name -> notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
+	104, // 6: notificator.alert.Acknowledgment.created_at:type_name -> google.protobuf.Timestamp
+	0,   // 7: notificator.alert.AlertUpdate.update_type:type_name -> notificator.alert.UpdateType
+	8,   // 8: notificator.alert.AlertUpdate.comment:type_name -> notificator.alert.Comment
+	17,  // 9: notificator.alert.AlertUpdate.acknowledgment:type_name -> notificator.alert.Acknowledgment
+	104, // 10: notificator.alert.AlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	26,  // 11: notificator.alert.GetUserColorPreferencesResponse.preferences:type_name -> notificator.alert.UserColorPreference
+	26,  // 12: notificator.alert.SaveUserColorPreferencesRequest.preferences:type_name -> notificator.alert.UserColorPreference
+	100, // 13: notificator.alert.UserColorPreference.label_conditions:type_name -> notificator.alert.UserColorPreference.LabelConditionsEntry
+	104, // 14: notificator.alert.UserColorPreference.created_at:type_name -> google.protobuf.Timestamp
+	104, // 15: notificator.alert.UserColorPreference.updated_at:type_name -> google.protobuf.Timestamp
+	37,  // 16: notificator.alert.CreateResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	37,  // 17: notificator.alert.GetResolvedAlertsResponse.resolved_alerts:type_name -> notificator.alert.ResolvedAlertInfo
+	37,  // 18: notificator.alert.GetResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	1,   // 19: notificator.alert.ResolvedAlertUpdate.update_type:type_name -> notificator.alert.ResolvedAlertUpdateType
+	37,  // 20: notificator.alert.ResolvedAlertUpdate.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
+	104, // 21: notificator.alert.ResolvedAlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	104, // 22: notificator.alert.ResolvedAlertInfo.resolved_at:type_name -> google.protobuf.Timestamp
+	104, // 23: notificator.alert.ResolvedAlertInfo.expires_at:type_name -> google.protobuf.Timestamp
+	104, // 24: notificator.alert.ResolvedAlertInfo.created_at:type_name -> google.protobuf.Timestamp
+	104, // 25: notificator.alert.ResolvedAlertInfo.updated_at:type_name -> google.protobuf.Timestamp
+	46,  // 26: notificator.alert.GetUserHiddenAlertsResponse.hidden_alerts:type_name -> notificator.alert.UserHiddenAlert
+	46,  // 27: notificator.alert.HideAlertResponse.hidden_alert:type_name -> notificator.alert.UserHiddenAlert
+	104, // 28: notificator.alert.UserHiddenAlert.created_at:type_name -> google.protobuf.Timestamp
+	104, // 29: notificator.alert.UserHiddenAlert.updated_at:type_name -> google.protobuf.Timestamp
+	53,  // 30: notificator.alert.GetUserHiddenRulesResponse.hidden_rules:type_name -> notificator.alert.UserHiddenRule
+	53,  // 31: notificator.alert.SaveHiddenRuleRequest.rule:type_name -> notificator.alert.UserHiddenRule
+	53,  // 32: notificator.alert.SaveHiddenRuleResponse.rule:type_name -> notificator.alert.UserHiddenRule
+	104, // 33: notificator.alert.UserHiddenRule.created_at:type_name -> google.protobuf.Timestamp
+	104, // 34: notificator.alert.UserHiddenRule.updated_at:type_name -> google.protobuf.Timestamp
+	58,  // 35: notificator.alert.GetNotificationPreferencesResponse.preferences:type_name -> notificator.alert.NotificationPreference
+	58,  // 36: notificator.alert.SaveNotificationPreferencesResponse.preferences:type_name -> notificator.alert.NotificationPreference
+	104, // 37: notificator.alert.NotificationPreference.created_at:type_name -> google.protobuf.Timestamp
+	104, // 38: notificator.alert.NotificationPreference.updated_at:type_name -> google.protobuf.Timestamp
+	69,  // 39: notificator.alert.GetFilterPresetsResponse.presets:type_name -> notificator.alert.FilterPreset
+	69,  // 40: notificator.alert.SaveFilterPresetResponse.preset:type_name -> notificator.alert.FilterPreset
+	69,  // 41: notificator.alert.UpdateFilterPresetResponse.preset:type_name -> notificator.alert.FilterPreset
+	104, // 42: notificator.alert.FilterPreset.created_at:type_name -> google.protobuf.Timestamp
+	104, // 43: notificator.alert.FilterPreset.updated_at:type_name -> google.protobuf.Timestamp
+	104, // 44: notificator.alert.QueryStatisticsRequest.start_date:type_name -> google.protobuf.Timestamp
+	104, // 45: notificator.alert.QueryStatisticsRequest.end_date:type_name -> google.protobuf.Timestamp
+	72,  // 46: notificator.alert.QueryStatisticsResponse.time_range:type_name -> notificator.alert.TimeRange
+	101, // 47: notificator.alert.QueryStatisticsResponse.statistics:type_name -> notificator.alert.QueryStatisticsResponse.StatisticsEntry
+	74,  // 48: notificator.alert.QueryStatisticsResponse.breakdown:type_name -> notificator.alert.BreakdownItem
+	104, // 49: notificator.alert.TimeRange.start:type_name -> google.protobuf.Timestamp
+	104, // 50: notificator.alert.TimeRange.end:type_name -> google.protobuf.Timestamp
+	104, // 51: notificator.alert.BreakdownItem.start_time:type_name -> google.protobuf.Timestamp
+	104, // 52: notificator.alert.BreakdownItem.end_time:type_name -> google.protobuf.Timestamp
+	102, // 53: notificator.alert.BreakdownItem.statistics:type_name -> notificator.alert.BreakdownItem.StatisticsEntry
+	88,  // 54: notificator.alert.SaveOnCallRuleRequest.rule_config:type_name -> notificator.alert.RuleConfig
+	87,  // 55: notificator.alert.SaveOnCallRuleResponse.rule:type_name -> notificator.alert.OnCallRule
+	87,  // 56: notificator.alert.GetOnCallRulesResponse.rules:type_name -> notificator.alert.OnCallRule
+	87,  // 57: notificator.alert.GetOnCallRuleResponse.rule:type_name -> notificator.alert.OnCallRule
+	88,  // 58: notificator.alert.UpdateOnCallRuleRequest.rule_config:type_name -> notificator.alert.RuleConfig
+	87,  // 59: notificator.alert.UpdateOnCallRuleResponse.rule:type_name -> notificator.alert.OnCallRule
+	88,  // 60: notificator.alert.TestOnCallRuleRequest.rule_config:type_name -> notificator.alert.RuleConfig
+	90,  // 61: notificator.alert.TestOnCallRuleResponse.sample_alerts:type_name -> notificator.alert.AlertStatistic
+	88,  // 62: notificator.alert.OnCallRule.rule_config:type_name -> notificator.alert.RuleConfig
+	104, // 63: notificator.alert.OnCallRule.created_at:type_name -> google.protobuf.Timestamp
+	104, // 64: notificator.alert.OnCallRule.updated_at:type_name -> google.protobuf.Timestamp
+	89,  // 65: notificator.alert.RuleConfig.criteria:type_name -> notificator.alert.RuleCriterion
+	104, // 66: notificator.alert.AlertStatistic.fired_at:type_name -> google.protobuf.Timestamp
+	104, // 67: notificator.alert.AlertStatistic.resolved_at:type_name -> google.protobuf.Timestamp
+	104, // 68: notificator.alert.AlertStatistic.acknowledged_at:type_name -> google.protobuf.Timestamp
+	104, // 69: notificator.alert.AlertStatistic.created_at:type_name -> google.protobuf.Timestamp
+	104, // 70: notificator.alert.AlertStatistic.updated_at:type_name -> google.protobuf.Timestamp
+	103, // 71: notificator.alert.GetStatisticsSummaryResponse.by_severity:type_name -> notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry
+	104, // 72: notificator.alert.GetStatisticsSummaryResponse.earliest_alert:type_name -> google.protobuf.Timestamp
+	104, // 73: notificator.alert.GetStatisticsSummaryResponse.latest_alert:type_name -> google.protobuf.Timestamp
+	104, // 74: notificator.alert.CaptureAlertFiredRequest.starts_at:type_name -> google.protobuf.Timestamp
+	104, // 75: notificator.alert.UpdateAlertResolvedRequest.resolved_at:type_name -> google.protobuf.Timestamp
+	104, // 76: notificator.alert.UpdateAlertAcknowledgedRequest.acknowledged_at:type_name -> google.protobuf.Timestamp
+	17,  // 77: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry.value:type_name -> notificator.alert.Acknowledgment
+	73,  // 78: notificator.alert.QueryStatisticsResponse.StatisticsEntry.value:type_name -> notificator.alert.AggregatedStatistics
+	73,  // 79: notificator.alert.BreakdownItem.StatisticsEntry.value:type_name -> notificator.alert.AggregatedStatistics
+	73,  // 80: notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry.value:type_name -> notificator.alert.AggregatedStatistics
+	2,   // 81: notificator.alert.AlertService.AddComment:input_type -> notificator.alert.AddCommentRequest
+	4,   // 82: notificator.alert.AlertService.GetComments:input_type -> notificator.alert.GetCommentsRequest
+	6,   // 83: notificator.alert.AlertService.DeleteComment:input_type -> notificator.alert.DeleteCommentRequest
+	9,   // 84: notificator.alert.AlertService.AddAcknowledgment:input_type -> notificator.alert.AddAcknowledgmentRequest
+	11,  // 85: notificator.alert.AlertService.GetAcknowledgments:input_type -> notificator.alert.GetAcknowledgmentsRequest
+	13,  // 86: notificator.alert.AlertService.GetAllAcknowledgedAlerts:input_type -> notificator.alert.GetAllAcknowledgedAlertsRequest
+	15,  // 87: notificator.alert.AlertService.DeleteAcknowledgment:input_type -> notificator.alert.DeleteAcknowledgmentRequest
+	18,  // 88: notificator.alert.AlertService.SubscribeToAlertUpdates:input_type -> notificator.alert.SubscribeToAlertUpdatesRequest
+	27,  // 89: notificator.alert.AlertService.CreateResolvedAlert:input_type -> notificator.alert.CreateResolvedAlertRequest
+	29,  // 90: notificator.alert.AlertService.GetResolvedAlerts:input_type -> notificator.alert.GetResolvedAlertsRequest
+	31,  // 91: notificator.alert.AlertService.GetResolvedAlert:input_type -> notificator.alert.GetResolvedAlertRequest
+	33,  // 92: notificator.alert.AlertService.RemoveAllResolvedAlerts:input_type -> notificator.alert.RemoveAllResolvedAlertsRequest
+	35,  // 93: notificator.alert.AlertService.StreamResolvedAlertUpdates:input_type -> notificator.alert.StreamResolvedAlertUpdatesRequest
+	20,  // 94: notificator.alert.AlertService.GetUserColorPreferences:input_type -> notificator.alert.GetUserColorPreferencesRequest
+	22,  // 95: notificator.alert.AlertService.SaveUserColorPreferences:input_type -> notificator.alert.SaveUserColorPreferencesRequest
+	24,  // 96: notificator.alert.AlertService.DeleteUserColorPreference:input_type -> notificator.alert.DeleteUserColorPreferenceRequest
+	38,  // 97: notificator.alert.AlertService.GetUserHiddenAlerts:input_type -> notificator.alert.GetUserHiddenAlertsRequest
+	40,  // 98: notificator.alert.AlertService.HideAlert:input_type -> notificator.alert.HideAlertRequest
+	42,  // 99: notificator.alert.AlertService.UnhideAlert:input_type -> notificator.alert.UnhideAlertRequest
+	44,  // 100: notificator.alert.AlertService.ClearAllHiddenAlerts:input_type -> notificator.alert.ClearAllHiddenAlertsRequest
+	47,  // 101: notificator.alert.AlertService.GetUserHiddenRules:input_type -> notificator.alert.GetUserHiddenRulesRequest
+	49,  // 102: notificator.alert.AlertService.SaveHiddenRule:input_type -> notificator.alert.SaveHiddenRuleRequest
+	51,  // 103: notificator.alert.AlertService.RemoveHiddenRule:input_type -> notificator.alert.RemoveHiddenRuleRequest
+	54,  // 104: notificator.alert.AlertService.GetNotificationPreferences:input_type -> notificator.alert.GetNotificationPreferencesRequest
+	56,  // 105: notificator.alert.AlertService.SaveNotificationPreferences:input_type -> notificator.alert.SaveNotificationPreferencesRequest
+	59,  // 106: notificator.alert.AlertService.GetFilterPresets:input_type -> notificator.alert.GetFilterPresetsRequest
+	61,  // 107: notificator.alert.AlertService.SaveFilterPreset:input_type -> notificator.alert.SaveFilterPresetRequest
+	63,  // 108: notificator.alert.AlertService.UpdateFilterPreset:input_type -> notificator.alert.UpdateFilterPresetRequest
+	65,  // 109: notificator.alert.AlertService.DeleteFilterPreset:input_type -> notificator.alert.DeleteFilterPresetRequest
+	67,  // 110: notificator.alert.AlertService.SetDefaultFilterPreset:input_type -> notificator.alert.SetDefaultFilterPresetRequest
+	70,  // 111: notificator.alert.StatisticsService.QueryStatistics:input_type -> notificator.alert.QueryStatisticsRequest
+	75,  // 112: notificator.alert.StatisticsService.SaveOnCallRule:input_type -> notificator.alert.SaveOnCallRuleRequest
+	77,  // 113: notificator.alert.StatisticsService.GetOnCallRules:input_type -> notificator.alert.GetOnCallRulesRequest
+	79,  // 114: notificator.alert.StatisticsService.GetOnCallRule:input_type -> notificator.alert.GetOnCallRuleRequest
+	81,  // 115: notificator.alert.StatisticsService.UpdateOnCallRule:input_type -> notificator.alert.UpdateOnCallRuleRequest
+	83,  // 116: notificator.alert.StatisticsService.DeleteOnCallRule:input_type -> notificator.alert.DeleteOnCallRuleRequest
+	85,  // 117: notificator.alert.StatisticsService.TestOnCallRule:input_type -> notificator.alert.TestOnCallRuleRequest
+	91,  // 118: notificator.alert.StatisticsService.GetStatisticsSummary:input_type -> notificator.alert.GetStatisticsSummaryRequest
+	93,  // 119: notificator.alert.StatisticsService.CaptureAlertFired:input_type -> notificator.alert.CaptureAlertFiredRequest
+	95,  // 120: notificator.alert.StatisticsService.UpdateAlertResolved:input_type -> notificator.alert.UpdateAlertResolvedRequest
+	97,  // 121: notificator.alert.StatisticsService.UpdateAlertAcknowledged:input_type -> notificator.alert.UpdateAlertAcknowledgedRequest
+	3,   // 122: notificator.alert.AlertService.AddComment:output_type -> notificator.alert.AddCommentResponse
+	5,   // 123: notificator.alert.AlertService.GetComments:output_type -> notificator.alert.GetCommentsResponse
+	7,   // 124: notificator.alert.AlertService.DeleteComment:output_type -> notificator.alert.DeleteCommentResponse
+	10,  // 125: notificator.alert.AlertService.AddAcknowledgment:output_type -> notificator.alert.AddAcknowledgmentResponse
+	12,  // 126: notificator.alert.AlertService.GetAcknowledgments:output_type -> notificator.alert.GetAcknowledgmentsResponse
+	14,  // 127: notificator.alert.AlertService.GetAllAcknowledgedAlerts:output_type -> notificator.alert.GetAllAcknowledgedAlertsResponse
+	16,  // 128: notificator.alert.AlertService.DeleteAcknowledgment:output_type -> notificator.alert.DeleteAcknowledgmentResponse
+	19,  // 129: notificator.alert.AlertService.SubscribeToAlertUpdates:output_type -> notificator.alert.AlertUpdate
+	28,  // 130: notificator.alert.AlertService.CreateResolvedAlert:output_type -> notificator.alert.CreateResolvedAlertResponse
+	30,  // 131: notificator.alert.AlertService.GetResolvedAlerts:output_type -> notificator.alert.GetResolvedAlertsResponse
+	32,  // 132: notificator.alert.AlertService.GetResolvedAlert:output_type -> notificator.alert.GetResolvedAlertResponse
+	34,  // 133: notificator.alert.AlertService.RemoveAllResolvedAlerts:output_type -> notificator.alert.RemoveAllResolvedAlertsResponse
+	36,  // 134: notificator.alert.AlertService.StreamResolvedAlertUpdates:output_type -> notificator.alert.ResolvedAlertUpdate
+	21,  // 135: notificator.alert.AlertService.GetUserColorPreferences:output_type -> notificator.alert.GetUserColorPreferencesResponse
+	23,  // 136: notificator.alert.AlertService.SaveUserColorPreferences:output_type -> notificator.alert.SaveUserColorPreferencesResponse
+	25,  // 137: notificator.alert.AlertService.DeleteUserColorPreference:output_type -> notificator.alert.DeleteUserColorPreferenceResponse
+	39,  // 138: notificator.alert.AlertService.GetUserHiddenAlerts:output_type -> notificator.alert.GetUserHiddenAlertsResponse
+	41,  // 139: notificator.alert.AlertService.HideAlert:output_type -> notificator.alert.HideAlertResponse
+	43,  // 140: notificator.alert.AlertService.UnhideAlert:output_type -> notificator.alert.UnhideAlertResponse
+	45,  // 141: notificator.alert.AlertService.ClearAllHiddenAlerts:output_type -> notificator.alert.ClearAllHiddenAlertsResponse
+	48,  // 142: notificator.alert.AlertService.GetUserHiddenRules:output_type -> notificator.alert.GetUserHiddenRulesResponse
+	50,  // 143: notificator.alert.AlertService.SaveHiddenRule:output_type -> notificator.alert.SaveHiddenRuleResponse
+	52,  // 144: notificator.alert.AlertService.RemoveHiddenRule:output_type -> notificator.alert.RemoveHiddenRuleResponse
+	55,  // 145: notificator.alert.AlertService.GetNotificationPreferences:output_type -> notificator.alert.GetNotificationPreferencesResponse
+	57,  // 146: notificator.alert.AlertService.SaveNotificationPreferences:output_type -> notificator.alert.SaveNotificationPreferencesResponse
+	60,  // 147: notificator.alert.AlertService.GetFilterPresets:output_type -> notificator.alert.GetFilterPresetsResponse
+	62,  // 148: notificator.alert.AlertService.SaveFilterPreset:output_type -> notificator.alert.SaveFilterPresetResponse
+	64,  // 149: notificator.alert.AlertService.UpdateFilterPreset:output_type -> notificator.alert.UpdateFilterPresetResponse
+	66,  // 150: notificator.alert.AlertService.DeleteFilterPreset:output_type -> notificator.alert.DeleteFilterPresetResponse
+	68,  // 151: notificator.alert.AlertService.SetDefaultFilterPreset:output_type -> notificator.alert.SetDefaultFilterPresetResponse
+	71,  // 152: notificator.alert.StatisticsService.QueryStatistics:output_type -> notificator.alert.QueryStatisticsResponse
+	76,  // 153: notificator.alert.StatisticsService.SaveOnCallRule:output_type -> notificator.alert.SaveOnCallRuleResponse
+	78,  // 154: notificator.alert.StatisticsService.GetOnCallRules:output_type -> notificator.alert.GetOnCallRulesResponse
+	80,  // 155: notificator.alert.StatisticsService.GetOnCallRule:output_type -> notificator.alert.GetOnCallRuleResponse
+	82,  // 156: notificator.alert.StatisticsService.UpdateOnCallRule:output_type -> notificator.alert.UpdateOnCallRuleResponse
+	84,  // 157: notificator.alert.StatisticsService.DeleteOnCallRule:output_type -> notificator.alert.DeleteOnCallRuleResponse
+	86,  // 158: notificator.alert.StatisticsService.TestOnCallRule:output_type -> notificator.alert.TestOnCallRuleResponse
+	92,  // 159: notificator.alert.StatisticsService.GetStatisticsSummary:output_type -> notificator.alert.GetStatisticsSummaryResponse
+	94,  // 160: notificator.alert.StatisticsService.CaptureAlertFired:output_type -> notificator.alert.CaptureAlertFiredResponse
+	96,  // 161: notificator.alert.StatisticsService.UpdateAlertResolved:output_type -> notificator.alert.UpdateAlertResolvedResponse
+	98,  // 162: notificator.alert.StatisticsService.UpdateAlertAcknowledged:output_type -> notificator.alert.UpdateAlertAcknowledgedResponse
+	122, // [122:163] is the sub-list for method output_type
+	81,  // [81:122] is the sub-list for method input_type
+	81,  // [81:81] is the sub-list for extension type_name
+	81,  // [81:81] is the sub-list for extension extendee
+	0,   // [0:81] is the sub-list for field type_name
 }
 
 func init() { file_proto_alert_proto_init() }
@@ -4984,9 +7194,9 @@ func file_proto_alert_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_alert_proto_rawDesc), len(file_proto_alert_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   70,
+			NumMessages:   102,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_proto_alert_proto_goTypes,
 		DependencyIndexes: file_proto_alert_proto_depIdxs,

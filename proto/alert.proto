@@ -505,3 +505,232 @@ message FilterPreset {
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
 }
+
+// ==================== Statistics Service ====================
+
+// Statistics Service for on-call alert analytics
+service StatisticsService {
+  // Query statistics with filters and aggregations
+  rpc QueryStatistics(QueryStatisticsRequest) returns (QueryStatisticsResponse);
+
+  // On-Call Rules Management
+  rpc SaveOnCallRule(SaveOnCallRuleRequest) returns (SaveOnCallRuleResponse);
+  rpc GetOnCallRules(GetOnCallRulesRequest) returns (GetOnCallRulesResponse);
+  rpc GetOnCallRule(GetOnCallRuleRequest) returns (GetOnCallRuleResponse);
+  rpc UpdateOnCallRule(UpdateOnCallRuleRequest) returns (UpdateOnCallRuleResponse);
+  rpc DeleteOnCallRule(DeleteOnCallRuleRequest) returns (DeleteOnCallRuleResponse);
+  rpc TestOnCallRule(TestOnCallRuleRequest) returns (TestOnCallRuleResponse);
+
+  // Summary and overview
+  rpc GetStatisticsSummary(GetStatisticsSummaryRequest) returns (GetStatisticsSummaryResponse);
+
+  // Alert statistics capture events
+  rpc CaptureAlertFired(CaptureAlertFiredRequest) returns (CaptureAlertFiredResponse);
+  rpc UpdateAlertResolved(UpdateAlertResolvedRequest) returns (UpdateAlertResolvedResponse);
+  rpc UpdateAlertAcknowledged(UpdateAlertAcknowledgedRequest) returns (UpdateAlertAcknowledgedResponse);
+}
+
+// ==================== Statistics Query Messages ====================
+
+message QueryStatisticsRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+  bool apply_rules = 4;           // Apply user's on-call rules
+  string group_by = 5;            // "severity", "team", "period", "alert_name", or empty for overall
+  string period_type = 6;         // "hour", "day", "week", "month" (required if group_by="period")
+  int32 limit = 7;                // Limit results (for alert_name grouping)
+  int32 offset = 8;               // Pagination offset
+}
+
+message QueryStatisticsResponse {
+  bool success = 1;
+  TimeRange time_range = 2;
+  int64 total_alerts = 3;
+  map<string, AggregatedStatistics> statistics = 4;  // Key varies by group_by
+  repeated BreakdownItem breakdown = 5;              // Used for period grouping
+  string message = 6;
+}
+
+message TimeRange {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+message AggregatedStatistics {
+  int32 count = 1;
+  double avg_duration_seconds = 2;
+  int32 total_duration_seconds = 3;
+  double avg_mttr_seconds = 4;
+}
+
+message BreakdownItem {
+  string period = 1;                                  // e.g., "2025-10-22" or "Week of 2025-10-20"
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  int32 total_count = 4;
+  map<string, AggregatedStatistics> statistics = 5;  // Breakdown by severity within period
+}
+
+// ==================== On-Call Rules Messages ====================
+
+message SaveOnCallRuleRequest {
+  string session_id = 1;
+  string rule_name = 2;
+  RuleConfig rule_config = 3;
+  bool is_active = 4;
+}
+
+message SaveOnCallRuleResponse {
+  bool success = 1;
+  OnCallRule rule = 2;
+  string message = 3;
+}
+
+message GetOnCallRulesRequest {
+  string session_id = 1;
+  bool active_only = 2;
+}
+
+message GetOnCallRulesResponse {
+  bool success = 1;
+  repeated OnCallRule rules = 2;
+  string message = 3;
+}
+
+message GetOnCallRuleRequest {
+  string session_id = 1;
+  string rule_id = 2;
+}
+
+message GetOnCallRuleResponse {
+  bool success = 1;
+  OnCallRule rule = 2;
+  string message = 3;
+}
+
+message UpdateOnCallRuleRequest {
+  string session_id = 1;
+  string rule_id = 2;
+  string rule_name = 3;
+  RuleConfig rule_config = 4;
+  bool is_active = 5;
+}
+
+message UpdateOnCallRuleResponse {
+  bool success = 1;
+  OnCallRule rule = 2;
+  string message = 3;
+}
+
+message DeleteOnCallRuleRequest {
+  string session_id = 1;
+  string rule_id = 2;
+}
+
+message DeleteOnCallRuleResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message TestOnCallRuleRequest {
+  string session_id = 1;
+  RuleConfig rule_config = 2;
+  int32 sample_size = 3;  // Number of sample alerts to return
+}
+
+message TestOnCallRuleResponse {
+  bool success = 1;
+  int64 total_matches = 2;
+  repeated AlertStatistic sample_alerts = 3;
+  string message = 4;
+}
+
+message OnCallRule {
+  string id = 1;
+  string user_id = 2;
+  string rule_name = 3;
+  RuleConfig rule_config = 4;
+  bool is_active = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message RuleConfig {
+  repeated RuleCriterion criteria = 1;
+  string logic = 2;  // "AND" or "OR"
+}
+
+message RuleCriterion {
+  string type = 1;        // "severity", "label", "alert_name"
+  string operator = 2;    // "equals", "in", "not_equals", "contains", "regex", "starts_with", "ends_with"
+  string value = 3;       // Single value (for equals, not_equals, contains, etc.)
+  repeated string values = 4;  // Multiple values (for "in" operator)
+  string key = 5;         // Label key (for label type)
+  string pattern = 6;     // Pattern/regex (for alert_name type)
+}
+
+message AlertStatistic {
+  string id = 1;
+  string fingerprint = 2;
+  string alert_name = 3;
+  string severity = 4;
+  bytes metadata = 5;  // JSON serialized metadata
+  google.protobuf.Timestamp fired_at = 6;
+  google.protobuf.Timestamp resolved_at = 7;
+  google.protobuf.Timestamp acknowledged_at = 8;
+  int32 duration_seconds = 9;
+  int32 mttr_seconds = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// ==================== Statistics Summary Messages ====================
+
+message GetStatisticsSummaryRequest {
+  string session_id = 1;
+}
+
+message GetStatisticsSummaryResponse {
+  bool success = 1;
+  int64 total_statistics = 2;
+  map<string, AggregatedStatistics> by_severity = 3;
+  google.protobuf.Timestamp earliest_alert = 4;
+  google.protobuf.Timestamp latest_alert = 5;
+  string message = 6;
+}
+
+// ==================== Alert Capture Messages ====================
+
+message CaptureAlertFiredRequest {
+  string fingerprint = 1;
+  string alert_name = 2;
+  string severity = 3;
+  google.protobuf.Timestamp starts_at = 4;
+  bytes metadata = 5; // JSON metadata containing labels, annotations, etc.
+}
+
+message CaptureAlertFiredResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateAlertResolvedRequest {
+  string fingerprint = 1;
+  google.protobuf.Timestamp resolved_at = 2;
+}
+
+message UpdateAlertResolvedResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateAlertAcknowledgedRequest {
+  string fingerprint = 1;
+  google.protobuf.Timestamp acknowledged_at = 2;
+}
+
+message UpdateAlertAcknowledgedResponse {
+  bool success = 1;
+  string message = 2;
+}

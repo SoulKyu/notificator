@@ -142,6 +142,15 @@ func (ac *AlertCache) refreshAlerts() {
 			ac.alerts[fingerprint] = dashAlert
 			ac.newAlerts = append(ac.newAlerts, fingerprint)
 
+			// Capture alert fired event for statistics
+			go func(alert *webuimodels.DashboardAlert) {
+				if ac.backendClient != nil && ac.backendClient.IsConnected() {
+					if err := ac.backendClient.CaptureAlertFired(alert); err != nil {
+						log.Printf("Failed to capture alert fired statistics for %s: %v", alert.Fingerprint, err)
+					}
+				}
+			}(dashAlert)
+
 		} else {
 			ac.updateExistingAlert(existingAlert, dashAlert)
 		}
@@ -155,6 +164,15 @@ func (ac *AlertCache) refreshAlerts() {
 			alert.ResolvedAt = time.Now()
 			alert.Status.State = "resolved"
 			alert.EndsAt = alert.ResolvedAt
+
+			// Update alert resolved event for statistics
+			go func(resolvedAlert *webuimodels.DashboardAlert) {
+				if ac.backendClient != nil && ac.backendClient.IsConnected() {
+					if err := ac.backendClient.UpdateAlertResolved(resolvedAlert); err != nil {
+						log.Printf("Failed to update alert resolved statistics for %s: %v", resolvedAlert.Fingerprint, err)
+					}
+				}
+			}(alert)
 
 			// Capture complete alert data with comments and acknowledgments for backend storage
 			go ac.storeResolvedAlertInBackend(alert)
@@ -284,6 +302,10 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 			alert.AcknowledgedAt = acknowledgment.CreatedAt.AsTime()
 			alert.AcknowledgeReason = acknowledgment.Reason
 			alert.CommentCount = 1
+
+			// Note: We don't capture statistics here because this is loading historical
+			// acknowledgments. Statistics should only be captured when alerts are
+			// acknowledged in real-time to avoid negative MTTR calculations.
 		}
 	}
 	ac.mu.Unlock()

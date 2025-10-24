@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	alertpb "notificator/internal/backend/proto/alert"
 	authpb "notificator/internal/backend/proto/auth"
@@ -15,10 +16,11 @@ import (
 )
 
 type BackendClient struct {
-	conn        *grpc.ClientConn
-	authClient  authpb.AuthServiceClient
-	alertClient alertpb.AlertServiceClient
-	address     string
+	conn             *grpc.ClientConn
+	authClient       authpb.AuthServiceClient
+	alertClient      alertpb.AlertServiceClient
+	statisticsClient alertpb.StatisticsServiceClient
+	address          string
 }
 
 type AuthResult struct {
@@ -58,6 +60,7 @@ func (c *BackendClient) Connect() error {
 	c.conn = conn
 	c.authClient = authpb.NewAuthServiceClient(conn)
 	c.alertClient = alertpb.NewAlertServiceClient(conn)
+	c.statisticsClient = alertpb.NewStatisticsServiceClient(conn)
 
 	return nil
 }
@@ -1382,6 +1385,253 @@ func (c *BackendClient) SetDefaultFilterPreset(sessionID, presetID string) error
 
 	if !resp.Success {
 		return fmt.Errorf("failed to set default filter preset: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// ==================== Statistics Methods ====================
+
+// QueryStatistics queries alert statistics with filters and aggregations
+func (c *BackendClient) QueryStatistics(sessionID string, req *alertpb.QueryStatisticsRequest) (*alertpb.QueryStatisticsResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req.SessionId = sessionID
+
+	resp, err := c.statisticsClient.QueryStatistics(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query statistics: %w", err)
+	}
+
+	return resp, nil
+}
+
+// SaveOnCallRule saves an on-call rule
+func (c *BackendClient) SaveOnCallRule(sessionID string, req *alertpb.SaveOnCallRuleRequest) (*alertpb.OnCallRule, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req.SessionId = sessionID
+
+	resp, err := c.statisticsClient.SaveOnCallRule(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save on-call rule: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to save rule: %s", resp.Message)
+	}
+
+	return resp.Rule, nil
+}
+
+// GetOnCallRules retrieves all on-call rules for the authenticated user
+func (c *BackendClient) GetOnCallRules(sessionID string, activeOnly bool) ([]*alertpb.OnCallRule, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetOnCallRulesRequest{
+		SessionId:  sessionID,
+		ActiveOnly: activeOnly,
+	}
+
+	resp, err := c.statisticsClient.GetOnCallRules(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get on-call rules: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get rules: %s", resp.Message)
+	}
+
+	return resp.Rules, nil
+}
+
+// GetOnCallRule retrieves a specific on-call rule
+func (c *BackendClient) GetOnCallRule(sessionID, ruleID string) (*alertpb.OnCallRule, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetOnCallRuleRequest{
+		SessionId: sessionID,
+		RuleId:    ruleID,
+	}
+
+	resp, err := c.statisticsClient.GetOnCallRule(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get on-call rule: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get rule: %s", resp.Message)
+	}
+
+	return resp.Rule, nil
+}
+
+// UpdateOnCallRule updates an existing on-call rule
+func (c *BackendClient) UpdateOnCallRule(sessionID string, req *alertpb.UpdateOnCallRuleRequest) (*alertpb.OnCallRule, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req.SessionId = sessionID
+
+	resp, err := c.statisticsClient.UpdateOnCallRule(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update on-call rule: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to update rule: %s", resp.Message)
+	}
+
+	return resp.Rule, nil
+}
+
+// DeleteOnCallRule deletes an on-call rule
+func (c *BackendClient) DeleteOnCallRule(sessionID, ruleID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &alertpb.DeleteOnCallRuleRequest{
+		SessionId: sessionID,
+		RuleId:    ruleID,
+	}
+
+	resp, err := c.statisticsClient.DeleteOnCallRule(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to delete on-call rule: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to delete rule: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// TestOnCallRule tests an on-call rule without saving it
+func (c *BackendClient) TestOnCallRule(sessionID string, req *alertpb.TestOnCallRuleRequest) (*alertpb.TestOnCallRuleResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req.SessionId = sessionID
+
+	resp, err := c.statisticsClient.TestOnCallRule(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to test on-call rule: %w", err)
+	}
+
+	return resp, nil
+}
+
+// GetStatisticsSummary retrieves a summary of available statistics
+func (c *BackendClient) GetStatisticsSummary(sessionID string) (*alertpb.GetStatisticsSummaryResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetStatisticsSummaryRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.statisticsClient.GetStatisticsSummary(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get statistics summary: %w", err)
+	}
+
+	return resp, nil
+}
+
+// ==================== Alert Capture Methods ====================
+
+// CaptureAlertFired captures statistics when an alert fires
+func (c *BackendClient) CaptureAlertFired(alert *models.DashboardAlert) error {
+	if !c.IsConnected() {
+		return fmt.Errorf("backend client not connected")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Build metadata JSON from alert
+	metadata := make(map[string]interface{})
+	if alert.Labels != nil {
+		metadata["labels"] = alert.Labels
+	}
+	if alert.Annotations != nil {
+		metadata["annotations"] = alert.Annotations
+	}
+	if alert.Source != "" {
+		metadata["source"] = alert.Source
+	}
+	if alert.Instance != "" {
+		metadata["instance"] = alert.Instance
+	}
+	if alert.Team != "" {
+		metadata["team"] = alert.Team
+	}
+
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	req := &alertpb.CaptureAlertFiredRequest{
+		Fingerprint: alert.Fingerprint,
+		AlertName:   alert.AlertName,
+		Severity:    alert.Severity,
+		StartsAt:    timestamppb.New(alert.StartsAt),
+		Metadata:    metadataBytes,
+	}
+
+	_, err = c.statisticsClient.CaptureAlertFired(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to capture alert fired: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateAlertResolved updates statistics when an alert resolves
+func (c *BackendClient) UpdateAlertResolved(alert *models.DashboardAlert) error {
+	if !c.IsConnected() {
+		return fmt.Errorf("backend client not connected")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req := &alertpb.UpdateAlertResolvedRequest{
+		Fingerprint: alert.Fingerprint,
+		ResolvedAt:  timestamppb.New(alert.ResolvedAt),
+	}
+
+	_, err := c.statisticsClient.UpdateAlertResolved(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to update alert resolved: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateAlertAcknowledged updates statistics when an alert is acknowledged
+func (c *BackendClient) UpdateAlertAcknowledged(alert *models.DashboardAlert) error {
+	if !c.IsConnected() {
+		return fmt.Errorf("backend client not connected")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req := &alertpb.UpdateAlertAcknowledgedRequest{
+		Fingerprint:     alert.Fingerprint,
+		AcknowledgedAt:  timestamppb.New(alert.AcknowledgedAt),
+	}
+
+	_, err := c.statisticsClient.UpdateAlertAcknowledged(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to update alert acknowledged: %w", err)
 	}
 
 	return nil

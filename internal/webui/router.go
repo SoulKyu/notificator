@@ -245,6 +245,23 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			notifications.GET("/preferences", handlers.GetNotificationPreferences)
 			notifications.POST("/preferences", handlers.SaveNotificationPreferences)
 		}
+
+		// Statistics and On-Call Rules routes
+		statistics := api.Group("/statistics")
+		statistics.Use(authMiddleware.RequireAuth())
+		{
+			// Query statistics
+			statistics.POST("/query", handlers.QueryStatistics)
+			statistics.GET("/summary", handlers.GetStatisticsSummary)
+
+			// On-call rules CRUD
+			statistics.GET("/rules", handlers.GetOnCallRules)
+			statistics.GET("/rules/:id", handlers.GetOnCallRule)
+			statistics.POST("/rules", handlers.SaveOnCallRule)
+			statistics.PUT("/rules/:id", handlers.UpdateOnCallRule)
+			statistics.DELETE("/rules/:id", handlers.DeleteOnCallRule)
+			statistics.POST("/rules/test", handlers.TestOnCallRule)
+		}
 	}
 
 	// Web routes (HTML pages)
@@ -270,6 +287,8 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		protectedPages.GET("/dashboard", handlers.DashboardPage)
 		protectedPages.GET("/dashboard/alert/:id", handlers.DashboardPage) // Show dashboard with modal
 		protectedPages.GET("/profile", handlers.ProfilePage)
+		protectedPages.GET("/statistics", handlers.StatisticsDashboardPage)
+		protectedPages.GET("/statistics/rules", handlers.OnCallRulesPage)
 	}
 
 	return r
