@@ -149,7 +149,47 @@ func (gdb *GormDB) AutoMigrate() error {
 		return fmt.Errorf("auto migration failed: %w", err)
 	}
 
+	// Create PostgreSQL-specific indexes for better JSONB query performance
+	if gdb.IsPostgreSQL() {
+		if err := gdb.createPostgreSQLIndexes(); err != nil {
+			log.Printf("⚠️  Warning: Failed to create PostgreSQL indexes: %v", err)
+			// Don't fail migration if index creation fails - indexes are optional optimizations
+		}
+	}
+
 	log.Println("✅ Database migrations completed")
+	return nil
+}
+
+// createPostgreSQLIndexes creates PostgreSQL-specific indexes for optimal performance
+func (gdb *GormDB) createPostgreSQLIndexes() error {
+	log.Println("Creating PostgreSQL-specific indexes...")
+
+	indexes := []string{
+		// GIN index on alert_statistics.metadata for fast JSONB queries
+		`CREATE INDEX IF NOT EXISTS idx_alert_statistics_metadata_gin
+		 ON alert_statistics USING GIN (metadata)`,
+
+		// GIN index specifically for labels queries (more targeted)
+		`CREATE INDEX IF NOT EXISTS idx_alert_statistics_metadata_labels_gin
+		 ON alert_statistics USING GIN ((metadata->'labels'))`,
+
+		// GIN index on on_call_rules.rule_config for rule queries
+		`CREATE INDEX IF NOT EXISTS idx_on_call_rules_config_gin
+		 ON on_call_rules USING GIN (rule_config)`,
+
+		// GIN index on statistics_aggregates.aggregated_data
+		`CREATE INDEX IF NOT EXISTS idx_statistics_aggregates_data_gin
+		 ON statistics_aggregates USING GIN (aggregated_data)`,
+	}
+
+	for _, indexSQL := range indexes {
+		if err := gdb.db.Exec(indexSQL).Error; err != nil {
+			return fmt.Errorf("failed to create index: %w", err)
+		}
+	}
+
+	log.Println("✅ PostgreSQL indexes created successfully")
 	return nil
 }
 

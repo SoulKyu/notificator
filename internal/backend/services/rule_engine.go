@@ -15,6 +15,15 @@ type RuleEngine struct {
 	db *database.GormDB
 }
 
+// Constants for rule engine configuration
+const (
+	// DefaultTestSampleSize is the default number of alerts to return when testing a rule
+	DefaultTestSampleSize = 10
+
+	// MaxLabelKeyLength is the maximum allowed length for label keys
+	MaxLabelKeyLength = 100
+)
+
 // NewRuleEngine creates a new rule engine instance
 func NewRuleEngine(db *database.GormDB) *RuleEngine {
 	return &RuleEngine{
@@ -113,6 +122,11 @@ func (re *RuleEngine) validateLabelCriterion(criterion *models.RuleCriterion) er
 		return fmt.Errorf("label criterion requires a key")
 	}
 
+	// Validate label key to prevent SQL injection
+	if err := sanitizeLabelKey(criterion.Key); err != nil {
+		return fmt.Errorf("invalid label key: %w", err)
+	}
+
 	// Value is required
 	if criterion.Value == "" {
 		return fmt.Errorf("label criterion requires a value")
@@ -159,6 +173,17 @@ func (re *RuleEngine) validateAlertNameCriterion(criterion *models.RuleCriterion
 
 // ApplyRulesToQuery applies user's on-call rules to a GORM query
 // Returns modified query with WHERE clauses based on rule criteria
+//
+// IMPORTANT LIMITATION: Currently only the first active rule is applied.
+// If a user has multiple active rules, only the first rule (ordered by creation date)
+// will be used for filtering. This is a known limitation planned for future enhancement.
+//
+// To ensure predictable behavior:
+//   - Users should only have ONE active rule at a time
+//   - Deactivate old rules before creating new ones
+//   - Use complex criteria within a single rule (AND/OR logic) instead of multiple rules
+//
+// Future enhancement: Support multiple rules with priority and combination logic
 func (re *RuleEngine) ApplyRulesToQuery(userID string, baseQuery *gorm.DB) (*gorm.DB, error) {
 	// Load user's active rules
 	rules, err := re.db.GetActiveOnCallRules(userID)
@@ -171,9 +196,16 @@ func (re *RuleEngine) ApplyRulesToQuery(userID string, baseQuery *gorm.DB) (*gor
 		return baseQuery, nil
 	}
 
-	// For simplicity, use the first active rule
+	// CURRENT LIMITATION: Only use the first active rule
+	// If multiple rules exist, only the first one (by creation date) is applied
 	// TODO: Support multiple rules with priority/combination logic
 	rule := rules[0]
+
+	// Log warning if multiple active rules exist
+	if len(rules) > 1 {
+		fmt.Printf("⚠️  WARNING: User %s has %d active rules, but only the first rule (%s) will be applied\n",
+			userID, len(rules), rule.RuleName)
+	}
 
 	// Parse rule config
 	config, err := database.ParseRuleConfig(rule.RuleConfig)
@@ -234,7 +266,16 @@ func (re *RuleEngine) applySeverityCriterion(query *gorm.DB, criterion *models.R
 
 // applyLabelCriterion applies label filtering using JSONB queries
 func (re *RuleEngine) applyLabelCriterion(query *gorm.DB, criterion *models.RuleCriterion) *gorm.DB {
+	// Defense-in-depth: Validate label key before building query
+	// This should have been validated during rule creation, but we check again for safety
+	if err := sanitizeLabelKey(criterion.Key); err != nil {
+		// Log error and return unmodified query (fail-safe behavior)
+		fmt.Printf("ERROR: Invalid label key in stored rule: %v\n", err)
+		return query
+	}
+
 	// Build JSONB path: metadata->'labels'->>'key'
+	// criterion.Key is now validated, but we still use parameterization for values
 	jsonPath := fmt.Sprintf("metadata->'labels'->>'%s'", criterion.Key)
 
 	switch criterion.Operator {
@@ -352,7 +393,7 @@ func (re *RuleEngine) TestRule(userID string, config *models.RuleConfig, sampleS
 
 	// Get sample
 	if sampleSize <= 0 {
-		sampleSize = 10
+		sampleSize = DefaultTestSampleSize
 	}
 
 	var sampleMatches []*models.AlertStatistic
@@ -407,4 +448,27 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// sanitizeLabelKey validates and sanitizes label keys to prevent SQL injection
+// Only allows alphanumeric characters, underscores, hyphens, and dots
+// Returns error if key contains invalid characters
+func sanitizeLabelKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("label key cannot be empty")
+	}
+
+	// Maximum length check (reasonable limit for label keys)
+	if len(key) > MaxLabelKeyLength {
+		return fmt.Errorf("label key too long (max %d characters)", MaxLabelKeyLength)
+	}
+
+	// Check for valid characters: alphanumeric, underscore, hyphen, dot
+	// This prevents SQL injection via JSONB path manipulation
+	validKeyPattern := regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
+	if !validKeyPattern.MatchString(key) {
+		return fmt.Errorf("label key contains invalid characters (only alphanumeric, underscore, hyphen, and dot allowed): %s", key)
+	}
+
+	return nil
 }

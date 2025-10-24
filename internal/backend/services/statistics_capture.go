@@ -67,12 +67,12 @@ func (scs *StatisticsCaptureService) UpdateAlertResolved(alert *webuimodels.Dash
 	}
 
 	// Update resolution data
-	stat.ResolvedAt = &alert.ResolvedAt
+	stat.ResolvedAt = models.TimePtr(alert.ResolvedAt)
 
 	// Calculate duration in seconds
 	duration := alert.ResolvedAt.Sub(alert.StartsAt)
 	durationSec := int(duration.Seconds())
-	stat.DurationSeconds = &durationSec
+	stat.DurationSeconds = models.IntPtr(durationSec)
 
 	// IMPORTANT: Update metadata to capture current status at resolution time
 	// This ensures we have the correct silenced/suppressed state when the alert resolved
@@ -109,13 +109,13 @@ func (scs *StatisticsCaptureService) UpdateAlertAcknowledged(alert *webuimodels.
 	}
 
 	// Update acknowledgment data
-	stat.AcknowledgedAt = &alert.AcknowledgedAt
+	stat.AcknowledgedAt = models.TimePtr(alert.AcknowledgedAt)
 
 	// Calculate MTTR (Mean Time To Resolve) in seconds
 	// MTTR = time from alert firing to acknowledgment
 	mttr := alert.AcknowledgedAt.Sub(alert.StartsAt)
 	mttrSec := int(mttr.Seconds())
-	stat.MTTRSeconds = &mttrSec
+	stat.MTTRSeconds = models.IntPtr(mttrSec)
 
 	// Update in database
 	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
@@ -140,10 +140,9 @@ func (scs *StatisticsCaptureService) UpdateAlertResolvedMinimal(fingerprint stri
 		return fmt.Errorf("invalid resolved_at type")
 	}
 
-	stat.ResolvedAt = &resolvedAt
+	stat.ResolvedAt = models.TimePtr(resolvedAt)
 	duration := resolvedAt.Sub(stat.FiredAt)
-	durationSec := int(duration.Seconds())
-	stat.DurationSeconds = &durationSec
+	stat.DurationSeconds = models.IntPtr(int(duration.Seconds()))
 
 	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
 		return fmt.Errorf("failed to update alert statistic: %w", err)
@@ -166,10 +165,9 @@ func (scs *StatisticsCaptureService) UpdateAlertAcknowledgedMinimal(fingerprint 
 		return fmt.Errorf("invalid acknowledged_at type")
 	}
 
-	stat.AcknowledgedAt = &acknowledgedAt
+	stat.AcknowledgedAt = models.TimePtr(acknowledgedAt)
 	mttr := acknowledgedAt.Sub(stat.FiredAt)
-	mttrSec := int(mttr.Seconds())
-	stat.MTTRSeconds = &mttrSec
+	stat.MTTRSeconds = models.IntPtr(int(mttr.Seconds()))
 
 	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
 		return fmt.Errorf("failed to update alert statistic: %w", err)
