@@ -110,7 +110,10 @@ templ DashboardCore() {
 				
 				alertColors: {},
 				alertColorsTimestamp: 0,
-				
+
+				// Annotation button configs
+				annotationButtonConfigs: [],
+
 				columnWidths: {
 					alertName: 300,
 					action: 100,
@@ -153,6 +156,7 @@ templ DashboardCore() {
 					this.loadSettings();
 					this.loadColumnWidths();
 					this.loadCurrentUser();
+					this.loadAnnotationButtonConfigs();
 
 					// Check if URL has filter parameters
 					const params = new URLSearchParams(window.location.search);

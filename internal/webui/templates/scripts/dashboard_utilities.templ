@@ -291,6 +291,38 @@ templ DashboardUtilities() {
 				}
 			},
 
+			async loadAnnotationButtonConfigs() {
+				try {
+					const response = await fetch('/api/v1/dashboard/annotation-buttons', {
+						credentials: 'include'
+					});
+					if (response.ok) {
+						const result = await response.json();
+						if (result.success && result.data && result.data.configs) {
+							// Sanitize colors when loading to ensure safety
+							this.annotationButtonConfigs = result.data.configs.map(config => ({
+								...config,
+								color: this.sanitizeColor(config.color)
+							}));
+							console.log('Loaded annotation button configs:', this.annotationButtonConfigs.length);
+						}
+					}
+				} catch (error) {
+					console.warn('Failed to load annotation button configs:', error);
+					// Use default configs if loading fails
+					this.annotationButtonConfigs = [];
+				}
+			},
+
+			// Color sanitization for security
+			sanitizeColor(color) {
+				const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+				if (hexColorRegex.test(color)) {
+					return color;
+				}
+				return '#6366f1'; // Default indigo-600
+			},
+
 			getCurrentUser() {
 				return this.currentUser;
 			},

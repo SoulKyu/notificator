@@ -236,6 +236,13 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.GET("/sentry-config", handlers.GetUserSentryConfig)
 			dashboard.POST("/sentry-token", handlers.SaveUserSentryToken)
 			dashboard.DELETE("/sentry-token", handlers.DeleteUserSentryToken)
+
+			// Annotation button config routes
+			dashboard.GET("/annotation-buttons", handlers.GetAnnotationButtonConfigs)
+			dashboard.POST("/annotation-buttons", handlers.SaveAnnotationButtonConfigs)
+			dashboard.POST("/annotation-buttons/single", handlers.CreateAnnotationButtonConfig)
+			dashboard.PUT("/annotation-buttons/:id", handlers.UpdateAnnotationButtonConfig)
+			dashboard.DELETE("/annotation-buttons/:id", handlers.DeleteAnnotationButtonConfig)
 		}
 
 		// Notification preferences routes

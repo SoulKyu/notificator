@@ -143,6 +143,8 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.AlertStatistic{},
 		&models.OnCallRule{},
 		&models.StatisticsAggregate{},
+		// Annotation button configs
+		&models.AnnotationButtonConfig{},
 	)
 
 	if err != nil {
@@ -801,4 +803,90 @@ func (gdb *GormDB) GetDefaultFilterPreset(userID string) (*models.FilterPreset, 
 		return nil, err
 	}
 	return &preset, nil
+}
+
+// Annotation Button Config Methods
+
+// GetAnnotationButtonConfigs gets all annotation button configurations for a user
+func (gdb *GormDB) GetAnnotationButtonConfigs(userID string) ([]models.AnnotationButtonConfig, error) {
+	var configs []models.AnnotationButtonConfig
+	err := gdb.db.Where("user_id = ?", userID).
+		Order("display_order ASC, created_at ASC").
+		Find(&configs).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get annotation button configs: %w", err)
+	}
+
+	// If no configs exist, create default ones
+	if len(configs) == 0 {
+		defaultConfigs := models.DefaultAnnotationButtonConfigs(userID)
+		for i := range defaultConfigs {
+			if err := gdb.db.Create(&defaultConfigs[i]).Error; err != nil {
+				return nil, fmt.Errorf("failed to create default annotation button config: %w", err)
+			}
+		}
+		return defaultConfigs, nil
+	}
+
+	return configs, nil
+}
+
+// SaveAnnotationButtonConfigs saves all annotation button configurations for a user
+// This replaces all existing configs with the new ones
+func (gdb *GormDB) SaveAnnotationButtonConfigs(userID string, configs []models.AnnotationButtonConfig) error {
+	tx := gdb.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Delete all existing configs for this user
+	if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&models.AnnotationButtonConfig{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete existing configs: %w", err)
+	}
+
+	// Create all new configs
+	for i := range configs {
+		configs[i].UserID = userID
+		if err := tx.Create(&configs[i]).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create config: %w", err)
+		}
+	}
+
+	return tx.Commit().Error
+}
+
+// CreateAnnotationButtonConfig creates a new annotation button configuration
+func (gdb *GormDB) CreateAnnotationButtonConfig(config *models.AnnotationButtonConfig) error {
+	if err := gdb.db.Create(config).Error; err != nil {
+		return fmt.Errorf("failed to create annotation button config: %w", err)
+	}
+	return nil
+}
+
+// UpdateAnnotationButtonConfig updates an existing annotation button configuration
+func (gdb *GormDB) UpdateAnnotationButtonConfig(config *models.AnnotationButtonConfig) error {
+	if err := gdb.db.Save(config).Error; err != nil {
+		return fmt.Errorf("failed to update annotation button config: %w", err)
+	}
+	return nil
+}
+
+// DeleteAnnotationButtonConfig deletes an annotation button configuration
+func (gdb *GormDB) DeleteAnnotationButtonConfig(userID, configID string) error {
+	result := gdb.db.Where("id = ? AND user_id = ?", configID, userID).Delete(&models.AnnotationButtonConfig{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("annotation button config not found or not authorized")
+	}
+	return nil
 }

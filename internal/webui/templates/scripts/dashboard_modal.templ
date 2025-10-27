@@ -453,6 +453,26 @@ templ DashboardModal() {
 						component.sentryLoading = false;
 					}
 				}
+			},
+
+			// Helper methods for annotation buttons
+			hasMatchingAnnotation(buttonConfig) {
+				if (!buttonConfig || !buttonConfig.enabled) return false;
+				const annotations = this.alertDetails?.alert?.annotations || {};
+				return buttonConfig.annotation_keys?.some(key => annotations[key]);
+			},
+
+			getAnnotationUrl(buttonConfig) {
+				const annotations = this.alertDetails?.alert?.annotations || {};
+				const matchedKey = buttonConfig.annotation_keys?.find(key => annotations[key]);
+				return matchedKey ? annotations[matchedKey] : null;
+			},
+
+			openAnnotationUrl(buttonConfig) {
+				const url = this.getAnnotationUrl(buttonConfig);
+				if (url) {
+					window.open(url, '_blank');
+				}
 			}
 		};
 

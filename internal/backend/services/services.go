@@ -2501,6 +2501,333 @@ func (s *AlertServiceGorm) SetDefaultFilterPreset(ctx context.Context, req *aler
 	}, nil
 }
 
+// GetAnnotationButtonConfigs implements the GetAnnotationButtonConfigs RPC method
+func (s *AlertServiceGorm) GetAnnotationButtonConfigs(ctx context.Context, req *alertpb.GetAnnotationButtonConfigsRequest) (*alertpb.GetAnnotationButtonConfigsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get configs from database (creates defaults if none exist)
+	configs, err := s.db.GetAnnotationButtonConfigs(user.ID)
+	if err != nil {
+		log.Printf("Error getting annotation button configs: %v", err)
+		return &alertpb.GetAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Failed to get annotation button configs",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	var pbConfigs []*alertpb.AnnotationButtonConfig
+	for _, config := range configs {
+		pbConfigs = append(pbConfigs, &alertpb.AnnotationButtonConfig{
+			Id:             config.ID,
+			UserId:         config.UserID,
+			Label:          config.Label,
+			AnnotationKeys: config.AnnotationKeys,
+			Color:          config.Color,
+			Icon:           config.Icon,
+			DisplayOrder:   int32(config.DisplayOrder),
+			Enabled:        config.Enabled,
+			ButtonType:     config.ButtonType,
+			CreatedAt:      timestamppb.New(config.CreatedAt),
+			UpdatedAt:      timestamppb.New(config.UpdatedAt),
+		})
+	}
+
+	return &alertpb.GetAnnotationButtonConfigsResponse{
+		Success: true,
+		Configs: pbConfigs,
+		Message: "Annotation button configs retrieved successfully",
+	}, nil
+}
+
+// SaveAnnotationButtonConfigs implements the SaveAnnotationButtonConfigs RPC method
+func (s *AlertServiceGorm) SaveAnnotationButtonConfigs(ctx context.Context, req *alertpb.SaveAnnotationButtonConfigsRequest) (*alertpb.SaveAnnotationButtonConfigsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf configs to database models and validate
+	var configs []models.AnnotationButtonConfig
+	for _, pbConfig := range req.Configs {
+		config := models.AnnotationButtonConfig{
+			ID:             pbConfig.Id,
+			UserID:         user.ID,
+			Label:          pbConfig.Label,
+			AnnotationKeys: pbConfig.AnnotationKeys,
+			Color:          models.SanitizeColor(pbConfig.Color), // Sanitize color to prevent CSS injection
+			Icon:           pbConfig.Icon,
+			DisplayOrder:   int(pbConfig.DisplayOrder),
+			Enabled:        pbConfig.Enabled,
+			ButtonType:     pbConfig.ButtonType,
+		}
+
+		// Validate configuration
+		if err := config.Validate(); err != nil {
+			log.Printf("Invalid annotation button config: %v", err)
+			return &alertpb.SaveAnnotationButtonConfigsResponse{
+				Success: false,
+				Message: "Invalid configuration: " + err.Error(),
+			}, nil
+		}
+
+		configs = append(configs, config)
+	}
+
+	// Save to database
+	err = s.db.SaveAnnotationButtonConfigs(user.ID, configs)
+	if err != nil {
+		log.Printf("Error saving annotation button configs: %v", err)
+		return &alertpb.SaveAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Failed to save annotation button configs",
+		}, nil
+	}
+
+	log.Printf("Annotation button configs saved for user %s", user.ID)
+
+	return &alertpb.SaveAnnotationButtonConfigsResponse{
+		Success: true,
+		Message: "Annotation button configs saved successfully",
+	}, nil
+}
+
+// DeleteAnnotationButtonConfig implements the DeleteAnnotationButtonConfig RPC method
+func (s *AlertServiceGorm) DeleteAnnotationButtonConfig(ctx context.Context, req *alertpb.DeleteAnnotationButtonConfigRequest) (*alertpb.DeleteAnnotationButtonConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ConfigId == "" {
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Delete config
+	err = s.db.DeleteAnnotationButtonConfig(user.ID, req.ConfigId)
+	if err != nil {
+		log.Printf("Failed to delete annotation button config %s for user %s: %v", req.ConfigId, user.ID, err)
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Failed to delete annotation button config or not authorized",
+		}, nil
+	}
+
+	log.Printf("Annotation button config %s deleted for user %s", req.ConfigId, user.ID)
+
+	return &alertpb.DeleteAnnotationButtonConfigResponse{
+		Success: true,
+		Message: "Annotation button config deleted successfully",
+	}, nil
+}
+
+// CreateAnnotationButtonConfig implements the CreateAnnotationButtonConfig RPC method
+func (s *AlertServiceGorm) CreateAnnotationButtonConfig(ctx context.Context, req *alertpb.CreateAnnotationButtonConfigRequest) (*alertpb.CreateAnnotationButtonConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Config == nil {
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf to database model and validate
+	config := models.AnnotationButtonConfig{
+		UserID:         user.ID,
+		Label:          req.Config.Label,
+		AnnotationKeys: req.Config.AnnotationKeys,
+		Color:          models.SanitizeColor(req.Config.Color),
+		Icon:           req.Config.Icon,
+		DisplayOrder:   int(req.Config.DisplayOrder),
+		Enabled:        req.Config.Enabled,
+		ButtonType:     req.Config.ButtonType,
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		log.Printf("Invalid annotation button config: %v", err)
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid configuration: " + err.Error(),
+		}, nil
+	}
+
+	// Create in database
+	err = s.db.CreateAnnotationButtonConfig(&config)
+	if err != nil {
+		log.Printf("Error creating annotation button config: %v", err)
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Failed to create annotation button config",
+		}, nil
+	}
+
+	log.Printf("Annotation button config created for user %s", user.ID)
+
+	// Convert back to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Id:             config.ID,
+		UserId:         config.UserID,
+		Label:          config.Label,
+		AnnotationKeys: config.AnnotationKeys,
+		Color:          config.Color,
+		Icon:           config.Icon,
+		DisplayOrder:   int32(config.DisplayOrder),
+		Enabled:        config.Enabled,
+		ButtonType:     config.ButtonType,
+		CreatedAt:      timestamppb.New(config.CreatedAt),
+		UpdatedAt:      timestamppb.New(config.UpdatedAt),
+	}
+
+	return &alertpb.CreateAnnotationButtonConfigResponse{
+		Success: true,
+		Config:  pbConfig,
+		Message: "Annotation button config created successfully",
+	}, nil
+}
+
+// UpdateAnnotationButtonConfig implements the UpdateAnnotationButtonConfig RPC method
+func (s *AlertServiceGorm) UpdateAnnotationButtonConfig(ctx context.Context, req *alertpb.UpdateAnnotationButtonConfigRequest) (*alertpb.UpdateAnnotationButtonConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Config == nil {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config is required",
+		}, nil
+	}
+
+	if req.Config.Id == "" {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf to database model and validate
+	config := models.AnnotationButtonConfig{
+		ID:             req.Config.Id,
+		UserID:         user.ID,
+		Label:          req.Config.Label,
+		AnnotationKeys: req.Config.AnnotationKeys,
+		Color:          models.SanitizeColor(req.Config.Color),
+		Icon:           req.Config.Icon,
+		DisplayOrder:   int(req.Config.DisplayOrder),
+		Enabled:        req.Config.Enabled,
+		ButtonType:     req.Config.ButtonType,
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		log.Printf("Invalid annotation button config: %v", err)
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid configuration: " + err.Error(),
+		}, nil
+	}
+
+	// Update in database
+	err = s.db.UpdateAnnotationButtonConfig(&config)
+	if err != nil {
+		log.Printf("Error updating annotation button config: %v", err)
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Failed to update annotation button config",
+		}, nil
+	}
+
+	log.Printf("Annotation button config %s updated for user %s", config.ID, user.ID)
+
+	// Convert back to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Id:             config.ID,
+		UserId:         config.UserID,
+		Label:          config.Label,
+		AnnotationKeys: config.AnnotationKeys,
+		Color:          config.Color,
+		Icon:           config.Icon,
+		DisplayOrder:   int32(config.DisplayOrder),
+		Enabled:        config.Enabled,
+		ButtonType:     config.ButtonType,
+		CreatedAt:      timestamppb.New(config.CreatedAt),
+		UpdatedAt:      timestamppb.New(config.UpdatedAt),
+	}
+
+	return &alertpb.UpdateAnnotationButtonConfigResponse{
+		Success: true,
+		Config:  pbConfig,
+		Message: "Annotation button config updated successfully",
+	}, nil
+}
+
 func generateUUID() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)

@@ -41,6 +41,11 @@ templ SettingsModal() {
 										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
 									Notifications
 								</button>
+								<button @click="setActiveTab('annotation-buttons')"
+										:class="activeTab === 'annotation-buttons' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
+										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+									Annotation Buttons
+								</button>
 							</nav>
 						</div>
 						
@@ -496,10 +501,96 @@ templ SettingsModal() {
 							</div>
 
 							@NotificationSettings()
+
+							<!-- Annotation Buttons Tab -->
+							<div x-show="activeTab === 'annotation-buttons'" class="space-y-6">
+								<div class="flex items-center justify-between mb-4">
+									<div>
+										<h4 class="text-sm font-medium text-gray-900 dark:text-white">Annotation Button Configuration</h4>
+										<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Configure which annotation keys display as buttons in alert modals.</p>
+									</div>
+									<button @click="addAnnotationButton()"
+											class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+										<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+										</svg>
+										Add Button
+									</button>
+								</div>
+
+								<div x-show="annotationButtonsLoading" class="text-center py-8">
+									<div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+								</div>
+
+								<div x-show="!annotationButtonsLoading" class="space-y-3">
+									<template x-if="annotationButtonConfigs.length === 0">
+										<div class="text-center py-8 text-gray-500 dark:text-gray-400 text-sm">
+											No buttons configured. Click "Add Button" to create one.
+										</div>
+									</template>
+
+									<template x-for="(button, index) in annotationButtonConfigs" :key="button.id">
+										<div class="bg-white dark:bg-dark-bg-tertiary border border-gray-200 dark:border-dark-border-DEFAULT rounded-lg p-4 space-y-3">
+											<div class="flex items-center justify-between">
+												<div class="flex items-center space-x-3">
+													<input type="text" x-model="button.label" placeholder="Button Label"
+														   class="border border-gray-300 dark:border-dark-border-DEFAULT rounded px-2 py-1 text-sm bg-white dark:bg-dark-bg-secondary text-gray-900 dark:text-gray-100">
+													<input type="color" x-model="button.color" class="w-10 h-8 border rounded cursor-pointer">
+													<label class="inline-flex items-center text-sm">
+														<input type="checkbox" x-model="button.enabled" class="rounded text-blue-600">
+														<span class="ml-2 text-gray-700 dark:text-gray-300">Enabled</span>
+													</label>
+												</div>
+												<div class="flex items-center space-x-2">
+													<button @click="moveButtonUp(index)" :disabled="index === 0"
+															class="p-1 text-gray-600 dark:text-gray-400 disabled:opacity-30">
+														<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+														</svg>
+													</button>
+													<button @click="moveButtonDown(index)" :disabled="index === annotationButtonConfigs.length - 1"
+															class="p-1 text-gray-600 dark:text-gray-400 disabled:opacity-30">
+														<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+														</svg>
+													</button>
+													<button @click="removeAnnotationButton(index)" class="p-1 text-red-600 dark:text-red-400">
+														<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+														</svg>
+													</button>
+												</div>
+											</div>
+
+											<div class="space-y-2">
+												<label class="text-xs font-medium text-gray-700 dark:text-gray-300">Annotation Keys:</label>
+												<div class="space-y-2">
+													<template x-for="(key, keyIndex) in button.annotation_keys" :key="keyIndex">
+														<div class="flex items-center space-x-2">
+															<input type="text" x-model="button.annotation_keys[keyIndex]"
+																   placeholder="e.g., documentation, runbook_url"
+																   class="flex-1 border border-gray-300 dark:border-dark-border-DEFAULT rounded px-2 py-1 text-sm bg-white dark:bg-dark-bg-secondary text-gray-900 dark:text-gray-100">
+															<button @click="removeAnnotationKey(button, keyIndex)" x-show="button.annotation_keys.length > 1"
+																	class="text-red-600 dark:text-red-400 p-1">
+																<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+																</svg>
+															</button>
+														</div>
+													</template>
+													<button @click="addAnnotationKey(button)" class="text-xs text-blue-600 dark:text-blue-400">
+														+ Add another key
+													</button>
+												</div>
+											</div>
+										</div>
+									</template>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
-				
+
 				<div class="bg-gray-50 dark:bg-dark-bg-tertiary px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
 					<button type="button" @click="saveSettings()" 
 							:disabled="settingsSaving"
@@ -984,27 +1075,20 @@ templ AlertDetailsModal() {
 													<span x-text="getSilenceButtonText(alertDetails?.alert)"></span>
 												</button>
 
-												<!-- Documentation Button (Indigo) - Only show when annotation exists -->
-												<button @click="window.open(alertDetails?.alert?.annotations?.documentation, '_blank')"
-														x-show="alertDetails?.alert?.annotations?.documentation"
-														class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-indigo-600/25 transition-all duration-200 hover:shadow-indigo-600/40 hover:scale-105">
-													<!-- Heroicon: book-open -->
-													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-													</svg>
-													Documentation
-												</button>
-
-												<!-- Grafana Button (Orange) - Only show when annotation exists -->
-												<button @click="window.open(alertDetails?.alert?.annotations?.grafana, '_blank')"
-														x-show="alertDetails?.alert?.annotations?.grafana"
-														class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-orange-600/25 transition-all duration-200 hover:shadow-orange-600/40 hover:scale-105">
-													<!-- Heroicon: chart-bar -->
-													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-													</svg>
-													Grafana
-												</button>
+												<!-- Dynamic Annotation Buttons -->
+												<template x-for="buttonConfig in annotationButtonConfigs" :key="buttonConfig.id">
+													<template x-if="hasMatchingAnnotation(buttonConfig)">
+														<button @click="openAnnotationUrl(buttonConfig)"
+																class="inline-flex items-center px-4 py-2 text-white text-sm font-medium rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
+																:style="`background-color: ${sanitizeColor(buttonConfig.color)}; box-shadow: 0 10px 15px -3px ${sanitizeColor(buttonConfig.color)}40`">
+															<!-- Generic link icon -->
+															<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+															</svg>
+															<span x-text="buttonConfig.label"></span>
+														</button>
+													</template>
+												</template>
 
 												<button @click="acknowledgeCurrentAlert()"
 														x-show="alertDetails?.alert && !alertDetails?.alert?.isAcknowledged"

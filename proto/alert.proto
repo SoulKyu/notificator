@@ -56,6 +56,13 @@ service AlertService {
   rpc UpdateFilterPreset(UpdateFilterPresetRequest) returns (UpdateFilterPresetResponse);
   rpc DeleteFilterPreset(DeleteFilterPresetRequest) returns (DeleteFilterPresetResponse);
   rpc SetDefaultFilterPreset(SetDefaultFilterPresetRequest) returns (SetDefaultFilterPresetResponse);
+
+  // Annotation Button Configs
+  rpc GetAnnotationButtonConfigs(GetAnnotationButtonConfigsRequest) returns (GetAnnotationButtonConfigsResponse);
+  rpc SaveAnnotationButtonConfigs(SaveAnnotationButtonConfigsRequest) returns (SaveAnnotationButtonConfigsResponse);
+  rpc CreateAnnotationButtonConfig(CreateAnnotationButtonConfigRequest) returns (CreateAnnotationButtonConfigResponse);
+  rpc UpdateAnnotationButtonConfig(UpdateAnnotationButtonConfigRequest) returns (UpdateAnnotationButtonConfigResponse);
+  rpc DeleteAnnotationButtonConfig(DeleteAnnotationButtonConfigRequest) returns (DeleteAnnotationButtonConfigResponse);
 }
 
 // Comment Messages
@@ -504,6 +511,73 @@ message FilterPreset {
   bytes filter_data = 7;  // JSON serialized filter state
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
+}
+
+// Annotation Button Config Messages
+message GetAnnotationButtonConfigsRequest {
+  string session_id = 1;
+}
+
+message GetAnnotationButtonConfigsResponse {
+  bool success = 1;
+  repeated AnnotationButtonConfig configs = 2;
+  string message = 3;
+}
+
+message SaveAnnotationButtonConfigsRequest {
+  string session_id = 1;
+  repeated AnnotationButtonConfig configs = 2;
+}
+
+message SaveAnnotationButtonConfigsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CreateAnnotationButtonConfigRequest {
+  string session_id = 1;
+  AnnotationButtonConfig config = 2;
+}
+
+message CreateAnnotationButtonConfigResponse {
+  bool success = 1;
+  AnnotationButtonConfig config = 2;
+  string message = 3;
+}
+
+message UpdateAnnotationButtonConfigRequest {
+  string session_id = 1;
+  AnnotationButtonConfig config = 2;
+}
+
+message UpdateAnnotationButtonConfigResponse {
+  bool success = 1;
+  AnnotationButtonConfig config = 2;
+  string message = 3;
+}
+
+message DeleteAnnotationButtonConfigRequest {
+  string session_id = 1;
+  string config_id = 2;
+}
+
+message DeleteAnnotationButtonConfigResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message AnnotationButtonConfig {
+  string id = 1;
+  string user_id = 2;
+  string label = 3;
+  repeated string annotation_keys = 4;  // List of annotation keys to check
+  string color = 5;
+  string icon = 6;
+  int32 display_order = 7;
+  bool enabled = 8;
+  string button_type = 9;  // "default" or "custom"
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
 }
 
 // ==================== Statistics Service ====================

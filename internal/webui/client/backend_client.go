@@ -1698,3 +1698,132 @@ func (c *BackendClient) QueryRecentlyResolved(sessionID string, startDate, endDa
 		"end_date":    resp.EndDate.AsTime(),
 	}, nil
 }
+
+// GetAnnotationButtonConfigs retrieves annotation button configurations for a user
+func (c *BackendClient) GetAnnotationButtonConfigs(sessionID string) ([]*alertpb.AnnotationButtonConfig, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetAnnotationButtonConfigsRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.alertClient.GetAnnotationButtonConfigs(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get annotation button configs: %s", resp.Message)
+	}
+
+	return resp.Configs, nil
+}
+
+// SaveAnnotationButtonConfigs saves annotation button configurations for a user
+func (c *BackendClient) SaveAnnotationButtonConfigs(sessionID string, configs []*alertpb.AnnotationButtonConfig) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.SaveAnnotationButtonConfigsRequest{
+		SessionId: sessionID,
+		Configs:   configs,
+	}
+
+	resp, err := c.alertClient.SaveAnnotationButtonConfigs(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to save annotation button configs: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// CreateAnnotationButtonConfig creates a new annotation button configuration
+func (c *BackendClient) CreateAnnotationButtonConfig(sessionID string, config *alertpb.AnnotationButtonConfig) (*alertpb.AnnotationButtonConfig, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.CreateAnnotationButtonConfigRequest{
+		SessionId: sessionID,
+		Config:    config,
+	}
+
+	resp, err := c.alertClient.CreateAnnotationButtonConfig(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to create annotation button config: %s", resp.Message)
+	}
+
+	return resp.Config, nil
+}
+
+// UpdateAnnotationButtonConfig updates an existing annotation button configuration
+func (c *BackendClient) UpdateAnnotationButtonConfig(sessionID string, config *alertpb.AnnotationButtonConfig) (*alertpb.AnnotationButtonConfig, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.UpdateAnnotationButtonConfigRequest{
+		SessionId: sessionID,
+		Config:    config,
+	}
+
+	resp, err := c.alertClient.UpdateAnnotationButtonConfig(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to update annotation button config: %s", resp.Message)
+	}
+
+	return resp.Config, nil
+}
+
+// DeleteAnnotationButtonConfig deletes an annotation button configuration
+func (c *BackendClient) DeleteAnnotationButtonConfig(sessionID, configID string) error {
+	if c.alertClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.DeleteAnnotationButtonConfigRequest{
+		SessionId: sessionID,
+		ConfigId:  configID,
+	}
+
+	resp, err := c.alertClient.DeleteAnnotationButtonConfig(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to delete annotation button config: %s", resp.Message)
+	}
+
+	return nil
+}

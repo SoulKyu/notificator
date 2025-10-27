@@ -21,36 +21,41 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AlertService_AddComment_FullMethodName                  = "/notificator.alert.AlertService/AddComment"
-	AlertService_GetComments_FullMethodName                 = "/notificator.alert.AlertService/GetComments"
-	AlertService_DeleteComment_FullMethodName               = "/notificator.alert.AlertService/DeleteComment"
-	AlertService_AddAcknowledgment_FullMethodName           = "/notificator.alert.AlertService/AddAcknowledgment"
-	AlertService_GetAcknowledgments_FullMethodName          = "/notificator.alert.AlertService/GetAcknowledgments"
-	AlertService_GetAllAcknowledgedAlerts_FullMethodName    = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
-	AlertService_DeleteAcknowledgment_FullMethodName        = "/notificator.alert.AlertService/DeleteAcknowledgment"
-	AlertService_SubscribeToAlertUpdates_FullMethodName     = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
-	AlertService_CreateResolvedAlert_FullMethodName         = "/notificator.alert.AlertService/CreateResolvedAlert"
-	AlertService_GetResolvedAlerts_FullMethodName           = "/notificator.alert.AlertService/GetResolvedAlerts"
-	AlertService_GetResolvedAlert_FullMethodName            = "/notificator.alert.AlertService/GetResolvedAlert"
-	AlertService_RemoveAllResolvedAlerts_FullMethodName     = "/notificator.alert.AlertService/RemoveAllResolvedAlerts"
-	AlertService_StreamResolvedAlertUpdates_FullMethodName  = "/notificator.alert.AlertService/StreamResolvedAlertUpdates"
-	AlertService_GetUserColorPreferences_FullMethodName     = "/notificator.alert.AlertService/GetUserColorPreferences"
-	AlertService_SaveUserColorPreferences_FullMethodName    = "/notificator.alert.AlertService/SaveUserColorPreferences"
-	AlertService_DeleteUserColorPreference_FullMethodName   = "/notificator.alert.AlertService/DeleteUserColorPreference"
-	AlertService_GetUserHiddenAlerts_FullMethodName         = "/notificator.alert.AlertService/GetUserHiddenAlerts"
-	AlertService_HideAlert_FullMethodName                   = "/notificator.alert.AlertService/HideAlert"
-	AlertService_UnhideAlert_FullMethodName                 = "/notificator.alert.AlertService/UnhideAlert"
-	AlertService_ClearAllHiddenAlerts_FullMethodName        = "/notificator.alert.AlertService/ClearAllHiddenAlerts"
-	AlertService_GetUserHiddenRules_FullMethodName          = "/notificator.alert.AlertService/GetUserHiddenRules"
-	AlertService_SaveHiddenRule_FullMethodName              = "/notificator.alert.AlertService/SaveHiddenRule"
-	AlertService_RemoveHiddenRule_FullMethodName            = "/notificator.alert.AlertService/RemoveHiddenRule"
-	AlertService_GetNotificationPreferences_FullMethodName  = "/notificator.alert.AlertService/GetNotificationPreferences"
-	AlertService_SaveNotificationPreferences_FullMethodName = "/notificator.alert.AlertService/SaveNotificationPreferences"
-	AlertService_GetFilterPresets_FullMethodName            = "/notificator.alert.AlertService/GetFilterPresets"
-	AlertService_SaveFilterPreset_FullMethodName            = "/notificator.alert.AlertService/SaveFilterPreset"
-	AlertService_UpdateFilterPreset_FullMethodName          = "/notificator.alert.AlertService/UpdateFilterPreset"
-	AlertService_DeleteFilterPreset_FullMethodName          = "/notificator.alert.AlertService/DeleteFilterPreset"
-	AlertService_SetDefaultFilterPreset_FullMethodName      = "/notificator.alert.AlertService/SetDefaultFilterPreset"
+	AlertService_AddComment_FullMethodName                   = "/notificator.alert.AlertService/AddComment"
+	AlertService_GetComments_FullMethodName                  = "/notificator.alert.AlertService/GetComments"
+	AlertService_DeleteComment_FullMethodName                = "/notificator.alert.AlertService/DeleteComment"
+	AlertService_AddAcknowledgment_FullMethodName            = "/notificator.alert.AlertService/AddAcknowledgment"
+	AlertService_GetAcknowledgments_FullMethodName           = "/notificator.alert.AlertService/GetAcknowledgments"
+	AlertService_GetAllAcknowledgedAlerts_FullMethodName     = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
+	AlertService_DeleteAcknowledgment_FullMethodName         = "/notificator.alert.AlertService/DeleteAcknowledgment"
+	AlertService_SubscribeToAlertUpdates_FullMethodName      = "/notificator.alert.AlertService/SubscribeToAlertUpdates"
+	AlertService_CreateResolvedAlert_FullMethodName          = "/notificator.alert.AlertService/CreateResolvedAlert"
+	AlertService_GetResolvedAlerts_FullMethodName            = "/notificator.alert.AlertService/GetResolvedAlerts"
+	AlertService_GetResolvedAlert_FullMethodName             = "/notificator.alert.AlertService/GetResolvedAlert"
+	AlertService_RemoveAllResolvedAlerts_FullMethodName      = "/notificator.alert.AlertService/RemoveAllResolvedAlerts"
+	AlertService_StreamResolvedAlertUpdates_FullMethodName   = "/notificator.alert.AlertService/StreamResolvedAlertUpdates"
+	AlertService_GetUserColorPreferences_FullMethodName      = "/notificator.alert.AlertService/GetUserColorPreferences"
+	AlertService_SaveUserColorPreferences_FullMethodName     = "/notificator.alert.AlertService/SaveUserColorPreferences"
+	AlertService_DeleteUserColorPreference_FullMethodName    = "/notificator.alert.AlertService/DeleteUserColorPreference"
+	AlertService_GetUserHiddenAlerts_FullMethodName          = "/notificator.alert.AlertService/GetUserHiddenAlerts"
+	AlertService_HideAlert_FullMethodName                    = "/notificator.alert.AlertService/HideAlert"
+	AlertService_UnhideAlert_FullMethodName                  = "/notificator.alert.AlertService/UnhideAlert"
+	AlertService_ClearAllHiddenAlerts_FullMethodName         = "/notificator.alert.AlertService/ClearAllHiddenAlerts"
+	AlertService_GetUserHiddenRules_FullMethodName           = "/notificator.alert.AlertService/GetUserHiddenRules"
+	AlertService_SaveHiddenRule_FullMethodName               = "/notificator.alert.AlertService/SaveHiddenRule"
+	AlertService_RemoveHiddenRule_FullMethodName             = "/notificator.alert.AlertService/RemoveHiddenRule"
+	AlertService_GetNotificationPreferences_FullMethodName   = "/notificator.alert.AlertService/GetNotificationPreferences"
+	AlertService_SaveNotificationPreferences_FullMethodName  = "/notificator.alert.AlertService/SaveNotificationPreferences"
+	AlertService_GetFilterPresets_FullMethodName             = "/notificator.alert.AlertService/GetFilterPresets"
+	AlertService_SaveFilterPreset_FullMethodName             = "/notificator.alert.AlertService/SaveFilterPreset"
+	AlertService_UpdateFilterPreset_FullMethodName           = "/notificator.alert.AlertService/UpdateFilterPreset"
+	AlertService_DeleteFilterPreset_FullMethodName           = "/notificator.alert.AlertService/DeleteFilterPreset"
+	AlertService_SetDefaultFilterPreset_FullMethodName       = "/notificator.alert.AlertService/SetDefaultFilterPreset"
+	AlertService_GetAnnotationButtonConfigs_FullMethodName   = "/notificator.alert.AlertService/GetAnnotationButtonConfigs"
+	AlertService_SaveAnnotationButtonConfigs_FullMethodName  = "/notificator.alert.AlertService/SaveAnnotationButtonConfigs"
+	AlertService_CreateAnnotationButtonConfig_FullMethodName = "/notificator.alert.AlertService/CreateAnnotationButtonConfig"
+	AlertService_UpdateAnnotationButtonConfig_FullMethodName = "/notificator.alert.AlertService/UpdateAnnotationButtonConfig"
+	AlertService_DeleteAnnotationButtonConfig_FullMethodName = "/notificator.alert.AlertService/DeleteAnnotationButtonConfig"
 )
 
 // AlertServiceClient is the client API for AlertService service.
@@ -98,6 +103,12 @@ type AlertServiceClient interface {
 	UpdateFilterPreset(ctx context.Context, in *UpdateFilterPresetRequest, opts ...grpc.CallOption) (*UpdateFilterPresetResponse, error)
 	DeleteFilterPreset(ctx context.Context, in *DeleteFilterPresetRequest, opts ...grpc.CallOption) (*DeleteFilterPresetResponse, error)
 	SetDefaultFilterPreset(ctx context.Context, in *SetDefaultFilterPresetRequest, opts ...grpc.CallOption) (*SetDefaultFilterPresetResponse, error)
+	// Annotation Button Configs
+	GetAnnotationButtonConfigs(ctx context.Context, in *GetAnnotationButtonConfigsRequest, opts ...grpc.CallOption) (*GetAnnotationButtonConfigsResponse, error)
+	SaveAnnotationButtonConfigs(ctx context.Context, in *SaveAnnotationButtonConfigsRequest, opts ...grpc.CallOption) (*SaveAnnotationButtonConfigsResponse, error)
+	CreateAnnotationButtonConfig(ctx context.Context, in *CreateAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*CreateAnnotationButtonConfigResponse, error)
+	UpdateAnnotationButtonConfig(ctx context.Context, in *UpdateAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*UpdateAnnotationButtonConfigResponse, error)
+	DeleteAnnotationButtonConfig(ctx context.Context, in *DeleteAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*DeleteAnnotationButtonConfigResponse, error)
 }
 
 type alertServiceClient struct {
@@ -426,6 +437,56 @@ func (c *alertServiceClient) SetDefaultFilterPreset(ctx context.Context, in *Set
 	return out, nil
 }
 
+func (c *alertServiceClient) GetAnnotationButtonConfigs(ctx context.Context, in *GetAnnotationButtonConfigsRequest, opts ...grpc.CallOption) (*GetAnnotationButtonConfigsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAnnotationButtonConfigsResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetAnnotationButtonConfigs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SaveAnnotationButtonConfigs(ctx context.Context, in *SaveAnnotationButtonConfigsRequest, opts ...grpc.CallOption) (*SaveAnnotationButtonConfigsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveAnnotationButtonConfigsResponse)
+	err := c.cc.Invoke(ctx, AlertService_SaveAnnotationButtonConfigs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) CreateAnnotationButtonConfig(ctx context.Context, in *CreateAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*CreateAnnotationButtonConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateAnnotationButtonConfigResponse)
+	err := c.cc.Invoke(ctx, AlertService_CreateAnnotationButtonConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) UpdateAnnotationButtonConfig(ctx context.Context, in *UpdateAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*UpdateAnnotationButtonConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateAnnotationButtonConfigResponse)
+	err := c.cc.Invoke(ctx, AlertService_UpdateAnnotationButtonConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) DeleteAnnotationButtonConfig(ctx context.Context, in *DeleteAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*DeleteAnnotationButtonConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteAnnotationButtonConfigResponse)
+	err := c.cc.Invoke(ctx, AlertService_DeleteAnnotationButtonConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AlertServiceServer is the server API for AlertService service.
 // All implementations must embed UnimplementedAlertServiceServer
 // for forward compatibility.
@@ -471,6 +532,12 @@ type AlertServiceServer interface {
 	UpdateFilterPreset(context.Context, *UpdateFilterPresetRequest) (*UpdateFilterPresetResponse, error)
 	DeleteFilterPreset(context.Context, *DeleteFilterPresetRequest) (*DeleteFilterPresetResponse, error)
 	SetDefaultFilterPreset(context.Context, *SetDefaultFilterPresetRequest) (*SetDefaultFilterPresetResponse, error)
+	// Annotation Button Configs
+	GetAnnotationButtonConfigs(context.Context, *GetAnnotationButtonConfigsRequest) (*GetAnnotationButtonConfigsResponse, error)
+	SaveAnnotationButtonConfigs(context.Context, *SaveAnnotationButtonConfigsRequest) (*SaveAnnotationButtonConfigsResponse, error)
+	CreateAnnotationButtonConfig(context.Context, *CreateAnnotationButtonConfigRequest) (*CreateAnnotationButtonConfigResponse, error)
+	UpdateAnnotationButtonConfig(context.Context, *UpdateAnnotationButtonConfigRequest) (*UpdateAnnotationButtonConfigResponse, error)
+	DeleteAnnotationButtonConfig(context.Context, *DeleteAnnotationButtonConfigRequest) (*DeleteAnnotationButtonConfigResponse, error)
 	mustEmbedUnimplementedAlertServiceServer()
 }
 
@@ -570,6 +637,21 @@ func (UnimplementedAlertServiceServer) DeleteFilterPreset(context.Context, *Dele
 }
 func (UnimplementedAlertServiceServer) SetDefaultFilterPreset(context.Context, *SetDefaultFilterPresetRequest) (*SetDefaultFilterPresetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetDefaultFilterPreset not implemented")
+}
+func (UnimplementedAlertServiceServer) GetAnnotationButtonConfigs(context.Context, *GetAnnotationButtonConfigsRequest) (*GetAnnotationButtonConfigsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAnnotationButtonConfigs not implemented")
+}
+func (UnimplementedAlertServiceServer) SaveAnnotationButtonConfigs(context.Context, *SaveAnnotationButtonConfigsRequest) (*SaveAnnotationButtonConfigsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveAnnotationButtonConfigs not implemented")
+}
+func (UnimplementedAlertServiceServer) CreateAnnotationButtonConfig(context.Context, *CreateAnnotationButtonConfigRequest) (*CreateAnnotationButtonConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAnnotationButtonConfig not implemented")
+}
+func (UnimplementedAlertServiceServer) UpdateAnnotationButtonConfig(context.Context, *UpdateAnnotationButtonConfigRequest) (*UpdateAnnotationButtonConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAnnotationButtonConfig not implemented")
+}
+func (UnimplementedAlertServiceServer) DeleteAnnotationButtonConfig(context.Context, *DeleteAnnotationButtonConfigRequest) (*DeleteAnnotationButtonConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAnnotationButtonConfig not implemented")
 }
 func (UnimplementedAlertServiceServer) mustEmbedUnimplementedAlertServiceServer() {}
 func (UnimplementedAlertServiceServer) testEmbeddedByValue()                      {}
@@ -1118,6 +1200,96 @@ func _AlertService_SetDefaultFilterPreset_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AlertService_GetAnnotationButtonConfigs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAnnotationButtonConfigsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetAnnotationButtonConfigs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetAnnotationButtonConfigs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetAnnotationButtonConfigs(ctx, req.(*GetAnnotationButtonConfigsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SaveAnnotationButtonConfigs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveAnnotationButtonConfigsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SaveAnnotationButtonConfigs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SaveAnnotationButtonConfigs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SaveAnnotationButtonConfigs(ctx, req.(*SaveAnnotationButtonConfigsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_CreateAnnotationButtonConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAnnotationButtonConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateAnnotationButtonConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_CreateAnnotationButtonConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateAnnotationButtonConfig(ctx, req.(*CreateAnnotationButtonConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_UpdateAnnotationButtonConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAnnotationButtonConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateAnnotationButtonConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_UpdateAnnotationButtonConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateAnnotationButtonConfig(ctx, req.(*UpdateAnnotationButtonConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_DeleteAnnotationButtonConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAnnotationButtonConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).DeleteAnnotationButtonConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_DeleteAnnotationButtonConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).DeleteAnnotationButtonConfig(ctx, req.(*DeleteAnnotationButtonConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AlertService_ServiceDesc is the grpc.ServiceDesc for AlertService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1236,6 +1408,26 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetDefaultFilterPreset",
 			Handler:    _AlertService_SetDefaultFilterPreset_Handler,
+		},
+		{
+			MethodName: "GetAnnotationButtonConfigs",
+			Handler:    _AlertService_GetAnnotationButtonConfigs_Handler,
+		},
+		{
+			MethodName: "SaveAnnotationButtonConfigs",
+			Handler:    _AlertService_SaveAnnotationButtonConfigs_Handler,
+		},
+		{
+			MethodName: "CreateAnnotationButtonConfig",
+			Handler:    _AlertService_CreateAnnotationButtonConfig_Handler,
+		},
+		{
+			MethodName: "UpdateAnnotationButtonConfig",
+			Handler:    _AlertService_UpdateAnnotationButtonConfig_Handler,
+		},
+		{
+			MethodName: "DeleteAnnotationButtonConfig",
+			Handler:    _AlertService_DeleteAnnotationButtonConfig_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

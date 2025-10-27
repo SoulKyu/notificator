@@ -152,7 +152,7 @@ ALERT_TEMPLATES = [
         "team": "queryly",
         "service": "queryly-back",
         "environment": "production",
-        "sentry": "https://sentry.numberly.net/organizations/numberly/projects/queryly-queryly-back?project=39",
+        "sentry": "https://sentry.company.net/organizations/company/projects/queryly-queryly-back?project=39",
         "description": "Queryly backend application is experiencing critical errors on {instance}",
         "summary": "Critical errors detected in Queryly backend on {instance}"
     }
@@ -739,7 +739,7 @@ if __name__ == '__main__':
             "team": "queryly",
             "service": "queryly-back",
             "environment": "production",
-            "sentry": "https://sentry.numberly.net/organizations/numberly/projects/queryly-queryly-back?project=39"
+            "sentry": "https://sentry.company.net/organizations/company/projects/queryly-queryly-back?project=39"
         },
         "annotations": {
             "description": "Queryly backend application is experiencing critical errors on queryly-back-1.company.net",

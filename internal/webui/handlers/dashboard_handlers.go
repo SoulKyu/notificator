@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	alertpb "notificator/internal/backend/proto/alert"
 	"notificator/internal/models"
 	"notificator/internal/webui/middleware"
 	webuimodels "notificator/internal/webui/models"
@@ -1747,4 +1748,284 @@ func processUnsilenceAction(c *gin.Context, fingerprint, userID string) error {
 	}
 
 	return nil
+}
+
+// GetAnnotationButtonConfigs retrieves annotation button configurations for the current user
+func GetAnnotationButtonConfigs(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	// Get configs from backend
+	pbConfigs, err := backendClient.GetAnnotationButtonConfigs(sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get annotation button configs: "+err.Error()))
+		return
+	}
+
+	// Convert protobuf configs to JSON-friendly format
+	configs := make([]map[string]interface{}, 0, len(pbConfigs))
+	for _, pbConfig := range pbConfigs {
+		configs = append(configs, map[string]interface{}{
+			"id":              pbConfig.Id,
+			"user_id":         pbConfig.UserId,
+			"label":           pbConfig.Label,
+			"annotation_keys": pbConfig.AnnotationKeys,
+			"color":           pbConfig.Color,
+			"icon":            pbConfig.Icon,
+			"display_order":   pbConfig.DisplayOrder,
+			"enabled":         pbConfig.Enabled,
+			"button_type":     pbConfig.ButtonType,
+			"created_at":      pbConfig.CreatedAt.AsTime(),
+			"updated_at":      pbConfig.UpdatedAt.AsTime(),
+		})
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"configs": configs,
+	}))
+}
+
+// SaveAnnotationButtonConfigs saves annotation button configurations for the current user
+func SaveAnnotationButtonConfigs(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	// Parse request body
+	var requestBody struct {
+		Configs []struct {
+			ID             string   `json:"id"`
+			Label          string   `json:"label"`
+			AnnotationKeys []string `json:"annotation_keys"`
+			Color          string   `json:"color"`
+			Icon           string   `json:"icon"`
+			DisplayOrder   int32    `json:"display_order"`
+			Enabled        bool     `json:"enabled"`
+			ButtonType     string   `json:"button_type"`
+		} `json:"configs"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Convert to protobuf format
+	pbConfigs := make([]*alertpb.AnnotationButtonConfig, 0, len(requestBody.Configs))
+	for _, config := range requestBody.Configs {
+		pbConfigs = append(pbConfigs, &alertpb.AnnotationButtonConfig{
+			Id:             config.ID,
+			Label:          config.Label,
+			AnnotationKeys: config.AnnotationKeys,
+			Color:          config.Color,
+			Icon:           config.Icon,
+			DisplayOrder:   config.DisplayOrder,
+			Enabled:        config.Enabled,
+			ButtonType:     config.ButtonType,
+		})
+	}
+
+	// Save to backend
+	err := backendClient.SaveAnnotationButtonConfigs(sessionID, pbConfigs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to save annotation button configs: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"message": "Annotation button configs saved successfully",
+	}))
+}
+
+// DeleteAnnotationButtonConfig deletes a specific annotation button configuration
+func DeleteAnnotationButtonConfig(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	configID := c.Param("id")
+	if configID == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Config ID is required"))
+		return
+	}
+
+	// Delete from backend
+	err := backendClient.DeleteAnnotationButtonConfig(sessionID, configID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to delete annotation button config: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"message": "Annotation button config deleted successfully",
+	}))
+}
+
+// CreateAnnotationButtonConfig creates a new annotation button configuration
+func CreateAnnotationButtonConfig(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	// Parse request body
+	var requestBody struct {
+		Config struct {
+			Label          string   `json:"label"`
+			AnnotationKeys []string `json:"annotation_keys"`
+			Color          string   `json:"color"`
+			Icon           string   `json:"icon"`
+			DisplayOrder   int32    `json:"display_order"`
+			Enabled        bool     `json:"enabled"`
+			ButtonType     string   `json:"button_type"`
+		} `json:"config"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Convert to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Label:          requestBody.Config.Label,
+		AnnotationKeys: requestBody.Config.AnnotationKeys,
+		Color:          requestBody.Config.Color,
+		Icon:           requestBody.Config.Icon,
+		DisplayOrder:   requestBody.Config.DisplayOrder,
+		Enabled:        requestBody.Config.Enabled,
+		ButtonType:     requestBody.Config.ButtonType,
+	}
+
+	// Create via backend
+	createdConfig, err := backendClient.CreateAnnotationButtonConfig(sessionID, pbConfig)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to create annotation button config: "+err.Error()))
+		return
+	}
+
+	// Convert response
+	config := map[string]interface{}{
+		"id":              createdConfig.Id,
+		"user_id":         createdConfig.UserId,
+		"label":           createdConfig.Label,
+		"annotation_keys": createdConfig.AnnotationKeys,
+		"color":           createdConfig.Color,
+		"icon":            createdConfig.Icon,
+		"display_order":   createdConfig.DisplayOrder,
+		"enabled":         createdConfig.Enabled,
+		"button_type":     createdConfig.ButtonType,
+		"created_at":      createdConfig.CreatedAt.AsTime(),
+		"updated_at":      createdConfig.UpdatedAt.AsTime(),
+	}
+
+	c.JSON(http.StatusCreated, webuimodels.SuccessResponse(map[string]interface{}{
+		"config":  config,
+		"message": "Annotation button config created successfully",
+	}))
+}
+
+// UpdateAnnotationButtonConfig updates an existing annotation button configuration
+func UpdateAnnotationButtonConfig(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	configID := c.Param("id")
+	if configID == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Config ID is required"))
+		return
+	}
+
+	// Parse request body
+	var requestBody struct {
+		Config struct {
+			Label          string   `json:"label"`
+			AnnotationKeys []string `json:"annotation_keys"`
+			Color          string   `json:"color"`
+			Icon           string   `json:"icon"`
+			DisplayOrder   int32    `json:"display_order"`
+			Enabled        bool     `json:"enabled"`
+			ButtonType     string   `json:"button_type"`
+		} `json:"config"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Convert to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Id:             configID,
+		Label:          requestBody.Config.Label,
+		AnnotationKeys: requestBody.Config.AnnotationKeys,
+		Color:          requestBody.Config.Color,
+		Icon:           requestBody.Config.Icon,
+		DisplayOrder:   requestBody.Config.DisplayOrder,
+		Enabled:        requestBody.Config.Enabled,
+		ButtonType:     requestBody.Config.ButtonType,
+	}
+
+	// Update via backend
+	updatedConfig, err := backendClient.UpdateAnnotationButtonConfig(sessionID, pbConfig)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to update annotation button config: "+err.Error()))
+		return
+	}
+
+	// Convert response
+	config := map[string]interface{}{
+		"id":              updatedConfig.Id,
+		"user_id":         updatedConfig.UserId,
+		"label":           updatedConfig.Label,
+		"annotation_keys": updatedConfig.AnnotationKeys,
+		"color":           updatedConfig.Color,
+		"icon":            updatedConfig.Icon,
+		"display_order":   updatedConfig.DisplayOrder,
+		"enabled":         updatedConfig.Enabled,
+		"button_type":     updatedConfig.ButtonType,
+		"created_at":      updatedConfig.CreatedAt.AsTime(),
+		"updated_at":      updatedConfig.UpdatedAt.AsTime(),
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"config":  config,
+		"message": "Annotation button config updated successfully",
+	}))
 }
