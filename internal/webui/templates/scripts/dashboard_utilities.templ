@@ -284,6 +284,12 @@ templ DashboardUtilities() {
 								username: result.data.username,
 								email: result.data.email
 							};
+
+							// Initialize notification service with user ID
+							if (window.notificationService) {
+								await window.notificationService.init(this.currentUser.id);
+								console.log('Notification service initialized for user:', this.currentUser.id);
+							}
 						}
 					}
 				} catch (error) {

@@ -52,6 +52,20 @@ func validateCustomDuration(durationStr string) (time.Duration, error) {
 	return duration, nil
 }
 
+// formatDuration converts a time.Duration to a human-readable string
+func formatDuration(d time.Duration) string {
+	if d < time.Hour {
+		minutes := int(d.Minutes())
+		return fmt.Sprintf("%dm", minutes)
+	} else if d < 24*time.Hour {
+		hours := int(d.Hours())
+		return fmt.Sprintf("%dh", hours)
+	} else {
+		days := int(d.Hours() / 24)
+		return fmt.Sprintf("%dd", days)
+	}
+}
+
 func SetAlertCache(cache *services.AlertCache) {
 	alertCache = cache
 }
@@ -1692,6 +1706,28 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 	// If some failed but not all, log warnings but continue
 	if len(errors) > 0 {
 		fmt.Printf("Warning: failed to create silence on some alertmanagers: %v\n", errors)
+	}
+
+	// Add automatic comment for audit trail (similar to acknowledgement)
+	if backendClient != nil && backendClient.IsConnected() {
+		sessionID := middleware.GetSessionID(c)
+		silenceReason := comment
+		if silenceReason == "" {
+			silenceReason = "Silenced from dashboard"
+		}
+
+		// Format the duration in human-readable format
+		durationStr := formatDuration(silenceDuration)
+
+		// Create comment with format: "🔇 Alert silenced for {duration}: {reason}"
+		commentContent := fmt.Sprintf("🔇 Alert silenced for %s: %s", durationStr, silenceReason)
+		if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			// Log the error but don't fail the silence if comment fails
+			fmt.Printf("Warning: failed to add silence comment: %v\n", err)
+		} else {
+			// Increment comment count in cache only if comment was added successfully
+			alert.CommentCount++
+		}
 	}
 
 	return nil

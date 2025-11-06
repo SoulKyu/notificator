@@ -40,6 +40,12 @@ templ DashboardData() {
 					const response = await fetch(`/api/v1/dashboard/data?${params.toString()}`, {
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -117,6 +123,12 @@ templ DashboardData() {
 						body: JSON.stringify({ clientAlerts: clientAlerts }),
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -177,6 +189,12 @@ templ DashboardData() {
 					const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {

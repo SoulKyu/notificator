@@ -2,6 +2,7 @@ package database
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -130,6 +131,7 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.UserHiddenRule{},
 		// Filter presets
 		&models.FilterPreset{},
+		&models.UserDefaultFilterPreset{},
 		// OAuth tables
 		&models.UserGroup{},
 		&models.OAuthToken{},
@@ -719,12 +721,38 @@ func (gdb *GormDB) GetFilterPresets(userID string, includeShared bool) ([]models
 		query = gdb.db.Where("user_id = ? OR is_shared = ?", userID, true)
 	}
 
-	err := query.Order("is_default DESC, created_at DESC").Find(&presets).Error
+	err := query.Order("created_at DESC").Find(&presets).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get filter presets: %w", err)
 	}
 
-	return presets, nil
+	// Get user's default preset ID
+	var userDefault models.UserDefaultFilterPreset
+	defaultErr := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error
+	defaultPresetID := ""
+	if defaultErr == nil {
+		defaultPresetID = userDefault.FilterPresetID
+	}
+
+	// Mark the default preset and sort (default first)
+	var sortedPresets []models.FilterPreset
+	var defaultPreset *models.FilterPreset
+	for i := range presets {
+		if presets[i].ID == defaultPresetID {
+			presets[i].IsDefault = true
+			defaultPreset = &presets[i]
+		} else {
+			presets[i].IsDefault = false
+			sortedPresets = append(sortedPresets, presets[i])
+		}
+	}
+
+	// Put default preset first if it exists
+	if defaultPreset != nil {
+		sortedPresets = append([]models.FilterPreset{*defaultPreset}, sortedPresets...)
+	}
+
+	return sortedPresets, nil
 }
 
 // GetFilterPresetByID gets a specific filter preset by ID
@@ -757,7 +785,8 @@ func (gdb *GormDB) DeleteFilterPreset(id, userID string) error {
 	return nil
 }
 
-// SetDefaultFilterPreset sets a filter preset as default (and unsets others)
+// SetDefaultFilterPreset sets a filter preset as default for a user
+// Users can set any preset (including shared ones) as their default
 func (gdb *GormDB) SetDefaultFilterPreset(id, userID string) error {
 	tx := gdb.db.Begin()
 	if tx.Error != nil {
@@ -769,27 +798,31 @@ func (gdb *GormDB) SetDefaultFilterPreset(id, userID string) error {
 		}
 	}()
 
-	// Unset all defaults for this user
-	if err := tx.Model(&models.FilterPreset{}).
-		Where("user_id = ?", userID).
-		Update("is_default", false).Error; err != nil {
+	// First verify that the preset exists and is accessible to the user
+	var preset models.FilterPreset
+	err := tx.Where("id = ? AND (user_id = ? OR is_shared = ?)", id, userID, true).First(&preset).Error
+	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to unset existing defaults: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("filter preset not found or not accessible")
+		}
+		return err
 	}
 
-	// Set the new default (with ownership check)
-	result := tx.Model(&models.FilterPreset{}).
-		Where("id = ? AND user_id = ?", id, userID).
-		Update("is_default", true)
-
-	if result.Error != nil {
+	// Delete existing default for this user (if any)
+	if err := tx.Where("user_id = ?", userID).Delete(&models.UserDefaultFilterPreset{}).Error; err != nil {
 		tx.Rollback()
-		return result.Error
+		return fmt.Errorf("failed to clear existing default: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	// Create new default entry
+	userDefault := &models.UserDefaultFilterPreset{
+		UserID:         userID,
+		FilterPresetID: id,
+	}
+	if err := tx.Create(userDefault).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("filter preset not found or not authorized")
+		return fmt.Errorf("failed to set new default: %w", err)
 	}
 
 	return tx.Commit().Error
@@ -797,11 +830,19 @@ func (gdb *GormDB) SetDefaultFilterPreset(id, userID string) error {
 
 // GetDefaultFilterPreset gets the default filter preset for a user
 func (gdb *GormDB) GetDefaultFilterPreset(userID string) (*models.FilterPreset, error) {
-	var preset models.FilterPreset
-	err := gdb.db.Where("user_id = ? AND is_default = ?", userID, true).First(&preset).Error
+	var userDefault models.UserDefaultFilterPreset
+	err := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error
 	if err != nil {
 		return nil, err
 	}
+
+	// Now get the actual preset
+	var preset models.FilterPreset
+	err = gdb.db.Where("id = ?", userDefault.FilterPresetID).First(&preset).Error
+	if err != nil {
+		return nil, err
+	}
+
 	return &preset, nil
 }
 

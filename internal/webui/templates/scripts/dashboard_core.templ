@@ -141,6 +141,37 @@ templ DashboardCore() {
 					return displayStatus === value;
 				},
 
+				// Check if response indicates authentication failure
+				handleAuthError(response) {
+					// Redirect to login if unauthorized or service unavailable
+					if (response.status === 401 || response.status === 503) {
+						window.location.href = '/login';
+						return true;
+					}
+					return false;
+				},
+
+				// Validate session with backend
+				async validateSession() {
+					try {
+						const response = await fetch('/api/v1/auth/me', {
+							credentials: 'include'
+						});
+
+						// Check for authentication errors and redirect if needed
+						if (this.handleAuthError(response)) {
+							return false;
+						}
+
+						return response.ok;
+					} catch (error) {
+						console.error('Session validation failed:', error);
+						// Redirect to login on network error (backend might be down)
+						window.location.href = '/login';
+						return false;
+					}
+				},
+
 				async init() {
 					Object.assign(this, window.dashboardDataMixin || {});
 					Object.assign(this, window.dashboardActionsMixin || {});
@@ -152,6 +183,9 @@ templ DashboardCore() {
 					window.dashboardInstance = this;
 
 					this.initializeSessionTracking();
+
+					// Load notification banner dismissed state from localStorage
+					this.notificationBannerDismissed = localStorage.getItem('notificator_banner_dismissed') === 'true';
 
 					this.loadSettings();
 					this.loadColumnWidths();
@@ -183,14 +217,21 @@ templ DashboardCore() {
 					}
 					
 					this.checkAlertFromURL();
-					
-					document.addEventListener('visibilitychange', () => {
-						if (document.hidden) {
-							this.stopAutoRefresh();
-						} else {
-							this.startAutoRefresh();
-							this.loadDashboardIncremental();
+
+					document.addEventListener('visibilitychange', async () => {
+						if (!document.hidden) {
+							// Validate session when page becomes visible
+							const sessionValid = await this.validateSession();
+							if (!sessionValid) {
+								// If session invalid, stop refresh and redirect
+								this.stopAutoRefresh();
+								// validateSession() will handle redirect to login
+							} else {
+								// Do one incremental fetch to catch any missed updates
+								this.loadDashboardIncremental();
+							}
 						}
+						// Don't stop auto-refresh when hidden - let it continue fetching in background
 					});
 					
 					document.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -309,7 +350,13 @@ templ DashboardCore() {
 					window.notificationService.preferences.browserNotificationsEnabled = true;
 					await window.notificationService.savePreferences(window.notificationService.preferences);
 
+					// Update permission status in service
+					window.notificationService.permissionGranted = Notification.permission === 'granted';
+
 					console.log('Notifications enabled successfully');
+
+					// Auto-dismiss the banner since notifications are now enabled
+					this.dismissNotificationBanner();
 				},
 
 				dismissNotificationBanner() {

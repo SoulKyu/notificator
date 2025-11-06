@@ -19,6 +19,12 @@ templ DashboardModal() {
 					const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}`, {
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -151,6 +157,11 @@ templ DashboardModal() {
 						})
 					});
 
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -183,6 +194,11 @@ templ DashboardModal() {
 						method: 'DELETE',
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
 
 					const result = await response.json();
 					

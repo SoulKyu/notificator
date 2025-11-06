@@ -195,6 +195,20 @@ func (fp *FilterPreset) BeforeCreate(tx *gorm.DB) error {
 
 func (FilterPreset) TableName() string { return "filter_presets" }
 
+// UserDefaultFilterPreset represents the default filter preset for a user
+// This allows users to set any preset (including shared ones) as their default
+type UserDefaultFilterPreset struct {
+	UserID          string    `gorm:"primaryKey;type:varchar(32);index" json:"user_id"`
+	FilterPresetID  string    `gorm:"not null;type:varchar(32);index" json:"filter_preset_id"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+
+	User         User         `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	FilterPreset FilterPreset `gorm:"foreignKey:FilterPresetID" json:"filter_preset,omitempty"`
+}
+
+func (UserDefaultFilterPreset) TableName() string { return "user_default_filter_presets" }
+
 func GenerateID() string {
 	return generateRandomString(32)
 }

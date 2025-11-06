@@ -843,6 +843,11 @@ templ DashboardSettings() {
 									enabledSeverities: result.data.enabled_severities || ['critical', 'warning'],
 									soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
 								};
+
+								// Sync with notification service
+								if (window.notificationService) {
+									window.notificationService.preferences = this.notificationPreferences;
+								}
 							}
 						}
 					} catch (error) {

@@ -2483,13 +2483,13 @@ func (s *AlertServiceGorm) SetDefaultFilterPreset(ctx context.Context, req *aler
 		}, nil
 	}
 
-	// Set default with ownership check
+	// Set default (user can set any accessible preset, including shared ones)
 	err = s.db.SetDefaultFilterPreset(req.PresetId, user.ID)
 	if err != nil {
 		log.Printf("Failed to set default filter preset %s for user %s: %v", req.PresetId, user.ID, err)
 		return &alertpb.SetDefaultFilterPresetResponse{
 			Success: false,
-			Message: "Failed to set default filter preset or not authorized",
+			Message: "Failed to set default filter preset - preset not found or not accessible",
 		}, nil
 	}
 

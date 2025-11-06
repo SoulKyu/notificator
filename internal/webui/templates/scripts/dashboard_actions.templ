@@ -71,6 +71,11 @@ templ DashboardActions() {
 						body: JSON.stringify(request)
 					});
 
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -113,6 +118,11 @@ templ DashboardActions() {
 								reason: 'Hidden from dashboard bulk action'
 							})
 						});
+
+						// Check for authentication errors and redirect if needed
+						if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+							return;
+						}
 
 						const result = await response.json();
 						if (result.success) {
@@ -183,6 +193,11 @@ templ DashboardActions() {
 						body: JSON.stringify(request)
 					});
 
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -214,6 +229,11 @@ templ DashboardActions() {
 						},
 						body: JSON.stringify(request)
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
 
 					const result = await response.json();
 					
@@ -247,6 +267,11 @@ templ DashboardActions() {
 						body: JSON.stringify(request)
 					});
 
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -279,6 +304,11 @@ templ DashboardActions() {
 						body: JSON.stringify(request)
 					});
 
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -307,6 +337,11 @@ templ DashboardActions() {
 						method: 'DELETE',
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
 
 					const result = await response.json();
 					
@@ -412,6 +447,11 @@ templ DashboardActions() {
 						},
 						body: JSON.stringify(request)
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
 
 					const result = await response.json();
 					
@@ -588,6 +628,11 @@ templ DashboardActions() {
 						},
 						body: JSON.stringify(request)
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
 
 					const result = await response.json();
 					
