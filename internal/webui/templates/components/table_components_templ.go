@@ -294,7 +294,142 @@ func ResolvedAlertsTable() templ.Component {
 			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<!-- Loading State --><div x-show=\"resolvedLoading\" class=\"p-8\"><div class=\"animate-pulse space-y-4\"><template x-for=\"i in 5\" x-key=\"'loading-' + i\"><div class=\"h-16 bg-gray-200 dark:bg-dark-bg-tertiary rounded\"></div></template></div></div><!-- Empty State --><div x-show=\"!resolvedLoading && resolvedAlerts.length === 0\" class=\"text-center py-12\"><svg class=\"mx-auto h-12 w-12 text-gray-400\" viewBox=\"0 0 24 24\" stroke-width=\"1.5\" stroke=\"currentColor\" fill=\"none\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z\"></path></svg><h3 class=\"mt-2 text-sm font-medium text-gray-900 dark:text-white\">No resolved alerts found</h3><p class=\"mt-1 text-sm text-gray-500 dark:text-gray-400\">No alerts have been resolved in the selected time range.</p></div><!-- Table View --><div x-show=\"!resolvedLoading && resolvedAlerts.length > 0\" class=\"alert-table-container\"><table class=\"alert-table\"><thead class=\"bg-gray-50 dark:bg-dark-bg-secondary\"><tr><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Fingerprint</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Alert Name</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Severity</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Occurrences</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">First / Last</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Avg Duration</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Avg MTTR</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Team</th><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider\">Source</th></tr></thead> <tbody class=\"bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-dark-border-subtle\"><template x-for=\"(alert, index) in resolvedAlerts\" x-key=\"alert.fingerprint\"><tr class=\"hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors\" @click=\"window.location.href = `/dashboard/alert/${alert.fingerprint}`\"><!-- Fingerprint (clickable link) --><td class=\"px-6 py-4\"><a :href=\"`/dashboard/alert/${alert.fingerprint}`\" @click.stop class=\"text-sm font-mono text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline\" x-text=\"alert.fingerprint.substring(0, 12) + '...'\"></a></td><!-- Alert Name --><td class=\"px-6 py-4\"><div class=\"text-sm font-medium text-gray-900 dark:text-white\" x-text=\"alert.alert_name\"></div></td><!-- Severity --><td class=\"px-6 py-4 whitespace-nowrap\"><span class=\"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium\" :class=\"{\n\t\t\t\t\t\t\t\t\t  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': alert.severity === 'critical',\n\t\t\t\t\t\t\t\t\t  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': alert.severity === 'warning',\n\t\t\t\t\t\t\t\t\t  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': alert.severity === 'info',\n\t\t\t\t\t\t\t\t\t  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300': !['critical', 'warning', 'info'].includes(alert.severity)\n\t\t\t\t\t\t\t\t  }\" x-text=\"alert.severity.toUpperCase()\"></span></td><!-- Occurrences --><td class=\"px-6 py-4 whitespace-nowrap\"><span class=\"inline-flex items-center px-2.5 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400\" x-text=\"`${alert.occurrence_count}×`\"></span></td><!-- First Fired / Last Resolved --><td class=\"px-6 py-4 text-xs text-gray-600 dark:text-gray-400\"><div><div class=\"font-medium\">First: <span x-text=\"new Date(alert.first_fired_at).toLocaleString()\"></span></div><div class=\"mt-1\">Last: <span x-text=\"new Date(alert.last_resolved_at).toLocaleString()\"></span></div></div></td><!-- Average Duration --><td class=\"px-6 py-4 whitespace-nowrap\"><div class=\"text-sm text-gray-900 dark:text-white\" x-text=\"formatResolvedDuration(Math.round(alert.avg_duration))\"></div><div class=\"text-xs text-gray-500 dark:text-gray-400\" x-text=\"`Total: ${formatResolvedDuration(alert.total_duration)}`\"></div></td><!-- Average MTTR --><td class=\"px-6 py-4 whitespace-nowrap\"><div x-show=\"alert.avg_mttr > 0\"><div class=\"text-sm text-gray-900 dark:text-white\" x-text=\"formatResolvedDuration(Math.round(alert.avg_mttr))\"></div><div class=\"text-xs text-gray-500 dark:text-gray-400\" x-text=\"`Total: ${formatResolvedDuration(alert.total_mttr)}`\"></div></div><span x-show=\"alert.avg_mttr === 0\" class=\"text-sm text-gray-400\">-</span></td><!-- Team --><td class=\"px-6 py-4\"><div class=\"text-sm text-gray-900 dark:text-white\" x-text=\"alert.team || '-'\"></div></td><!-- Alertmanager Source --><td class=\"px-6 py-4\"><div class=\"text-xs text-gray-400 dark:text-gray-500\" x-text=\"alert.source || '-'\"></div></td></tr></template></tbody></table></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<!-- Loading State --><div x-show=\"resolvedLoading\" class=\"p-8\"><div class=\"animate-pulse space-y-4\"><template x-for=\"i in 5\" x-key=\"'loading-' + i\"><div class=\"h-16 bg-gray-200 dark:bg-dark-bg-tertiary rounded\"></div></template></div></div><!-- Empty State --><div x-show=\"!resolvedLoading && resolvedAlerts.length === 0\" class=\"text-center py-12\"><svg class=\"mx-auto h-12 w-12 text-gray-400\" viewBox=\"0 0 24 24\" stroke-width=\"1.5\" stroke=\"currentColor\" fill=\"none\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z\"></path></svg><h3 class=\"mt-2 text-sm font-medium text-gray-900 dark:text-white\">No resolved alerts found</h3><p class=\"mt-1 text-sm text-gray-500 dark:text-gray-400\">No alerts have been resolved in the selected time range.</p></div><!-- Table View --><div x-show=\"!resolvedLoading && resolvedAlerts.length > 0\" class=\"alert-table-container\"><table class=\"alert-table\"><thead class=\"bg-gray-50 dark:bg-dark-bg-secondary\"><tr>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("fingerprint", "Fingerprint").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("alert_name", "Alert Name").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("severity", "Severity").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("occurrence_count", "Occurrences").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("last_resolved_at", "First / Last").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("avg_duration", "Avg Duration").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("avg_mttr", "Avg MTTR").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("team", "Team").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ResolvedSortableHeader("source", "Source").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</tr></thead> <tbody class=\"bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-dark-border-subtle\"><template x-for=\"(alert, index) in getSortedResolvedAlerts()\" x-key=\"alert.fingerprint\"><tr class=\"hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-all duration-150 border-b border-gray-100 dark:border-dark-border-subtle hover:shadow-sm\" @click=\"showResolvedAlertDetails(alert)\"><!-- Fingerprint --><td class=\"px-6 py-4\"><span class=\"text-sm font-mono text-gray-500 dark:text-gray-500\" x-text=\"alert.fingerprint.substring(0, 12) + '...'\"></span></td><!-- Alert Name --><td class=\"px-6 py-4\"><div class=\"text-sm font-semibold text-gray-900 dark:text-white\" x-text=\"alert.alert_name\"></div></td><!-- Severity with icon --><td class=\"px-6 py-4 whitespace-nowrap\"><div class=\"flex items-center space-x-1\"><!-- Icon --><template x-if=\"alert.severity === 'critical' || alert.severity === 'critical-daytime'\"><svg class=\"w-4 h-4 text-red-600 dark:text-red-400\" fill=\"currentColor\" viewBox=\"0 0 20 20\"><path fill-rule=\"evenodd\" d=\"M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z\" clip-rule=\"evenodd\"></path></svg></template><template x-if=\"alert.severity === 'warning'\"><svg class=\"w-4 h-4 text-orange-600 dark:text-orange-400\" fill=\"currentColor\" viewBox=\"0 0 20 20\"><path fill-rule=\"evenodd\" d=\"M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z\" clip-rule=\"evenodd\"></path></svg></template><template x-if=\"alert.severity === 'info'\"><svg class=\"w-4 h-4 text-blue-600 dark:text-blue-400\" fill=\"currentColor\" viewBox=\"0 0 20 20\"><path fill-rule=\"evenodd\" d=\"M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z\" clip-rule=\"evenodd\"></path></svg></template><!-- Badge --><span class=\"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium\" :class=\"{\n\t\t\t\t\t\t\t\t\t\t  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': alert.severity === 'critical' || alert.severity === 'critical-daytime',\n\t\t\t\t\t\t\t\t\t\t  'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400': alert.severity === 'warning',\n\t\t\t\t\t\t\t\t\t\t  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': alert.severity === 'info',\n\t\t\t\t\t\t\t\t\t\t  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300': !['critical', 'critical-daytime', 'warning', 'info'].includes(alert.severity)\n\t\t\t\t\t\t\t\t\t  }\" x-text=\"alert.severity.toUpperCase()\"></span></div></td><!-- Occurrences with formatted number --><td class=\"px-6 py-4 whitespace-nowrap\"><div class=\"flex items-center space-x-2\"><svg class=\"w-4 h-4 text-green-600 dark:text-green-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z\"></path></svg> <span class=\"text-sm font-bold text-green-700 dark:text-green-400\" x-text=\"formatNumber(alert.occurrence_count)\"></span> <span class=\"text-xs text-gray-500 dark:text-gray-500\">times</span></div></td><!-- First Fired / Last Resolved --><td class=\"px-6 py-4 text-xs\"><div class=\"space-y-2\"><div class=\"flex items-center gap-2\"><svg class=\"w-3 h-3 text-red-500 dark:text-red-400 flex-shrink-0\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z\"></path></svg> <span class=\"text-gray-600 dark:text-gray-400\" x-text=\"new Date(alert.first_fired_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })\"></span></div><div class=\"flex items-center gap-2\"><svg class=\"w-3 h-3 text-green-500 dark:text-green-400 flex-shrink-0\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z\"></path></svg> <span class=\"text-gray-600 dark:text-gray-400\" x-text=\"new Date(alert.last_resolved_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })\"></span></div></div></td><!-- Average Duration --><td class=\"px-6 py-4 whitespace-nowrap\"><div class=\"flex items-center gap-2\"><svg class=\"w-4 h-4 text-blue-500 dark:text-blue-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z\"></path></svg><div><div class=\"text-sm font-semibold text-gray-900 dark:text-white\" x-text=\"formatDurationHuman(Math.round(alert.avg_duration))\"></div><div class=\"text-xs text-gray-500 dark:text-gray-400\" x-text=\"`Total: ${formatDurationHuman(alert.total_duration)}`\"></div></div></div></td><!-- Average MTTR --><td class=\"px-6 py-4 whitespace-nowrap\"><div x-show=\"alert.avg_mttr > 0\" class=\"flex items-center gap-2\"><svg class=\"w-4 h-4 text-green-500 dark:text-green-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 10V3L4 14h7v7l9-11h-7z\"></path></svg><div><div class=\"text-sm font-semibold text-gray-900 dark:text-white\" x-text=\"formatDurationHuman(Math.round(alert.avg_mttr))\"></div><div class=\"text-xs text-gray-500 dark:text-gray-400\" x-text=\"`Total: ${formatDurationHuman(alert.total_mttr)}`\"></div></div></div><span x-show=\"alert.avg_mttr === 0\" class=\"text-sm text-gray-400\">-</span></td><!-- Team --><td class=\"px-6 py-4\"><div class=\"flex items-center gap-2\"><svg class=\"w-4 h-4 text-gray-400 dark:text-gray-500\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z\"></path></svg><div class=\"text-sm text-gray-900 dark:text-white\" x-text=\"alert.team || '-'\"></div></div></td><!-- Alertmanager Source --><td class=\"px-6 py-4\"><div class=\"flex items-center gap-2\"><svg class=\"w-4 h-4 text-gray-400 dark:text-gray-500\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01\"></path></svg><div class=\"text-xs text-gray-600 dark:text-gray-400\" x-text=\"alert.source || '-'\"></div></div></td></tr></template></tbody></table></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// Sortable header component for resolved alerts table
+func ResolvedSortableHeader(field, title string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var15 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var15 == nil {
+			templ_7745c5c3_Var15 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<th class=\"px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary transition-colors\" :class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var16 string
+		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs("{ 'bg-gray-100 dark:bg-dark-bg-tertiary': resolvedSortField === '" + field + "' }")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/table_components.templ`, Line: 433, Col: 94}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" @click=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var17 string
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs("sortResolvedAlerts('" + field + "')")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/table_components.templ`, Line: 434, Col: 48}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\"><div class=\"flex items-center space-x-1\"><span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var18 string
+		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(title)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/table_components.templ`, Line: 436, Col: 16}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span><div class=\"flex flex-col\"><svg class=\"h-3 w-3 transition-colors\" :class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var19 string
+		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs("resolvedSortField === '" + field + "' && resolvedSortDirection === 'asc' ? 'text-blue-500' : 'text-gray-400'")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/table_components.templ`, Line: 439, Col: 125}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 15l7-7 7 7\"></path></svg> <svg class=\"h-3 w-3 -mt-1 transition-colors\" :class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var20 string
+		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs("resolvedSortField === '" + field + "' && resolvedSortDirection === 'desc' ? 'text-blue-500' : 'text-gray-400'")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/table_components.templ`, Line: 444, Col: 126}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M19 9l-7 7-7-7\"></path></svg></div></div></th>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
