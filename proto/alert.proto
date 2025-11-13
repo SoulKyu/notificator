@@ -605,6 +605,9 @@ service StatisticsService {
 
   // Recently Resolved Alerts (replaces old resolved alerts system)
   rpc QueryRecentlyResolved(QueryRecentlyResolvedRequest) returns (QueryRecentlyResolvedResponse);
+
+  // Get alert history for timeline display
+  rpc GetAlertHistory(GetAlertHistoryRequest) returns (GetAlertHistoryResponse);
 }
 
 // ==================== Statistics Query Messages ====================
@@ -854,4 +857,17 @@ message QueryRecentlyResolvedResponse {
   int64 total_count = 4;
   google.protobuf.Timestamp start_date = 5;
   google.protobuf.Timestamp end_date = 6;
+}
+// ==================== Alert History Messages ====================
+
+message GetAlertHistoryRequest {
+  string session_id = 1;
+  string fingerprint = 2;
+  int32 limit = 3; // Maximum number of history records to return (0 = no limit)
+}
+
+message GetAlertHistoryResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AlertStatistic history = 3;
 }

@@ -83,7 +83,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	}
 
 	// Initialize alert cache for new dashboard
-	alertCache := services.NewAlertCache(amClient, backendClient)
+	alertCache := services.NewAlertCache(amClient, backendClient, cfg.ResolvedAlerts.RetentionDays)
 	handlers.SetAlertCache(alertCache)
 	alertCache.Start()
 
@@ -200,9 +200,10 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.POST("/bulk-action", handlers.BulkActionAlerts)
 			dashboard.GET("/settings", handlers.GetDashboardSettings)
 			dashboard.POST("/settings", handlers.SaveDashboardSettings)
-			dashboard.GET("/alert/:id", handlers.GetAlertDetails)
-			dashboard.POST("/alert/:id/comments", handlers.AddAlertComment)
-			dashboard.DELETE("/alert/:id/comments/:commentId", handlers.DeleteAlertComment)
+			dashboard.GET("/alert/:fingerprint", handlers.GetAlertDetails)
+			dashboard.GET("/alert/:fingerprint/history", handlers.HandleGetAlertHistory)
+			dashboard.POST("/alert/:fingerprint/comments", handlers.AddAlertComment)
+			dashboard.DELETE("/alert/:fingerprint/comments/:commentId", handlers.DeleteAlertComment)
 			dashboard.GET("/color-preferences", handlers.GetUserColorPreferences)
 			dashboard.POST("/color-preferences", handlers.SaveUserColorPreferences)
 			dashboard.DELETE("/color-preferences/:id", handlers.DeleteUserColorPreference)

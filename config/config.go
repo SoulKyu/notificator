@@ -20,6 +20,7 @@ type Config struct {
 	ColumnWidths   map[string]float32   `json:"column_widths"`
 	Backend        BackendConfig        `json:"backend"`
 	ResolvedAlerts ResolvedAlertsConfig `json:"resolved_alerts"`
+	Statistics     StatisticsConfig     `json:"statistics"`
 	WebUI          WebUIConfig          `json:"webui"`
 	OAuth          *OAuthPortalConfig   `json:"oauth,omitempty"`
 	Sentry         *SentryConfig        `json:"sentry,omitempty"`
@@ -45,9 +46,13 @@ type DatabaseConfig struct {
 }
 
 type ResolvedAlertsConfig struct {
-	Enabled              bool          `json:"enabled"`               // Enable resolved alerts tracking
-	NotificationsEnabled bool          `json:"notifications_enabled"` // Send notifications for resolved alerts
-	RetentionDuration    time.Duration `json:"retention_duration"`    // How long to keep resolved alerts
+	Enabled              bool `json:"enabled"`               // Enable resolved alerts tracking
+	NotificationsEnabled bool `json:"notifications_enabled"` // Send notifications for resolved alerts
+	RetentionDays        int  `json:"retention_days"`        // How many days to keep resolved alerts (default: 90)
+}
+
+type StatisticsConfig struct {
+	RetentionDays int `json:"retention_days"` // How many days to keep alert statistics (default: 90)
 }
 
 type AlertmanagerConfig struct {
@@ -185,9 +190,12 @@ func DefaultConfig() *Config {
 			},
 		},
 		ResolvedAlerts: ResolvedAlertsConfig{
-			Enabled:              true,          // Enable by default
-			NotificationsEnabled: true,          // Send notifications by default
-			RetentionDuration:    1 * time.Hour, // Keep for 1 hour by default
+			Enabled:              true, // Enable by default
+			NotificationsEnabled: true, // Send notifications by default
+			RetentionDays:        90,   // Keep for 90 days by default
+		},
+		Statistics: StatisticsConfig{
+			RetentionDays: 90, // Keep alert statistics for 90 days by default
 		},
 		WebUI: WebUIConfig{
 			Playground: false, // Playground mode disabled by default
@@ -453,8 +461,13 @@ func setViperDefaults(cfg *Config) {
 	if !viper.IsSet("resolved_alerts.notifications_enabled") {
 		viper.SetDefault("resolved_alerts.notifications_enabled", cfg.ResolvedAlerts.NotificationsEnabled)
 	}
-	if !viper.IsSet("resolved_alerts.retention_duration") {
-		viper.SetDefault("resolved_alerts.retention_duration", cfg.ResolvedAlerts.RetentionDuration)
+	if !viper.IsSet("resolved_alerts.retention_days") {
+		viper.SetDefault("resolved_alerts.retention_days", cfg.ResolvedAlerts.RetentionDays)
+	}
+
+	// Statistics defaults
+	if !viper.IsSet("statistics.retention_days") {
+		viper.SetDefault("statistics.retention_days", cfg.Statistics.RetentionDays)
 	}
 
 	// WebUI defaults - only set if not already configured from config file or env vars
@@ -540,6 +553,14 @@ func setViperDefaults(cfg *Config) {
 
 	// Support DATABASE_URL for full connection string (POSTGRES_URL handled directly by GORM)
 	viper.BindEnv("database_url", "DATABASE_URL")
+
+	// Resolved Alerts environment variable bindings
+	viper.BindEnv("resolved_alerts.enabled", "NOTIFICATOR_RESOLVED_ALERTS_ENABLED")
+	viper.BindEnv("resolved_alerts.notifications_enabled", "NOTIFICATOR_RESOLVED_ALERTS_NOTIFICATIONS_ENABLED")
+	viper.BindEnv("resolved_alerts.retention_days", "NOTIFICATOR_RESOLVED_ALERTS_RETENTION_DAYS")
+
+	// Statistics environment variable bindings
+	viper.BindEnv("statistics.retention_days", "NOTIFICATOR_STATISTICS_RETENTION_DAYS")
 
 	// WebUI environment variable bindings
 	viper.BindEnv("webui.playground", "WEBUI_PLAYGROUND", "NOTIFICATOR_WEBUI_PLAYGROUND")

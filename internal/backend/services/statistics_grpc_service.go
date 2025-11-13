@@ -929,3 +929,74 @@ func (s *StatisticsServiceGorm) QueryRecentlyResolved(ctx context.Context, req *
 		EndDate:    timestamppb.New(result.EndDate),
 	}, nil
 }
+
+// GetAlertHistory retrieves the occurrence history for a specific alert fingerprint
+func (s *StatisticsServiceGorm) GetAlertHistory(
+	ctx context.Context,
+	req *alertpb.GetAlertHistoryRequest,
+) (*alertpb.GetAlertHistoryResponse, error) {
+	// Validate request
+	if req.Fingerprint == "" {
+		return &alertpb.GetAlertHistoryResponse{
+			Success: false,
+			Message: "Fingerprint is required",
+		}, nil
+	}
+
+	// Default limit to 50 if not specified or 0
+	limit := int(req.Limit)
+	if limit == 0 {
+		limit = 50
+	}
+
+	// Get history from database
+	stats, err := s.db.GetAlertHistoryByFingerprint(req.Fingerprint, limit)
+	if err != nil {
+		fmt.Printf("Error getting alert history for fingerprint %s: %v\n", req.Fingerprint, err)
+		return &alertpb.GetAlertHistoryResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to retrieve alert history: %v", err),
+		}, nil
+	}
+
+	// Convert to protobuf format
+	history := make([]*alertpb.AlertStatistic, len(stats))
+	for i, stat := range stats {
+		pbStat := &alertpb.AlertStatistic{
+			Id:          stat.ID,
+			Fingerprint: stat.Fingerprint,
+			AlertName:   stat.AlertName,
+			Severity:    stat.Severity,
+			FiredAt:     timestamppb.New(stat.FiredAt),
+		}
+
+		if stat.ResolvedAt != nil {
+			pbStat.ResolvedAt = timestamppb.New(*stat.ResolvedAt)
+		}
+
+		if stat.AcknowledgedAt != nil {
+			pbStat.AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
+		}
+
+		if stat.DurationSeconds != nil {
+			pbStat.DurationSeconds = int32(*stat.DurationSeconds)
+		}
+
+		if stat.MTTRSeconds != nil {
+			pbStat.MttrSeconds = int32(*stat.MTTRSeconds)
+		}
+
+		// Convert metadata JSONB to bytes
+		if stat.Metadata != nil {
+			pbStat.Metadata = stat.Metadata
+		}
+
+		history[i] = pbStat
+	}
+
+	return &alertpb.GetAlertHistoryResponse{
+		Success: true,
+		Message: fmt.Sprintf("Found %d occurrences", len(history)),
+		History: history,
+	}, nil
+}

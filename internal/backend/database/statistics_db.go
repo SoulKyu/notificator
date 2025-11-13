@@ -18,6 +18,24 @@ func (gdb *GormDB) CreateAlertStatistic(stat *models.AlertStatistic) error {
 	return nil
 }
 
+// UpsertAlertStatistic creates or ignores an alert statistic based on unique constraint
+// If a record with the same (fingerprint, fired_at) exists, it does nothing (idempotent)
+// This prevents duplicate statistics for the same alert occurrence
+func (gdb *GormDB) UpsertAlertStatistic(stat *models.AlertStatistic) error {
+	// Use FirstOrCreate with the unique key combination
+	// This is atomic and handles concurrent calls safely
+	result := gdb.db.Where(models.AlertStatistic{
+		Fingerprint: stat.Fingerprint,
+		FiredAt:     stat.FiredAt,
+	}).FirstOrCreate(stat)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to upsert alert statistic: %w", result.Error)
+	}
+
+	return nil
+}
+
 // GetAlertStatisticByFingerprint retrieves the most recent statistic for a given fingerprint
 // Returns the latest record if multiple exist
 func (gdb *GormDB) GetAlertStatisticByFingerprint(fingerprint string) (*models.AlertStatistic, error) {
@@ -47,6 +65,28 @@ func (gdb *GormDB) GetAlertStatisticByID(id string) (*models.AlertStatistic, err
 	return &stat, nil
 }
 
+// GetAlertHistoryByFingerprint retrieves ALL statistics for a given fingerprint
+// Returns chronological history of fired/resolved events for building timeline
+// Limit parameter controls maximum records returned (0 = no limit)
+func (gdb *GormDB) GetAlertHistoryByFingerprint(fingerprint string, limit int) ([]*models.AlertStatistic, error) {
+	var stats []*models.AlertStatistic
+
+	query := gdb.db.
+		Where("fingerprint = ?", fingerprint).
+		Order("fired_at DESC") // Most recent first
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&stats).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get alert history: %w", err)
+	}
+
+	return stats, nil
+}
+
 // UpdateAlertStatistic updates an existing alert statistic
 // Typically used to add resolved_at, acknowledged_at, duration, or MTTR
 func (gdb *GormDB) UpdateAlertStatistic(stat *models.AlertStatistic) error {
@@ -54,6 +94,25 @@ func (gdb *GormDB) UpdateAlertStatistic(stat *models.AlertStatistic) error {
 		return fmt.Errorf("failed to update alert statistic: %w", err)
 	}
 	return nil
+}
+
+// UpdateAllUnresolvedByFingerprint updates all unresolved statistics for a fingerprint
+// This handles the case where duplicate statistics exist (legacy data)
+// Returns the number of records updated
+func (gdb *GormDB) UpdateAllUnresolvedByFingerprint(fingerprint string, resolvedAt time.Time, durationSeconds int, metadata []byte) (int64, error) {
+	result := gdb.db.Model(&models.AlertStatistic{}).
+		Where("fingerprint = ? AND resolved_at IS NULL", fingerprint).
+		Updates(map[string]interface{}{
+			"resolved_at":      resolvedAt,
+			"duration_seconds": durationSeconds,
+			"metadata":         metadata,
+		})
+
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to update unresolved statistics: %w", result.Error)
+	}
+
+	return result.RowsAffected, nil
 }
 
 // GetAlertStatistics retrieves alert statistics with filters and pagination

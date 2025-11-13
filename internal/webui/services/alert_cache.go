@@ -44,7 +44,8 @@ type AlertCache struct {
 	colorService       *ColorService
 
 	// Configuration
-	refreshInterval time.Duration
+	refreshInterval       time.Duration
+	resolvedRetentionDays int // Days to keep resolved alerts
 
 	// Change tracking
 	newAlerts           []string // fingerprints of new alerts since last fetch
@@ -56,20 +57,26 @@ type AlertCache struct {
 	refreshTicker *time.Ticker
 }
 
-func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient) *AlertCache {
+func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient, resolvedRetentionDays int) *AlertCache {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Ensure valid retention days
+	if resolvedRetentionDays <= 0 {
+		resolvedRetentionDays = 90 // Default to 90 days
+	}
+
 	return &AlertCache{
-		alerts:              make(map[string]*webuimodels.DashboardAlert),
-		userHiddenAlerts:    make(map[string]map[string]bool),
-		alertmanagerClient:  amClient,
-		backendClient:       backendClient,
-		colorService:        NewColorService(backendClient),
-		refreshInterval:     5 * time.Second,
-		newAlerts:           make([]string, 0),
-		resolvedAlertsSince: make([]string, 0),
-		ctx:                 ctx,
-		cancel:              cancel,
+		alerts:                make(map[string]*webuimodels.DashboardAlert),
+		userHiddenAlerts:      make(map[string]map[string]bool),
+		alertmanagerClient:    amClient,
+		backendClient:         backendClient,
+		colorService:          NewColorService(backendClient),
+		refreshInterval:       5 * time.Second,
+		resolvedRetentionDays: resolvedRetentionDays,
+		newAlerts:             make([]string, 0),
+		resolvedAlertsSince:   make([]string, 0),
+		ctx:                   ctx,
+		cancel:                cancel,
 	}
 }
 
@@ -556,13 +563,16 @@ func (ac *AlertCache) storeResolvedAlertInBackend(alert *webuimodels.DashboardAl
 		}
 	}
 
+	// Convert days to hours for backend API
+	ttlHours := ac.resolvedRetentionDays * 24
+
 	if err := ac.backendClient.CreateResolvedAlert(
 		alert.Fingerprint,
 		alert.Source,
 		alertData,
 		comments,
 		acknowledgments,
-		24,
+		ttlHours,
 	); err != nil {
 		log.Printf("Error storing resolved alert %s in backend: %v", alert.Fingerprint, err)
 	} else {

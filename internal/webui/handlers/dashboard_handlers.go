@@ -264,10 +264,9 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	}
 
 	defaultSettings := &webuimodels.DashboardSettings{
-		UserID:                  userID,
-		Theme:                   "light",
-		ResolvedAlertsRetention: 1,
-		RefreshInterval:         5,
+		UserID:          userID,
+		Theme:           "light",
+		RefreshInterval: 5,
 		DefaultFilters: webuimodels.DashboardFilters{
 			DisplayMode: webuimodels.DisplayModeClassic,
 			ViewMode:    webuimodels.ViewModeList,
@@ -1145,7 +1144,7 @@ func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAl
 }
 
 func GetAlertDetails(c *gin.Context) {
-	fingerprint := c.Param("id")
+	fingerprint := c.Param("fingerprint")
 	if fingerprint == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert fingerprint is required"))
 		return
@@ -1224,7 +1223,7 @@ func GetAlertDetails(c *gin.Context) {
 }
 
 func AddAlertComment(c *gin.Context) {
-	fingerprint := c.Param("id")
+	fingerprint := c.Param("fingerprint")
 	if fingerprint == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert fingerprint is required"))
 		return
@@ -1286,7 +1285,7 @@ func AddAlertComment(c *gin.Context) {
 }
 
 func DeleteAlertComment(c *gin.Context) {
-	fingerprint := c.Param("id")
+	fingerprint := c.Param("fingerprint")
 	commentID := c.Param("commentId")
 
 	if fingerprint == "" {
@@ -2063,5 +2062,65 @@ func UpdateAnnotationButtonConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
 		"config":  config,
 		"message": "Annotation button config updated successfully",
+	}))
+}
+
+// HandleGetAlertHistory retrieves the occurrence history for an alert fingerprint
+// Returns chronological list of fired/resolved events for timeline display
+func HandleGetAlertHistory(c *gin.Context) {
+	fingerprint := c.Param("fingerprint")
+	if fingerprint == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert ID parameter is required"))
+		return
+	}
+
+	// Get backend client
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service unavailable"))
+		return
+	}
+
+	// Get session ID for user context
+	sessionID := middleware.GetSessionID(c)
+
+	// Call backend to get history (limit to 50 most recent occurrences)
+	history, err := backendClient.GetAlertHistory(sessionID, fingerprint, 50)
+	if err != nil {
+		fmt.Printf("Error getting alert history for fingerprint %s: %v\n", fingerprint, err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to retrieve alert history"))
+		return
+	}
+
+	// Transform to response format
+	historyItems := make([]map[string]interface{}, 0, len(history))
+	for _, stat := range history {
+		item := map[string]interface{}{
+			"id":       stat.Id,
+			"fired_at": stat.FiredAt.AsTime().Format(time.RFC3339),
+		}
+
+		if stat.ResolvedAt != nil {
+			item["resolved_at"] = stat.ResolvedAt.AsTime().Format(time.RFC3339)
+		}
+
+		if stat.AcknowledgedAt != nil {
+			item["acknowledged_at"] = stat.AcknowledgedAt.AsTime().Format(time.RFC3339)
+		}
+
+		if stat.DurationSeconds != 0 {
+			item["duration_seconds"] = stat.DurationSeconds
+		}
+
+		if stat.MttrSeconds != 0 {
+			item["mttr_seconds"] = stat.MttrSeconds
+		}
+
+		historyItems = append(historyItems, item)
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"fingerprint":       fingerprint,
+		"total_occurrences": len(historyItems),
+		"history":           historyItems,
 	}))
 }

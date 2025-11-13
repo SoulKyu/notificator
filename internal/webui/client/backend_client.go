@@ -1827,3 +1827,26 @@ func (c *BackendClient) DeleteAnnotationButtonConfig(sessionID, configID string)
 
 	return nil
 }
+
+// GetAlertHistory retrieves the occurrence history for an alert fingerprint
+func (c *BackendClient) GetAlertHistory(sessionID, fingerprint string, limit int32) ([]*alertpb.AlertStatistic, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetAlertHistoryRequest{
+		SessionId:   sessionID,
+		Fingerprint: fingerprint,
+		Limit:       limit,
+	}
+
+	resp, err := c.statisticsClient.GetAlertHistory(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get alert history: %s", resp.Message)
+	}
+
+	return resp.History, nil
+}

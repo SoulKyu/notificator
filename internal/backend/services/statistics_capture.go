@@ -46,9 +46,10 @@ func (scs *StatisticsCaptureService) CaptureAlertFired(alert *webuimodels.Dashbo
 		FiredAt:     alert.StartsAt,
 	}
 
-	// Save to database
-	if err := scs.db.CreateAlertStatistic(stat); err != nil {
-		return fmt.Errorf("failed to create alert statistic: %w", err)
+	// Use UPSERT to prevent duplicates - idempotent operation
+	// If record with same (fingerprint, fired_at) exists, it does nothing
+	if err := scs.db.UpsertAlertStatistic(stat); err != nil {
+		return fmt.Errorf("failed to upsert alert statistic: %w", err)
 	}
 
 	log.Printf("📊 Captured statistics for alert: %s (fingerprint: %s)", alert.AlertName, alert.Fingerprint)
@@ -57,44 +58,45 @@ func (scs *StatisticsCaptureService) CaptureAlertFired(alert *webuimodels.Dashbo
 
 // UpdateAlertResolved updates statistics when an alert resolves
 func (scs *StatisticsCaptureService) UpdateAlertResolved(alert *webuimodels.DashboardAlert) error {
-	// Find existing statistic by fingerprint
-	stat, err := scs.db.GetAlertStatisticByFingerprint(alert.Fingerprint)
-	if err != nil {
-		// If not found, it might be an alert that fired before statistics feature was enabled
-		// Log warning and skip
-		log.Printf("⚠️  Alert statistic not found for fingerprint %s, skipping resolution update", alert.Fingerprint)
-		return nil
-	}
-
-	// Update resolution data
-	stat.ResolvedAt = models.TimePtr(alert.ResolvedAt)
-
 	// Calculate duration in seconds
 	duration := alert.ResolvedAt.Sub(alert.StartsAt)
 	durationSec := int(duration.Seconds())
-	stat.DurationSeconds = models.IntPtr(durationSec)
 
-	// IMPORTANT: Update metadata to capture current status at resolution time
-	// This ensures we have the correct silenced/suppressed state when the alert resolved
+	// Extract and build metadata
 	metadata, err := scs.extractMetadata(alert)
 	if err != nil {
 		log.Printf("⚠️  Failed to extract metadata for resolved alert %s: %v", alert.Fingerprint, err)
-	} else {
-		metadataJSON, err := database.BuildMetadataJSON(metadata)
-		if err != nil {
-			log.Printf("⚠️  Failed to build metadata JSON for resolved alert %s: %v", alert.Fingerprint, err)
-		} else {
-			stat.Metadata = metadataJSON
-			log.Printf("📊 Updated metadata for resolved alert: %s (state: %s)", alert.AlertName, alert.Status.State)
-		}
+		metadata = make(map[string]interface{}) // Use empty metadata
 	}
 
-	// Update in database
-	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
-		return fmt.Errorf("failed to update alert statistic: %w", err)
+	metadataJSON, err := database.BuildMetadataJSON(metadata)
+	if err != nil {
+		log.Printf("⚠️  Failed to build metadata JSON for resolved alert %s: %v", alert.Fingerprint, err)
+		metadataJSON = []byte("{}")
 	}
 
-	log.Printf("📊 Updated resolution for alert: %s (duration: %ds)", alert.AlertName, durationSec)
+	// Update ALL unresolved statistics for this fingerprint
+	// This handles both:
+	// 1. Normal case: single statistic record
+	// 2. Legacy case: multiple duplicate records (will all be resolved)
+	updatedCount, err := scs.db.UpdateAllUnresolvedByFingerprint(
+		alert.Fingerprint,
+		alert.ResolvedAt,
+		durationSec,
+		metadataJSON,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update alert statistics: %w", err)
+	}
+
+	if updatedCount == 0 {
+		// If not found, it might be an alert that fired before statistics feature was enabled
+		log.Printf("⚠️  No unresolved statistics found for fingerprint %s, skipping resolution update", alert.Fingerprint)
+		return nil
+	}
+
+	log.Printf("📊 Updated resolution for alert: %s (duration: %ds, updated %d record(s))", alert.AlertName, durationSec, updatedCount)
 	return nil
 }
 

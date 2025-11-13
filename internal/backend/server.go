@@ -371,9 +371,11 @@ func (s *Server) performStatisticsCleanup() {
 		return
 	}
 
-	// Default retention: 90 days
-	// TODO: Make this configurable via config file
-	retentionDays := 90
+	// Get retention days from config
+	retentionDays := s.config.Statistics.RetentionDays
+	if retentionDays <= 0 {
+		retentionDays = 90 // Fallback to 90 days if invalid
+	}
 
 	log.Printf("🧹 Running alert statistics cleanup (retention: %d days)...", retentionDays)
 

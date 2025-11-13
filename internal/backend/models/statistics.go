@@ -10,7 +10,7 @@ import (
 // This table captures every alert that fires, with complete metadata for flexible querying
 type AlertStatistic struct {
 	ID          string `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	Fingerprint string `gorm:"not null;size:500;index:idx_fingerprint_fired" json:"fingerprint"`
+	Fingerprint string `gorm:"not null;size:500;uniqueIndex:idx_unique_fingerprint_fired" json:"fingerprint"`
 	AlertName   string `gorm:"not null;size:255;index" json:"alert_name"`
 	Severity    string `gorm:"not null;size:50;index:idx_fired_severity" json:"severity"`
 
@@ -25,7 +25,7 @@ type AlertStatistic struct {
 	Metadata JSONB `gorm:"type:jsonb;not null" json:"metadata"`
 
 	// Lifecycle timestamps
-	FiredAt        time.Time  `gorm:"not null;index;index:idx_fired_severity;index:idx_fingerprint_fired" json:"fired_at"`
+	FiredAt        time.Time  `gorm:"not null;index;index:idx_fired_severity;uniqueIndex:idx_unique_fingerprint_fired" json:"fired_at"`
 	ResolvedAt     *time.Time `gorm:"index" json:"resolved_at,omitempty"`
 	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
 
