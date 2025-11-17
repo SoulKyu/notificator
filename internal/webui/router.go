@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"log"
 	"os"
 	"path/filepath"
@@ -105,8 +107,17 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	// Create auth middleware
 	authMiddleware := middleware.NewAuthMiddleware(backendClient)
 
-	// Session secret - in production, use environment variable
-	sessionSecret := "your-secret-key-change-in-production"
+	// Session secret - read from environment variable or generate random
+	sessionSecret := os.Getenv("NOTIFICATOR_SESSION_SECRET")
+	if sessionSecret == "" {
+		// Generate a random session secret for this instance
+		// WARNING: Sessions will not persist across restarts without a configured secret
+		sessionSecret = generateRandomSecret(32)
+		log.Println("⚠️  WARNING: No NOTIFICATOR_SESSION_SECRET configured - using random secret")
+		log.Println("⚠️  Sessions will NOT persist across restarts. Set NOTIFICATOR_SESSION_SECRET environment variable.")
+	} else {
+		log.Println("✅ Using configured session secret from NOTIFICATOR_SESSION_SECRET")
+	}
 
 	// Middleware
 	r.Use(middleware.CORSMiddleware())
@@ -301,4 +312,15 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	}
 
 	return r
+}
+
+// generateRandomSecret generates a cryptographically secure random secret
+func generateRandomSecret(length int) string {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to a static secret if random generation fails
+		log.Printf("⚠️  Failed to generate random secret: %v, using fallback", err)
+		return "fallback-secret-notificator-insecure-change-me"
+	}
+	return base64.URLEncoding.EncodeToString(bytes)
 }
