@@ -17,7 +17,6 @@ WORKDIR /app
 COPY package*.json ./
 COPY go.mod go.sum ./
 COPY Makefile ./
-COPY tailwind.config.js ./
 
 # Download dependencies
 RUN npm install
@@ -30,8 +29,8 @@ COPY . .
 # This includes: clean, webui-setup, webui-css-build, webui-templates
 RUN make webui-full-rebuild
 
-# Also run the explicit tailwindcss build command
-RUN npx tailwindcss build -i ./internal/webui/static/css/input.css -o ./internal/webui/static/css/output.css --minify
+# Also run the explicit tailwindcss v4 build command
+RUN npx @tailwindcss/cli -i ./internal/webui/static/css/input.css -o ./internal/webui/static/css/output.css --minify
 
 # Build the webui binary from unified main.go (without desktop GUI dependencies)
 # Enable CGO for potential SQLite support

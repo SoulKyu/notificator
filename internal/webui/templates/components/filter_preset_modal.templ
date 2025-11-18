@@ -5,10 +5,10 @@ templ FilterPresetsModal() {
 	<div x-show="showFilterPresetsModal" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
 			<!-- Background overlay -->
-			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showFilterPresetsModal = false"></div>
+			<div class="fixed inset-0 bg-gray-500/75 transition-opacity z-0" @click="showFilterPresetsModal = false"></div>
 
 			<!-- Modal panel -->
-			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh]">
+			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] relative z-10">
 				<div class="bg-white dark:bg-dark-bg-secondary px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
 					<div class="w-full">
 						<!-- Header -->
@@ -120,6 +120,14 @@ templ FilterPresetsModal() {
 										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
 									<label for="share-preset" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
 										Share with team (visible to all users)
+									</label>
+								</div>
+
+								<div class="flex items-center">
+									<input type="checkbox" x-model="includeColumnConfig" id="include-columns"
+										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
+									<label for="include-columns" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+										Include current column configuration
 									</label>
 								</div>
 

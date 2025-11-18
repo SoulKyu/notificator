@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -2825,6 +2826,157 @@ func (s *AlertServiceGorm) UpdateAnnotationButtonConfig(ctx context.Context, req
 		Success: true,
 		Config:  pbConfig,
 		Message: "Annotation button config updated successfully",
+	}, nil
+}
+
+// ==================== User Column Preferences Methods ====================
+
+// GetUserColumnPreferences implements the GetUserColumnPreferences RPC method
+func (s *AlertServiceGorm) GetUserColumnPreferences(ctx context.Context, req *alertpb.GetUserColumnPreferencesRequest) (*alertpb.GetUserColumnPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get column preferences from database
+	prefs, err := s.db.GetUserColumnPreferences(user.ID)
+	if err != nil {
+		log.Printf("Failed to get column preferences for user %s: %v", user.ID, err)
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to retrieve column preferences",
+		}, nil
+	}
+
+	// If no preferences found, return success with nil preferences (client will use defaults)
+	if prefs == nil {
+		log.Printf("No column preferences found for user %s, client will use defaults", user.ID)
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: true,
+			Message: "No column preferences found, using defaults",
+		}, nil
+	}
+
+	// Convert ColumnConfigs from models.JSONB to protobuf
+	var columns []models.ColumnConfig
+	if err := json.Unmarshal(prefs.ColumnConfigs, &columns); err != nil {
+		log.Printf("Failed to unmarshal column configs for user %s: %v", user.ID, err)
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to parse column preferences",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbColumns := make([]*alertpb.ColumnConfig, len(columns))
+	for i, col := range columns {
+		pbColumns[i] = &alertpb.ColumnConfig{
+			Id:        col.ID,
+			Label:     col.Label,
+			FieldType: col.FieldType,
+			FieldPath: col.FieldPath,
+			Formatter: col.Formatter,
+			Width:     int32(col.Width),
+			Sortable:  col.Sortable,
+			Visible:   col.Visible,
+			Order:     int32(col.Order),
+			Resizable: col.Resizable,
+			Critical:  col.Critical,
+		}
+	}
+
+	pbPrefs := &alertpb.ColumnPreferences{
+		UserId:        prefs.UserID,
+		ColumnConfigs: pbColumns,
+		CreatedAt:     timestamppb.New(prefs.CreatedAt),
+		UpdatedAt:     timestamppb.New(prefs.UpdatedAt),
+	}
+
+	return &alertpb.GetUserColumnPreferencesResponse{
+		Success:     true,
+		Preferences: pbPrefs,
+		Message:     "Column preferences retrieved successfully",
+	}, nil
+}
+
+// SaveUserColumnPreferences implements the SaveUserColumnPreferences RPC method
+func (s *AlertServiceGorm) SaveUserColumnPreferences(ctx context.Context, req *alertpb.SaveUserColumnPreferencesRequest) (*alertpb.SaveUserColumnPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf columns to models
+	columns := make([]models.ColumnConfig, len(req.ColumnConfigs))
+	for i, pbCol := range req.ColumnConfigs {
+		columns[i] = models.ColumnConfig{
+			ID:        pbCol.Id,
+			Label:     pbCol.Label,
+			FieldType: pbCol.FieldType,
+			FieldPath: pbCol.FieldPath,
+			Formatter: pbCol.Formatter,
+			Width:     int(pbCol.Width),
+			Sortable:  pbCol.Sortable,
+			Visible:   pbCol.Visible,
+			Order:     int(pbCol.Order),
+			Resizable: pbCol.Resizable,
+			Critical:  pbCol.Critical,
+		}
+	}
+
+	// Convert to JSONB
+	columnConfigsJSON, err := json.Marshal(columns)
+	if err != nil {
+		log.Printf("Failed to marshal column configs for user %s: %v", user.ID, err)
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to save column preferences",
+		}, nil
+	}
+
+	// Create preference object
+	pref := &models.UserColumnPreference{
+		UserID:        user.ID,
+		ColumnConfigs: models.JSONB(columnConfigsJSON),
+	}
+
+	// Save to database
+	err = s.db.SaveUserColumnPreferences(pref)
+	if err != nil {
+		log.Printf("Failed to save column preferences for user %s: %v", user.ID, err)
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to save column preferences",
+		}, nil
+	}
+
+	log.Printf("Column preferences saved for user %s", user.ID)
+
+	return &alertpb.SaveUserColumnPreferencesResponse{
+		Success: true,
+		Message: "Column preferences saved successfully",
 	}, nil
 }
 

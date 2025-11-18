@@ -63,6 +63,10 @@ service AlertService {
   rpc CreateAnnotationButtonConfig(CreateAnnotationButtonConfigRequest) returns (CreateAnnotationButtonConfigResponse);
   rpc UpdateAnnotationButtonConfig(UpdateAnnotationButtonConfigRequest) returns (UpdateAnnotationButtonConfigResponse);
   rpc DeleteAnnotationButtonConfig(DeleteAnnotationButtonConfigRequest) returns (DeleteAnnotationButtonConfigResponse);
+
+  // User Column Preferences
+  rpc GetUserColumnPreferences(GetUserColumnPreferencesRequest) returns (GetUserColumnPreferencesResponse);
+  rpc SaveUserColumnPreferences(SaveUserColumnPreferencesRequest) returns (SaveUserColumnPreferencesResponse);
 }
 
 // Comment Messages
@@ -870,4 +874,47 @@ message GetAlertHistoryResponse {
   bool success = 1;
   string message = 2;
   repeated AlertStatistic history = 3;
+}
+
+// ==================== User Column Preferences Messages ====================
+
+message ColumnConfig {
+  string id = 1;
+  string label = 2;
+  string field_type = 3;
+  string field_path = 4;
+  string formatter = 5;
+  int32 width = 6;
+  bool sortable = 7;
+  bool visible = 8;
+  int32 order = 9;
+  bool resizable = 10;
+  bool critical = 11;
+}
+
+message ColumnPreferences {
+  string user_id = 1;
+  repeated ColumnConfig column_configs = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message GetUserColumnPreferencesRequest {
+  string session_id = 1;
+}
+
+message GetUserColumnPreferencesResponse {
+  bool success = 1;
+  ColumnPreferences preferences = 2;
+  string message = 3;
+}
+
+message SaveUserColumnPreferencesRequest {
+  string session_id = 1;
+  repeated ColumnConfig column_configs = 2;
+}
+
+message SaveUserColumnPreferencesResponse {
+  bool success = 1;
+  string message = 2;
 }

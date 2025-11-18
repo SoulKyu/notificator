@@ -69,10 +69,16 @@ templ DashboardCore() {
 				alertDetails: null,
 				currentAlertTab: 'overview',
 				alertDetailsLoading: false,
+				alertHistory: null,
+				historyLoading: false,
 				
 				// Filter presets modal state
 				showFilterPresetsModal: false,
 				activePresetName: null, // Track active default preset name
+				includeColumnConfig: true, // Whether to include column config when saving filter preset
+
+				// Column config modal state
+				showColumnConfigModal: false,
 
 				newCommentContent: '',
 				commentSubmitting: false,
@@ -129,6 +135,14 @@ templ DashboardCore() {
 				startX: 0,
 				startWidth: 0,
 				currentColumn: null,
+
+				// Dynamic columns configuration
+				columns: [],
+				visibleColumns: [],
+				resizingColumn: null,
+				resizeStartX: 0,
+				resizeStartWidth: 0,
+				sorting: { field: null, direction: 'asc' },
 
 				getDisplayStatus(status) {
 					if (!status?.state) return 'unknown';
@@ -188,6 +202,8 @@ templ DashboardCore() {
 
 					this.loadSettings();
 					this.loadColumnWidths();
+					this.initializeColumns();
+					await this.loadUserColumnPreferences(); // Load user column preferences
 					this.loadCurrentUser();
 					this.loadAnnotationButtonConfigs();
 

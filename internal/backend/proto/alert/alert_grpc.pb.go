@@ -56,6 +56,8 @@ const (
 	AlertService_CreateAnnotationButtonConfig_FullMethodName = "/notificator.alert.AlertService/CreateAnnotationButtonConfig"
 	AlertService_UpdateAnnotationButtonConfig_FullMethodName = "/notificator.alert.AlertService/UpdateAnnotationButtonConfig"
 	AlertService_DeleteAnnotationButtonConfig_FullMethodName = "/notificator.alert.AlertService/DeleteAnnotationButtonConfig"
+	AlertService_GetUserColumnPreferences_FullMethodName     = "/notificator.alert.AlertService/GetUserColumnPreferences"
+	AlertService_SaveUserColumnPreferences_FullMethodName    = "/notificator.alert.AlertService/SaveUserColumnPreferences"
 )
 
 // AlertServiceClient is the client API for AlertService service.
@@ -109,6 +111,9 @@ type AlertServiceClient interface {
 	CreateAnnotationButtonConfig(ctx context.Context, in *CreateAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*CreateAnnotationButtonConfigResponse, error)
 	UpdateAnnotationButtonConfig(ctx context.Context, in *UpdateAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*UpdateAnnotationButtonConfigResponse, error)
 	DeleteAnnotationButtonConfig(ctx context.Context, in *DeleteAnnotationButtonConfigRequest, opts ...grpc.CallOption) (*DeleteAnnotationButtonConfigResponse, error)
+	// User Column Preferences
+	GetUserColumnPreferences(ctx context.Context, in *GetUserColumnPreferencesRequest, opts ...grpc.CallOption) (*GetUserColumnPreferencesResponse, error)
+	SaveUserColumnPreferences(ctx context.Context, in *SaveUserColumnPreferencesRequest, opts ...grpc.CallOption) (*SaveUserColumnPreferencesResponse, error)
 }
 
 type alertServiceClient struct {
@@ -487,6 +492,26 @@ func (c *alertServiceClient) DeleteAnnotationButtonConfig(ctx context.Context, i
 	return out, nil
 }
 
+func (c *alertServiceClient) GetUserColumnPreferences(ctx context.Context, in *GetUserColumnPreferencesRequest, opts ...grpc.CallOption) (*GetUserColumnPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserColumnPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetUserColumnPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) SaveUserColumnPreferences(ctx context.Context, in *SaveUserColumnPreferencesRequest, opts ...grpc.CallOption) (*SaveUserColumnPreferencesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveUserColumnPreferencesResponse)
+	err := c.cc.Invoke(ctx, AlertService_SaveUserColumnPreferences_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AlertServiceServer is the server API for AlertService service.
 // All implementations must embed UnimplementedAlertServiceServer
 // for forward compatibility.
@@ -538,6 +563,9 @@ type AlertServiceServer interface {
 	CreateAnnotationButtonConfig(context.Context, *CreateAnnotationButtonConfigRequest) (*CreateAnnotationButtonConfigResponse, error)
 	UpdateAnnotationButtonConfig(context.Context, *UpdateAnnotationButtonConfigRequest) (*UpdateAnnotationButtonConfigResponse, error)
 	DeleteAnnotationButtonConfig(context.Context, *DeleteAnnotationButtonConfigRequest) (*DeleteAnnotationButtonConfigResponse, error)
+	// User Column Preferences
+	GetUserColumnPreferences(context.Context, *GetUserColumnPreferencesRequest) (*GetUserColumnPreferencesResponse, error)
+	SaveUserColumnPreferences(context.Context, *SaveUserColumnPreferencesRequest) (*SaveUserColumnPreferencesResponse, error)
 	mustEmbedUnimplementedAlertServiceServer()
 }
 
@@ -652,6 +680,12 @@ func (UnimplementedAlertServiceServer) UpdateAnnotationButtonConfig(context.Cont
 }
 func (UnimplementedAlertServiceServer) DeleteAnnotationButtonConfig(context.Context, *DeleteAnnotationButtonConfigRequest) (*DeleteAnnotationButtonConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAnnotationButtonConfig not implemented")
+}
+func (UnimplementedAlertServiceServer) GetUserColumnPreferences(context.Context, *GetUserColumnPreferencesRequest) (*GetUserColumnPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserColumnPreferences not implemented")
+}
+func (UnimplementedAlertServiceServer) SaveUserColumnPreferences(context.Context, *SaveUserColumnPreferencesRequest) (*SaveUserColumnPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveUserColumnPreferences not implemented")
 }
 func (UnimplementedAlertServiceServer) mustEmbedUnimplementedAlertServiceServer() {}
 func (UnimplementedAlertServiceServer) testEmbeddedByValue()                      {}
@@ -1290,6 +1324,42 @@ func _AlertService_DeleteAnnotationButtonConfig_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AlertService_GetUserColumnPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserColumnPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetUserColumnPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetUserColumnPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetUserColumnPreferences(ctx, req.(*GetUserColumnPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_SaveUserColumnPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveUserColumnPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).SaveUserColumnPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_SaveUserColumnPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).SaveUserColumnPreferences(ctx, req.(*SaveUserColumnPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AlertService_ServiceDesc is the grpc.ServiceDesc for AlertService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1428,6 +1498,14 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAnnotationButtonConfig",
 			Handler:    _AlertService_DeleteAnnotationButtonConfig_Handler,
+		},
+		{
+			MethodName: "GetUserColumnPreferences",
+			Handler:    _AlertService_GetUserColumnPreferences_Handler,
+		},
+		{
+			MethodName: "SaveUserColumnPreferences",
+			Handler:    _AlertService_SaveUserColumnPreferences_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -4,9 +4,9 @@ package components
 templ SettingsModal() {
 	<div x-show="showSettings" x-data="settingsModalData()" x-init="init()" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-			<div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showSettings = false"></div>
-			
-			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh]">
+			<div class="fixed inset-0 bg-gray-500/75 transition-opacity z-0" @click="showSettings = false"></div>
+
+			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] relative z-10">
 				<div class="bg-white dark:bg-dark-bg-secondary px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
 					<div class="w-full">
 						<h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-6">
@@ -490,6 +490,7 @@ templ SettingsModal() {
 							</div>
 
 							@NotificationSettings()
+
 
 							<!-- Annotation Buttons Tab -->
 							<div x-show="activeTab === 'annotation-buttons'" class="space-y-6">

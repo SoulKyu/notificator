@@ -23,19 +23,19 @@ webui-setup: ## Install WebUI dependencies (npm install)
 # WebUI CSS Building
 webui-css: ## Build WebUI CSS (development mode)
 	@echo "Building WebUI CSS (development)..."
-	npx tailwindcss -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT)
+	npx @tailwindcss/cli -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT)
 
 webui-css-prod: ## Build WebUI CSS (production mode - minified)
 	@echo "Building WebUI CSS (production)..."
-	npx tailwindcss -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT) --minify
+	npx @tailwindcss/cli -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT) --minify
 
 webui-css-watch: ## Watch and rebuild WebUI CSS on changes
 	@echo "Watching WebUI CSS for changes..."
-	npx tailwindcss -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT) --watch
+	npx @tailwindcss/cli -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT) --watch
 
 webui-css-build: ## Build WebUI CSS using explicit build command
 	@echo "Building WebUI CSS with explicit build command..."
-	npx tailwindcss build -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT) --minify
+	npx @tailwindcss/cli -i $(WEBUI_CSS_INPUT) -o $(WEBUI_CSS_OUTPUT) --minify
 
 # Template Generation
 webui-templates: ## Generate Go templates from .templ files

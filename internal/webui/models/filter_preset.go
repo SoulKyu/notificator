@@ -4,15 +4,16 @@ import "time"
 
 // FilterPreset represents a saved filter configuration
 type FilterPreset struct {
-	ID          string             `json:"id"`
-	UserID      string             `json:"user_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description,omitempty"`
-	IsShared    bool               `json:"is_shared"`
-	IsDefault   bool               `json:"is_default"`
-	FilterData  FilterPresetData   `json:"filter_data"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	ID            string             `json:"id"`
+	UserID        string             `json:"user_id"`
+	Name          string             `json:"name"`
+	Description   string             `json:"description,omitempty"`
+	IsShared      bool               `json:"is_shared"`
+	IsDefault     bool               `json:"is_default"`
+	FilterData    FilterPresetData   `json:"filter_data"`
+	ColumnConfigs []ColumnConfig     `json:"column_configs,omitempty"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
 }
 
 // FilterPresetData contains the complete dashboard state
@@ -38,6 +39,9 @@ type FilterPresetData struct {
 
 	// Pagination
 	ItemsPerPage int `json:"items_per_page,omitempty"` // 10, 20, 50, 100, 500
+
+	// Column Configuration
+	ColumnConfigs []ColumnConfig `json:"column_configs,omitempty"`
 }
 
 // FilterPresetRequest is used for creating/updating presets
@@ -60,4 +64,25 @@ type FilterPresetsResponse struct {
 	Success bool            `json:"success"`
 	Presets []FilterPreset  `json:"presets"`
 	Message string          `json:"message,omitempty"`
+}
+
+// ColumnConfig represents a single column configuration in the dashboard table
+type ColumnConfig struct {
+	ID        string `json:"id"`         // Unique ID: "col_alertname", "col_custom_env"
+	Label     string `json:"label"`      // Display name: "Alert Name", "Environment"
+	FieldType string `json:"field_type"` // "system", "label", "annotation"
+	FieldPath string `json:"field_path"` // "alertName", "labels.environment", "annotations.summary"
+	Formatter string `json:"formatter"`  // "text", "badge", "duration", "timestamp", "count", "checkbox", "actions"
+	Width     int    `json:"width"`      // Column width in pixels (50-800)
+	Sortable  bool   `json:"sortable"`   // Can be sorted
+	Visible   bool   `json:"visible"`    // Show/hide toggle
+	Order     int    `json:"order"`      // Display order (0-based)
+	Resizable bool   `json:"resizable"`  // Can be resized
+	Critical  bool   `json:"critical"`   // Cannot be deleted (but can be hidden/reordered)
+}
+
+// UserColumnPreference stores user's default column configuration
+type UserColumnPreference struct {
+	UserID        string         `json:"user_id"`
+	ColumnConfigs []ColumnConfig `json:"column_configs"`
 }

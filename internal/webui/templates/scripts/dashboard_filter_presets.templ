@@ -127,6 +127,13 @@ templ DashboardFilterPresetsMixin() {
 			// Apply pagination
 			if (data.items_per_page) this.itemsPerPage = data.items_per_page;
 
+			// Apply column configurations
+			if (data.column_configs && Array.isArray(data.column_configs) && data.column_configs.length > 0) {
+				this.columns = data.column_configs;
+				this.updateVisibleColumns();
+				console.log('Applied', data.column_configs.length, 'column configurations from preset');
+			}
+
 			// Reload dashboard data with new filters
 			await this.loadDashboardData();
 
@@ -211,7 +218,8 @@ templ DashboardFilterPresetsMixin() {
 				group_by: this.groupByLabel,
 				sort_by: this.sortField,
 				sort_direction: this.sortDirection,
-				items_per_page: this.itemsPerPage
+				items_per_page: this.itemsPerPage,
+				column_configs: this.includeColumnConfig ? (this.columns || []) : []
 			};
 		},
 

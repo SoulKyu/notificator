@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -2123,4 +2124,338 @@ func HandleGetAlertHistory(c *gin.Context) {
 		"total_occurrences": len(historyItems),
 		"history":           historyItems,
 	}))
+}
+
+// SystemFieldMetadata represents metadata for system fields
+type SystemFieldMetadata struct {
+	Key         string   `json:"key"`
+	Label       string   `json:"label"`
+	Description string   `json:"description"`
+	DataType    string   `json:"data_type"`
+	Formatters  []string `json:"formatters"`
+}
+
+// AvailableFieldsResponse contains all available fields for column configuration
+type AvailableFieldsResponse struct {
+	SystemFields []SystemFieldMetadata `json:"system_fields"`
+	Labels       map[string]int        `json:"labels"`
+	Annotations  map[string]int        `json:"annotations"`
+}
+
+// GetAvailableFields returns all available fields that can be used as columns
+// This includes system fields, labels, and annotations from recent alerts
+// GET /api/v1/dashboard/available-fields
+func GetAvailableFields(c *gin.Context) {
+	// Get recent alerts from cache (up to 1000 or all available)
+	alerts := alertCache.GetAllAlerts()
+
+	// Limit to reasonable number for aggregation
+	if len(alerts) > 1000 {
+		alerts = alerts[:1000]
+	}
+
+	// Aggregate labels and annotations with occurrence counting
+	labels := make(map[string]int)
+	annotations := make(map[string]int)
+
+	for _, alert := range alerts {
+		// Count label occurrences
+		if alert.Labels != nil {
+			for key := range alert.Labels {
+				labels[key]++
+			}
+		}
+
+		// Count annotation occurrences
+		if alert.Annotations != nil {
+			for key := range alert.Annotations {
+				annotations[key]++
+			}
+		}
+	}
+
+	// Define system fields with metadata
+	systemFields := []SystemFieldMetadata{
+		{
+			Key:         "alertName",
+			Label:       "Alert Name",
+			Description: "Name/title of the alert",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "instance",
+			Label:       "Instance",
+			Description: "Instance identifier",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "severity",
+			Label:       "Severity",
+			Description: "Alert severity level (critical, warning, info)",
+			DataType:    "string",
+			Formatters:  []string{"text", "badge"},
+		},
+		{
+			Key:         "status",
+			Label:       "Status",
+			Description: "Alert status (firing, resolved, suppressed)",
+			DataType:    "string",
+			Formatters:  []string{"badge"},
+		},
+		{
+			Key:         "team",
+			Label:       "Team",
+			Description: "Responsible team",
+			DataType:    "string",
+			Formatters:  []string{"text", "badge"},
+		},
+		{
+			Key:         "summary",
+			Label:       "Summary",
+			Description: "Alert summary/description",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "duration",
+			Label:       "Duration",
+			Description: "How long the alert has been active",
+			DataType:    "number",
+			Formatters:  []string{"duration"},
+		},
+		{
+			Key:         "source",
+			Label:       "Alertmanager",
+			Description: "Source alertmanager",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "commentCount",
+			Label:       "Comments",
+			Description: "Number of comments",
+			DataType:    "number",
+			Formatters:  []string{"count"},
+		},
+		{
+			Key:         "startsAt",
+			Label:       "Started At",
+			Description: "When the alert started firing",
+			DataType:    "timestamp",
+			Formatters:  []string{"timestamp"},
+		},
+		{
+			Key:         "endsAt",
+			Label:       "Ended At",
+			Description: "When the alert was resolved",
+			DataType:    "timestamp",
+			Formatters:  []string{"timestamp"},
+		},
+	}
+
+	// Return response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"fields": AvailableFieldsResponse{
+			SystemFields: systemFields,
+			Labels:       labels,
+			Annotations:  annotations,
+		},
+	})
+}
+
+// GetUserColumnPreferences returns the user's saved column configuration
+// GET /api/v1/dashboard/column-preferences
+func GetUserColumnPreferences(c *gin.Context) {
+	user := middleware.GetCurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+		return
+	}
+
+	sessionID, _ := c.Get("session_id")
+
+	// Get user column preferences from backend
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
+	if err != nil {
+		// If not found, return nil to let frontend use defaults
+		c.JSON(http.StatusOK, gin.H{
+			"success":        true,
+			"column_configs": nil,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"column_configs": prefs.ColumnConfigs,
+	})
+}
+
+// SaveUserColumnPreferencesRequest represents the request body for saving column preferences
+type SaveUserColumnPreferencesRequest struct {
+	ColumnConfigs []webuimodels.ColumnConfig `json:"column_configs" binding:"required"`
+}
+
+// SaveUserColumnPreferences saves the user's column configuration
+// PUT /api/v1/dashboard/column-preferences
+func SaveUserColumnPreferences(c *gin.Context) {
+	user := middleware.GetCurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+		return
+	}
+
+	sessionID, _ := c.Get("session_id")
+
+	// Parse request
+	var req SaveUserColumnPreferencesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Validate column configs (same validation as filter presets)
+	if len(req.ColumnConfigs) > 0 {
+		seenIDs := make(map[string]bool)
+		seenOrders := make(map[int]bool)
+
+		for _, col := range req.ColumnConfigs {
+			// Check duplicate ID
+			if seenIDs[col.ID] {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": "Duplicate column ID: " + col.ID,
+				})
+				return
+			}
+			seenIDs[col.ID] = true
+
+			// Check duplicate order
+			if seenOrders[col.Order] {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("Duplicate column order: %d", col.Order),
+				})
+				return
+			}
+			seenOrders[col.Order] = true
+
+			// Validate width
+			if col.Width < 50 || col.Width > 800 {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("Column '%s' width must be between 50 and 800 pixels", col.ID),
+				})
+				return
+			}
+
+			// Validate formatter
+			validFormatters := map[string]bool{
+				"text": true, "badge": true, "duration": true,
+				"timestamp": true, "count": true, "checkbox": true, "actions": true,
+			}
+			if !validFormatters[col.Formatter] {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID),
+				})
+				return
+			}
+		}
+	}
+
+	// Save to backend
+	err := backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, req.ColumnConfigs)
+	if err != nil {
+		log.Printf("Error saving column preferences: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to save column preferences",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Column preferences saved successfully",
+	})
+}
+
+// UpdateColumnWidthRequest represents the request body for updating a single column width
+type UpdateColumnWidthRequest struct {
+	ColumnID string `json:"column_id" binding:"required"`
+	Width    int    `json:"width" binding:"required,min=50,max=800"`
+}
+
+// UpdateColumnWidth updates the width of a single column (for auto-save during resize)
+// PATCH /api/v1/dashboard/column-preferences/width
+func UpdateColumnWidth(c *gin.Context) {
+	user := middleware.GetCurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+		return
+	}
+
+	sessionID, _ := c.Get("session_id")
+
+	// Parse request
+	var req UpdateColumnWidthRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Get current preferences
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
+	if err != nil {
+		// If no preferences exist yet, can't update width
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "No column preferences found. Please save your column configuration first.",
+		})
+		return
+	}
+
+	// Update the width of the specified column
+	found := false
+	for i := range prefs.ColumnConfigs {
+		if prefs.ColumnConfigs[i].ID == req.ColumnID {
+			prefs.ColumnConfigs[i].Width = req.Width
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Column not found: " + req.ColumnID,
+		})
+		return
+	}
+
+	// Save updated preferences
+	err = backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, prefs.ColumnConfigs)
+	if err != nil {
+		log.Printf("Error updating column width: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to update column width",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Column width updated successfully",
+	})
 }

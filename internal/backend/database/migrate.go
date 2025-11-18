@@ -14,6 +14,16 @@ func (gdb *GormDB) RunCustomMigrations() error {
 		return fmt.Errorf("failed to cleanup duplicate statistics: %w", err)
 	}
 
+	// Add column_configs field to filter_presets table
+	if err := gdb.migrateColumnConfigs(); err != nil {
+		return fmt.Errorf("failed to migrate column configs: %w", err)
+	}
+
+	// Create user_column_preferences table if needed
+	if err := gdb.migrateUserColumnPreferences(); err != nil {
+		return fmt.Errorf("failed to migrate user column preferences: %w", err)
+	}
+
 	log.Println("✅ Custom migrations completed")
 	return nil
 }
@@ -22,31 +32,50 @@ func (gdb *GormDB) RunCustomMigrations() error {
 func (gdb *GormDB) cleanupDuplicateStatistics() error {
 	log.Println("🧹 Cleaning up duplicate alert statistics...")
 
-	// First, check if the alert_statistics table exists
-	var tableExists bool
-	err := gdb.db.Raw(`
-		SELECT EXISTS (
-			SELECT FROM information_schema.tables
-			WHERE table_name = 'alert_statistics'
-		)
-	`).Scan(&tableExists).Error
+	// Detect database type
+	dbName := gdb.db.Dialector.Name()
 
-	if err != nil || !tableExists {
+	// First, check if the alert_statistics table exists
+	var tableExists int
+	var err error
+
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM sqlite_master
+			WHERE type='table' AND name='alert_statistics'
+		`).Scan(&tableExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM information_schema.tables
+			WHERE table_name='alert_statistics'
+		`).Scan(&tableExists).Error
+	}
+
+	if err != nil || tableExists == 0 {
 		log.Println("ℹ️  alert_statistics table doesn't exist yet, skipping duplicate cleanup")
 		return nil
 	}
 
 	// Check if unique constraint already exists
-	var constraintExists bool
-	err = gdb.db.Raw(`
-		SELECT EXISTS (
-			SELECT 1 FROM pg_indexes
-			WHERE tablename = 'alert_statistics'
-			AND indexname = 'idx_unique_fingerprint_fired'
-		)
-	`).Scan(&constraintExists).Error
+	var constraintExists int
 
-	if err == nil && constraintExists {
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM sqlite_master
+			WHERE type='index' AND name='idx_unique_fingerprint_fired'
+			AND tbl_name='alert_statistics'
+		`).Scan(&constraintExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM pg_indexes
+			WHERE indexname='idx_unique_fingerprint_fired'
+			AND tablename='alert_statistics'
+		`).Scan(&constraintExists).Error
+	}
+
+	if err == nil && constraintExists > 0 {
 		log.Println("ℹ️  Unique constraint already exists, skipping duplicate cleanup")
 		return nil
 	}
@@ -80,5 +109,150 @@ func (gdb *GormDB) cleanupDuplicateStatistics() error {
 		log.Println("ℹ️  No duplicate alert statistics found")
 	}
 
+	return nil
+}
+
+// migrateColumnConfigs adds the column_configs field to filter_presets table
+func (gdb *GormDB) migrateColumnConfigs() error {
+	log.Println("🔄 Migrating filter presets to include column configs...")
+
+	// Detect database type
+	dbName := gdb.db.Dialector.Name()
+
+	// Check if filter_presets table exists
+	var tableExists int
+	var err error
+
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM sqlite_master
+			WHERE type='table' AND name='filter_presets'
+		`).Scan(&tableExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM information_schema.tables
+			WHERE table_name='filter_presets'
+		`).Scan(&tableExists).Error
+	}
+
+	if err != nil || tableExists == 0 {
+		log.Println("ℹ️  filter_presets table doesn't exist yet, skipping column_configs migration")
+		return nil
+	}
+
+	// Check if column_configs column exists
+	var columnExists int
+
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM pragma_table_info('filter_presets')
+			WHERE name = 'column_configs'
+		`).Scan(&columnExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM information_schema.columns
+			WHERE table_name='filter_presets' AND column_name='column_configs'
+		`).Scan(&columnExists).Error
+	}
+
+	if err == nil && columnExists > 0 {
+		log.Println("ℹ️  column_configs column already exists")
+		return nil
+	}
+
+	// Add column_configs column (use appropriate type for database)
+	var alterQuery string
+	if dbName == "sqlite" {
+		alterQuery = `
+			ALTER TABLE filter_presets
+			ADD COLUMN column_configs TEXT DEFAULT '[]'
+		`
+	} else {
+		// PostgreSQL uses JSONB
+		alterQuery = `
+			ALTER TABLE filter_presets
+			ADD COLUMN column_configs JSONB DEFAULT '[]'::jsonb
+		`
+	}
+
+	result := gdb.db.Exec(alterQuery)
+	if result.Error != nil {
+		return fmt.Errorf("failed to add column_configs column: %w", result.Error)
+	}
+
+	log.Println("✅ Added column_configs column to filter_presets table")
+	return nil
+}
+
+// migrateUserColumnPreferences creates the user_column_preferences table if it doesn't exist
+func (gdb *GormDB) migrateUserColumnPreferences() error {
+	log.Println("🔄 Migrating user column preferences table...")
+
+	// Detect database type
+	dbName := gdb.db.Dialector.Name()
+
+	// Check if table already exists
+	var tableExists int
+	var err error
+
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM sqlite_master
+			WHERE type='table' AND name='user_column_preferences'
+		`).Scan(&tableExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM information_schema.tables
+			WHERE table_name='user_column_preferences'
+		`).Scan(&tableExists).Error
+	}
+
+	if err == nil && tableExists > 0 {
+		log.Println("ℹ️  user_column_preferences table already exists")
+		return nil
+	}
+
+	// Create the table with appropriate data types
+	var createQuery string
+	if dbName == "sqlite" {
+		createQuery = `
+			CREATE TABLE IF NOT EXISTS user_column_preferences (
+				user_id VARCHAR(32) PRIMARY KEY,
+				column_configs TEXT NOT NULL DEFAULT '[]',
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			)
+		`
+	} else {
+		// PostgreSQL
+		createQuery = `
+			CREATE TABLE IF NOT EXISTS user_column_preferences (
+				user_id VARCHAR(32) PRIMARY KEY,
+				column_configs JSONB NOT NULL DEFAULT '[]'::jsonb,
+				created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			)
+		`
+	}
+
+	result := gdb.db.Exec(createQuery)
+	if result.Error != nil {
+		return fmt.Errorf("failed to create user_column_preferences table: %w", result.Error)
+	}
+
+	// Create index on user_id
+	result = gdb.db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_user_column_preferences_user_id
+		ON user_column_preferences(user_id)
+	`)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to create index on user_column_preferences: %w", result.Error)
+	}
+
+	log.Println("✅ Created user_column_preferences table")
 	return nil
 }

@@ -220,6 +220,10 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.DELETE("/color-preferences/:id", handlers.DeleteUserColorPreference)
 			dashboard.GET("/alert-colors", handlers.GetAlertColors)
 			dashboard.GET("/available-labels", handlers.GetAvailableAlertLabels)
+			dashboard.GET("/available-fields", handlers.GetAvailableFields)
+			dashboard.GET("/column-preferences", handlers.GetUserColumnPreferences)
+			dashboard.PUT("/column-preferences", handlers.SaveUserColumnPreferences)
+			dashboard.PATCH("/column-preferences/width", handlers.UpdateColumnWidth)
 			dashboard.DELETE("/remove-resolved-alerts", handlers.RemoveAllResolvedAlerts)
 
 			// Hidden alerts routes

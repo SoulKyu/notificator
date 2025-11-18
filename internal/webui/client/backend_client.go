@@ -1850,3 +1850,94 @@ func (c *BackendClient) GetAlertHistory(sessionID, fingerprint string, limit int
 
 	return resp.History, nil
 }
+
+// GetUserColumnPreferences gets the user's column preferences via gRPC
+func (c *BackendClient) GetUserColumnPreferences(sessionID, userID string) (*models.UserColumnPreference, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.alertClient.GetUserColumnPreferences(ctx, &alertpb.GetUserColumnPreferencesRequest{
+		SessionId: sessionID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get column preferences: %w", err)
+	}
+
+	if !resp.Success {
+		// If message indicates no preferences found, return nil without error
+		if resp.Message == "No column preferences found, using defaults" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get column preferences failed: %s", resp.Message)
+	}
+
+	// If no preferences in response, return nil
+	if resp.Preferences == nil {
+		return nil, nil
+	}
+
+	// Convert protobuf columns to webui models
+	columns := make([]models.ColumnConfig, len(resp.Preferences.ColumnConfigs))
+	for i, pbCol := range resp.Preferences.ColumnConfigs {
+		columns[i] = models.ColumnConfig{
+			ID:        pbCol.Id,
+			Label:     pbCol.Label,
+			FieldType: pbCol.FieldType,
+			FieldPath: pbCol.FieldPath,
+			Formatter: pbCol.Formatter,
+			Width:     int(pbCol.Width),
+			Sortable:  pbCol.Sortable,
+			Visible:   pbCol.Visible,
+			Order:     int(pbCol.Order),
+			Resizable: pbCol.Resizable,
+			Critical:  pbCol.Critical,
+		}
+	}
+
+	pref := &models.UserColumnPreference{
+		UserID:        resp.Preferences.UserId,
+		ColumnConfigs: columns,
+	}
+
+	return pref, nil
+}
+
+// SaveUserColumnPreferences saves the user's column preferences via gRPC
+func (c *BackendClient) SaveUserColumnPreferences(sessionID, userID string, columns []models.ColumnConfig) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Convert models to protobuf
+	pbColumns := make([]*alertpb.ColumnConfig, len(columns))
+	for i, col := range columns {
+		pbColumns[i] = &alertpb.ColumnConfig{
+			Id:        col.ID,
+			Label:     col.Label,
+			FieldType: col.FieldType,
+			FieldPath: col.FieldPath,
+			Formatter: col.Formatter,
+			Width:     int32(col.Width),
+			Sortable:  col.Sortable,
+			Visible:   col.Visible,
+			Order:     int32(col.Order),
+			Resizable: col.Resizable,
+			Critical:  col.Critical,
+		}
+	}
+
+	resp, err := c.alertClient.SaveUserColumnPreferences(ctx, &alertpb.SaveUserColumnPreferencesRequest{
+		SessionId:     sessionID,
+		ColumnConfigs: pbColumns,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to save column preferences: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("save column preferences failed: %s", resp.Message)
+	}
+
+	return nil
+}
