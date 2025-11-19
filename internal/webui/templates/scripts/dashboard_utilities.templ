@@ -694,7 +694,7 @@ templ DashboardUtilities() {
 			renderText(value) {
 				if (!value && value !== 0) return '<span class="text-gray-400 dark:text-gray-500">-</span>';
 				const escaped = this.escapeHtml(String(value));
-				return `<div class="text-sm text-gray-900 dark:text-white truncate" title="${escaped}">${escaped}</div>`;
+				return `<div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title="${escaped}">${escaped}</div>`;
 			},
 
 			renderBadge(value, fieldPath) {
@@ -716,26 +716,59 @@ templ DashboardUtilities() {
 					strValue = String(value);
 				}
 
-				let colorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+				let colorClass = 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
+				let dotColor = 'bg-gray-500';
 
 				if (fieldPath === 'severity') {
 					const colors = {
-						'critical': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
-						'warning': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
-						'info': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
+						'critical': {
+							badge: 'bg-red-100 text-red-800 ring-1 ring-red-200 dark:bg-red-900/40 dark:text-red-200 dark:ring-red-800/50',
+							dot: 'bg-red-600 dark:bg-red-400'
+						},
+						'warning': {
+							badge: 'bg-amber-100 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:ring-amber-800/50',
+							dot: 'bg-amber-600 dark:bg-amber-400'
+						},
+						'info': {
+							badge: 'bg-blue-100 text-blue-800 ring-1 ring-blue-200 dark:bg-blue-900/40 dark:text-blue-200 dark:ring-blue-800/50',
+							dot: 'bg-blue-600 dark:bg-blue-400'
+						},
 					};
-					colorClass = colors[strValue.toLowerCase()] || colorClass;
+					const scheme = colors[strValue.toLowerCase()];
+					if (scheme) {
+						colorClass = scheme.badge;
+						dotColor = scheme.dot;
+					}
 				} else if (fieldPath === 'status') {
 					const colors = {
-						'firing': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
-						'resolved': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
-						'suppressed': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-						'silenced': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+						'firing': {
+							badge: 'bg-red-100 text-red-800 ring-1 ring-red-200 dark:bg-red-900/40 dark:text-red-200 dark:ring-red-800/50',
+							dot: 'bg-red-600 dark:bg-red-400'
+						},
+						'resolved': {
+							badge: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-800/50',
+							dot: 'bg-emerald-600 dark:bg-emerald-400'
+						},
+						'suppressed': {
+							badge: 'bg-gray-100 text-gray-700 ring-1 ring-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600',
+							dot: 'bg-gray-500'
+						},
+						'silenced': {
+							badge: 'bg-gray-100 text-gray-700 ring-1 ring-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600',
+							dot: 'bg-gray-500'
+						},
 					};
-					colorClass = colors[strValue.toLowerCase()] || colorClass;
+					const scheme = colors[strValue.toLowerCase()];
+					if (scheme) {
+						colorClass = scheme.badge;
+						dotColor = scheme.dot;
+					}
 				}
 
-				return `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${colorClass}">${this.escapeHtml(strValue)}</span>`;
+				return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${colorClass}">
+					<span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>
+					${this.escapeHtml(strValue)}
+				</span>`;
 			},
 
 			renderDuration(seconds) {
@@ -769,11 +802,11 @@ templ DashboardUtilities() {
 				if (!count || count === 0) {
 					return '<span class="text-gray-400 dark:text-gray-500">-</span>';
 				}
-				return `<span class="inline-flex items-center text-sm text-gray-900 dark:text-white">
-					<svg class="w-4 h-4 mr-1 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+				return `<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 ring-1 ring-blue-100 dark:bg-blue-900/30 dark:text-blue-200 dark:ring-blue-800/50">
+					<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
 					</svg>
-					${count}
+					<span>${count}</span>
 				</span>`;
 			},
 
@@ -788,21 +821,21 @@ templ DashboardUtilities() {
 			},
 
 			renderActions(alert) {
-				let html = '<div class="flex items-center space-x-2">';
+				let html = '<div class="flex items-center gap-1.5">';
 
 				if (alert.isAcknowledged) {
-					html += `<div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200">
-						<svg class="w-3 h-3 mr-1" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+					html += `<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-800/50">
+						<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
 						</svg>
-						ACK
+						<span>ACK</span>
 					</div>`;
 				} else {
 					html += `<button
 						onclick="event.stopPropagation(); window.dashboardInstance.acknowledgeAlert('${alert.fingerprint}')"
-						class="text-gray-400 hover:text-green-500 transition-colors p-1 rounded"
+						class="p-1.5 rounded-md text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:text-emerald-400 dark:hover:bg-emerald-900/30 transition-all duration-150"
 						title="Acknowledge Alert">
-						<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+						<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
 						</svg>
 					</button>`;
@@ -810,9 +843,9 @@ templ DashboardUtilities() {
 
 				html += `<button
 					onclick="event.stopPropagation(); window.dashboardInstance.silenceAlert('${alert.fingerprint}')"
-					class="text-gray-400 hover:text-purple-500 transition-colors p-1 rounded"
+					class="p-1.5 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:text-amber-400 dark:hover:bg-amber-900/30 transition-all duration-150"
 					title="Silence Alert">
-					<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+					<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.59-.79-1.59-1.78V9.51c0-.88.79-1.59 1.78-1.59h1.78Z"/>
 					</svg>
 				</button>`;

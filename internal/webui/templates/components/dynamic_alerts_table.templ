@@ -67,20 +67,20 @@ templ DynamicAlertsTable() {
 					</template>
 				</tr>
 			</thead>
-			<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-dark-border-subtle">
+			<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-100 dark:divide-gray-800">
 				<template x-for="(alert, index) in alerts" :key="alert.fingerprint">
 					<!-- Row click opens alert details modal -->
-					<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors border-l-4"
+					<tr class="group hover:bg-gray-50/80 dark:hover:bg-gray-800/50 cursor-pointer transition-all duration-150 border-l-[3px]"
 						@click="if (!$event.target.closest('input[type=checkbox]') && !$event.target.closest('button')) showAlertDetails(alert.fingerprint)"
 						:class="{
-							'bg-blue-50 dark:bg-blue-900/20': selectedAlerts.includes(alert.fingerprint)
+							'bg-blue-50/50 dark:bg-blue-900/20 hover:bg-blue-50/70 dark:hover:bg-blue-900/30': selectedAlerts.includes(alert.fingerprint)
 						}"
 						:style="`background-color: ${selectedAlerts.includes(alert.fingerprint) ? '' : getAlertColor(alert, 'backgroundColor')}; border-left-color: ${getAlertColor(alert, 'borderColor')};`">
 
 						<!-- Dynamic Cells -->
 						<template x-for="column in visibleColumns" :key="column.id">
 							<td
-								class="px-6 py-4"
+								class="px-6 py-4 align-middle"
 								:style="`width: ${column.width}px; min-width: ${column.width}px;`"
 								x-html="renderCell(alert, column)">
 							</td>
