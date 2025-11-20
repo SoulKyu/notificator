@@ -23,16 +23,18 @@ import (
 )
 
 type Server struct {
-	authService   *services.AuthServiceGorm
-	alertService  *services.AlertServiceGorm
-	oauthService  *services.OAuthService
-	db            *database.GormDB
-	config        *config.Config
-	dbType        string
-	grpcServer    *grpc.Server
-	httpServer    *http.Server
-	cleanupTicker *time.Ticker
-	cleanupDone   chan bool
+	authService       *services.AuthServiceGorm
+	alertService      *services.AlertServiceGorm
+	statisticsService *services.StatisticsServiceGorm
+	oauthService      *services.OAuthService
+	statisticsWorker  *services.StatisticsWorkerPool
+	db                *database.GormDB
+	config            *config.Config
+	dbType            string
+	grpcServer        *grpc.Server
+	httpServer        *http.Server
+	cleanupTicker     *time.Ticker
+	cleanupDone       chan bool
 }
 
 func NewServer(cfg *config.Config, dbType string) *Server {
@@ -63,6 +65,7 @@ func (s *Server) Start() error {
 	}
 
 	s.startResolvedAlertCleanup()
+	s.startStatisticsCleanup()
 
 	shutdownChan := make(chan struct{})
 	s.setupGracefulShutdown(shutdownChan)
@@ -121,6 +124,18 @@ func (s *Server) initServices() {
 
 	s.authService = services.NewAuthServiceGorm(s.db, s.oauthService)
 	s.alertService = services.NewAlertServiceGorm(s.db)
+	s.statisticsService = services.NewStatisticsServiceGorm(s.db)
+
+	// Initialize statistics worker pool
+	// 10 workers with queue size of 1000 jobs
+	captureService := services.NewStatisticsCaptureService(s.db)
+	s.statisticsWorker = services.NewStatisticsWorkerPool(captureService, 10, 1000)
+	s.statisticsWorker.Start()
+
+	// Set worker pool on statistics service for async capture
+	s.statisticsService.SetWorkerPool(s.statisticsWorker)
+
+	log.Printf("✅ Statistics worker pool initialized (10 workers, queue size: 1000)")
 }
 
 func (s *Server) startGRPCServer() error {
@@ -142,6 +157,7 @@ func (s *Server) startGRPCServer() error {
 
 	authpb.RegisterAuthServiceServer(s.grpcServer, s.authService)
 	alertpb.RegisterAlertServiceServer(s.grpcServer, s.alertService)
+	alertpb.RegisterStatisticsServiceServer(s.grpcServer, s.statisticsService)
 
 	reflection.Register(s.grpcServer)
 
@@ -183,6 +199,11 @@ func (s *Server) startHTTPServer() error {
 	return nil
 }
 
+// GetStatisticsWorker returns the statistics worker pool
+func (s *Server) GetStatisticsWorker() *services.StatisticsWorkerPool {
+	return s.statisticsWorker
+}
+
 func (s *Server) setupGracefulShutdown(shutdownChan chan struct{}) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -192,6 +213,11 @@ func (s *Server) setupGracefulShutdown(shutdownChan chan struct{}) {
 		log.Println("🛑 Shutting down servers...")
 
 		s.stopResolvedAlertCleanup()
+
+		// Stop statistics worker pool first to finish queued jobs
+		if s.statisticsWorker != nil {
+			s.statisticsWorker.Stop()
+		}
 
 		if s.grpcServer != nil {
 			s.grpcServer.GracefulStop()
@@ -309,6 +335,60 @@ func (s *Server) stopResolvedAlertCleanup() {
 	if s.cleanupTicker != nil {
 		s.cleanupTicker.Stop()
 		close(s.cleanupDone)
+	}
+}
+
+// startStatisticsCleanup starts a background job to clean up old alert statistics
+func (s *Server) startStatisticsCleanup() {
+	// Run cleanup daily at midnight (or every 24 hours)
+	cleanupInterval := 24 * time.Hour
+
+	log.Printf("🧹 Starting alert statistics cleanup job (runs every 24 hours)")
+
+	go func() {
+		// Run immediately on start
+		s.performStatisticsCleanup()
+
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.performStatisticsCleanup()
+			case <-s.cleanupDone:
+				log.Println("🛑 Stopping alert statistics cleanup job")
+				return
+			}
+		}
+	}()
+}
+
+// performStatisticsCleanup removes old alert statistics based on retention policy
+func (s *Server) performStatisticsCleanup() {
+	if s.db == nil {
+		log.Println("⚠️  Database not initialized, skipping statistics cleanup")
+		return
+	}
+
+	// Get retention days from config
+	retentionDays := s.config.Statistics.RetentionDays
+	if retentionDays <= 0 {
+		retentionDays = 90 // Fallback to 90 days if invalid
+	}
+
+	log.Printf("🧹 Running alert statistics cleanup (retention: %d days)...", retentionDays)
+
+	deletedCount, err := s.db.DeleteOldStatistics(retentionDays)
+	if err != nil {
+		log.Printf("❌ Error during statistics cleanup: %v", err)
+		return
+	}
+
+	if deletedCount > 0 {
+		log.Printf("✅ Cleaned up %d old alert statistics (older than %d days)", deletedCount, retentionDays)
+	} else {
+		log.Printf("✅ No old alert statistics to clean up")
 	}
 }
 

@@ -20,6 +20,7 @@ type Config struct {
 	ColumnWidths   map[string]float32   `json:"column_widths"`
 	Backend        BackendConfig        `json:"backend"`
 	ResolvedAlerts ResolvedAlertsConfig `json:"resolved_alerts"`
+	Statistics     StatisticsConfig     `json:"statistics"`
 	WebUI          WebUIConfig          `json:"webui"`
 	OAuth          *OAuthPortalConfig   `json:"oauth,omitempty"`
 	Sentry         *SentryConfig        `json:"sentry,omitempty"`
@@ -45,9 +46,13 @@ type DatabaseConfig struct {
 }
 
 type ResolvedAlertsConfig struct {
-	Enabled              bool          `json:"enabled"`               // Enable resolved alerts tracking
-	NotificationsEnabled bool          `json:"notifications_enabled"` // Send notifications for resolved alerts
-	RetentionDuration    time.Duration `json:"retention_duration"`    // How long to keep resolved alerts
+	Enabled              bool `json:"enabled"`               // Enable resolved alerts tracking
+	NotificationsEnabled bool `json:"notifications_enabled"` // Send notifications for resolved alerts
+	RetentionDays        int  `json:"retention_days"`        // How many days to keep resolved alerts (default: 90)
+}
+
+type StatisticsConfig struct {
+	RetentionDays int `json:"retention_days"` // How many days to keep alert statistics (default: 90)
 }
 
 type AlertmanagerConfig struct {
@@ -185,9 +190,12 @@ func DefaultConfig() *Config {
 			},
 		},
 		ResolvedAlerts: ResolvedAlertsConfig{
-			Enabled:              true,          // Enable by default
-			NotificationsEnabled: true,          // Send notifications by default
-			RetentionDuration:    1 * time.Hour, // Keep for 1 hour by default
+			Enabled:              true, // Enable by default
+			NotificationsEnabled: true, // Send notifications by default
+			RetentionDays:        90,   // Keep for 90 days by default
+		},
+		Statistics: StatisticsConfig{
+			RetentionDays: 90, // Keep alert statistics for 90 days by default
 		},
 		WebUI: WebUIConfig{
 			Playground: false, // Playground mode disabled by default
@@ -231,15 +239,10 @@ func GetConfigPath() string {
 
 func LoadConfigWithViper() (*Config, error) {
 	// Debug: Check if config file is loaded
-	fmt.Printf("DEBUG: Config file used: %s\n", viper.ConfigFileUsed())
-	fmt.Printf("DEBUG: backend.database.type from viper = %s\n", viper.GetString("backend.database.type"))
 
 	cfg := DefaultConfig()
 	setViperDefaults(cfg)
 
-	fmt.Printf("DEBUG: After setViperDefaults - backend.database.type = %s\n", viper.GetString("backend.database.type"))
-	fmt.Printf("DEBUG: Viper alertmanagers.0.url = %s\n", viper.GetString("alertmanagers.0.url"))
-	fmt.Printf("DEBUG: Viper alertmanagers.0.name = %s\n", viper.GetString("alertmanagers.0.name"))
 	if err := viper.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
@@ -272,7 +275,7 @@ func LoadConfigWithViper() (*Config, error) {
 
 	if len(alertmanagers) > 0 {
 		cfg.Alertmanagers = alertmanagers
-		fmt.Printf("DEBUG: Loaded %d alertmanagers from environment\n", len(alertmanagers))
+
 	}
 
 	if cfg.Notifications.SeverityRules == nil {
@@ -360,8 +363,6 @@ func LoadConfigWithViper() (*Config, error) {
 
 func setViperDefaults(cfg *Config) {
 	// DEBUG: Check what viper has before setting defaults
-	fmt.Printf("DEBUG: In setViperDefaults - viper.IsSet('backend.database.type') = %v\n", viper.IsSet("backend.database.type"))
-	fmt.Printf("DEBUG: In setViperDefaults - viper.Get('backend.database.type') = %v\n", viper.Get("backend.database.type"))
 
 	// Backend defaults
 	viper.SetDefault("backend.enabled", cfg.Backend.Enabled)
@@ -460,8 +461,13 @@ func setViperDefaults(cfg *Config) {
 	if !viper.IsSet("resolved_alerts.notifications_enabled") {
 		viper.SetDefault("resolved_alerts.notifications_enabled", cfg.ResolvedAlerts.NotificationsEnabled)
 	}
-	if !viper.IsSet("resolved_alerts.retention_duration") {
-		viper.SetDefault("resolved_alerts.retention_duration", cfg.ResolvedAlerts.RetentionDuration)
+	if !viper.IsSet("resolved_alerts.retention_days") {
+		viper.SetDefault("resolved_alerts.retention_days", cfg.ResolvedAlerts.RetentionDays)
+	}
+
+	// Statistics defaults
+	if !viper.IsSet("statistics.retention_days") {
+		viper.SetDefault("statistics.retention_days", cfg.Statistics.RetentionDays)
 	}
 
 	// WebUI defaults - only set if not already configured from config file or env vars
@@ -547,6 +553,14 @@ func setViperDefaults(cfg *Config) {
 
 	// Support DATABASE_URL for full connection string (POSTGRES_URL handled directly by GORM)
 	viper.BindEnv("database_url", "DATABASE_URL")
+
+	// Resolved Alerts environment variable bindings
+	viper.BindEnv("resolved_alerts.enabled", "NOTIFICATOR_RESOLVED_ALERTS_ENABLED")
+	viper.BindEnv("resolved_alerts.notifications_enabled", "NOTIFICATOR_RESOLVED_ALERTS_NOTIFICATIONS_ENABLED")
+	viper.BindEnv("resolved_alerts.retention_days", "NOTIFICATOR_RESOLVED_ALERTS_RETENTION_DAYS")
+
+	// Statistics environment variable bindings
+	viper.BindEnv("statistics.retention_days", "NOTIFICATOR_STATISTICS_RETENTION_DAYS")
 
 	// WebUI environment variable bindings
 	viper.BindEnv("webui.playground", "WEBUI_PLAYGROUND", "NOTIFICATOR_WEBUI_PLAYGROUND")

@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"log"
 	"os"
 	"path/filepath"
@@ -83,7 +85,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	}
 
 	// Initialize alert cache for new dashboard
-	alertCache := services.NewAlertCache(amClient, backendClient)
+	alertCache := services.NewAlertCache(amClient, backendClient, cfg.ResolvedAlerts.RetentionDays)
 	handlers.SetAlertCache(alertCache)
 	alertCache.Start()
 
@@ -105,8 +107,17 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	// Create auth middleware
 	authMiddleware := middleware.NewAuthMiddleware(backendClient)
 
-	// Session secret - in production, use environment variable
-	sessionSecret := "your-secret-key-change-in-production"
+	// Session secret - read from environment variable or generate random
+	sessionSecret := os.Getenv("NOTIFICATOR_SESSION_SECRET")
+	if sessionSecret == "" {
+		// Generate a random session secret for this instance
+		// WARNING: Sessions will not persist across restarts without a configured secret
+		sessionSecret = generateRandomSecret(32)
+		log.Println("⚠️  WARNING: No NOTIFICATOR_SESSION_SECRET configured - using random secret")
+		log.Println("⚠️  Sessions will NOT persist across restarts. Set NOTIFICATOR_SESSION_SECRET environment variable.")
+	} else {
+		log.Println("✅ Using configured session secret from NOTIFICATOR_SESSION_SECRET")
+	}
 
 	// Middleware
 	r.Use(middleware.CORSMiddleware())
@@ -200,14 +211,19 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.POST("/bulk-action", handlers.BulkActionAlerts)
 			dashboard.GET("/settings", handlers.GetDashboardSettings)
 			dashboard.POST("/settings", handlers.SaveDashboardSettings)
-			dashboard.GET("/alert/:id", handlers.GetAlertDetails)
-			dashboard.POST("/alert/:id/comments", handlers.AddAlertComment)
-			dashboard.DELETE("/alert/:id/comments/:commentId", handlers.DeleteAlertComment)
+			dashboard.GET("/alert/:fingerprint", handlers.GetAlertDetails)
+			dashboard.GET("/alert/:fingerprint/history", handlers.HandleGetAlertHistory)
+			dashboard.POST("/alert/:fingerprint/comments", handlers.AddAlertComment)
+			dashboard.DELETE("/alert/:fingerprint/comments/:commentId", handlers.DeleteAlertComment)
 			dashboard.GET("/color-preferences", handlers.GetUserColorPreferences)
 			dashboard.POST("/color-preferences", handlers.SaveUserColorPreferences)
 			dashboard.DELETE("/color-preferences/:id", handlers.DeleteUserColorPreference)
 			dashboard.GET("/alert-colors", handlers.GetAlertColors)
 			dashboard.GET("/available-labels", handlers.GetAvailableAlertLabels)
+			dashboard.GET("/available-fields", handlers.GetAvailableFields)
+			dashboard.GET("/column-preferences", handlers.GetUserColumnPreferences)
+			dashboard.PUT("/column-preferences", handlers.SaveUserColumnPreferences)
+			dashboard.PATCH("/column-preferences/width", handlers.UpdateColumnWidth)
 			dashboard.DELETE("/remove-resolved-alerts", handlers.RemoveAllResolvedAlerts)
 
 			// Hidden alerts routes
@@ -236,6 +252,13 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.GET("/sentry-config", handlers.GetUserSentryConfig)
 			dashboard.POST("/sentry-token", handlers.SaveUserSentryToken)
 			dashboard.DELETE("/sentry-token", handlers.DeleteUserSentryToken)
+
+			// Annotation button config routes
+			dashboard.GET("/annotation-buttons", handlers.GetAnnotationButtonConfigs)
+			dashboard.POST("/annotation-buttons", handlers.SaveAnnotationButtonConfigs)
+			dashboard.POST("/annotation-buttons/single", handlers.CreateAnnotationButtonConfig)
+			dashboard.PUT("/annotation-buttons/:id", handlers.UpdateAnnotationButtonConfig)
+			dashboard.DELETE("/annotation-buttons/:id", handlers.DeleteAnnotationButtonConfig)
 		}
 
 		// Notification preferences routes
@@ -244,6 +267,24 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		{
 			notifications.GET("/preferences", handlers.GetNotificationPreferences)
 			notifications.POST("/preferences", handlers.SaveNotificationPreferences)
+		}
+
+		// Statistics and On-Call Rules routes
+		statistics := api.Group("/statistics")
+		statistics.Use(authMiddleware.RequireAuth())
+		{
+			// Query statistics
+			statistics.POST("/query", handlers.QueryStatistics)
+			statistics.GET("/summary", handlers.GetStatisticsSummary)
+			statistics.POST("/recently-resolved", handlers.QueryRecentlyResolved)
+
+			// On-call rules CRUD
+			statistics.GET("/rules", handlers.GetOnCallRules)
+			statistics.GET("/rules/:id", handlers.GetOnCallRule)
+			statistics.POST("/rules", handlers.SaveOnCallRule)
+			statistics.PUT("/rules/:id", handlers.UpdateOnCallRule)
+			statistics.DELETE("/rules/:id", handlers.DeleteOnCallRule)
+			statistics.POST("/rules/test", handlers.TestOnCallRule)
 		}
 	}
 
@@ -270,7 +311,20 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		protectedPages.GET("/dashboard", handlers.DashboardPage)
 		protectedPages.GET("/dashboard/alert/:id", handlers.DashboardPage) // Show dashboard with modal
 		protectedPages.GET("/profile", handlers.ProfilePage)
+		protectedPages.GET("/statistics", handlers.StatisticsDashboardPage)
+		protectedPages.GET("/statistics/rules", handlers.OnCallRulesPage)
 	}
 
 	return r
+}
+
+// generateRandomSecret generates a cryptographically secure random secret
+func generateRandomSecret(length int) string {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to a static secret if random generation fails
+		log.Printf("⚠️  Failed to generate random secret: %v, using fallback", err)
+		return "fallback-secret-notificator-insecure-change-me"
+	}
+	return base64.URLEncoding.EncodeToString(bytes)
 }

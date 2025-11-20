@@ -52,24 +52,24 @@ services:
       - NOTIFICATOR_BACKEND_ENABLED=true
       - NOTIFICATOR_BACKEND_GRPC_LISTEN=:50051
       - NOTIFICATOR_BACKEND_HTTP_LISTEN=:8080
-      - NOTIFICATOR_BACKEND_DATABASE_TYPE=sqlite
+      - NOTIFICATOR_BACKEND_DATABASE_TYPE=postgres
       - NOTIFICATOR_BACKEND_DATABASE_HOST=postgres
       - NOTIFICATOR_BACKEND_DATABASE_PORT=5432
       - NOTIFICATOR_BACKEND_DATABASE_NAME=notificator
       - NOTIFICATOR_BACKEND_DATABASE_USER=notificator
       - NOTIFICATOR_BACKEND_DATABASE_PASSWORD=notificator_password
       - NOTIFICATOR_BACKEND_DATABASE_SSL_MODE=disable
-      
+
       # Alertmanager configuration
       - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager
       - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093
-      - NOTIFICATOR_ALERTMANAGERS_1_NAME=AlertManager Numberly
-      - NOTIFICATOR_ALERTMANAGERS_1_URL=https://alertmanager.prometheus1.numberly.in
+      # - NOTIFICATOR_ALERTMANAGERS_1_NAME=AlertManager Example
+      # - NOTIFICATOR_ALERTMANAGERS_1_URL=https://alertmanager.example.com
 
       # OAuth Configuration
       - OAUTH_ENABLED=false
       - OAUTH_DISABLE_CLASSIC_AUTH=true
-      - OAUTH_REDIRECT_URL=https://148c45feb989.ngrok-free.app/api/v1/oauth
+      - OAUTH_REDIRECT_URL=http://localhost:8080/api/v1/oauth
       - OAUTH_SESSION_KEY=your-secure-session-key-change-me-make-it-long-and-random
 
       # Group Sync Configuration
@@ -78,13 +78,13 @@ services:
       - OAUTH_GROUP_CACHE_TIMEOUT=1h
       - OAUTH_DEFAULT_ROLE=viewer
 
-      # GitHub OAuth Provider
-      - OAUTH_GITHUB_CLIENT_ID=Ov23li8tCIe0AsftXBqY
-      - OAUTH_GITHUB_CLIENT_SECRET=3fdcf3dc5bdcc90357d8eaca4e43160e0a7cddb9
+      # GitHub OAuth Provider (Set your own credentials)
+      - OAUTH_GITHUB_CLIENT_ID=your-github-client-id
+      - OAUTH_GITHUB_CLIENT_SECRET=your-github-client-secret
       - OAUTH_GITHUB_SCOPES=user:email,read:org,read:user
 
-      - NOTIFICATOR_SENTRY_ENABLED=true
-      - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.numberly.net
+      - NOTIFICATOR_SENTRY_ENABLED=false
+      - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.example.com
       - NOTIFICATOR_SENTRY_GLOBAL_TOKEN=""
 
       # Logging
@@ -121,14 +121,14 @@ services:
       - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093
       - NOTIFICATOR_ALERTMANAGERS_0_OAUTH_ENABLED=false
       - NOTIFICATOR_ALERTMANAGERS_0_OAUTH_PROXY_MODE=true
-      # - NOTIFICATOR_ALERTMANAGERS_1_NAME=AlertManager Numberly
-      # - NOTIFICATOR_ALERTMANAGERS_1_URL=https://alertmanager.prometheus1.numberly.in
+      # - NOTIFICATOR_ALERTMANAGERS_1_NAME=AlertManager Example
+      # - NOTIFICATOR_ALERTMANAGERS_1_URL=https://alertmanager.example.com
       # - NOTIFICATOR_ALERTMANAGERS_1_OAUTH_ENABLED=false
       # - NOTIFICATOR_ALERTMANAGERS_1_OAUTH_PROXY_MODE=true
       # Logging
       - NOTIFICATOR_LOG_LEVEL=info
-      - NOTIFICATOR_SENTRY_ENABLED=true
-      - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.numberly.net
+      - NOTIFICATOR_SENTRY_ENABLED=false
+      - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.example.com
       - NOTIFICATOR_SENTRY_GLOBAL_TOKEN=""
 
     depends_on:

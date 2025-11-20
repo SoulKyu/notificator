@@ -56,6 +56,17 @@ service AlertService {
   rpc UpdateFilterPreset(UpdateFilterPresetRequest) returns (UpdateFilterPresetResponse);
   rpc DeleteFilterPreset(DeleteFilterPresetRequest) returns (DeleteFilterPresetResponse);
   rpc SetDefaultFilterPreset(SetDefaultFilterPresetRequest) returns (SetDefaultFilterPresetResponse);
+
+  // Annotation Button Configs
+  rpc GetAnnotationButtonConfigs(GetAnnotationButtonConfigsRequest) returns (GetAnnotationButtonConfigsResponse);
+  rpc SaveAnnotationButtonConfigs(SaveAnnotationButtonConfigsRequest) returns (SaveAnnotationButtonConfigsResponse);
+  rpc CreateAnnotationButtonConfig(CreateAnnotationButtonConfigRequest) returns (CreateAnnotationButtonConfigResponse);
+  rpc UpdateAnnotationButtonConfig(UpdateAnnotationButtonConfigRequest) returns (UpdateAnnotationButtonConfigResponse);
+  rpc DeleteAnnotationButtonConfig(DeleteAnnotationButtonConfigRequest) returns (DeleteAnnotationButtonConfigResponse);
+
+  // User Column Preferences
+  rpc GetUserColumnPreferences(GetUserColumnPreferencesRequest) returns (GetUserColumnPreferencesResponse);
+  rpc SaveUserColumnPreferences(SaveUserColumnPreferencesRequest) returns (SaveUserColumnPreferencesResponse);
 }
 
 // Comment Messages
@@ -504,4 +515,406 @@ message FilterPreset {
   bytes filter_data = 7;  // JSON serialized filter state
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
+}
+
+// Annotation Button Config Messages
+message GetAnnotationButtonConfigsRequest {
+  string session_id = 1;
+}
+
+message GetAnnotationButtonConfigsResponse {
+  bool success = 1;
+  repeated AnnotationButtonConfig configs = 2;
+  string message = 3;
+}
+
+message SaveAnnotationButtonConfigsRequest {
+  string session_id = 1;
+  repeated AnnotationButtonConfig configs = 2;
+}
+
+message SaveAnnotationButtonConfigsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CreateAnnotationButtonConfigRequest {
+  string session_id = 1;
+  AnnotationButtonConfig config = 2;
+}
+
+message CreateAnnotationButtonConfigResponse {
+  bool success = 1;
+  AnnotationButtonConfig config = 2;
+  string message = 3;
+}
+
+message UpdateAnnotationButtonConfigRequest {
+  string session_id = 1;
+  AnnotationButtonConfig config = 2;
+}
+
+message UpdateAnnotationButtonConfigResponse {
+  bool success = 1;
+  AnnotationButtonConfig config = 2;
+  string message = 3;
+}
+
+message DeleteAnnotationButtonConfigRequest {
+  string session_id = 1;
+  string config_id = 2;
+}
+
+message DeleteAnnotationButtonConfigResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message AnnotationButtonConfig {
+  string id = 1;
+  string user_id = 2;
+  string label = 3;
+  repeated string annotation_keys = 4;  // List of annotation keys to check
+  string color = 5;
+  string icon = 6;
+  int32 display_order = 7;
+  bool enabled = 8;
+  string button_type = 9;  // "default" or "custom"
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+// ==================== Statistics Service ====================
+
+// Statistics Service for on-call alert analytics
+service StatisticsService {
+  // Query statistics with filters and aggregations
+  rpc QueryStatistics(QueryStatisticsRequest) returns (QueryStatisticsResponse);
+
+  // On-Call Rules Management
+  rpc SaveOnCallRule(SaveOnCallRuleRequest) returns (SaveOnCallRuleResponse);
+  rpc GetOnCallRules(GetOnCallRulesRequest) returns (GetOnCallRulesResponse);
+  rpc GetOnCallRule(GetOnCallRuleRequest) returns (GetOnCallRuleResponse);
+  rpc UpdateOnCallRule(UpdateOnCallRuleRequest) returns (UpdateOnCallRuleResponse);
+  rpc DeleteOnCallRule(DeleteOnCallRuleRequest) returns (DeleteOnCallRuleResponse);
+  rpc TestOnCallRule(TestOnCallRuleRequest) returns (TestOnCallRuleResponse);
+
+  // Summary and overview
+  rpc GetStatisticsSummary(GetStatisticsSummaryRequest) returns (GetStatisticsSummaryResponse);
+
+  // Alert statistics capture events
+  rpc CaptureAlertFired(CaptureAlertFiredRequest) returns (CaptureAlertFiredResponse);
+  rpc UpdateAlertResolved(UpdateAlertResolvedRequest) returns (UpdateAlertResolvedResponse);
+  rpc UpdateAlertAcknowledged(UpdateAlertAcknowledgedRequest) returns (UpdateAlertAcknowledgedResponse);
+
+  // Recently Resolved Alerts (replaces old resolved alerts system)
+  rpc QueryRecentlyResolved(QueryRecentlyResolvedRequest) returns (QueryRecentlyResolvedResponse);
+
+  // Get alert history for timeline display
+  rpc GetAlertHistory(GetAlertHistoryRequest) returns (GetAlertHistoryResponse);
+}
+
+// ==================== Statistics Query Messages ====================
+
+message QueryStatisticsRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+  bool apply_rules = 4;           // Apply user's on-call rules
+  string group_by = 5;            // "severity", "team", "period", "alert_name", or empty for overall
+  string period_type = 6;         // "hour", "day", "week", "month" (required if group_by="period")
+  int32 limit = 7;                // Limit results (for alert_name grouping)
+  int32 offset = 8;               // Pagination offset
+}
+
+message QueryStatisticsResponse {
+  bool success = 1;
+  TimeRange time_range = 2;
+  int64 total_alerts = 3;
+  map<string, AggregatedStatistics> statistics = 4;  // Key varies by group_by
+  repeated BreakdownItem breakdown = 5;              // Used for period grouping
+  string message = 6;
+}
+
+message TimeRange {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+message AggregatedStatistics {
+  int32 count = 1;
+  double avg_duration_seconds = 2;
+  int32 total_duration_seconds = 3;
+  double avg_mttr_seconds = 4;
+}
+
+message BreakdownItem {
+  string period = 1;                                  // e.g., "2025-10-22" or "Week of 2025-10-20"
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  int32 total_count = 4;
+  map<string, AggregatedStatistics> statistics = 5;  // Breakdown by severity within period
+}
+
+// ==================== On-Call Rules Messages ====================
+
+message SaveOnCallRuleRequest {
+  string session_id = 1;
+  string rule_name = 2;
+  RuleConfig rule_config = 3;
+  bool is_active = 4;
+}
+
+message SaveOnCallRuleResponse {
+  bool success = 1;
+  OnCallRule rule = 2;
+  string message = 3;
+}
+
+message GetOnCallRulesRequest {
+  string session_id = 1;
+  bool active_only = 2;
+}
+
+message GetOnCallRulesResponse {
+  bool success = 1;
+  repeated OnCallRule rules = 2;
+  string message = 3;
+}
+
+message GetOnCallRuleRequest {
+  string session_id = 1;
+  string rule_id = 2;
+}
+
+message GetOnCallRuleResponse {
+  bool success = 1;
+  OnCallRule rule = 2;
+  string message = 3;
+}
+
+message UpdateOnCallRuleRequest {
+  string session_id = 1;
+  string rule_id = 2;
+  string rule_name = 3;
+  RuleConfig rule_config = 4;
+  bool is_active = 5;
+}
+
+message UpdateOnCallRuleResponse {
+  bool success = 1;
+  OnCallRule rule = 2;
+  string message = 3;
+}
+
+message DeleteOnCallRuleRequest {
+  string session_id = 1;
+  string rule_id = 2;
+}
+
+message DeleteOnCallRuleResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message TestOnCallRuleRequest {
+  string session_id = 1;
+  RuleConfig rule_config = 2;
+  int32 sample_size = 3;  // Number of sample alerts to return
+}
+
+message TestOnCallRuleResponse {
+  bool success = 1;
+  int64 total_matches = 2;
+  repeated AlertStatistic sample_alerts = 3;
+  string message = 4;
+}
+
+message OnCallRule {
+  string id = 1;
+  string user_id = 2;
+  string rule_name = 3;
+  RuleConfig rule_config = 4;
+  bool is_active = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message RuleConfig {
+  repeated RuleCriterion criteria = 1;
+  string logic = 2;  // "AND" or "OR"
+}
+
+message RuleCriterion {
+  string type = 1;        // "severity", "label", "alert_name"
+  string operator = 2;    // "equals", "in", "not_equals", "contains", "regex", "starts_with", "ends_with"
+  string value = 3;       // Single value (for equals, not_equals, contains, etc.)
+  repeated string values = 4;  // Multiple values (for "in" operator)
+  string key = 5;         // Label key (for label type)
+  string pattern = 6;     // Pattern/regex (for alert_name type)
+}
+
+message AlertStatistic {
+  string id = 1;
+  string fingerprint = 2;
+  string alert_name = 3;
+  string severity = 4;
+  bytes metadata = 5;  // JSON serialized metadata
+  google.protobuf.Timestamp fired_at = 6;
+  google.protobuf.Timestamp resolved_at = 7;
+  google.protobuf.Timestamp acknowledged_at = 8;
+  int32 duration_seconds = 9;
+  int32 mttr_seconds = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// ==================== Statistics Summary Messages ====================
+
+message GetStatisticsSummaryRequest {
+  string session_id = 1;
+}
+
+message GetStatisticsSummaryResponse {
+  bool success = 1;
+  int64 total_statistics = 2;
+  map<string, AggregatedStatistics> by_severity = 3;
+  google.protobuf.Timestamp earliest_alert = 4;
+  google.protobuf.Timestamp latest_alert = 5;
+  string message = 6;
+}
+
+// ==================== Alert Capture Messages ====================
+
+message CaptureAlertFiredRequest {
+  string fingerprint = 1;
+  string alert_name = 2;
+  string severity = 3;
+  google.protobuf.Timestamp starts_at = 4;
+  bytes metadata = 5; // JSON metadata containing labels, annotations, etc.
+}
+
+message CaptureAlertFiredResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateAlertResolvedRequest {
+  string fingerprint = 1;
+  google.protobuf.Timestamp resolved_at = 2;
+}
+
+message UpdateAlertResolvedResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateAlertAcknowledgedRequest {
+  string fingerprint = 1;
+  google.protobuf.Timestamp acknowledged_at = 2;
+}
+
+message UpdateAlertAcknowledgedResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ==================== Recently Resolved Alerts ====================
+
+message QueryRecentlyResolvedRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+  repeated string severity = 4;      // Optional filter
+  string team = 5;                   // Optional filter
+  string alert_name = 6;             // Optional filter (LIKE search)
+  int32 limit = 7;                   // Default 100, max 1000
+  int32 offset = 8;                  // For pagination
+  bool include_silenced = 9;         // Whether to include silenced (suppressed) alerts (default: false)
+  string search_query = 10;          // Search across alert name, instance, summary, description
+  string user_id = 11;               // User ID for hidden alerts filtering
+  reserved 12;                       // Was silenced_fingerprints, no longer needed (backend handles filtering via metadata)
+}
+
+message ResolvedAlertItem {
+  string fingerprint = 1;
+  string alert_name = 2;
+  string severity = 3;
+  int32 occurrence_count = 4;              // How many times resolved in time range
+  google.protobuf.Timestamp first_fired_at = 5;    // Earliest fired_at
+  google.protobuf.Timestamp last_resolved_at = 6;  // Most recent resolved_at
+  int32 total_duration = 7;                // Sum of all durations
+  double avg_duration = 8;                 // Average duration
+  int32 total_mttr = 9;                    // Sum of all MTTR
+  double avg_mttr = 10;                    // Average MTTR
+  map<string, string> labels = 11;
+  map<string, string> annotations = 12;
+  string source = 13;
+  string instance = 14;
+  string team = 15;
+}
+
+message QueryRecentlyResolvedResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ResolvedAlertItem alerts = 3;
+  int64 total_count = 4;
+  google.protobuf.Timestamp start_date = 5;
+  google.protobuf.Timestamp end_date = 6;
+}
+// ==================== Alert History Messages ====================
+
+message GetAlertHistoryRequest {
+  string session_id = 1;
+  string fingerprint = 2;
+  int32 limit = 3; // Maximum number of history records to return (0 = no limit)
+}
+
+message GetAlertHistoryResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AlertStatistic history = 3;
+}
+
+// ==================== User Column Preferences Messages ====================
+
+message ColumnConfig {
+  string id = 1;
+  string label = 2;
+  string field_type = 3;
+  string field_path = 4;
+  string formatter = 5;
+  int32 width = 6;
+  bool sortable = 7;
+  bool visible = 8;
+  int32 order = 9;
+  bool resizable = 10;
+  bool critical = 11;
+}
+
+message ColumnPreferences {
+  string user_id = 1;
+  repeated ColumnConfig column_configs = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message GetUserColumnPreferencesRequest {
+  string session_id = 1;
+}
+
+message GetUserColumnPreferencesResponse {
+  bool success = 1;
+  ColumnPreferences preferences = 2;
+  string message = 3;
+}
+
+message SaveUserColumnPreferencesRequest {
+  string session_id = 1;
+  repeated ColumnConfig column_configs = 2;
+}
+
+message SaveUserColumnPreferencesResponse {
+  bool success = 1;
+  string message = 2;
 }

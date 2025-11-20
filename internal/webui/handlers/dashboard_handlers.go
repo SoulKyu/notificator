@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	alertpb "notificator/internal/backend/proto/alert"
 	"notificator/internal/models"
 	"notificator/internal/webui/middleware"
 	webuimodels "notificator/internal/webui/models"
@@ -49,6 +51,20 @@ func validateCustomDuration(durationStr string) (time.Duration, error) {
 	}
 
 	return duration, nil
+}
+
+// formatDuration converts a time.Duration to a human-readable string
+func formatDuration(d time.Duration) string {
+	if d < time.Hour {
+		minutes := int(d.Minutes())
+		return fmt.Sprintf("%dm", minutes)
+	} else if d < 24*time.Hour {
+		hours := int(d.Hours())
+		return fmt.Sprintf("%dh", hours)
+	} else {
+		days := int(d.Hours() / 24)
+		return fmt.Sprintf("%dd", days)
+	}
 }
 
 func SetAlertCache(cache *services.AlertCache) {
@@ -249,10 +265,9 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	}
 
 	defaultSettings := &webuimodels.DashboardSettings{
-		UserID:                  userID,
-		Theme:                   "light",
-		ResolvedAlertsRetention: 1,
-		RefreshInterval:         5,
+		UserID:          userID,
+		Theme:           "light",
+		RefreshInterval: 5,
 		DefaultFilters: webuimodels.DashboardFilters{
 			DisplayMode: webuimodels.DisplayModeClassic,
 			ViewMode:    webuimodels.ViewModeList,
@@ -766,6 +781,15 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 		// Always increment comment count since we add an acknowledgment comment
 		alert.CommentCount++
 
+		// Capture acknowledgment statistics
+		if backendClient != nil && backendClient.IsConnected() {
+			go func(ackAlert *webuimodels.DashboardAlert) {
+				if err := backendClient.UpdateAlertAcknowledged(ackAlert); err != nil {
+					fmt.Printf("Failed to capture alert acknowledged statistics for %s: %v", ackAlert.Fingerprint, err)
+				}
+			}(alert)
+		}
+
 	case "unacknowledge":
 		// Remove acknowledgment from backend
 		if backendClient != nil && backendClient.IsConnected() {
@@ -1121,7 +1145,7 @@ func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAl
 }
 
 func GetAlertDetails(c *gin.Context) {
-	fingerprint := c.Param("id")
+	fingerprint := c.Param("fingerprint")
 	if fingerprint == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert fingerprint is required"))
 		return
@@ -1200,7 +1224,7 @@ func GetAlertDetails(c *gin.Context) {
 }
 
 func AddAlertComment(c *gin.Context) {
-	fingerprint := c.Param("id")
+	fingerprint := c.Param("fingerprint")
 	if fingerprint == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert fingerprint is required"))
 		return
@@ -1262,7 +1286,7 @@ func AddAlertComment(c *gin.Context) {
 }
 
 func DeleteAlertComment(c *gin.Context) {
-	fingerprint := c.Param("id")
+	fingerprint := c.Param("fingerprint")
 	commentID := c.Param("commentId")
 
 	if fingerprint == "" {
@@ -1684,6 +1708,28 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 		fmt.Printf("Warning: failed to create silence on some alertmanagers: %v\n", errors)
 	}
 
+	// Add automatic comment for audit trail (similar to acknowledgement)
+	if backendClient != nil && backendClient.IsConnected() {
+		sessionID := middleware.GetSessionID(c)
+		silenceReason := comment
+		if silenceReason == "" {
+			silenceReason = "Silenced from dashboard"
+		}
+
+		// Format the duration in human-readable format
+		durationStr := formatDuration(silenceDuration)
+
+		// Create comment with format: "🔇 Alert silenced for {duration}: {reason}"
+		commentContent := fmt.Sprintf("🔇 Alert silenced for %s: %s", durationStr, silenceReason)
+		if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			// Log the error but don't fail the silence if comment fails
+			fmt.Printf("Warning: failed to add silence comment: %v\n", err)
+		} else {
+			// Increment comment count in cache only if comment was added successfully
+			alert.CommentCount++
+		}
+	}
+
 	return nil
 }
 
@@ -1740,3 +1786,676 @@ func processUnsilenceAction(c *gin.Context, fingerprint, userID string) error {
 	return nil
 }
 
+// GetAnnotationButtonConfigs retrieves annotation button configurations for the current user
+func GetAnnotationButtonConfigs(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	// Get configs from backend
+	pbConfigs, err := backendClient.GetAnnotationButtonConfigs(sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get annotation button configs: "+err.Error()))
+		return
+	}
+
+	// Convert protobuf configs to JSON-friendly format
+	configs := make([]map[string]interface{}, 0, len(pbConfigs))
+	for _, pbConfig := range pbConfigs {
+		configs = append(configs, map[string]interface{}{
+			"id":              pbConfig.Id,
+			"user_id":         pbConfig.UserId,
+			"label":           pbConfig.Label,
+			"annotation_keys": pbConfig.AnnotationKeys,
+			"color":           pbConfig.Color,
+			"icon":            pbConfig.Icon,
+			"display_order":   pbConfig.DisplayOrder,
+			"enabled":         pbConfig.Enabled,
+			"button_type":     pbConfig.ButtonType,
+			"created_at":      pbConfig.CreatedAt.AsTime(),
+			"updated_at":      pbConfig.UpdatedAt.AsTime(),
+		})
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"configs": configs,
+	}))
+}
+
+// SaveAnnotationButtonConfigs saves annotation button configurations for the current user
+func SaveAnnotationButtonConfigs(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	// Parse request body
+	var requestBody struct {
+		Configs []struct {
+			ID             string   `json:"id"`
+			Label          string   `json:"label"`
+			AnnotationKeys []string `json:"annotation_keys"`
+			Color          string   `json:"color"`
+			Icon           string   `json:"icon"`
+			DisplayOrder   int32    `json:"display_order"`
+			Enabled        bool     `json:"enabled"`
+			ButtonType     string   `json:"button_type"`
+		} `json:"configs"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Convert to protobuf format
+	pbConfigs := make([]*alertpb.AnnotationButtonConfig, 0, len(requestBody.Configs))
+	for _, config := range requestBody.Configs {
+		pbConfigs = append(pbConfigs, &alertpb.AnnotationButtonConfig{
+			Id:             config.ID,
+			Label:          config.Label,
+			AnnotationKeys: config.AnnotationKeys,
+			Color:          config.Color,
+			Icon:           config.Icon,
+			DisplayOrder:   config.DisplayOrder,
+			Enabled:        config.Enabled,
+			ButtonType:     config.ButtonType,
+		})
+	}
+
+	// Save to backend
+	err := backendClient.SaveAnnotationButtonConfigs(sessionID, pbConfigs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to save annotation button configs: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"message": "Annotation button configs saved successfully",
+	}))
+}
+
+// DeleteAnnotationButtonConfig deletes a specific annotation button configuration
+func DeleteAnnotationButtonConfig(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	configID := c.Param("id")
+	if configID == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Config ID is required"))
+		return
+	}
+
+	// Delete from backend
+	err := backendClient.DeleteAnnotationButtonConfig(sessionID, configID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to delete annotation button config: "+err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"message": "Annotation button config deleted successfully",
+	}))
+}
+
+// CreateAnnotationButtonConfig creates a new annotation button configuration
+func CreateAnnotationButtonConfig(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	// Parse request body
+	var requestBody struct {
+		Config struct {
+			Label          string   `json:"label"`
+			AnnotationKeys []string `json:"annotation_keys"`
+			Color          string   `json:"color"`
+			Icon           string   `json:"icon"`
+			DisplayOrder   int32    `json:"display_order"`
+			Enabled        bool     `json:"enabled"`
+			ButtonType     string   `json:"button_type"`
+		} `json:"config"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Convert to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Label:          requestBody.Config.Label,
+		AnnotationKeys: requestBody.Config.AnnotationKeys,
+		Color:          requestBody.Config.Color,
+		Icon:           requestBody.Config.Icon,
+		DisplayOrder:   requestBody.Config.DisplayOrder,
+		Enabled:        requestBody.Config.Enabled,
+		ButtonType:     requestBody.Config.ButtonType,
+	}
+
+	// Create via backend
+	createdConfig, err := backendClient.CreateAnnotationButtonConfig(sessionID, pbConfig)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to create annotation button config: "+err.Error()))
+		return
+	}
+
+	// Convert response
+	config := map[string]interface{}{
+		"id":              createdConfig.Id,
+		"user_id":         createdConfig.UserId,
+		"label":           createdConfig.Label,
+		"annotation_keys": createdConfig.AnnotationKeys,
+		"color":           createdConfig.Color,
+		"icon":            createdConfig.Icon,
+		"display_order":   createdConfig.DisplayOrder,
+		"enabled":         createdConfig.Enabled,
+		"button_type":     createdConfig.ButtonType,
+		"created_at":      createdConfig.CreatedAt.AsTime(),
+		"updated_at":      createdConfig.UpdatedAt.AsTime(),
+	}
+
+	c.JSON(http.StatusCreated, webuimodels.SuccessResponse(map[string]interface{}{
+		"config":  config,
+		"message": "Annotation button config created successfully",
+	}))
+}
+
+// UpdateAnnotationButtonConfig updates an existing annotation button configuration
+func UpdateAnnotationButtonConfig(c *gin.Context) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	configID := c.Param("id")
+	if configID == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Config ID is required"))
+		return
+	}
+
+	// Parse request body
+	var requestBody struct {
+		Config struct {
+			Label          string   `json:"label"`
+			AnnotationKeys []string `json:"annotation_keys"`
+			Color          string   `json:"color"`
+			Icon           string   `json:"icon"`
+			DisplayOrder   int32    `json:"display_order"`
+			Enabled        bool     `json:"enabled"`
+			ButtonType     string   `json:"button_type"`
+		} `json:"config"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request body: "+err.Error()))
+		return
+	}
+
+	// Convert to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Id:             configID,
+		Label:          requestBody.Config.Label,
+		AnnotationKeys: requestBody.Config.AnnotationKeys,
+		Color:          requestBody.Config.Color,
+		Icon:           requestBody.Config.Icon,
+		DisplayOrder:   requestBody.Config.DisplayOrder,
+		Enabled:        requestBody.Config.Enabled,
+		ButtonType:     requestBody.Config.ButtonType,
+	}
+
+	// Update via backend
+	updatedConfig, err := backendClient.UpdateAnnotationButtonConfig(sessionID, pbConfig)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to update annotation button config: "+err.Error()))
+		return
+	}
+
+	// Convert response
+	config := map[string]interface{}{
+		"id":              updatedConfig.Id,
+		"user_id":         updatedConfig.UserId,
+		"label":           updatedConfig.Label,
+		"annotation_keys": updatedConfig.AnnotationKeys,
+		"color":           updatedConfig.Color,
+		"icon":            updatedConfig.Icon,
+		"display_order":   updatedConfig.DisplayOrder,
+		"enabled":         updatedConfig.Enabled,
+		"button_type":     updatedConfig.ButtonType,
+		"created_at":      updatedConfig.CreatedAt.AsTime(),
+		"updated_at":      updatedConfig.UpdatedAt.AsTime(),
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"config":  config,
+		"message": "Annotation button config updated successfully",
+	}))
+}
+
+// HandleGetAlertHistory retrieves the occurrence history for an alert fingerprint
+// Returns chronological list of fired/resolved events for timeline display
+func HandleGetAlertHistory(c *gin.Context) {
+	fingerprint := c.Param("fingerprint")
+	if fingerprint == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Alert ID parameter is required"))
+		return
+	}
+
+	// Get backend client
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service unavailable"))
+		return
+	}
+
+	// Get session ID for user context
+	sessionID := middleware.GetSessionID(c)
+
+	// Call backend to get history (limit to 50 most recent occurrences)
+	history, err := backendClient.GetAlertHistory(sessionID, fingerprint, 50)
+	if err != nil {
+		fmt.Printf("Error getting alert history for fingerprint %s: %v\n", fingerprint, err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to retrieve alert history"))
+		return
+	}
+
+	// Transform to response format
+	historyItems := make([]map[string]interface{}, 0, len(history))
+	for _, stat := range history {
+		item := map[string]interface{}{
+			"id":       stat.Id,
+			"fired_at": stat.FiredAt.AsTime().Format(time.RFC3339),
+		}
+
+		if stat.ResolvedAt != nil {
+			item["resolved_at"] = stat.ResolvedAt.AsTime().Format(time.RFC3339)
+		}
+
+		if stat.AcknowledgedAt != nil {
+			item["acknowledged_at"] = stat.AcknowledgedAt.AsTime().Format(time.RFC3339)
+		}
+
+		if stat.DurationSeconds != 0 {
+			item["duration_seconds"] = stat.DurationSeconds
+		}
+
+		if stat.MttrSeconds != 0 {
+			item["mttr_seconds"] = stat.MttrSeconds
+		}
+
+		historyItems = append(historyItems, item)
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"fingerprint":       fingerprint,
+		"total_occurrences": len(historyItems),
+		"history":           historyItems,
+	}))
+}
+
+// SystemFieldMetadata represents metadata for system fields
+type SystemFieldMetadata struct {
+	Key         string   `json:"key"`
+	Label       string   `json:"label"`
+	Description string   `json:"description"`
+	DataType    string   `json:"data_type"`
+	Formatters  []string `json:"formatters"`
+}
+
+// AvailableFieldsResponse contains all available fields for column configuration
+type AvailableFieldsResponse struct {
+	SystemFields []SystemFieldMetadata `json:"system_fields"`
+	Labels       map[string]int        `json:"labels"`
+	Annotations  map[string]int        `json:"annotations"`
+}
+
+// GetAvailableFields returns all available fields that can be used as columns
+// This includes system fields, labels, and annotations from recent alerts
+// GET /api/v1/dashboard/available-fields
+func GetAvailableFields(c *gin.Context) {
+	// Get recent alerts from cache (up to 1000 or all available)
+	alerts := alertCache.GetAllAlerts()
+
+	// Limit to reasonable number for aggregation
+	if len(alerts) > 1000 {
+		alerts = alerts[:1000]
+	}
+
+	// Aggregate labels and annotations with occurrence counting
+	labels := make(map[string]int)
+	annotations := make(map[string]int)
+
+	for _, alert := range alerts {
+		// Count label occurrences
+		if alert.Labels != nil {
+			for key := range alert.Labels {
+				labels[key]++
+			}
+		}
+
+		// Count annotation occurrences
+		if alert.Annotations != nil {
+			for key := range alert.Annotations {
+				annotations[key]++
+			}
+		}
+	}
+
+	// Define system fields with metadata
+	systemFields := []SystemFieldMetadata{
+		{
+			Key:         "alertName",
+			Label:       "Alert Name",
+			Description: "Name/title of the alert",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "instance",
+			Label:       "Instance",
+			Description: "Instance identifier",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "severity",
+			Label:       "Severity",
+			Description: "Alert severity level (critical, warning, info)",
+			DataType:    "string",
+			Formatters:  []string{"text", "badge"},
+		},
+		{
+			Key:         "status",
+			Label:       "Status",
+			Description: "Alert status (firing, resolved, suppressed)",
+			DataType:    "string",
+			Formatters:  []string{"badge"},
+		},
+		{
+			Key:         "team",
+			Label:       "Team",
+			Description: "Responsible team",
+			DataType:    "string",
+			Formatters:  []string{"text", "badge"},
+		},
+		{
+			Key:         "summary",
+			Label:       "Summary",
+			Description: "Alert summary/description",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "duration",
+			Label:       "Duration",
+			Description: "How long the alert has been active",
+			DataType:    "number",
+			Formatters:  []string{"duration"},
+		},
+		{
+			Key:         "source",
+			Label:       "Alertmanager",
+			Description: "Source alertmanager",
+			DataType:    "string",
+			Formatters:  []string{"text"},
+		},
+		{
+			Key:         "commentCount",
+			Label:       "Comments",
+			Description: "Number of comments",
+			DataType:    "number",
+			Formatters:  []string{"count"},
+		},
+		{
+			Key:         "startsAt",
+			Label:       "Started At",
+			Description: "When the alert started firing",
+			DataType:    "timestamp",
+			Formatters:  []string{"timestamp"},
+		},
+		{
+			Key:         "endsAt",
+			Label:       "Ended At",
+			Description: "When the alert was resolved",
+			DataType:    "timestamp",
+			Formatters:  []string{"timestamp"},
+		},
+	}
+
+	// Return response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"fields": AvailableFieldsResponse{
+			SystemFields: systemFields,
+			Labels:       labels,
+			Annotations:  annotations,
+		},
+	})
+}
+
+// GetUserColumnPreferences returns the user's saved column configuration
+// GET /api/v1/dashboard/column-preferences
+func GetUserColumnPreferences(c *gin.Context) {
+	user := middleware.GetCurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+		return
+	}
+
+	sessionID, _ := c.Get("session_id")
+
+	// Get user column preferences from backend
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
+	if err != nil {
+		// If not found, return nil to let frontend use defaults
+		c.JSON(http.StatusOK, gin.H{
+			"success":        true,
+			"column_configs": nil,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"column_configs": prefs.ColumnConfigs,
+	})
+}
+
+// SaveUserColumnPreferencesRequest represents the request body for saving column preferences
+type SaveUserColumnPreferencesRequest struct {
+	ColumnConfigs []webuimodels.ColumnConfig `json:"column_configs" binding:"required"`
+}
+
+// SaveUserColumnPreferences saves the user's column configuration
+// PUT /api/v1/dashboard/column-preferences
+func SaveUserColumnPreferences(c *gin.Context) {
+	user := middleware.GetCurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+		return
+	}
+
+	sessionID, _ := c.Get("session_id")
+
+	// Parse request
+	var req SaveUserColumnPreferencesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Validate column configs (same validation as filter presets)
+	if len(req.ColumnConfigs) > 0 {
+		seenIDs := make(map[string]bool)
+		seenOrders := make(map[int]bool)
+
+		for _, col := range req.ColumnConfigs {
+			// Check duplicate ID
+			if seenIDs[col.ID] {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": "Duplicate column ID: " + col.ID,
+				})
+				return
+			}
+			seenIDs[col.ID] = true
+
+			// Check duplicate order
+			if seenOrders[col.Order] {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("Duplicate column order: %d", col.Order),
+				})
+				return
+			}
+			seenOrders[col.Order] = true
+
+			// Validate width
+			if col.Width < 50 || col.Width > 800 {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("Column '%s' width must be between 50 and 800 pixels", col.ID),
+				})
+				return
+			}
+
+			// Validate formatter
+			validFormatters := map[string]bool{
+				"text": true, "badge": true, "duration": true,
+				"timestamp": true, "count": true, "checkbox": true, "actions": true,
+			}
+			if !validFormatters[col.Formatter] {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID),
+				})
+				return
+			}
+		}
+	}
+
+	// Save to backend
+	err := backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, req.ColumnConfigs)
+	if err != nil {
+		log.Printf("Error saving column preferences: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to save column preferences",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Column preferences saved successfully",
+	})
+}
+
+// UpdateColumnWidthRequest represents the request body for updating a single column width
+type UpdateColumnWidthRequest struct {
+	ColumnID string `json:"column_id" binding:"required"`
+	Width    int    `json:"width" binding:"required,min=50,max=800"`
+}
+
+// UpdateColumnWidth updates the width of a single column (for auto-save during resize)
+// PATCH /api/v1/dashboard/column-preferences/width
+func UpdateColumnWidth(c *gin.Context) {
+	user := middleware.GetCurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+		return
+	}
+
+	sessionID, _ := c.Get("session_id")
+
+	// Parse request
+	var req UpdateColumnWidthRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Get current preferences
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
+	if err != nil {
+		// If no preferences exist yet, can't update width
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "No column preferences found. Please save your column configuration first.",
+		})
+		return
+	}
+
+	// Update the width of the specified column
+	found := false
+	for i := range prefs.ColumnConfigs {
+		if prefs.ColumnConfigs[i].ID == req.ColumnID {
+			prefs.ColumnConfigs[i].Width = req.Width
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Column not found: " + req.ColumnID,
+		})
+		return
+	}
+
+	// Save updated preferences
+	err = backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, prefs.ColumnConfigs)
+	if err != nil {
+		log.Printf("Error updating column width: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to update column width",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Column width updated successfully",
+	})
+}

@@ -1,0 +1,673 @@
+package pages
+
+import (
+	"notificator/internal/webui/templates/layouts"
+)
+
+type StatisticsDashboardData struct {
+	User ProfileUser
+}
+
+templ StatisticsDashboard(data StatisticsDashboardData) {
+	@layouts.Base("Alert Statistics - Notificator", StatisticsDashboardContent(data))
+}
+
+templ StatisticsDashboardContent(data StatisticsDashboardData) {
+	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary py-8" x-data="statisticsDashboardPage()">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<!-- Header -->
+			<div class="mb-8">
+				<nav class="flex" aria-label="Breadcrumb">
+					<ol class="flex items-center space-x-4">
+						<li>
+							<a href="/dashboard" class="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400">
+								<svg class="flex-shrink-0 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+									<path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+								</svg>
+								<span class="sr-only">Dashboard</span>
+							</a>
+						</li>
+						<li>
+							<div class="flex items-center">
+								<svg class="flex-shrink-0 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+								</svg>
+								<span class="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400">Statistics</span>
+							</div>
+						</li>
+					</ol>
+				</nav>
+				<div class="mt-4 flex items-center justify-between">
+					<div>
+						<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Alert Statistics</h1>
+						<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+							View and analyze alert metrics over time
+						</p>
+					</div>
+					<div class="flex space-x-3">
+						<a href="/statistics/rules" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+							</svg>
+							Manage Rules
+						</a>
+						<button @click="exportData" :disabled="loading || !hasData" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+							</svg>
+							Export CSV
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Filters Panel -->
+			<div class="mb-6 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+				<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+					<!-- Date Range Selector -->
+					<div class="xl:col-span-2">
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+							Time Range
+						</label>
+						<div class="flex space-x-2">
+							<div class="flex-1">
+								<input
+									type="date"
+									x-model="filters.startDate"
+									class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
+								/>
+							</div>
+							<span class="flex items-center text-gray-500 dark:text-gray-400">to</span>
+							<div class="flex-1">
+								<input
+									type="date"
+									x-model="filters.endDate"
+									class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
+								/>
+							</div>
+						</div>
+						<!-- Quick Date Presets -->
+						<div class="mt-2 flex flex-wrap gap-2">
+							<button @click="setDateRange('today')" class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">Today</button>
+							<button @click="setDateRange('week')" class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">Last 7 Days</button>
+							<button @click="setDateRange('month')" class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">Last 30 Days</button>
+							<button @click="setDateRange('quarter')" class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">Last 90 Days</button>
+						</div>
+					</div>
+
+					<!-- Group By Selector -->
+					<div>
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+							Group By
+						</label>
+						<select
+							x-model="filters.groupBy"
+							class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
+						>
+							<option value="">Overall</option>
+							<option value="severity">Severity</option>
+							<option value="team">Team</option>
+							<option value="alert_name">Alert Name</option>
+							<option value="period">Time Period</option>
+						</select>
+					</div>
+
+					<!-- Period Type (shown when groupBy is "period") -->
+					<div x-show="filters.groupBy === 'period'">
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+							Period Type
+						</label>
+						<select
+							x-model="filters.periodType"
+							class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
+						>
+							<option value="hour">Hourly</option>
+							<option value="day">Daily</option>
+							<option value="week">Weekly</option>
+							<option value="month">Monthly</option>
+						</select>
+					</div>
+				</div>
+
+				<!-- Additional Options Row -->
+				<div class="mt-4 flex items-center justify-between">
+					<div class="flex items-center space-x-4">
+						<!-- Apply On-Call Rules Toggle -->
+						<label class="flex items-center cursor-pointer">
+							<input
+								type="checkbox"
+								x-model="filters.applyRules"
+								class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+							/>
+							<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+								Apply On-Call Rules
+								<span class="text-xs text-gray-500 dark:text-gray-400">(filter by your configured rules)</span>
+							</span>
+						</label>
+
+						<!-- Limit (for alert_name grouping) -->
+						<div x-show="filters.groupBy === 'alert_name'" class="flex items-center space-x-2">
+							<label class="text-sm text-gray-700 dark:text-gray-300">Top</label>
+							<input
+								type="number"
+								x-model.number="filters.limit"
+								min="5"
+								max="50"
+								step="5"
+								class="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
+							/>
+							<span class="text-sm text-gray-700 dark:text-gray-300">alerts</span>
+						</div>
+					</div>
+
+					<!-- Query Button -->
+					<button
+						@click="queryStatistics"
+						:disabled="loading"
+						class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+					>
+						<svg x-show="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<span x-text="loading ? 'Loading...' : 'Run Query'"></span>
+					</button>
+				</div>
+			</div>
+
+			<!-- Loading State -->
+			<div x-show="loading && !hasData" class="text-center py-12">
+				<div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+				<p class="mt-4 text-gray-500 dark:text-gray-400">Loading statistics...</p>
+			</div>
+
+			<!-- Empty State -->
+			<div x-show="!loading && !hasData" class="text-center py-12 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle">
+				<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No Data</h3>
+				<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+					Select a time range and click "Run Query" to view statistics.
+				</p>
+			</div>
+
+			<!-- Statistics Content -->
+			<div x-show="!loading && hasData">
+				<!-- Summary Cards -->
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+					<!-- Total Alerts Card -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<div class="flex items-center">
+							<div class="flex-shrink-0 bg-blue-100 dark:bg-blue-900/30 rounded-md p-3">
+								<svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+								</svg>
+							</div>
+							<div class="ml-5 w-0 flex-1">
+								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+									Total Alerts
+								</dt>
+								<dd class="flex items-baseline">
+									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatNumber(statsData?.total_alerts || 0)"></div>
+								</dd>
+							</div>
+						</div>
+					</div>
+
+					<!-- Average Duration Card -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<div class="flex items-center">
+							<div class="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900/30 rounded-md p-3">
+								<svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+							</div>
+							<div class="ml-5 w-0 flex-1">
+								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+									Avg Duration
+								</dt>
+								<dd class="flex items-baseline">
+									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgDuration())"></div>
+								</dd>
+							</div>
+						</div>
+					</div>
+
+					<!-- Average MTTR Card -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<div class="flex items-center">
+							<div class="flex-shrink-0 bg-green-100 dark:bg-green-900/30 rounded-md p-3">
+								<svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+							</div>
+							<div class="ml-5 w-0 flex-1">
+								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+									Avg MTTR
+								</dt>
+								<dd class="flex items-baseline">
+									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-html="formatMTTR(getOverallAvgMTTR())"></div>
+								</dd>
+							</div>
+						</div>
+					</div>
+
+					<!-- Time Range Card -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<div class="flex items-center">
+							<div class="flex-shrink-0 bg-purple-100 dark:bg-purple-900/30 rounded-md p-3">
+								<svg class="h-6 w-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+								</svg>
+							</div>
+							<div class="ml-5 w-0 flex-1">
+								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+									Time Range
+								</dt>
+								<dd class="text-sm text-gray-900 dark:text-white">
+									<div x-text="formatDate(statsData?.time_range?.start)"></div>
+									<div class="text-xs text-gray-500" x-text="'to ' + formatDate(statsData?.time_range?.end)"></div>
+								</dd>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Breakdown Tables/Charts -->
+				<div class="space-y-6">
+					<!-- Statistics by Group (when not using period grouping) -->
+					<div x-show="filters.groupBy !== 'period' && Object.keys(statsData?.statistics || {}).length > 0">
+						<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle overflow-hidden">
+							<div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle">
+								<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="getGroupByTitle()"></h3>
+							</div>
+							<div class="overflow-x-auto">
+								<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+									<thead class="bg-gray-50 dark:bg-dark-bg-tertiary">
+										<tr>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('name')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span x-text="filters.groupBy || 'Category'"></span>
+													<span x-html="getSortIcon('name')"></span>
+												</button>
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('count')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span>Count</span>
+													<span x-html="getSortIcon('count')"></span>
+												</button>
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												Percentage
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('avg_duration')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span>Avg Duration</span>
+													<span x-html="getSortIcon('avg_duration')"></span>
+												</button>
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('total_duration')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span>Total Duration</span>
+													<span x-html="getSortIcon('total_duration')"></span>
+												</button>
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('avg_mttr')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span>Avg MTTR</span>
+													<span x-html="getSortIcon('avg_mttr')"></span>
+												</button>
+											</th>
+										</tr>
+									</thead>
+									<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-gray-700">
+										<template x-for="[key, stat] in getSortedStatistics()" :key="key">
+											<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary">
+												<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+													<div class="flex items-center">
+														<span x-text="key" :class="getSeverityClass(key)"></span>
+													</div>
+												</td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+													<div class="flex items-center space-x-2">
+														<span x-text="formatNumber(stat.count)"></span>
+														<div class="flex-1 min-w-[100px]">
+															<div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+																<div class="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-300" :style="`width: ${(stat.count / getMaxCount() * 100)}%`"></div>
+															</div>
+														</div>
+													</div>
+												</td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+													<span x-text="getPercentage(stat.count) + '%'"></span>
+												</td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.avg_duration_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.total_duration_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-html="formatMTTR(stat.avg_mttr_seconds)"></td>
+											</tr>
+										</template>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+
+					<!-- Period Breakdown (when groupBy is "period") -->
+					<div x-show="filters.groupBy === 'period' && (statsData?.breakdown || []).length > 0">
+						<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle overflow-hidden">
+							<div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle">
+								<h3 class="text-lg font-medium text-gray-900 dark:text-white">Statistics by Time Period</h3>
+							</div>
+
+							<!-- Simple Chart Visualization -->
+							<div class="p-6">
+								<div class="space-y-4">
+									<template x-for="(item, index) in statsData.breakdown" :key="index">
+										<div class="border-l-4 pl-4 py-2" :class="'border-blue-500'">
+											<div class="flex items-center justify-between mb-2">
+												<div>
+													<div class="text-sm font-medium text-gray-900 dark:text-white" x-text="item.period"></div>
+													<div class="text-xs text-gray-500 dark:text-gray-400" x-text="formatDate(item.start_time) + ' - ' + formatDate(item.end_time)"></div>
+												</div>
+												<div class="text-right">
+													<div class="text-lg font-semibold text-gray-900 dark:text-white" x-text="formatNumber(item.total_count)"></div>
+													<div class="text-xs text-gray-500 dark:text-gray-400">alerts</div>
+												</div>
+											</div>
+
+											<!-- Severity breakdown for this period -->
+											<div x-show="item.statistics && Object.keys(item.statistics).length > 0" class="mt-2 flex flex-wrap gap-2">
+												<template x-for="(stat, severity) in item.statistics" :key="severity">
+													<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium" :class="getSeverityBadgeClass(severity)">
+														<span x-text="severity + ': ' + stat.count"></span>
+													</span>
+												</template>
+											</div>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		function statisticsDashboardPage() {
+			return {
+				loading: false,
+				hasData: false,
+				statsData: null,
+				sortColumn: 'count',
+				sortDirection: 'desc',
+
+				filters: {
+					startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
+					endDate: new Date().toISOString().split('T')[0], // Today
+					groupBy: 'severity',
+					periodType: 'day',
+					applyRules: false,
+					limit: 20
+				},
+
+				init() {
+					// Auto-query on page load
+					this.queryStatistics();
+				},
+
+				async queryStatistics() {
+					this.loading = true;
+
+					try {
+						const payload = {
+							start_date: this.filters.startDate + 'T00:00:00Z',
+							end_date: this.filters.endDate + 'T23:59:59Z',
+							apply_rules: this.filters.applyRules,
+							group_by: this.filters.groupBy,
+							period_type: this.filters.periodType,
+							limit: this.filters.groupBy === 'alert_name' ? this.filters.limit : 0
+						};
+
+						const response = await fetch('/api/v1/statistics/query', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json'
+							},
+							body: JSON.stringify(payload)
+						});
+
+						if (!response.ok) {
+							throw new Error('Failed to query statistics');
+						}
+
+						const data = await response.json();
+						this.statsData = data.data;
+						this.hasData = true;
+					} catch (error) {
+						console.error('Error querying statistics:', error);
+						alert('Failed to load statistics: ' + error.message);
+						this.hasData = false;
+					} finally {
+						this.loading = false;
+					}
+				},
+
+				setDateRange(preset) {
+					const now = new Date();
+					const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+					switch(preset) {
+						case 'today':
+							this.filters.startDate = today.toISOString().split('T')[0];
+							this.filters.endDate = today.toISOString().split('T')[0];
+							break;
+						case 'week':
+							this.filters.startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+							this.filters.endDate = today.toISOString().split('T')[0];
+							break;
+						case 'month':
+							this.filters.startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+							this.filters.endDate = today.toISOString().split('T')[0];
+							break;
+						case 'quarter':
+							this.filters.startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+							this.filters.endDate = today.toISOString().split('T')[0];
+							break;
+					}
+				},
+
+				getGroupByTitle() {
+					const titles = {
+						'severity': 'Statistics by Severity',
+						'team': 'Statistics by Team',
+						'alert_name': 'Statistics by Alert Name',
+						'': 'Overall Statistics'
+					};
+					return titles[this.filters.groupBy] || 'Statistics';
+				},
+
+				getOverallAvgDuration() {
+					if (!this.statsData?.statistics) return 0;
+					const stats = Object.values(this.statsData.statistics);
+					if (stats.length === 0) return 0;
+					const total = stats.reduce((sum, s) => sum + (s.avg_duration_seconds || 0), 0);
+					return total / stats.length;
+				},
+
+				getOverallAvgMTTR() {
+					if (!this.statsData?.statistics) return 0;
+					const stats = Object.values(this.statsData.statistics);
+					if (stats.length === 0) return 0;
+					const total = stats.reduce((sum, s) => sum + (s.avg_mttr_seconds || 0), 0);
+					return total / stats.length;
+				},
+
+				getSeverityClass(severity) {
+					if (this.filters.groupBy !== 'severity') return '';
+
+					const classes = {
+						'critical': 'px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+						'warning': 'px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+						'info': 'px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+					};
+					return classes[severity.toLowerCase()] || '';
+				},
+
+				getSeverityBadgeClass(severity) {
+					const classes = {
+						'critical': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+						'warning': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+						'info': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+					};
+					return classes[severity.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+				},
+
+				sortBy(column) {
+					if (this.sortColumn === column) {
+						// Toggle direction if same column
+						this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+					} else {
+						// New column, default to descending for numeric columns, ascending for text
+						this.sortColumn = column;
+						this.sortDirection = column === 'name' ? 'asc' : 'desc';
+					}
+				},
+
+				getSortedStatistics() {
+					if (!this.statsData?.statistics) return [];
+
+					const entries = Object.entries(this.statsData.statistics);
+
+					return entries.sort((a, b) => {
+						const [keyA, statA] = a;
+						const [keyB, statB] = b;
+
+						let valueA, valueB;
+
+						switch(this.sortColumn) {
+							case 'name':
+								valueA = keyA.toLowerCase();
+								valueB = keyB.toLowerCase();
+								break;
+							case 'count':
+								valueA = statA.count || 0;
+								valueB = statB.count || 0;
+								break;
+							case 'avg_duration':
+								valueA = statA.avg_duration_seconds || 0;
+								valueB = statB.avg_duration_seconds || 0;
+								break;
+							case 'total_duration':
+								valueA = statA.total_duration_seconds || 0;
+								valueB = statB.total_duration_seconds || 0;
+								break;
+							case 'avg_mttr':
+								valueA = statA.avg_mttr_seconds || 0;
+								valueB = statB.avg_mttr_seconds || 0;
+								break;
+							default:
+								valueA = statA.count || 0;
+								valueB = statB.count || 0;
+						}
+
+						if (valueA < valueB) return this.sortDirection === 'asc' ? -1 : 1;
+						if (valueA > valueB) return this.sortDirection === 'asc' ? 1 : -1;
+						return 0;
+					});
+				},
+
+				getSortIcon(column) {
+					if (this.sortColumn !== column) {
+						return '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>';
+					}
+
+					if (this.sortDirection === 'asc') {
+						return '<svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>';
+					}
+
+					return '<svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>';
+				},
+
+				formatNumber(num) {
+					return new Intl.NumberFormat().format(num || 0);
+				},
+
+				formatDuration(seconds) {
+					if (!seconds || seconds === 0) return '0s';
+
+					const hours = Math.floor(seconds / 3600);
+					const minutes = Math.floor((seconds % 3600) / 60);
+					const secs = Math.floor(seconds % 60);
+
+					const parts = [];
+					if (hours > 0) parts.push(`${hours}h`);
+					if (minutes > 0) parts.push(`${minutes}m`);
+					if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+
+					return parts.join(' ');
+				},
+
+				formatMTTR(seconds) {
+					if (!seconds || seconds === 0) return 'N/A';
+					return this.formatDuration(seconds);
+				},
+
+				getPercentage(count) {
+					if (!this.statsData?.total_alerts || this.statsData.total_alerts === 0) return 0;
+					return (count / this.statsData.total_alerts * 100).toFixed(1);
+				},
+
+				getMaxCount() {
+					if (!this.statsData?.statistics) return 0;
+					const counts = Object.values(this.statsData.statistics).map(s => s.count || 0);
+					return Math.max(...counts, 1);
+				},
+
+				formatDate(dateStr) {
+					if (!dateStr) return '';
+					const date = new Date(dateStr);
+					return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+				},
+
+				exportData() {
+					if (!this.statsData) return;
+
+					// Generate CSV
+					let csv = '';
+
+					if (this.filters.groupBy === 'period') {
+						// Export period breakdown
+						csv = 'Period,Start Time,End Time,Total Count,Severities\n';
+						this.statsData.breakdown.forEach(item => {
+							const severities = Object.entries(item.statistics || {})
+								.map(([sev, stat]) => `${sev}:${stat.count}`)
+								.join(';');
+							csv += `"${item.period}","${item.start_time}","${item.end_time}",${item.total_count},"${severities}"\n`;
+						});
+					} else {
+						// Export grouped statistics
+						csv = 'Category,Count,Avg Duration (s),Total Duration (s),Avg MTTR (s)\n';
+						Object.entries(this.statsData.statistics || {}).forEach(([key, stat]) => {
+							csv += `"${key}",${stat.count},${stat.avg_duration_seconds},${stat.total_duration_seconds},${stat.avg_mttr_seconds}\n`;
+						});
+					}
+
+					// Download CSV
+					const blob = new Blob([csv], { type: 'text/csv' });
+					const url = window.URL.createObjectURL(blob);
+					const a = document.createElement('a');
+					a.href = url;
+					a.download = `alert-statistics-${this.filters.startDate}-to-${this.filters.endDate}.csv`;
+					document.body.appendChild(a);
+					a.click();
+					document.body.removeChild(a);
+					window.URL.revokeObjectURL(url);
+				}
+			};
+		}
+	</script>
+}

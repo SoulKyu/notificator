@@ -44,7 +44,8 @@ type AlertCache struct {
 	colorService       *ColorService
 
 	// Configuration
-	refreshInterval time.Duration
+	refreshInterval       time.Duration
+	resolvedRetentionDays int // Days to keep resolved alerts
 
 	// Change tracking
 	newAlerts           []string // fingerprints of new alerts since last fetch
@@ -56,20 +57,26 @@ type AlertCache struct {
 	refreshTicker *time.Ticker
 }
 
-func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient) *AlertCache {
+func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient, resolvedRetentionDays int) *AlertCache {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Ensure valid retention days
+	if resolvedRetentionDays <= 0 {
+		resolvedRetentionDays = 90 // Default to 90 days
+	}
+
 	return &AlertCache{
-		alerts:              make(map[string]*webuimodels.DashboardAlert),
-		userHiddenAlerts:    make(map[string]map[string]bool),
-		alertmanagerClient:  amClient,
-		backendClient:       backendClient,
-		colorService:        NewColorService(backendClient),
-		refreshInterval:     5 * time.Second,
-		newAlerts:           make([]string, 0),
-		resolvedAlertsSince: make([]string, 0),
-		ctx:                 ctx,
-		cancel:              cancel,
+		alerts:                make(map[string]*webuimodels.DashboardAlert),
+		userHiddenAlerts:      make(map[string]map[string]bool),
+		alertmanagerClient:    amClient,
+		backendClient:         backendClient,
+		colorService:          NewColorService(backendClient),
+		refreshInterval:       5 * time.Second,
+		resolvedRetentionDays: resolvedRetentionDays,
+		newAlerts:             make([]string, 0),
+		resolvedAlertsSince:   make([]string, 0),
+		ctx:                   ctx,
+		cancel:                cancel,
 	}
 }
 
@@ -142,6 +149,15 @@ func (ac *AlertCache) refreshAlerts() {
 			ac.alerts[fingerprint] = dashAlert
 			ac.newAlerts = append(ac.newAlerts, fingerprint)
 
+			// Capture alert fired event for statistics
+			go func(alert *webuimodels.DashboardAlert) {
+				if ac.backendClient != nil && ac.backendClient.IsConnected() {
+					if err := ac.backendClient.CaptureAlertFired(alert); err != nil {
+						log.Printf("Failed to capture alert fired statistics for %s: %v", alert.Fingerprint, err)
+					}
+				}
+			}(dashAlert)
+
 		} else {
 			ac.updateExistingAlert(existingAlert, dashAlert)
 		}
@@ -155,6 +171,15 @@ func (ac *AlertCache) refreshAlerts() {
 			alert.ResolvedAt = time.Now()
 			alert.Status.State = "resolved"
 			alert.EndsAt = alert.ResolvedAt
+
+			// Update alert resolved event for statistics
+			go func(resolvedAlert *webuimodels.DashboardAlert) {
+				if ac.backendClient != nil && ac.backendClient.IsConnected() {
+					if err := ac.backendClient.UpdateAlertResolved(resolvedAlert); err != nil {
+						log.Printf("Failed to update alert resolved statistics for %s: %v", resolvedAlert.Fingerprint, err)
+					}
+				}
+			}(alert)
 
 			// Capture complete alert data with comments and acknowledgments for backend storage
 			go ac.storeResolvedAlertInBackend(alert)
@@ -283,7 +308,17 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 			alert.AcknowledgedBy = acknowledgment.Username
 			alert.AcknowledgedAt = acknowledgment.CreatedAt.AsTime()
 			alert.AcknowledgeReason = acknowledgment.Reason
-			alert.CommentCount = 1
+
+			// Get actual comment count from backend
+			if comments, err := ac.backendClient.GetComments(fingerprint); err == nil {
+				alert.CommentCount = len(comments)
+			} else {
+				alert.CommentCount = 0
+			}
+
+			// Note: We don't capture statistics here because this is loading historical
+			// acknowledgments. Statistics should only be captured when alerts are
+			// acknowledged in real-time to avoid negative MTTR calculations.
 		}
 	}
 	ac.mu.Unlock()
@@ -534,13 +569,16 @@ func (ac *AlertCache) storeResolvedAlertInBackend(alert *webuimodels.DashboardAl
 		}
 	}
 
+	// Convert days to hours for backend API
+	ttlHours := ac.resolvedRetentionDays * 24
+
 	if err := ac.backendClient.CreateResolvedAlert(
 		alert.Fingerprint,
 		alert.Source,
 		alertData,
 		comments,
 		acknowledgments,
-		24,
+		ttlHours,
 	); err != nil {
 		log.Printf("Error storing resolved alert %s in backend: %v", alert.Fingerprint, err)
 	} else {

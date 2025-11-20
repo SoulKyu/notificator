@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -2483,13 +2484,13 @@ func (s *AlertServiceGorm) SetDefaultFilterPreset(ctx context.Context, req *aler
 		}, nil
 	}
 
-	// Set default with ownership check
+	// Set default (user can set any accessible preset, including shared ones)
 	err = s.db.SetDefaultFilterPreset(req.PresetId, user.ID)
 	if err != nil {
 		log.Printf("Failed to set default filter preset %s for user %s: %v", req.PresetId, user.ID, err)
 		return &alertpb.SetDefaultFilterPresetResponse{
 			Success: false,
-			Message: "Failed to set default filter preset or not authorized",
+			Message: "Failed to set default filter preset - preset not found or not accessible",
 		}, nil
 	}
 
@@ -2498,6 +2499,484 @@ func (s *AlertServiceGorm) SetDefaultFilterPreset(ctx context.Context, req *aler
 	return &alertpb.SetDefaultFilterPresetResponse{
 		Success: true,
 		Message: "Default filter preset set successfully",
+	}, nil
+}
+
+// GetAnnotationButtonConfigs implements the GetAnnotationButtonConfigs RPC method
+func (s *AlertServiceGorm) GetAnnotationButtonConfigs(ctx context.Context, req *alertpb.GetAnnotationButtonConfigsRequest) (*alertpb.GetAnnotationButtonConfigsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get configs from database (creates defaults if none exist)
+	configs, err := s.db.GetAnnotationButtonConfigs(user.ID)
+	if err != nil {
+		log.Printf("Error getting annotation button configs: %v", err)
+		return &alertpb.GetAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Failed to get annotation button configs",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	var pbConfigs []*alertpb.AnnotationButtonConfig
+	for _, config := range configs {
+		pbConfigs = append(pbConfigs, &alertpb.AnnotationButtonConfig{
+			Id:             config.ID,
+			UserId:         config.UserID,
+			Label:          config.Label,
+			AnnotationKeys: config.AnnotationKeys,
+			Color:          config.Color,
+			Icon:           config.Icon,
+			DisplayOrder:   int32(config.DisplayOrder),
+			Enabled:        config.Enabled,
+			ButtonType:     config.ButtonType,
+			CreatedAt:      timestamppb.New(config.CreatedAt),
+			UpdatedAt:      timestamppb.New(config.UpdatedAt),
+		})
+	}
+
+	return &alertpb.GetAnnotationButtonConfigsResponse{
+		Success: true,
+		Configs: pbConfigs,
+		Message: "Annotation button configs retrieved successfully",
+	}, nil
+}
+
+// SaveAnnotationButtonConfigs implements the SaveAnnotationButtonConfigs RPC method
+func (s *AlertServiceGorm) SaveAnnotationButtonConfigs(ctx context.Context, req *alertpb.SaveAnnotationButtonConfigsRequest) (*alertpb.SaveAnnotationButtonConfigsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf configs to database models and validate
+	var configs []models.AnnotationButtonConfig
+	for _, pbConfig := range req.Configs {
+		config := models.AnnotationButtonConfig{
+			ID:             pbConfig.Id,
+			UserID:         user.ID,
+			Label:          pbConfig.Label,
+			AnnotationKeys: pbConfig.AnnotationKeys,
+			Color:          models.SanitizeColor(pbConfig.Color), // Sanitize color to prevent CSS injection
+			Icon:           pbConfig.Icon,
+			DisplayOrder:   int(pbConfig.DisplayOrder),
+			Enabled:        pbConfig.Enabled,
+			ButtonType:     pbConfig.ButtonType,
+		}
+
+		// Validate configuration
+		if err := config.Validate(); err != nil {
+			log.Printf("Invalid annotation button config: %v", err)
+			return &alertpb.SaveAnnotationButtonConfigsResponse{
+				Success: false,
+				Message: "Invalid configuration: " + err.Error(),
+			}, nil
+		}
+
+		configs = append(configs, config)
+	}
+
+	// Save to database
+	err = s.db.SaveAnnotationButtonConfigs(user.ID, configs)
+	if err != nil {
+		log.Printf("Error saving annotation button configs: %v", err)
+		return &alertpb.SaveAnnotationButtonConfigsResponse{
+			Success: false,
+			Message: "Failed to save annotation button configs",
+		}, nil
+	}
+
+	log.Printf("Annotation button configs saved for user %s", user.ID)
+
+	return &alertpb.SaveAnnotationButtonConfigsResponse{
+		Success: true,
+		Message: "Annotation button configs saved successfully",
+	}, nil
+}
+
+// DeleteAnnotationButtonConfig implements the DeleteAnnotationButtonConfig RPC method
+func (s *AlertServiceGorm) DeleteAnnotationButtonConfig(ctx context.Context, req *alertpb.DeleteAnnotationButtonConfigRequest) (*alertpb.DeleteAnnotationButtonConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ConfigId == "" {
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Delete config
+	err = s.db.DeleteAnnotationButtonConfig(user.ID, req.ConfigId)
+	if err != nil {
+		log.Printf("Failed to delete annotation button config %s for user %s: %v", req.ConfigId, user.ID, err)
+		return &alertpb.DeleteAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Failed to delete annotation button config or not authorized",
+		}, nil
+	}
+
+	log.Printf("Annotation button config %s deleted for user %s", req.ConfigId, user.ID)
+
+	return &alertpb.DeleteAnnotationButtonConfigResponse{
+		Success: true,
+		Message: "Annotation button config deleted successfully",
+	}, nil
+}
+
+// CreateAnnotationButtonConfig implements the CreateAnnotationButtonConfig RPC method
+func (s *AlertServiceGorm) CreateAnnotationButtonConfig(ctx context.Context, req *alertpb.CreateAnnotationButtonConfigRequest) (*alertpb.CreateAnnotationButtonConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Config == nil {
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf to database model and validate
+	config := models.AnnotationButtonConfig{
+		UserID:         user.ID,
+		Label:          req.Config.Label,
+		AnnotationKeys: req.Config.AnnotationKeys,
+		Color:          models.SanitizeColor(req.Config.Color),
+		Icon:           req.Config.Icon,
+		DisplayOrder:   int(req.Config.DisplayOrder),
+		Enabled:        req.Config.Enabled,
+		ButtonType:     req.Config.ButtonType,
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		log.Printf("Invalid annotation button config: %v", err)
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid configuration: " + err.Error(),
+		}, nil
+	}
+
+	// Create in database
+	err = s.db.CreateAnnotationButtonConfig(&config)
+	if err != nil {
+		log.Printf("Error creating annotation button config: %v", err)
+		return &alertpb.CreateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Failed to create annotation button config",
+		}, nil
+	}
+
+	log.Printf("Annotation button config created for user %s", user.ID)
+
+	// Convert back to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Id:             config.ID,
+		UserId:         config.UserID,
+		Label:          config.Label,
+		AnnotationKeys: config.AnnotationKeys,
+		Color:          config.Color,
+		Icon:           config.Icon,
+		DisplayOrder:   int32(config.DisplayOrder),
+		Enabled:        config.Enabled,
+		ButtonType:     config.ButtonType,
+		CreatedAt:      timestamppb.New(config.CreatedAt),
+		UpdatedAt:      timestamppb.New(config.UpdatedAt),
+	}
+
+	return &alertpb.CreateAnnotationButtonConfigResponse{
+		Success: true,
+		Config:  pbConfig,
+		Message: "Annotation button config created successfully",
+	}, nil
+}
+
+// UpdateAnnotationButtonConfig implements the UpdateAnnotationButtonConfig RPC method
+func (s *AlertServiceGorm) UpdateAnnotationButtonConfig(ctx context.Context, req *alertpb.UpdateAnnotationButtonConfigRequest) (*alertpb.UpdateAnnotationButtonConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Config == nil {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config is required",
+		}, nil
+	}
+
+	if req.Config.Id == "" {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Config ID is required",
+		}, nil
+	}
+
+	// Validate session
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf to database model and validate
+	config := models.AnnotationButtonConfig{
+		ID:             req.Config.Id,
+		UserID:         user.ID,
+		Label:          req.Config.Label,
+		AnnotationKeys: req.Config.AnnotationKeys,
+		Color:          models.SanitizeColor(req.Config.Color),
+		Icon:           req.Config.Icon,
+		DisplayOrder:   int(req.Config.DisplayOrder),
+		Enabled:        req.Config.Enabled,
+		ButtonType:     req.Config.ButtonType,
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		log.Printf("Invalid annotation button config: %v", err)
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Invalid configuration: " + err.Error(),
+		}, nil
+	}
+
+	// Update in database
+	err = s.db.UpdateAnnotationButtonConfig(&config)
+	if err != nil {
+		log.Printf("Error updating annotation button config: %v", err)
+		return &alertpb.UpdateAnnotationButtonConfigResponse{
+			Success: false,
+			Message: "Failed to update annotation button config",
+		}, nil
+	}
+
+	log.Printf("Annotation button config %s updated for user %s", config.ID, user.ID)
+
+	// Convert back to protobuf
+	pbConfig := &alertpb.AnnotationButtonConfig{
+		Id:             config.ID,
+		UserId:         config.UserID,
+		Label:          config.Label,
+		AnnotationKeys: config.AnnotationKeys,
+		Color:          config.Color,
+		Icon:           config.Icon,
+		DisplayOrder:   int32(config.DisplayOrder),
+		Enabled:        config.Enabled,
+		ButtonType:     config.ButtonType,
+		CreatedAt:      timestamppb.New(config.CreatedAt),
+		UpdatedAt:      timestamppb.New(config.UpdatedAt),
+	}
+
+	return &alertpb.UpdateAnnotationButtonConfigResponse{
+		Success: true,
+		Config:  pbConfig,
+		Message: "Annotation button config updated successfully",
+	}, nil
+}
+
+// ==================== User Column Preferences Methods ====================
+
+// GetUserColumnPreferences implements the GetUserColumnPreferences RPC method
+func (s *AlertServiceGorm) GetUserColumnPreferences(ctx context.Context, req *alertpb.GetUserColumnPreferencesRequest) (*alertpb.GetUserColumnPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get column preferences from database
+	prefs, err := s.db.GetUserColumnPreferences(user.ID)
+	if err != nil {
+		log.Printf("Failed to get column preferences for user %s: %v", user.ID, err)
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to retrieve column preferences",
+		}, nil
+	}
+
+	// If no preferences found, return success with nil preferences (client will use defaults)
+	if prefs == nil {
+		log.Printf("No column preferences found for user %s, client will use defaults", user.ID)
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: true,
+			Message: "No column preferences found, using defaults",
+		}, nil
+	}
+
+	// Convert ColumnConfigs from models.JSONB to protobuf
+	var columns []models.ColumnConfig
+	if err := json.Unmarshal(prefs.ColumnConfigs, &columns); err != nil {
+		log.Printf("Failed to unmarshal column configs for user %s: %v", user.ID, err)
+		return &alertpb.GetUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to parse column preferences",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbColumns := make([]*alertpb.ColumnConfig, len(columns))
+	for i, col := range columns {
+		pbColumns[i] = &alertpb.ColumnConfig{
+			Id:        col.ID,
+			Label:     col.Label,
+			FieldType: col.FieldType,
+			FieldPath: col.FieldPath,
+			Formatter: col.Formatter,
+			Width:     int32(col.Width),
+			Sortable:  col.Sortable,
+			Visible:   col.Visible,
+			Order:     int32(col.Order),
+			Resizable: col.Resizable,
+			Critical:  col.Critical,
+		}
+	}
+
+	pbPrefs := &alertpb.ColumnPreferences{
+		UserId:        prefs.UserID,
+		ColumnConfigs: pbColumns,
+		CreatedAt:     timestamppb.New(prefs.CreatedAt),
+		UpdatedAt:     timestamppb.New(prefs.UpdatedAt),
+	}
+
+	return &alertpb.GetUserColumnPreferencesResponse{
+		Success:     true,
+		Preferences: pbPrefs,
+		Message:     "Column preferences retrieved successfully",
+	}, nil
+}
+
+// SaveUserColumnPreferences implements the SaveUserColumnPreferences RPC method
+func (s *AlertServiceGorm) SaveUserColumnPreferences(ctx context.Context, req *alertpb.SaveUserColumnPreferencesRequest) (*alertpb.SaveUserColumnPreferencesResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Convert protobuf columns to models
+	columns := make([]models.ColumnConfig, len(req.ColumnConfigs))
+	for i, pbCol := range req.ColumnConfigs {
+		columns[i] = models.ColumnConfig{
+			ID:        pbCol.Id,
+			Label:     pbCol.Label,
+			FieldType: pbCol.FieldType,
+			FieldPath: pbCol.FieldPath,
+			Formatter: pbCol.Formatter,
+			Width:     int(pbCol.Width),
+			Sortable:  pbCol.Sortable,
+			Visible:   pbCol.Visible,
+			Order:     int(pbCol.Order),
+			Resizable: pbCol.Resizable,
+			Critical:  pbCol.Critical,
+		}
+	}
+
+	// Convert to JSONB
+	columnConfigsJSON, err := json.Marshal(columns)
+	if err != nil {
+		log.Printf("Failed to marshal column configs for user %s: %v", user.ID, err)
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to save column preferences",
+		}, nil
+	}
+
+	// Create preference object
+	pref := &models.UserColumnPreference{
+		UserID:        user.ID,
+		ColumnConfigs: models.JSONB(columnConfigsJSON),
+	}
+
+	// Save to database
+	err = s.db.SaveUserColumnPreferences(pref)
+	if err != nil {
+		log.Printf("Failed to save column preferences for user %s: %v", user.ID, err)
+		return &alertpb.SaveUserColumnPreferencesResponse{
+			Success: false,
+			Message: "Failed to save column preferences",
+		}, nil
+	}
+
+	log.Printf("Column preferences saved for user %s", user.ID)
+
+	return &alertpb.SaveUserColumnPreferencesResponse{
+		Success: true,
+		Message: "Column preferences saved successfully",
 	}, nil
 }
 

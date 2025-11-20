@@ -28,7 +28,6 @@ templ DashboardSettings() {
 				
 				settings: {
 					theme: 'light',
-					resolvedAlertsRetention: 7,
 					resolvedAlertsLimit: 100,
 					refreshInterval: 30
 				},
@@ -65,6 +64,7 @@ templ DashboardSettings() {
 					await this.loadHiddenRules();
 					await this.loadSentryConfig();
 					await this.loadNotificationPreferences();
+					await this.loadAnnotationButtonConfigs();
 					this.checkBrowserPermission(); // Check current browser permission status
 					window.currentSettingsModal = this;
 					console.log('Settings modal initialized, window.currentSettingsModal set:', !!window.currentSettingsModal);
@@ -358,6 +358,9 @@ templ DashboardSettings() {
 						// Refresh hidden alerts data when opening hidden alerts tab
 						this.loadHiddenAlerts();
 						this.loadHiddenRules();
+					} else if (tab === 'annotation-buttons') {
+						// Refresh annotation button configs when opening annotation buttons tab
+						this.loadAnnotationButtonConfigs();
 					}
 				},
 
@@ -451,6 +454,12 @@ templ DashboardSettings() {
 						const notificationResult = await this.saveNotificationPreferences();
 						if (!notificationResult) {
 							throw new Error('Failed to save notification preferences');
+						}
+
+						// Save annotation button configs
+						const annotationButtonsResult = await this.saveAnnotationButtonConfigs();
+						if (!annotationButtonsResult) {
+							throw new Error('Failed to save annotation button configs');
 						}
 
 						console.log('All settings saved successfully');
@@ -833,6 +842,11 @@ templ DashboardSettings() {
 									enabledSeverities: result.data.enabled_severities || ['critical', 'warning'],
 									soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
 								};
+
+								// Sync with notification service
+								if (window.notificationService) {
+									window.notificationService.preferences = this.notificationPreferences;
+								}
 							}
 						}
 					} catch (error) {
@@ -961,6 +975,148 @@ templ DashboardSettings() {
 					// Restore original settings
 					window.notificationService.preferences.browserNotificationsEnabled = originalEnabled;
 					window.notificationService.preferences.enabledSeverities = originalSeverities;
+				},
+
+				// Annotation Button Config Management Functions
+				annotationButtonConfigs: [],
+				annotationButtonsLoading: false,
+				annotationButtonsError: '',
+
+				// Color validation/sanitization
+				sanitizeColor(color) {
+					// Validate hex color format (#RGB or #RRGGBB)
+					const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+					if (hexColorRegex.test(color)) {
+						return color;
+					}
+					return '#6366f1'; // Default indigo-600
+				},
+
+				async loadAnnotationButtonConfigs() {
+					this.annotationButtonsLoading = true;
+					try {
+						const response = await fetch('/api/v1/dashboard/annotation-buttons', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success) {
+								this.annotationButtonConfigs = result.data.configs || [];
+								console.log('Loaded annotation button configs:', this.annotationButtonConfigs.length);
+							}
+						}
+					} catch (error) {
+						console.error('Error loading annotation button configs:', error);
+					} finally {
+						this.annotationButtonsLoading = false;
+					}
+				},
+
+				async saveAnnotationButtonConfigs() {
+					try {
+						this.annotationButtonsError = '';
+
+						// Sanitize colors before saving
+						const sanitizedConfigs = this.annotationButtonConfigs.map(config => ({
+							...config,
+							color: this.sanitizeColor(config.color),
+							// Filter out empty annotation keys
+							annotation_keys: (config.annotation_keys || []).filter(key => key && key.trim())
+						}));
+
+						const response = await fetch('/api/v1/dashboard/annotation-buttons', {
+							method: 'POST',
+							credentials: 'include',
+							headers: {
+								'Content-Type': 'application/json'
+							},
+							body: JSON.stringify({
+								configs: sanitizedConfigs
+							})
+						});
+
+						const result = await response.json();
+						if (result.success) {
+							console.log('Annotation button configs saved successfully');
+							await this.loadAnnotationButtonConfigs();
+							return true;
+						} else {
+							const errorMsg = result.error || 'Failed to save annotation button configs';
+							console.error('Failed to save:', errorMsg);
+							this.annotationButtonsError = errorMsg;
+							alert('Error: ' + errorMsg); // User-facing error
+							return false;
+						}
+					} catch (error) {
+						console.error('Error saving annotation button configs:', error);
+						this.annotationButtonsError = 'Network error: ' + error.message;
+						alert('Failed to save annotation button configs. Please try again.');
+						return false;
+					}
+				},
+
+				addAnnotationButton() {
+					const newButton = {
+						id: String(Date.now() + Math.random()),
+						label: 'New Button',
+						annotation_keys: [''],
+						color: '#6366f1',
+						icon: 'link',
+						display_order: this.annotationButtonConfigs.length,
+						enabled: true,
+						button_type: 'custom',
+						isEditing: true
+					};
+					this.annotationButtonConfigs.push(newButton);
+				},
+
+				removeAnnotationButton(index) {
+					if (confirm('Are you sure you want to remove this button?')) {
+						this.annotationButtonConfigs.splice(index, 1);
+						// Update display orders
+						this.annotationButtonConfigs.forEach((btn, idx) => {
+							btn.display_order = idx;
+						});
+					}
+				},
+
+				moveButtonUp(index) {
+					if (index > 0) {
+						const temp = this.annotationButtonConfigs[index];
+						this.annotationButtonConfigs[index] = this.annotationButtonConfigs[index - 1];
+						this.annotationButtonConfigs[index - 1] = temp;
+						// Update display orders
+						this.annotationButtonConfigs.forEach((btn, idx) => {
+							btn.display_order = idx;
+						});
+					}
+				},
+
+				moveButtonDown(index) {
+					if (index < this.annotationButtonConfigs.length - 1) {
+						const temp = this.annotationButtonConfigs[index];
+						this.annotationButtonConfigs[index] = this.annotationButtonConfigs[index + 1];
+						this.annotationButtonConfigs[index + 1] = temp;
+						// Update display orders
+						this.annotationButtonConfigs.forEach((btn, idx) => {
+							btn.display_order = idx;
+						});
+					}
+				},
+
+				addAnnotationKey(button) {
+					if (!button.annotation_keys) {
+						button.annotation_keys = [];
+					}
+					button.annotation_keys.push('');
+				},
+
+				removeAnnotationKey(button, index) {
+					button.annotation_keys.splice(index, 1);
+				},
+
+				toggleButtonEdit(button) {
+					button.isEditing = !button.isEditing;
 				}
 			};
 		}

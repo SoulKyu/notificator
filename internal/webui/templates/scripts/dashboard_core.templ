@@ -30,7 +30,6 @@ templ DashboardCore() {
 				},
 				settings: {
 					theme: 'light',
-					resolvedAlertsRetention: 1,
 					refreshInterval: 5,
 					resolvedAlertsLimit: 100
 				},
@@ -70,10 +69,16 @@ templ DashboardCore() {
 				alertDetails: null,
 				currentAlertTab: 'overview',
 				alertDetailsLoading: false,
+				alertHistory: null,
+				historyLoading: false,
 				
 				// Filter presets modal state
 				showFilterPresetsModal: false,
 				activePresetName: null, // Track active default preset name
+				includeColumnConfig: true, // Whether to include column config when saving filter preset
+
+				// Column config modal state
+				showColumnConfigModal: false,
 
 				newCommentContent: '',
 				commentSubmitting: false,
@@ -99,13 +104,21 @@ templ DashboardCore() {
 				currentPage: 1,
 				itemsPerPage: 50,
 				totalItems: 0,
-				
+
+				// Resolved alerts state (mixin will add more properties)
+				resolvedAlerts: [],
+				resolvedTotalCount: 0,
+				resolvedLoading: false,
+
 				refreshInterval: null,
 				lastUpdateTime: null,
 				
 				alertColors: {},
 				alertColorsTimestamp: 0,
-				
+
+				// Annotation button configs
+				annotationButtonConfigs: [],
+
 				columnWidths: {
 					alertName: 300,
 					action: 100,
@@ -123,6 +136,14 @@ templ DashboardCore() {
 				startWidth: 0,
 				currentColumn: null,
 
+				// Dynamic columns configuration
+				columns: [],
+				visibleColumns: [],
+				resizingColumn: null,
+				resizeStartX: 0,
+				resizeStartWidth: 0,
+				sorting: { field: null, direction: 'asc' },
+
 				getDisplayStatus(status) {
 					if (!status?.state) return 'unknown';
 					return status.state === 'suppressed' ? 'silenced' : status.state;
@@ -133,20 +154,58 @@ templ DashboardCore() {
 					return displayStatus === value;
 				},
 
+				// Check if response indicates authentication failure
+				handleAuthError(response) {
+					// Redirect to login if unauthorized or service unavailable
+					if (response.status === 401 || response.status === 503) {
+						window.location.href = '/login';
+						return true;
+					}
+					return false;
+				},
+
+				// Validate session with backend
+				async validateSession() {
+					try {
+						const response = await fetch('/api/v1/auth/me', {
+							credentials: 'include'
+						});
+
+						// Check for authentication errors and redirect if needed
+						if (this.handleAuthError(response)) {
+							return false;
+						}
+
+						return response.ok;
+					} catch (error) {
+						console.error('Session validation failed:', error);
+						// Redirect to login on network error (backend might be down)
+						window.location.href = '/login';
+						return false;
+					}
+				},
+
 				async init() {
 					Object.assign(this, window.dashboardDataMixin || {});
 					Object.assign(this, window.dashboardActionsMixin || {});
 					Object.assign(this, window.dashboardUtilitiesMixin || {});
 					Object.assign(this, window.dashboardModalMixin || {});
 					Object.assign(this, window.dashboardFilterPresetsMixin || {});
+					Object.assign(this, window.dashboardResolvedAlertsMixin || {});
 
 					window.dashboardInstance = this;
 
 					this.initializeSessionTracking();
 
+					// Load notification banner dismissed state from localStorage
+					this.notificationBannerDismissed = localStorage.getItem('notificator_banner_dismissed') === 'true';
+
 					this.loadSettings();
 					this.loadColumnWidths();
+					this.initializeColumns();
+					await this.loadUserColumnPreferences(); // Load user column preferences
 					this.loadCurrentUser();
+					this.loadAnnotationButtonConfigs();
 
 					// Check if URL has filter parameters
 					const params = new URLSearchParams(window.location.search);
@@ -173,14 +232,21 @@ templ DashboardCore() {
 					}
 					
 					this.checkAlertFromURL();
-					
-					document.addEventListener('visibilitychange', () => {
-						if (document.hidden) {
-							this.stopAutoRefresh();
-						} else {
-							this.startAutoRefresh();
-							this.loadDashboardIncremental();
+
+					document.addEventListener('visibilitychange', async () => {
+						if (!document.hidden) {
+							// Validate session when page becomes visible
+							const sessionValid = await this.validateSession();
+							if (!sessionValid) {
+								// If session invalid, stop refresh and redirect
+								this.stopAutoRefresh();
+								// validateSession() will handle redirect to login
+							} else {
+								// Do one incremental fetch to catch any missed updates
+								this.loadDashboardIncremental();
+							}
 						}
+						// Don't stop auto-refresh when hidden - let it continue fetching in background
 					});
 					
 					document.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -299,7 +365,13 @@ templ DashboardCore() {
 					window.notificationService.preferences.browserNotificationsEnabled = true;
 					await window.notificationService.savePreferences(window.notificationService.preferences);
 
+					// Update permission status in service
+					window.notificationService.permissionGranted = Notification.permission === 'granted';
+
 					console.log('Notifications enabled successfully');
+
+					// Auto-dismiss the banner since notifications are now enabled
+					this.dismissNotificationBanner();
 				},
 
 				dismissNotificationBanner() {

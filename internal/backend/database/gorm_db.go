@@ -2,6 +2,7 @@ package database
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -92,6 +93,12 @@ func (gdb *GormDB) GetDBType() string {
 	return gdb.dbType
 }
 
+// GetDB returns the underlying *gorm.DB instance
+// Used by services that need direct database access (e.g., rule engine)
+func (gdb *GormDB) GetDB() *gorm.DB {
+	return gdb.db
+}
+
 // IsSQLite returns true if the database is SQLite
 func (gdb *GormDB) IsSQLite() bool {
 	return gdb.dbType == "sqlite"
@@ -124,6 +131,7 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.UserHiddenRule{},
 		// Filter presets
 		&models.FilterPreset{},
+		&models.UserDefaultFilterPreset{},
 		// OAuth tables
 		&models.UserGroup{},
 		&models.OAuthToken{},
@@ -133,13 +141,59 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.OAuthGroupCache{},
 		// Sentry integration
 		&models.UserSentryConfig{},
+		// Alert statistics
+		&models.AlertStatistic{},
+		&models.OnCallRule{},
+		&models.StatisticsAggregate{},
+		// Annotation button configs
+		&models.AnnotationButtonConfig{},
 	)
 
 	if err != nil {
 		return fmt.Errorf("auto migration failed: %w", err)
 	}
 
+	// Create PostgreSQL-specific indexes for better JSONB query performance
+	if gdb.IsPostgreSQL() {
+		if err := gdb.createPostgreSQLIndexes(); err != nil {
+			log.Printf("⚠️  Warning: Failed to create PostgreSQL indexes: %v", err)
+			// Don't fail migration if index creation fails - indexes are optional optimizations
+		}
+	}
+
 	log.Println("✅ Database migrations completed")
+	return nil
+}
+
+// createPostgreSQLIndexes creates PostgreSQL-specific indexes for optimal performance
+func (gdb *GormDB) createPostgreSQLIndexes() error {
+	log.Println("Creating PostgreSQL-specific indexes...")
+
+	indexes := []string{
+		// GIN index on alert_statistics.metadata for fast JSONB queries
+		`CREATE INDEX IF NOT EXISTS idx_alert_statistics_metadata_gin
+		 ON alert_statistics USING GIN (metadata)`,
+
+		// GIN index specifically for labels queries (more targeted)
+		`CREATE INDEX IF NOT EXISTS idx_alert_statistics_metadata_labels_gin
+		 ON alert_statistics USING GIN ((metadata->'labels'))`,
+
+		// GIN index on on_call_rules.rule_config for rule queries
+		`CREATE INDEX IF NOT EXISTS idx_on_call_rules_config_gin
+		 ON on_call_rules USING GIN (rule_config)`,
+
+		// GIN index on statistics_aggregates.aggregated_data
+		`CREATE INDEX IF NOT EXISTS idx_statistics_aggregates_data_gin
+		 ON statistics_aggregates USING GIN (aggregated_data)`,
+	}
+
+	for _, indexSQL := range indexes {
+		if err := gdb.db.Exec(indexSQL).Error; err != nil {
+			return fmt.Errorf("failed to create index: %w", err)
+		}
+	}
+
+	log.Println("✅ PostgreSQL indexes created successfully")
 	return nil
 }
 
@@ -667,12 +721,38 @@ func (gdb *GormDB) GetFilterPresets(userID string, includeShared bool) ([]models
 		query = gdb.db.Where("user_id = ? OR is_shared = ?", userID, true)
 	}
 
-	err := query.Order("is_default DESC, created_at DESC").Find(&presets).Error
+	err := query.Order("created_at DESC").Find(&presets).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get filter presets: %w", err)
 	}
 
-	return presets, nil
+	// Get user's default preset ID
+	var userDefault models.UserDefaultFilterPreset
+	defaultErr := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error
+	defaultPresetID := ""
+	if defaultErr == nil {
+		defaultPresetID = userDefault.FilterPresetID
+	}
+
+	// Mark the default preset and sort (default first)
+	var sortedPresets []models.FilterPreset
+	var defaultPreset *models.FilterPreset
+	for i := range presets {
+		if presets[i].ID == defaultPresetID {
+			presets[i].IsDefault = true
+			defaultPreset = &presets[i]
+		} else {
+			presets[i].IsDefault = false
+			sortedPresets = append(sortedPresets, presets[i])
+		}
+	}
+
+	// Put default preset first if it exists
+	if defaultPreset != nil {
+		sortedPresets = append([]models.FilterPreset{*defaultPreset}, sortedPresets...)
+	}
+
+	return sortedPresets, nil
 }
 
 // GetFilterPresetByID gets a specific filter preset by ID
@@ -705,7 +785,8 @@ func (gdb *GormDB) DeleteFilterPreset(id, userID string) error {
 	return nil
 }
 
-// SetDefaultFilterPreset sets a filter preset as default (and unsets others)
+// SetDefaultFilterPreset sets a filter preset as default for a user
+// Users can set any preset (including shared ones) as their default
 func (gdb *GormDB) SetDefaultFilterPreset(id, userID string) error {
 	tx := gdb.db.Begin()
 	if tx.Error != nil {
@@ -717,27 +798,31 @@ func (gdb *GormDB) SetDefaultFilterPreset(id, userID string) error {
 		}
 	}()
 
-	// Unset all defaults for this user
-	if err := tx.Model(&models.FilterPreset{}).
-		Where("user_id = ?", userID).
-		Update("is_default", false).Error; err != nil {
+	// First verify that the preset exists and is accessible to the user
+	var preset models.FilterPreset
+	err := tx.Where("id = ? AND (user_id = ? OR is_shared = ?)", id, userID, true).First(&preset).Error
+	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to unset existing defaults: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("filter preset not found or not accessible")
+		}
+		return err
 	}
 
-	// Set the new default (with ownership check)
-	result := tx.Model(&models.FilterPreset{}).
-		Where("id = ? AND user_id = ?", id, userID).
-		Update("is_default", true)
-
-	if result.Error != nil {
+	// Delete existing default for this user (if any)
+	if err := tx.Where("user_id = ?", userID).Delete(&models.UserDefaultFilterPreset{}).Error; err != nil {
 		tx.Rollback()
-		return result.Error
+		return fmt.Errorf("failed to clear existing default: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
+	// Create new default entry
+	userDefault := &models.UserDefaultFilterPreset{
+		UserID:         userID,
+		FilterPresetID: id,
+	}
+	if err := tx.Create(userDefault).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("filter preset not found or not authorized")
+		return fmt.Errorf("failed to set new default: %w", err)
 	}
 
 	return tx.Commit().Error
@@ -745,10 +830,104 @@ func (gdb *GormDB) SetDefaultFilterPreset(id, userID string) error {
 
 // GetDefaultFilterPreset gets the default filter preset for a user
 func (gdb *GormDB) GetDefaultFilterPreset(userID string) (*models.FilterPreset, error) {
-	var preset models.FilterPreset
-	err := gdb.db.Where("user_id = ? AND is_default = ?", userID, true).First(&preset).Error
+	var userDefault models.UserDefaultFilterPreset
+	err := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error
 	if err != nil {
 		return nil, err
 	}
+
+	// Now get the actual preset
+	var preset models.FilterPreset
+	err = gdb.db.Where("id = ?", userDefault.FilterPresetID).First(&preset).Error
+	if err != nil {
+		return nil, err
+	}
+
 	return &preset, nil
+}
+
+// Annotation Button Config Methods
+
+// GetAnnotationButtonConfigs gets all annotation button configurations for a user
+func (gdb *GormDB) GetAnnotationButtonConfigs(userID string) ([]models.AnnotationButtonConfig, error) {
+	var configs []models.AnnotationButtonConfig
+	err := gdb.db.Where("user_id = ?", userID).
+		Order("display_order ASC, created_at ASC").
+		Find(&configs).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get annotation button configs: %w", err)
+	}
+
+	// If no configs exist, create default ones
+	if len(configs) == 0 {
+		defaultConfigs := models.DefaultAnnotationButtonConfigs(userID)
+		for i := range defaultConfigs {
+			if err := gdb.db.Create(&defaultConfigs[i]).Error; err != nil {
+				return nil, fmt.Errorf("failed to create default annotation button config: %w", err)
+			}
+		}
+		return defaultConfigs, nil
+	}
+
+	return configs, nil
+}
+
+// SaveAnnotationButtonConfigs saves all annotation button configurations for a user
+// This replaces all existing configs with the new ones
+func (gdb *GormDB) SaveAnnotationButtonConfigs(userID string, configs []models.AnnotationButtonConfig) error {
+	tx := gdb.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Delete all existing configs for this user
+	if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&models.AnnotationButtonConfig{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete existing configs: %w", err)
+	}
+
+	// Create all new configs
+	for i := range configs {
+		configs[i].UserID = userID
+		if err := tx.Create(&configs[i]).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create config: %w", err)
+		}
+	}
+
+	return tx.Commit().Error
+}
+
+// CreateAnnotationButtonConfig creates a new annotation button configuration
+func (gdb *GormDB) CreateAnnotationButtonConfig(config *models.AnnotationButtonConfig) error {
+	if err := gdb.db.Create(config).Error; err != nil {
+		return fmt.Errorf("failed to create annotation button config: %w", err)
+	}
+	return nil
+}
+
+// UpdateAnnotationButtonConfig updates an existing annotation button configuration
+func (gdb *GormDB) UpdateAnnotationButtonConfig(config *models.AnnotationButtonConfig) error {
+	if err := gdb.db.Save(config).Error; err != nil {
+		return fmt.Errorf("failed to update annotation button config: %w", err)
+	}
+	return nil
+}
+
+// DeleteAnnotationButtonConfig deletes an annotation button configuration
+func (gdb *GormDB) DeleteAnnotationButtonConfig(userID, configID string) error {
+	result := gdb.db.Where("id = ? AND user_id = ?", configID, userID).Delete(&models.AnnotationButtonConfig{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("annotation button config not found or not authorized")
+	}
+	return nil
 }

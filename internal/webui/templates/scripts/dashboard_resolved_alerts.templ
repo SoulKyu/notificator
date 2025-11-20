@@ -1,0 +1,329 @@
+package scripts
+
+templ DashboardResolvedAlertsMixin() {
+	<script>
+		window.dashboardResolvedAlertsMixin = {
+			// State (will be merged into dashboard)
+			resolvedAlerts: [],
+			resolvedTotalCount: 0,
+			resolvedLoading: false,
+
+			// Time range for resolved alerts (separate from main filters)
+			resolvedTimeRange: {
+				start: '', // datetime-local format
+				end: '',   // datetime-local format
+			},
+
+			// Include silenced alerts in results (default: false - exclude silenced)
+			resolvedIncludeSilenced: false,
+
+			// Pagination for resolved alerts
+			resolvedPagination: {
+				limit: 100,
+				offset: 0
+			},
+
+			// Sorting for resolved alerts
+			resolvedSortField: 'last_resolved_at',  // Default sort by last resolved
+			resolvedSortDirection: 'desc',          // Most recent first
+
+			// Initialize time range on component init
+			initResolvedTimeRange() {
+				const now = new Date();
+				const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+				// Format for datetime-local input (YYYY-MM-DDTHH:mm)
+				this.resolvedTimeRange.end = this.formatDateTimeLocal(now);
+				this.resolvedTimeRange.start = this.formatDateTimeLocal(oneDayAgo);
+			},
+
+			// Format date for datetime-local input
+			formatDateTimeLocal(date) {
+				const year = date.getFullYear();
+				const month = String(date.getMonth() + 1).padStart(2, '0');
+				const day = String(date.getDate()).padStart(2, '0');
+				const hours = String(date.getHours()).padStart(2, '0');
+				const minutes = String(date.getMinutes()).padStart(2, '0');
+				return `${year}-${month}-${day}T${hours}:${minutes}`;
+			},
+
+			// Set time range with preset (hours from now)
+			async setResolvedTimeRange(hours) {
+				const now = new Date();
+				const startDate = new Date(now.getTime() - (hours * 60 * 60 * 1000));
+
+				this.resolvedTimeRange.start = this.formatDateTimeLocal(startDate);
+				this.resolvedTimeRange.end = this.formatDateTimeLocal(now);
+
+				await this.applyResolvedTimeRange();
+			},
+
+			// Apply time range change and reload
+			async applyResolvedTimeRange() {
+				this.resolvedPagination.offset = 0; // Reset pagination
+				await this.loadResolvedAlerts();
+			},
+
+			// Count active filters from main dashboard
+			getActiveFiltersCount() {
+				let count = 0;
+				if (this.filters.alertmanagers && this.filters.alertmanagers.length > 0) count++;
+				if (this.filters.severities && this.filters.severities.length > 0) count++;
+				if (this.filters.statuses && this.filters.statuses.length > 0) count++;
+				if (this.filters.teams && this.filters.teams.length > 0) count++;
+				if (this.filters.alertNames && this.filters.alertNames.length > 0) count++;
+				if (this.searchQuery && this.searchQuery.trim().length > 0) count++;
+				if (this.acknowledgmentFilter !== null) count++;
+				if (this.commentsFilter !== null) count++;
+				return count;
+			},
+
+			// Load recently resolved alerts using main dashboard filters + time range
+			async loadResolvedAlerts() {
+				// Initialize time range if not set
+				if (!this.resolvedTimeRange.start || !this.resolvedTimeRange.end) {
+					this.initResolvedTimeRange();
+				}
+
+				this.resolvedLoading = true;
+
+				try {
+					// Parse datetime-local to ISO string
+					const startDate = new Date(this.resolvedTimeRange.start);
+					const endDate = new Date(this.resolvedTimeRange.end);
+
+
+					// Build request using main dashboard filters
+					const requestBody = {
+						start_date: startDate.toISOString(),
+						end_date: endDate.toISOString(),
+						severity: this.filters.severities || [],
+						team: (this.filters.teams && this.filters.teams.length > 0) ? this.filters.teams.join(',') : '',
+						alert_name: (this.filters.alertNames && this.filters.alertNames.length > 0) ? this.filters.alertNames.join(',') : '',
+						search_query: this.searchQuery || '',
+						include_silenced: this.resolvedIncludeSilenced,
+						limit: this.resolvedPagination.limit,
+						offset: this.resolvedPagination.offset
+					};
+
+					console.log('Loading resolved alerts with filters:', requestBody);
+
+					const response = await fetch('/api/v1/statistics/recently-resolved', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(requestBody)
+					});
+
+					const data = await response.json();
+
+					if (data.success && data.data) {
+						this.resolvedAlerts = data.data.alerts || [];
+						this.resolvedTotalCount = data.data.total_count || 0;
+						console.log(`Loaded ${this.resolvedAlerts.length} unique fingerprints (${this.resolvedTotalCount} total)`);
+						console.log('Sample alert:', this.resolvedAlerts[0]);
+					} else {
+						console.error('Failed to load resolved alerts:', data.message || 'Unknown error');
+						this.resolvedAlerts = [];
+						this.resolvedTotalCount = 0;
+					}
+				} catch (error) {
+					console.error('Error loading resolved alerts:', error);
+					this.resolvedAlerts = [];
+					this.resolvedTotalCount = 0;
+				} finally {
+					this.resolvedLoading = false;
+				}
+			},
+
+			// Pagination
+			async loadResolvedPage(offset) {
+				this.resolvedPagination.offset = offset;
+				await this.loadResolvedAlerts();
+			},
+
+			// Format duration for display
+			formatResolvedDuration(seconds) {
+				if (!seconds || seconds === 0) return '0s';
+
+				const hours = Math.floor(seconds / 3600);
+				const minutes = Math.floor((seconds % 3600) / 60);
+				const secs = seconds % 60;
+
+				const parts = [];
+				if (hours > 0) parts.push(`${hours}h`);
+				if (minutes > 0) parts.push(`${minutes}m`);
+				if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+
+				return parts.join(' ');
+			},
+
+			// Get severity badge class
+			getResolvedSeverityClass(severity) {
+				const classes = {
+					'critical': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+					'warning': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+					'info': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+				};
+				return classes[severity.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+			},
+
+			// Show alert details from resolved tab
+			async showResolvedAlertDetails(alert) {
+				// Use existing modal infrastructure - just pass fingerprint
+				await this.showAlertDetails(alert.fingerprint);
+			},
+
+			// Toggle sort for resolved alerts table
+			sortResolvedAlerts(field) {
+				if (this.resolvedSortField === field) {
+					// Toggle direction if clicking same field
+					this.resolvedSortDirection = this.resolvedSortDirection === 'asc' ? 'desc' : 'asc';
+				} else {
+					// New field - default to ascending
+					this.resolvedSortField = field;
+					this.resolvedSortDirection = 'asc';
+				}
+			},
+
+			// Get sorted resolved alerts
+			getSortedResolvedAlerts() {
+				if (!this.resolvedAlerts || this.resolvedAlerts.length === 0) {
+					return [];
+				}
+
+				const sorted = [...this.resolvedAlerts];
+				const field = this.resolvedSortField;
+				const direction = this.resolvedSortDirection;
+
+				sorted.sort((a, b) => {
+					let aVal = a[field];
+					let bVal = b[field];
+
+					// Handle null/undefined values
+					if (aVal === null || aVal === undefined) aVal = '';
+					if (bVal === null || bVal === undefined) bVal = '';
+
+					// Special handling for different data types
+					if (field === 'occurrence_count' || field === 'avg_duration' ||
+					    field === 'avg_mttr' || field === 'total_duration' || field === 'total_mttr') {
+						// Numeric comparison
+						aVal = parseFloat(aVal) || 0;
+						bVal = parseFloat(bVal) || 0;
+					} else if (field === 'first_fired_at' || field === 'last_resolved_at') {
+						// Date comparison
+						aVal = new Date(aVal).getTime();
+						bVal = new Date(bVal).getTime();
+					} else {
+						// String comparison (case-insensitive)
+						aVal = String(aVal).toLowerCase();
+						bVal = String(bVal).toLowerCase();
+					}
+
+					if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+					if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+					return 0;
+				});
+
+				return sorted;
+			},
+
+			// Calculate statistics from resolved alerts
+			calculateResolvedStatistics() {
+				if (!this.resolvedAlerts || this.resolvedAlerts.length === 0) {
+					return {
+						totalResolved: 0,
+						totalOccurrences: 0,
+						avgMTTR: 0,
+						avgDuration: 0,
+						mostFrequent: null,
+						fastestResolution: null,
+						severityBreakdown: { critical: 0, warning: 0, info: 0 }
+					};
+				}
+
+				let totalOccurrences = 0;
+				let totalDuration = 0;
+				let totalMTTR = 0;
+				const severityBreakdown = { critical: 0, warning: 0, info: 0 };
+				let fastestResolution = null;
+				let mostFrequent = null;
+
+				this.resolvedAlerts.forEach(alert => {
+					// Count occurrences
+					const occurrences = alert.occurrences || 1;
+					totalOccurrences += occurrences;
+
+					// Sum durations
+					if (alert.avg_duration) {
+						totalDuration += alert.avg_duration;
+					}
+
+					// Sum MTTR
+					if (alert.avg_mttr) {
+						totalMTTR += alert.avg_mttr;
+					}
+
+					// Count by severity
+					const severity = (alert.severity || 'info').toLowerCase();
+					if (severity === 'critical' || severity === 'critical-daytime') {
+						severityBreakdown.critical += occurrences;
+					} else if (severity === 'warning') {
+						severityBreakdown.warning += occurrences;
+					} else {
+						severityBreakdown.info += occurrences;
+					}
+
+					// Find most frequent
+					if (!mostFrequent || occurrences > mostFrequent.occurrences) {
+						mostFrequent = alert;
+					}
+
+					// Find fastest resolution
+					if (alert.avg_mttr && (!fastestResolution || alert.avg_mttr < fastestResolution.avg_mttr)) {
+						fastestResolution = alert;
+					}
+				});
+
+				const alertCount = this.resolvedAlerts.length;
+
+				return {
+					totalResolved: alertCount,
+					totalOccurrences: totalOccurrences,
+					avgMTTR: alertCount > 0 ? totalMTTR / alertCount : 0,
+					avgDuration: alertCount > 0 ? totalDuration / alertCount : 0,
+					mostFrequent: mostFrequent,
+					fastestResolution: fastestResolution,
+					severityBreakdown: severityBreakdown
+				};
+			},
+
+			// Format duration in seconds to human-readable string
+			formatDurationHuman(seconds) {
+				if (!seconds || seconds < 0) return '0s';
+
+				const hours = Math.floor(seconds / 3600);
+				const minutes = Math.floor((seconds % 3600) / 60);
+				const secs = Math.floor(seconds % 60);
+
+				if (hours > 0) {
+					return `${hours}h ${minutes}m`;
+				} else if (minutes > 0) {
+					return `${minutes}m ${secs}s`;
+				} else {
+					return `${secs}s`;
+				}
+			},
+
+			// Format large numbers with K/M suffix
+			formatNumber(num) {
+				if (!num || num < 0) return '0';
+				if (num >= 1000000) {
+					return (num / 1000000).toFixed(1) + 'M';
+				} else if (num >= 1000) {
+					return (num / 1000).toFixed(1) + 'K';
+				}
+				return num.toString();
+			}
+		};
+	</script>
+}

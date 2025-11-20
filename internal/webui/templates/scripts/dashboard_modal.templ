@@ -19,6 +19,12 @@ templ DashboardModal() {
 					const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}`, {
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -151,6 +157,11 @@ templ DashboardModal() {
 						})
 					});
 
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
 					const result = await response.json();
 					
 					if (result.success) {
@@ -183,6 +194,11 @@ templ DashboardModal() {
 						method: 'DELETE',
 						credentials: 'include'
 					});
+
+					// Check for authentication errors and redirect if needed
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
 
 					const result = await response.json();
 					
@@ -453,6 +469,26 @@ templ DashboardModal() {
 						component.sentryLoading = false;
 					}
 				}
+			},
+
+			// Helper methods for annotation buttons
+			hasMatchingAnnotation(buttonConfig) {
+				if (!buttonConfig || !buttonConfig.enabled) return false;
+				const annotations = this.alertDetails?.alert?.annotations || {};
+				return buttonConfig.annotation_keys?.some(key => annotations[key]);
+			},
+
+			getAnnotationUrl(buttonConfig) {
+				const annotations = this.alertDetails?.alert?.annotations || {};
+				const matchedKey = buttonConfig.annotation_keys?.find(key => annotations[key]);
+				return matchedKey ? annotations[matchedKey] : null;
+			},
+
+			openAnnotationUrl(buttonConfig) {
+				const url = this.getAnnotationUrl(buttonConfig);
+				if (url) {
+					window.open(url, '_blank');
+				}
 			}
 		};
 
@@ -468,6 +504,55 @@ templ DashboardModal() {
 				this.sentryError = 'Dashboard not properly initialized';
 				this.sentryLoading = false;
 			}
+		};
+
+		window.dashboardModalMixin.loadAlertHistory = async function() {
+			if (!this.alertDetails?.alert?.fingerprint) {
+				console.error('No alert fingerprint available');
+				return;
+			}
+
+			this.historyLoading = true;
+
+			try {
+				const response = await fetch(
+					`/api/v1/dashboard/alert/${this.alertDetails.alert.fingerprint}/history`,
+					{ credentials: 'include' }
+				);
+
+				if (response.ok) {
+					const result = await response.json();
+					if (result.success) {
+						this.alertHistory = result.data;
+					} else {
+						console.error('Failed to load alert history:', result.error);
+						this.alertHistory = null;
+					}
+				} else {
+					console.error('Failed to fetch alert history');
+					this.alertHistory = null;
+				}
+			} catch (error) {
+				console.error('Error loading alert history:', error);
+				this.alertHistory = null;
+			} finally {
+				this.historyLoading = false;
+			}
+		};
+
+		window.dashboardModalMixin.formatDuration = function(seconds) {
+			if (!seconds || seconds < 0) return '0s';
+			const hours = Math.floor(seconds / 3600);
+			const minutes = Math.floor((seconds % 3600) / 60);
+			const secs = Math.floor(seconds % 60);
+			if (hours > 0) return `${hours}h ${minutes}m`;
+			if (minutes > 0) return `${minutes}m ${secs}s`;
+			return `${secs}s`;
+		};
+
+		window.dashboardModalMixin.formatDateTime = function(dateStr) {
+			if (!dateStr) return 'N/A';
+			return new Date(dateStr).toLocaleString();
 		};
 	</script>
 }

@@ -605,7 +605,7 @@ func min(a, b int) int {
 }
 
 func (c *Client) DebugURL() {
-	fmt.Printf("DEBUG: Using Alertmanager URL: %s/api/v2/alerts\n", c.BaseURL)
+
 }
 
 func (c *Client) TestAPIEndpoints() {

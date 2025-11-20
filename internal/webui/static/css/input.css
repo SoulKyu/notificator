@@ -1,6 +1,75 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Dark mode colors */
+  --color-dark-bg-primary: #0f1114;
+  --color-dark-bg-secondary: #1a1d21;
+  --color-dark-bg-tertiary: #242830;
+  --color-dark-bg-elevated: #2d323b;
+
+  --color-dark-border-subtle: #2d323b;
+  --color-dark-border-DEFAULT: #3a404d;
+  --color-dark-border-strong: #4a5264;
+
+  /* Primary colors */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+
+  /* Severity colors */
+  --color-severity-critical-light: #dc2626;
+  --color-severity-critical-dark: #ef4444;
+  --color-severity-critical-bg-light: #fee2e2;
+  --color-severity-critical-bg-dark: #7f1d1d;
+  --color-severity-critical-text-light: #991b1b;
+  --color-severity-critical-text-dark: #fca5a5;
+
+  --color-severity-critical-daytime-light: #be123c;
+  --color-severity-critical-daytime-dark: #fb7185;
+  --color-severity-critical-daytime-bg-light: #ffe4e6;
+  --color-severity-critical-daytime-bg-dark: #881337;
+  --color-severity-critical-daytime-text-light: #9f1239;
+  --color-severity-critical-daytime-text-dark: #fda4af;
+
+  --color-severity-warning-light: #d97706;
+  --color-severity-warning-dark: #fbbf24;
+  --color-severity-warning-bg-light: #fef3c7;
+  --color-severity-warning-bg-dark: #451a03;
+  --color-severity-warning-text-light: #92400e;
+  --color-severity-warning-text-dark: #fef3c7;
+
+  --color-severity-info-light: #2563eb;
+  --color-severity-info-dark: #60a5fa;
+  --color-severity-info-bg-light: #dbeafe;
+  --color-severity-info-bg-dark: #1e3a8a;
+  --color-severity-info-text-light: #1e40af;
+  --color-severity-info-text-dark: #93c5fd;
+
+  --color-severity-success-light: #059669;
+  --color-severity-success-dark: #34d399;
+  --color-severity-success-bg-light: #d1fae5;
+  --color-severity-success-bg-dark: #064e3b;
+  --color-severity-success-text-light: #065f46;
+  --color-severity-success-text-dark: #a7f3d0;
+
+  /* Animations */
+  --animate-fade-in: fadeIn 0.2s ease-in-out;
+  --animate-slide-in: slideIn 0.3s ease-out;
+  --animate-pulse-soft: pulseSoft 2s ease-in-out infinite;
+
+  /* Shadows */
+  --shadow-dark-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-dark-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
 
 @layer base {
   html {
@@ -12,39 +81,43 @@
   .btn {
     @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
-  
+
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 dark:bg-primary-500 dark:hover:bg-primary-600;
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 dark:bg-primary-500 dark:hover:bg-primary-600;
   }
-  
+
   .btn-secondary {
-    @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500 dark:bg-dark-bg-tertiary dark:text-gray-100 dark:hover:bg-dark-bg-elevated dark:focus:ring-primary-400;
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500 dark:bg-dark-bg-tertiary dark:text-gray-100 dark:hover:bg-dark-bg-elevated dark:focus:ring-primary-400;
   }
-  
+
   .input-field {
-    @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-dark-bg-secondary dark:border-dark-border-default dark:text-white dark:placeholder-gray-500 dark:focus:ring-primary-400 dark:focus:border-primary-400;
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-dark-bg-secondary dark:border-dark-border-DEFAULT dark:text-white dark:placeholder-gray-500 dark:focus:ring-primary-400 dark:focus:border-primary-400;
   }
-  
+
   .card {
-    @apply bg-white dark:bg-dark-bg-secondary shadow-lg rounded-lg border border-gray-200 dark:border-dark-border-subtle dark:shadow-dark-lg;
+    @apply bg-white dark:bg-dark-bg-secondary shadow-lg rounded-lg border border-gray-200 dark:border-dark-border-subtle;
   }
-  
+
+  .dark .card {
+    box-shadow: var(--shadow-dark-lg);
+  }
+
   .severity-critical {
     @apply bg-severity-critical-bg-light text-severity-critical-text-light dark:bg-severity-critical-bg-dark dark:text-severity-critical-text-dark;
   }
-  
+
   .severity-critical-daytime {
     @apply bg-severity-critical-daytime-bg-light text-severity-critical-daytime-text-light dark:bg-severity-critical-daytime-bg-dark dark:text-severity-critical-daytime-text-dark;
   }
-  
+
   .severity-warning {
     @apply bg-severity-warning-bg-light text-severity-warning-text-light dark:bg-severity-warning-bg-dark dark:text-severity-warning-text-dark;
   }
-  
+
   .severity-info {
     @apply bg-severity-info-bg-light text-severity-info-text-light dark:bg-severity-info-bg-dark dark:text-severity-info-text-dark;
   }
-  
+
   /* Alert Table Text Overflow */
   .alert-cell-text {
     @apply truncate pr-2;
@@ -53,17 +126,17 @@
     white-space: nowrap;
     max-width: 100%;
   }
-  
+
   .alert-cell-container {
     @apply flex items-center;
     min-width: 0; /* Important for flex truncation */
   }
-  
+
   /* Tooltip styles for truncated text */
   .text-tooltip {
     position: relative;
   }
-  
+
   .text-tooltip:hover::after {
     content: attr(title);
     position: absolute;
@@ -79,7 +152,7 @@
     z-index: 1000;
     pointer-events: none;
   }
-  
+
   .text-tooltip:hover::before {
     content: '';
     position: absolute;
@@ -90,26 +163,26 @@
     border-top-color: rgba(0, 0, 0, 0.9);
     z-index: 1000;
   }
-  
+
   /* Table responsive improvements */
   .alert-table-container {
-    @apply overflow-x-auto overflow-y-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg dark:ring-dark-border-subtle dark:ring-opacity-100;
+    @apply overflow-x-auto overflow-y-auto shadow ring-1 ring-black/5 rounded-lg dark:ring-dark-border-subtle;
     max-height: calc(100vh - 200px);
   }
-  
+
   .alert-table {
     @apply w-full divide-y divide-gray-200 dark:divide-dark-border-subtle;
     table-layout: fixed;
     min-width: 1400px;
   }
-  
+
   /* Enhanced notification interaction - alert highlighting */
   .highlight-alert {
     @apply bg-primary-100 dark:bg-primary-900/20 border-2 border-primary-400 dark:border-primary-500;
     transition: all 0.3s ease-in-out;
     animation: pulseHighlight 2s ease-in-out;
   }
-  
+
   @keyframes pulseHighlight {
     0% {
       background-color: rgb(147 197 253); /* blue-300 */
@@ -124,7 +197,7 @@
       border-color: rgb(59 130 246); /* blue-500 */
     }
   }
-  
+
   @media (prefers-color-scheme: dark) {
     @keyframes pulseHighlight {
       0% {
@@ -141,23 +214,23 @@
       }
     }
   }
-  
+
   /* Alert row severity indicators */
   .alert-row-critical {
     @apply border-l-4 border-severity-critical-light dark:border-severity-critical-dark;
     @apply bg-severity-critical-bg-light/10 dark:bg-severity-critical-bg-dark/10;
   }
-  
+
   .alert-row-critical-daytime {
     @apply border-l-4 border-severity-critical-daytime-light dark:border-severity-critical-daytime-dark;
     @apply bg-severity-critical-daytime-bg-light/10 dark:bg-severity-critical-daytime-bg-dark/10;
   }
-  
+
   .alert-row-warning {
     @apply border-l-4 border-severity-warning-light dark:border-severity-warning-dark;
     @apply bg-severity-warning-bg-light/10 dark:bg-severity-warning-bg-dark/10;
   }
-  
+
   .alert-row-info, .alert-row-information {
     @apply border-l-4 border-severity-info-light dark:border-severity-info-dark;
     @apply bg-severity-info-bg-light/10 dark:bg-severity-info-bg-dark/10;
@@ -169,4 +242,19 @@
   .z-60 {
     z-index: 60;
   }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideIn {
+  0% { transform: translateY(-10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
 }

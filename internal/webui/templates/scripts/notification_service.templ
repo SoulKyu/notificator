@@ -12,6 +12,8 @@ templ NotificationService() {
 				soundNotificationsEnabled: true
 			},
 			seenAlerts: new Set(),
+			notificationTimestamps: [], // Track recent notification times for rate limiting
+			notificationQueue: [], // Queue for notifications when rate limited
 
 			// Initialize the notification service
 			async init(userID) {
@@ -35,13 +37,28 @@ templ NotificationService() {
 					console.warn('Browser does not support notifications');
 				}
 
-				// Initialize seen alerts from sessionStorage
+				// Initialize seen alerts from localStorage with 24h expiration
 				const storageKey = 'notificator_seen_alerts_' + userID;
-				const stored = sessionStorage.getItem(storageKey);
+				const stored = localStorage.getItem(storageKey);
 				if (stored) {
 					try {
-						const fingerprints = JSON.parse(stored);
-						this.seenAlerts = new Set(fingerprints);
+						const seenData = JSON.parse(stored);
+						const now = Date.now();
+						const twentyFourHours = 24 * 60 * 60 * 1000;
+
+						// Filter out alerts older than 24 hours
+						const validAlerts = seenData.filter(item => {
+							return item.timestamp && (now - item.timestamp) < twentyFourHours;
+						});
+
+						this.seenAlerts = new Set(validAlerts.map(item => item.fingerprint));
+
+						// Save back the cleaned data
+						if (validAlerts.length !== seenData.length) {
+							localStorage.setItem(storageKey, JSON.stringify(validAlerts));
+							console.log('Cleaned', seenData.length - validAlerts.length, 'expired alerts');
+						}
+
 						console.log('Loaded', this.seenAlerts.size, 'seen alerts from storage');
 					} catch (e) {
 						console.error('Failed to parse seen alerts:', e);
@@ -126,9 +143,11 @@ templ NotificationService() {
 				const fingerprints = alerts.map(a => a.fingerprint);
 				this.seenAlerts = new Set(fingerprints);
 
-				// Save to sessionStorage
+				// Save to localStorage with timestamps
 				const storageKey = 'notificator_seen_alerts_' + userID;
-				sessionStorage.setItem(storageKey, JSON.stringify(fingerprints));
+				const now = Date.now();
+				const seenData = fingerprints.map(fp => ({ fingerprint: fp, timestamp: now }));
+				localStorage.setItem(storageKey, JSON.stringify(seenData));
 
 				console.log('Initialized', this.seenAlerts.size, 'seen alerts');
 			},
@@ -137,9 +156,33 @@ templ NotificationService() {
 			markAsSeen(fingerprints, userID) {
 				fingerprints.forEach(fp => this.seenAlerts.add(fp));
 
-				// Save to sessionStorage
+				// Load existing data, add new fingerprints with timestamps, save back
 				const storageKey = 'notificator_seen_alerts_' + userID;
-				sessionStorage.setItem(storageKey, JSON.stringify(Array.from(this.seenAlerts)));
+				const stored = localStorage.getItem(storageKey);
+				let seenData = [];
+
+				if (stored) {
+					try {
+						seenData = JSON.parse(stored);
+					} catch (e) {
+						console.error('Failed to parse seen alerts:', e);
+					}
+				}
+
+				// Add new fingerprints with current timestamp
+				const now = Date.now();
+				const newData = fingerprints.map(fp => ({ fingerprint: fp, timestamp: now }));
+				seenData.push(...newData);
+
+				// Remove duplicates (keep most recent timestamp)
+				const fingerprintMap = new Map();
+				seenData.forEach(item => {
+					if (!fingerprintMap.has(item.fingerprint) || item.timestamp > fingerprintMap.get(item.fingerprint).timestamp) {
+						fingerprintMap.set(item.fingerprint, item);
+					}
+				});
+
+				localStorage.setItem(storageKey, JSON.stringify(Array.from(fingerprintMap.values())));
 			},
 
 			// Detect new alerts (not in seen set)
@@ -222,78 +265,23 @@ templ NotificationService() {
 				}
 			},
 
-			// Show browser notification
+			// Show browser notification (with rate limiting)
 			showNotification(alert) {
 				if (!this.shouldNotify(alert)) {
 					return;
 				}
 
-				const alertName = alert.alertName || alert.labels?.alertname || 'Alert';
-				const summary = alert.summary || alert.annotations?.summary || '';
-				const severity = alert.severity || alert.labels?.severity || 'info';
-				const source = alert.source || '';
-				// Capture fingerprint to ensure it's available in the click handler closure
-				const fingerprint = alert.fingerprint;
+				// Check if we can show notification (rate limit: max 5 per minute)
+				if (this.canShowNotification()) {
+					// Show immediately
+					this.showNotificationImmediate(alert);
+				} else {
+					// Add to queue
+					console.log('Rate limit reached, queuing notification for:', alert.alertName || alert.fingerprint);
+					this.notificationQueue.push(alert);
 
-				// Validate fingerprint exists
-				if (!fingerprint) {
-					console.error('Cannot show notification: alert fingerprint is missing', alert);
-					return;
-				}
-
-				// Play notification sound
-				this.playNotificationSound(severity);
-
-				const title = `Alert: ${alertName}`;
-				const body = summary || `${severity.toUpperCase()} alert from ${source}`;
-
-				const options = {
-					body: body,
-					icon: this.getNotificationIcon(severity),
-					badge: '/static/images/default-icon.png',
-					tag: fingerprint, // Prevents duplicates
-					requireInteraction: severity.toLowerCase() === 'critical',
-					data: {
-						fingerprint: fingerprint,
-						alertName: alertName
-					}
-				};
-
-				try {
-					const notification = new Notification(title, options);
-
-					// Handle notification click - navigate to alert details
-					notification.onclick = () => {
-							window.focus();
-
-							// Validate fingerprint before navigation
-							if (!fingerprint) {
-								console.error('Cannot navigate: fingerprint is missing');
-								return;
-							}
-
-							console.log('Notification clicked, navigating to alert:', fingerprint);
-
-							// Check if we're already on the dashboard
-							if (window.location.pathname.startsWith('/dashboard')) {
-								// Already on dashboard - just open the modal directly
-								if (window.dashboardInstance && window.dashboardInstance.showAlertDetails) {
-									window.dashboardInstance.showAlertDetails(fingerprint);
-								} else {
-									// Fallback: navigate to the URL
-									window.location.href = `/dashboard/alert/${fingerprint}`;
-								}
-							} else {
-								// Navigate to dashboard with alert ID
-								window.location.href = `/dashboard/alert/${fingerprint}`;
-							}
-
-							notification.close();
-						};
-
-					console.log('Showed notification for alert:', alertName, 'fingerprint:', fingerprint);
-				} catch (error) {
-					console.error('Failed to show notification:', error);
+					// Start processing queue if not already running
+					setTimeout(() => this.processNotificationQueue(), 10000);
 				}
 			},
 
@@ -331,6 +319,112 @@ templ NotificationService() {
 					default: '#6b7280'        // gray-500
 				};
 				return colors[severity.toLowerCase()] || colors.default;
+			},
+
+			// Check if we can show a notification (rate limiting: max 5 per minute)
+			canShowNotification() {
+				const now = Date.now();
+				const oneMinute = 60 * 1000;
+
+				// Remove timestamps older than 1 minute
+				this.notificationTimestamps = this.notificationTimestamps.filter(timestamp => {
+					return (now - timestamp) < oneMinute;
+				});
+
+				// Check if we're under the limit
+				return this.notificationTimestamps.length < 5;
+			},
+
+			// Record that a notification was shown
+			recordNotification() {
+				this.notificationTimestamps.push(Date.now());
+			},
+
+			// Process queued notifications (called periodically)
+			processNotificationQueue() {
+				if (this.notificationQueue.length === 0) {
+					return;
+				}
+
+				while (this.notificationQueue.length > 0 && this.canShowNotification()) {
+					const alert = this.notificationQueue.shift();
+					this.showNotificationImmediate(alert);
+				}
+
+				// If there are still queued notifications, check again in 10 seconds
+				if (this.notificationQueue.length > 0) {
+					setTimeout(() => this.processNotificationQueue(), 10000);
+				}
+			},
+
+			// Show notification immediately (used internally, bypasses rate limit check)
+			showNotificationImmediate(alert) {
+				// Record that we're showing a notification
+				this.recordNotification();
+
+				// Call the original showNotification logic
+				if (!this.shouldNotify(alert)) {
+					return;
+				}
+
+				const alertName = alert.alertName || alert.labels?.alertname || 'Alert';
+				const summary = alert.summary || alert.annotations?.summary || '';
+				const severity = alert.severity || alert.labels?.severity || 'info';
+				const source = alert.source || '';
+				const fingerprint = alert.fingerprint;
+
+				if (!fingerprint) {
+					console.error('Cannot show notification: alert fingerprint is missing', alert);
+					return;
+				}
+
+				this.playNotificationSound(severity);
+
+				const title = `Alert: ${alertName}`;
+				const body = summary || `${severity.toUpperCase()} alert from ${source}`;
+
+				const options = {
+					body: body,
+					icon: this.getNotificationIcon(severity),
+					badge: '/static/images/default-icon.png',
+					tag: fingerprint,
+					requireInteraction: severity.toLowerCase() === 'critical',
+					data: {
+						fingerprint: fingerprint,
+						alertName: alertName
+					}
+				};
+
+				try {
+					const notification = new Notification(title, options);
+
+					notification.onclick = () => {
+						window.focus();
+
+						if (!fingerprint) {
+							console.error('Cannot navigate: fingerprint is missing');
+							return;
+						}
+
+						console.log('Notification clicked, navigating to alert:', fingerprint);
+
+						if (window.location.pathname.startsWith('/dashboard')) {
+							if (window.dashboardInstance && window.dashboardInstance.showAlertDetails) {
+								window.dashboardInstance.showAlertDetails(fingerprint);
+							} else {
+								window.location.href = `/dashboard/alert/${fingerprint}`;
+							}
+						} else {
+							window.location.href = `/dashboard/alert/${fingerprint}`;
+						}
+
+						notification.close();
+					};
+
+					console.log('Showed notification for alert:', alertName, 'fingerprint:', fingerprint);
+				} catch (error) {
+					console.error('Failed to show notification:', error);
+				}
 			}
 		};
 

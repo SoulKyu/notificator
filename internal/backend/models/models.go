@@ -173,15 +173,16 @@ func (ResolvedAlert) TableName() string { return "resolved_alerts" }
 
 // FilterPreset represents a saved filter configuration for the dashboard
 type FilterPreset struct {
-	ID          string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	UserID      string    `gorm:"not null;size:32;index" json:"user_id"`
-	Name        string    `gorm:"not null;size:255" json:"name"`
-	Description string    `gorm:"type:text" json:"description,omitempty"`
-	IsShared    bool      `gorm:"default:false;index" json:"is_shared"`
-	IsDefault   bool      `gorm:"default:false" json:"is_default"`
-	FilterData  JSONB     `gorm:"type:jsonb;not null" json:"filter_data"` // Type handled by Scanner/Valuer
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
+	UserID        string    `gorm:"not null;size:32;index" json:"user_id"`
+	Name          string    `gorm:"not null;size:255" json:"name"`
+	Description   string    `gorm:"type:text" json:"description,omitempty"`
+	IsShared      bool      `gorm:"default:false;index" json:"is_shared"`
+	IsDefault     bool      `gorm:"default:false" json:"is_default"`
+	FilterData    JSONB     `gorm:"type:jsonb;not null" json:"filter_data"`    // Type handled by Scanner/Valuer
+	ColumnConfigs JSONB     `gorm:"type:jsonb" json:"column_configs,omitempty"` // Column configuration
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }
@@ -194,6 +195,129 @@ func (fp *FilterPreset) BeforeCreate(tx *gorm.DB) error {
 }
 
 func (FilterPreset) TableName() string { return "filter_presets" }
+
+// ColumnConfig represents a single column configuration in the dashboard table
+type ColumnConfig struct {
+	ID        string `json:"id"`         // Unique ID: "col_alertname", "col_custom_env"
+	Label     string `json:"label"`      // Display name: "Alert Name", "Environment"
+	FieldType string `json:"field_type"` // "system", "label", "annotation"
+	FieldPath string `json:"field_path"` // "alertName", "labels.environment", "annotations.summary"
+	Formatter string `json:"formatter"`  // "text", "badge", "duration", "timestamp", "count", "checkbox", "actions"
+	Width     int    `json:"width"`      // Column width in pixels (50-800)
+	Sortable  bool   `json:"sortable"`   // Can be sorted
+	Visible   bool   `json:"visible"`    // Show/hide toggle
+	Order     int    `json:"order"`      // Display order (0-based)
+	Resizable bool   `json:"resizable"`  // Can be resized
+	Critical  bool   `json:"critical"`   // Cannot be deleted (but can be hidden/reordered)
+}
+
+// DefaultColumnConfigs returns the default column configuration for new presets
+func DefaultColumnConfigs() []ColumnConfig {
+	return []ColumnConfig{
+		{ID: "col_select", Label: "", FieldType: "system", FieldPath: "select", Formatter: "checkbox", Width: 50, Sortable: false, Visible: true, Order: 0, Resizable: false, Critical: true},
+		{ID: "col_alertname", Label: "Alert Name", FieldType: "system", FieldPath: "alertName", Formatter: "text", Width: 300, Sortable: true, Visible: true, Order: 1, Resizable: true, Critical: true},
+		{ID: "col_actions", Label: "Actions", FieldType: "system", FieldPath: "actions", Formatter: "actions", Width: 100, Sortable: false, Visible: true, Order: 2, Resizable: false, Critical: true},
+		{ID: "col_instance", Label: "Instance", FieldType: "system", FieldPath: "instance", Formatter: "text", Width: 350, Sortable: true, Visible: true, Order: 3, Resizable: true, Critical: false},
+		{ID: "col_severity", Label: "Severity", FieldType: "system", FieldPath: "severity", Formatter: "badge", Width: 150, Sortable: true, Visible: true, Order: 4, Resizable: true, Critical: false},
+		{ID: "col_status", Label: "Status", FieldType: "system", FieldPath: "status", Formatter: "badge", Width: 150, Sortable: true, Visible: true, Order: 5, Resizable: true, Critical: false},
+		{ID: "col_comments", Label: "Comments", FieldType: "system", FieldPath: "commentCount", Formatter: "count", Width: 130, Sortable: false, Visible: true, Order: 6, Resizable: true, Critical: false},
+		{ID: "col_team", Label: "Team", FieldType: "system", FieldPath: "team", Formatter: "text", Width: 200, Sortable: true, Visible: true, Order: 7, Resizable: true, Critical: false},
+		{ID: "col_summary", Label: "Summary", FieldType: "system", FieldPath: "summary", Formatter: "text", Width: 400, Sortable: false, Visible: true, Order: 8, Resizable: true, Critical: false},
+		{ID: "col_duration", Label: "Duration", FieldType: "system", FieldPath: "duration", Formatter: "duration", Width: 150, Sortable: true, Visible: true, Order: 9, Resizable: true, Critical: false},
+		{ID: "col_source", Label: "Alertmanager", FieldType: "system", FieldPath: "source", Formatter: "text", Width: 180, Sortable: true, Visible: true, Order: 10, Resizable: true, Critical: false},
+	}
+}
+
+// ValidateColumnConfig validates a column configuration
+func ValidateColumnConfig(config *ColumnConfig) error {
+	// Check required fields
+	if config.ID == "" {
+		return fmt.Errorf("column ID is required")
+	}
+	if config.FieldPath == "" {
+		return fmt.Errorf("field path is required")
+	}
+
+	// Validate width
+	if config.Width < 50 || config.Width > 800 {
+		return fmt.Errorf("column width must be between 50 and 800 pixels")
+	}
+
+	// Validate formatter
+	validFormatters := map[string]bool{
+		"text": true, "badge": true, "duration": true,
+		"timestamp": true, "count": true, "checkbox": true, "actions": true,
+	}
+	if !validFormatters[config.Formatter] {
+		return fmt.Errorf("invalid formatter: %s", config.Formatter)
+	}
+
+	// Validate field type
+	if config.FieldType != "system" && config.FieldType != "label" && config.FieldType != "annotation" {
+		return fmt.Errorf("field type must be 'system', 'label', or 'annotation'")
+	}
+
+	return nil
+}
+
+// ValidateColumnConfigs validates a slice of column configurations
+func ValidateColumnConfigs(configs []ColumnConfig) error {
+	if len(configs) == 0 {
+		return nil // Empty is valid (will use defaults)
+	}
+
+	// Check for duplicate IDs
+	ids := make(map[string]bool)
+	orders := make(map[int]bool)
+
+	for _, config := range configs {
+		// Validate individual config
+		if err := ValidateColumnConfig(&config); err != nil {
+			return fmt.Errorf("invalid column config '%s': %w", config.ID, err)
+		}
+
+		// Check duplicate ID
+		if ids[config.ID] {
+			return fmt.Errorf("duplicate column ID: %s", config.ID)
+		}
+		ids[config.ID] = true
+
+		// Check duplicate order
+		if orders[config.Order] {
+			return fmt.Errorf("duplicate column order: %d", config.Order)
+		}
+		orders[config.Order] = true
+	}
+
+	return nil
+}
+
+// UserDefaultFilterPreset represents the default filter preset for a user
+// This allows users to set any preset (including shared ones) as their default
+type UserDefaultFilterPreset struct {
+	UserID          string    `gorm:"primaryKey;type:varchar(32);index" json:"user_id"`
+	FilterPresetID  string    `gorm:"not null;type:varchar(32);index" json:"filter_preset_id"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+
+	User         User         `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	FilterPreset FilterPreset `gorm:"foreignKey:FilterPresetID" json:"filter_preset,omitempty"`
+}
+
+func (UserDefaultFilterPreset) TableName() string { return "user_default_filter_presets" }
+
+// UserColumnPreference stores user's default column configuration
+// This serves as the base column config, which can be overridden by filter presets
+type UserColumnPreference struct {
+	UserID        string    `gorm:"primaryKey;type:varchar(32);index" json:"user_id"`
+	ColumnConfigs JSONB     `gorm:"type:jsonb;not null" json:"column_configs"` // Array of ColumnConfig
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+func (UserColumnPreference) TableName() string { return "user_column_preferences" }
 
 func GenerateID() string {
 	return generateRandomString(32)

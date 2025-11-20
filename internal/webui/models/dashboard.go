@@ -107,13 +107,12 @@ type Pagination struct {
 
 // DashboardSettings represents user-specific dashboard settings
 type DashboardSettings struct {
-	UserID                  string `json:"userId"`
-	Theme                   string `json:"theme"` // "light" or "dark"
-	CriticalSoundPath       string `json:"criticalSoundPath"`
-	WarningSoundPath        string `json:"warningSoundPath"`
-	ResolvedAlertsRetention int    `json:"resolvedAlertsRetention"` // Days to keep resolved alerts
-	RefreshInterval         int    `json:"refreshInterval"`         // Seconds between auto-refresh
-	DefaultFilters          DashboardFilters `json:"defaultFilters"`
+	UserID            string           `json:"userId"`
+	Theme             string           `json:"theme"` // "light" or "dark"
+	CriticalSoundPath string           `json:"criticalSoundPath"`
+	WarningSoundPath  string           `json:"warningSoundPath"`
+	RefreshInterval   int              `json:"refreshInterval"` // Seconds between auto-refresh
+	DefaultFilters    DashboardFilters `json:"defaultFilters"`
 	DefaultSorting    DashboardSorting `json:"defaultSorting"`
 	HiddenColumns     []string         `json:"hiddenColumns"`
 }
