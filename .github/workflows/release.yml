@@ -7,12 +7,15 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write  # Required to push tags and create releases
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch all history for proper tagging
+        token: ${{ secrets.GITHUB_TOKEN }}  # Use token for authentication
     
     - name: Set up Go
       uses: actions/setup-go@v5
