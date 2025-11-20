@@ -137,6 +137,7 @@ func (s *OAuthService) GetAuthURL(provider, state string) (string, error) {
 	authURL := client.AuthCodeURL(state, oauth2.AccessTypeOffline)
 
 	log.Printf("📝 Generated OAuth URL for provider %s", provider)
+	log.Printf("DEBUG: %s", authURL)
 	return authURL, nil
 }
 
