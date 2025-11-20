@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/github"
-	"golang.org/x/oauth2/google"
-	"golang.org/x/oauth2/microsoft"
 
 	"notificator/config"
 	"notificator/internal/backend/database"
@@ -92,7 +89,10 @@ func (s *OAuthService) initializeProviders() error {
 			ClientID:     provider.ClientID,
 			ClientSecret: provider.ClientSecret,
 			Scopes:       provider.Scopes,
-			Endpoint:     s.getOAuthEndpoint(name, provider),
+			Endpoint:     oauth2.Endpoint{
+				AuthURL:  provider.AuthURL,
+				TokenURL: provider.TokenURL,
+			},
 			RedirectURL:  fmt.Sprintf("%s/%s/callback", s.config.RedirectURL, name),
 		}
 
@@ -105,22 +105,6 @@ func (s *OAuthService) initializeProviders() error {
 	}
 
 	return nil
-}
-
-func (s *OAuthService) getOAuthEndpoint(name string, provider config.OAuthProvider) oauth2.Endpoint {
-	switch name {
-	case "github":
-		return github.Endpoint
-	case "google":
-		return google.Endpoint
-	case "microsoft":
-		return microsoft.AzureADEndpoint("")
-	default:
-		return oauth2.Endpoint{
-			AuthURL:  provider.AuthURL,
-			TokenURL: provider.TokenURL,
-		}
-	}
 }
 
 func (s *OAuthService) GetAuthURL(provider, state string) (string, error) {
