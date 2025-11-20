@@ -308,7 +308,13 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 			alert.AcknowledgedBy = acknowledgment.Username
 			alert.AcknowledgedAt = acknowledgment.CreatedAt.AsTime()
 			alert.AcknowledgeReason = acknowledgment.Reason
-			alert.CommentCount = 1
+
+			// Get actual comment count from backend
+			if comments, err := ac.backendClient.GetComments(fingerprint); err == nil {
+				alert.CommentCount = len(comments)
+			} else {
+				alert.CommentCount = 0
+			}
 
 			// Note: We don't capture statistics here because this is loading historical
 			// acknowledgments. Statistics should only be captured when alerts are

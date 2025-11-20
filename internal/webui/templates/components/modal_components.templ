@@ -617,7 +617,6 @@ templ SettingsModal() {
 			 @click.away="cancelHiddenRule()"
 			 style="display: none;">
 			<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-				<div class="fixed inset-0 bg-gray-500/75 transition-opacity z-0"></div>
 				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 				<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full z-10"
 					 x-transition:enter="ease-out duration-300"
@@ -735,7 +734,6 @@ templ AcknowledgmentModal() {
 		 @click.away="showAckModal = false"
 		 style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-			<div class="fixed inset-0 bg-gray-500/75 transition-opacity z-0"></div>
 
 			<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
@@ -1497,8 +1495,10 @@ templ AlertDetailsModal() {
 												</span>
 											</h4>
 										</div>
-										
-										<template x-for="comment in (alertDetails?.comments || [])" x-key="comment.id">
+
+										<!-- Scrollable comments container -->
+										<div class="max-h-96 overflow-y-auto space-y-4 pr-2">
+											<template x-for="comment in (alertDetails?.comments || [])" x-key="comment.id">
 											<div class="bg-white dark:bg-dark-bg-tertiary rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50 hover:shadow-md transition-all duration-200">
 												<div class="flex items-start justify-between">
 													<div class="flex items-start space-x-4 flex-1 min-w-0">
@@ -1549,7 +1549,8 @@ templ AlertDetailsModal() {
 													</div>
 												</div>
 											</div>
-										</template>
+											</template>
+										</div>
 									</div>
 									<div x-show="!alertDetails?.comments || alertDetails.comments.length === 0" 
 										 class="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -1921,7 +1922,6 @@ templ SilenceModal() {
 		 @click.away="showSilenceModal = false"
 		 style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-			<div class="fixed inset-0 bg-gray-500/75 transition-opacity z-0"></div>
 
 			<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
