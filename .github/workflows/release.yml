@@ -16,25 +16,7 @@ jobs:
       with:
         fetch-depth: 0  # Fetch all history for proper tagging
         token: ${{ secrets.GITHUB_TOKEN }}  # Use token for authentication
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
-    
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-    
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libgl1-mesa-dev xorg-dev
-    
+
     - name: Generate version tag
       id: version
       run: |
@@ -42,13 +24,6 @@ jobs:
         VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Generated version: $VERSION"
-    
-    - name: Build binaries for multiple platforms
-      run: |
-        go mod download
-
-        # Build for Linux (amd64)
-        GOOS=linux GOARCH=amd64 go build -o notificator-linux-amd64 .
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -109,10 +84,12 @@ jobs:
 
           Also tagged as `:latest` for convenience.
 
-          ## Binaries
-          Multiple platform binaries are attached to this release:
-          - `notificator-linux-amd64` - Linux x86_64
+          ## Usage
+          Pull and run the images:
+          ```bash
+          docker pull soulkyu/notificator-webui:${{ steps.version.outputs.version }}
+          docker pull soulkyu/notificator-backend:${{ steps.version.outputs.version }}
+          docker pull soulkyu/notificator-alertmanager:${{ steps.version.outputs.version }}
+          ```
         draft: false
         prerelease: false
-        files: |
-          notificator-linux-amd64
