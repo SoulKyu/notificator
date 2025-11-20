@@ -25,6 +25,47 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Generated version: $VERSION"
 
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the latest tag (if exists)
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+        if [ -z "$LATEST_TAG" ]; then
+          # No previous tag, get all commits
+          COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          CONTRIBUTORS=$(git log --pretty=format:"%an" --no-merges | sort -u)
+        else
+          # Get commits since last tag
+          COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          CONTRIBUTORS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%an" --no-merges | sort -u)
+        fi
+
+        # Format contributors with @ prefix for GitHub mentions
+        FORMATTED_CONTRIBUTORS=""
+        while IFS= read -r author; do
+          if [ ! -z "$author" ]; then
+            FORMATTED_CONTRIBUTORS="${FORMATTED_CONTRIBUTORS}- ${author}\n"
+          fi
+        done <<< "$CONTRIBUTORS"
+
+        # Save commits to output (handle multiline)
+        echo "commits<<EOF" >> $GITHUB_OUTPUT
+        echo "$COMMITS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+        # Save contributors to output (handle multiline)
+        echo "contributors<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$FORMATTED_CONTRIBUTORS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+        echo "Previous tag: ${LATEST_TAG:-none}"
+        echo "Commits since last release:"
+        echo "$COMMITS"
+        echo ""
+        echo "Contributors:"
+        echo -e "$FORMATTED_CONTRIBUTORS"
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -72,9 +113,13 @@ jobs:
         tag_name: ${{ steps.version.outputs.version }}
         name: Release ${{ steps.version.outputs.version }}
         body: |
-          ## Changes
-          - Built from commit: ${{ github.sha }}
-          - Automatic release triggered by push to main
+          ## Commits
+          ${{ steps.changelog.outputs.commits }}
+
+          ## Contributors
+          Thanks to everyone who contributed to this release! :heart:
+
+          ${{ steps.changelog.outputs.contributors }}
 
           ## Docker Images
           Docker images are available on Docker Hub with this version tag:
