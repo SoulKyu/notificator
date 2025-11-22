@@ -288,6 +288,7 @@ func (ac *AlertCache) loadBackendData() {
 	log.Printf("Backend client is connected - proceeding with acknowledgment loading")
 
 	go ac.loadAcknowledgmentsEfficiently()
+	go ac.loadCommentCountsEfficiently()
 }
 
 func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
@@ -309,13 +310,7 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 			alert.AcknowledgedAt = acknowledgment.CreatedAt.AsTime()
 			alert.AcknowledgeReason = acknowledgment.Reason
 
-			// Get actual comment count from backend
-			if comments, err := ac.backendClient.GetComments(fingerprint); err == nil {
-				alert.CommentCount = len(comments)
-			} else {
-				alert.CommentCount = 0
-			}
-
+			// Note: Comment counts are loaded separately by loadCommentCountsEfficiently()
 			// Note: We don't capture statistics here because this is loading historical
 			// acknowledgments. Statistics should only be captured when alerts are
 			// acknowledged in real-time to avoid negative MTTR calculations.
@@ -324,6 +319,27 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 	ac.mu.Unlock()
 
 	log.Printf("Successfully updated %d alerts with acknowledgment data", len(acknowledgedAlerts))
+}
+
+func (ac *AlertCache) loadCommentCountsEfficiently() {
+	log.Printf("Loading comment counts for all alerts...")
+
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	count := 0
+	for fingerprint, alert := range ac.alerts {
+		if comments, err := ac.backendClient.GetComments(fingerprint); err == nil {
+			alert.CommentCount = len(comments)
+			if len(comments) > 0 {
+				count++
+			}
+		} else {
+			alert.CommentCount = 0
+		}
+	}
+
+	log.Printf("Successfully loaded comment counts for %d alerts (%d with comments)", len(ac.alerts), count)
 }
 
 func (ac *AlertCache) GetAllAlerts() []*webuimodels.DashboardAlert {
