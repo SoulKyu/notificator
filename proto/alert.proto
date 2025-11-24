@@ -826,8 +826,8 @@ message QueryRecentlyResolvedRequest {
   google.protobuf.Timestamp start_date = 2;
   google.protobuf.Timestamp end_date = 3;
   repeated string severity = 4;      // Optional filter
-  string team = 5;                   // Optional filter
-  string alert_name = 6;             // Optional filter (LIKE search)
+  repeated string teams = 5;         // Optional filter (OR logic)
+  repeated string alert_names = 6;   // Optional filter (OR logic, LIKE search)
   int32 limit = 7;                   // Default 100, max 1000
   int32 offset = 8;                  // For pagination
   bool include_silenced = 9;         // Whether to include silenced (suppressed) alerts (default: false)

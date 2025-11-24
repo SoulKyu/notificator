@@ -6958,8 +6958,8 @@ type QueryRecentlyResolvedRequest struct {
 	StartDate       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	EndDate         *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
 	Severity        []string               `protobuf:"bytes,4,rep,name=severity,proto3" json:"severity,omitempty"`                                       // Optional filter
-	Team            string                 `protobuf:"bytes,5,opt,name=team,proto3" json:"team,omitempty"`                                               // Optional filter
-	AlertName       string                 `protobuf:"bytes,6,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`                    // Optional filter (LIKE search)
+	Teams           []string               `protobuf:"bytes,5,rep,name=teams,proto3" json:"teams,omitempty"`                                             // Optional filter (OR logic)
+	AlertNames      []string               `protobuf:"bytes,6,rep,name=alert_names,json=alertNames,proto3" json:"alert_names,omitempty"`                 // Optional filter (OR logic, LIKE search)
 	Limit           int32                  `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`                                            // Default 100, max 1000
 	Offset          int32                  `protobuf:"varint,8,opt,name=offset,proto3" json:"offset,omitempty"`                                          // For pagination
 	IncludeSilenced bool                   `protobuf:"varint,9,opt,name=include_silenced,json=includeSilenced,proto3" json:"include_silenced,omitempty"` // Whether to include silenced (suppressed) alerts (default: false)
@@ -7027,18 +7027,18 @@ func (x *QueryRecentlyResolvedRequest) GetSeverity() []string {
 	return nil
 }
 
-func (x *QueryRecentlyResolvedRequest) GetTeam() string {
+func (x *QueryRecentlyResolvedRequest) GetTeams() []string {
 	if x != nil {
-		return x.Team
+		return x.Teams
 	}
-	return ""
+	return nil
 }
 
-func (x *QueryRecentlyResolvedRequest) GetAlertName() string {
+func (x *QueryRecentlyResolvedRequest) GetAlertNames() []string {
 	if x != nil {
-		return x.AlertName
+		return x.AlertNames
 	}
-	return ""
+	return nil
 }
 
 func (x *QueryRecentlyResolvedRequest) GetLimit() int32 {
@@ -8426,17 +8426,17 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x0facknowledged_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x0eacknowledgedAt\"U\n" +
 	"\x1fUpdateAlertAcknowledgedResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x99\x03\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x9d\x03\n" +
 	"\x1cQueryRecentlyResolvedRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
 	"\n" +
 	"start_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x125\n" +
 	"\bend_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendDate\x12\x1a\n" +
-	"\bseverity\x18\x04 \x03(\tR\bseverity\x12\x12\n" +
-	"\x04team\x18\x05 \x01(\tR\x04team\x12\x1d\n" +
-	"\n" +
-	"alert_name\x18\x06 \x01(\tR\talertName\x12\x14\n" +
+	"\bseverity\x18\x04 \x03(\tR\bseverity\x12\x14\n" +
+	"\x05teams\x18\x05 \x03(\tR\x05teams\x12\x1f\n" +
+	"\valert_names\x18\x06 \x03(\tR\n" +
+	"alertNames\x12\x14\n" +
 	"\x05limit\x18\a \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\b \x01(\x05R\x06offset\x12)\n" +
 	"\x10include_silenced\x18\t \x01(\bR\x0fincludeSilenced\x12!\n" +

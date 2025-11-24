@@ -104,6 +104,27 @@ Got alerts in prod, staging, and that weird legacy system? Connect them all:
 
 Each alert shows which Alertmanager it's from.
 
+### Mimir Multi-Tenant Setup
+
+Using Grafana Mimir or Cortex with multi-tenancy :
+
+```bash
+# Alertmanager 0 (Production tenant)
+NOTIFICATOR_ALERTMANAGERS_0_URL="http://mimir-alertmanager:8080/alertmanager"
+NOTIFICATOR_ALERTMANAGERS_0_NAME="Production"
+NOTIFICATOR_ALERTMANAGERS_0_HEADERS="X-Scope-OrgID=prod-tenant"
+
+# Alertmanager 1 (Development tenant)
+NOTIFICATOR_ALERTMANAGERS_1_URL="http://mimir-alertmanager:8080/alertmanager"
+NOTIFICATOR_ALERTMANAGERS_1_NAME="Development"
+NOTIFICATOR_ALERTMANAGERS_1_HEADERS="X-Scope-OrgID=dev-tenant"
+
+# Or use the same header for all alertmanagers
+METRICS_PROVIDER_HEADERS="X-Scope-OrgID=your-tenant"
+```
+
+Works with any custom headers your metrics provider needs.
+
 ### OAuth Authentication
 
 ```bash

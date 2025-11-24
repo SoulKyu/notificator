@@ -1638,7 +1638,7 @@ func (c *BackendClient) UpdateAlertAcknowledged(alert *models.DashboardAlert) er
 }
 
 // QueryRecentlyResolved queries recently resolved alerts from statistics
-func (c *BackendClient) QueryRecentlyResolved(sessionID string, startDate, endDate time.Time, severity []string, team, alertName, searchQuery string, includeSilenced bool, limit, offset int) (map[string]interface{}, error) {
+func (c *BackendClient) QueryRecentlyResolved(sessionID string, startDate, endDate time.Time, severity []string, teams, alertNames []string, searchQuery string, includeSilenced bool, limit, offset int) (map[string]interface{}, error) {
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -1651,8 +1651,8 @@ func (c *BackendClient) QueryRecentlyResolved(sessionID string, startDate, endDa
 		StartDate:       timestamppb.New(startDate),
 		EndDate:         timestamppb.New(endDate),
 		Severity:        severity,
-		Team:            team,
-		AlertName:       alertName,
+		Teams:           teams,
+		AlertNames:      alertNames,
 		SearchQuery:     searchQuery,
 		IncludeSilenced: includeSilenced,
 		Limit:           int32(limit),

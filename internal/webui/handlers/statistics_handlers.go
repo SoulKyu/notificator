@@ -590,8 +590,8 @@ func QueryRecentlyResolved(c *gin.Context) {
 		StartDate       string   `json:"start_date"`
 		EndDate         string   `json:"end_date"`
 		Severity        []string `json:"severity"`
-		Team            string   `json:"team"`
-		AlertName       string   `json:"alert_name"`
+		Teams           []string `json:"teams"`
+		AlertNames      []string `json:"alert_names"`
 		SearchQuery     string   `json:"search_query"`
 		IncludeSilenced bool     `json:"include_silenced"`
 		Limit           int      `json:"limit"`
@@ -630,8 +630,8 @@ func QueryRecentlyResolved(c *gin.Context) {
 		startDate,
 		endDate,
 		req.Severity,
-		req.Team,
-		req.AlertName,
+		req.Teams,
+		req.AlertNames,
 		req.SearchQuery,
 		req.IncludeSilenced,
 		req.Limit,
