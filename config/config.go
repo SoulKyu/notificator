@@ -269,6 +269,23 @@ func LoadConfigWithViper() (*Config, error) {
 				}
 			}
 
+			// Load headers from environment variables
+			// Format: NOTIFICATOR_ALERTMANAGERS_0_HEADERS="X-Scope-OrgID=tenant1,X-Custom=value"
+			headersEnvVar := fmt.Sprintf("NOTIFICATOR_ALERTMANAGERS_%d_HEADERS", i)
+			if headersStr := os.Getenv(headersEnvVar); headersStr != "" {
+				pairs := strings.Split(headersStr, ",")
+				for _, pair := range pairs {
+					parts := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+					if len(parts) == 2 {
+						key := strings.TrimSpace(parts[0])
+						value := strings.TrimSpace(parts[1])
+						if key != "" && value != "" {
+							am.Headers[key] = value
+						}
+					}
+				}
+			}
+
 			alertmanagers = append(alertmanagers, am)
 		}
 	}
@@ -611,6 +628,7 @@ func initializeFilterStates(cfg *Config) {
 	}
 }
 
+// ParseHeadersFromEnv parses headers from an environment variable.
 // Format: "key1=value1,key2=value2"
 func ParseHeadersFromEnv(envVar string) map[string]string {
 	headers := make(map[string]string)
@@ -635,15 +653,29 @@ func ParseHeadersFromEnv(envVar string) map[string]string {
 	return headers
 }
 
+// MergeHeaders merges global headers from METRICS_PROVIDER_HEADERS environment variable
+// into all alertmanager configurations. This is applied AFTER per-alertmanager headers
+// are loaded, so global headers only fill in missing values.
+// For per-alertmanager headers, use: NOTIFICATOR_ALERTMANAGERS_<INDEX>_HEADERS
 func (c *Config) MergeHeaders() {
 	envHeaders := ParseHeadersFromEnv("METRICS_PROVIDER_HEADERS")
+
 	for i := range c.Alertmanagers {
 		if c.Alertmanagers[i].Headers == nil {
 			c.Alertmanagers[i].Headers = make(map[string]string)
 		}
 
+		// Apply global headers (but don't override existing headers)
 		for key, value := range envHeaders {
-			c.Alertmanagers[i].Headers[key] = value
+			if _, exists := c.Alertmanagers[i].Headers[key]; !exists {
+				c.Alertmanagers[i].Headers[key] = value
+			}
+		}
+
+		// Log configured headers for debugging
+		if len(c.Alertmanagers[i].Headers) > 0 {
+			log.Printf("Alertmanager '%s' configured with %d custom headers",
+				c.Alertmanagers[i].Name, len(c.Alertmanagers[i].Headers))
 		}
 	}
 }
