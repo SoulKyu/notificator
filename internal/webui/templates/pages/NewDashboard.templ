@@ -40,11 +40,6 @@ templ NewDashboardContent() {
 									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
 								Classic
 							</button>
-							<button @click="setDisplayMode('full')" 
-									:class="displayMode === 'full' ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'" 
-									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
-								Full
-							</button>
 							<button @click="setDisplayMode('resolved')" 
 									:class="displayMode === 'resolved' ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'" 
 									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
@@ -669,7 +664,7 @@ templ NewDashboardContent() {
 				</div>
 			</div>
 
-			<!-- Alerts Content (Classic/Full/Acknowledge/Hidden modes) -->
+			<!-- Alerts Content (Classic/Acknowledge/Hidden modes) -->
 			<div x-show="displayMode !== 'resolved'" class="bg-white dark:bg-dark-bg-secondary shadow overflow-hidden sm:rounded-lg">
 				<!-- Bulk Actions Bar -->
 				<div x-show="selectedAlerts.length > 0" class="px-6 py-3 bg-yellow-50 dark:bg-yellow-900/20 border-b border-gray-200 dark:border-dark-border-DEFAULT">
