@@ -31,6 +31,9 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		}
 	}
 
+	// Merge headers from environment variables (e.g., METRICS_PROVIDER_HEADERS)
+	cfg.MergeHeaders()
+
 	// Log the loaded configuration for debugging
 	log.Printf("Loaded %d alertmanagers", len(cfg.Alertmanagers))
 	for i, am := range cfg.Alertmanagers {
