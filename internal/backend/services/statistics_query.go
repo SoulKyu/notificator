@@ -675,9 +675,9 @@ type ResolvedAlertsQueryRequest struct {
 	UserID               string   // User ID for hidden alerts filtering
 	StartDate            time.Time
 	EndDate              time.Time
-	Severity             []string // Optional filter
-	Team                 string   // Optional filter
-	AlertName            string   // Optional filter (supports LIKE)
+	Severity             []string // Optional filter (OR logic)
+	Teams                []string // Optional filter (OR logic)
+	AlertNames           []string // Optional filter (OR logic, supports LIKE)
 	SearchQuery          string   // Search across alert name, instance, summary, description
 	IncludeSilenced      bool     // Whether to include silenced (suppressed) alerts (default: false)
 	Limit                int
@@ -845,12 +845,17 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 	if len(req.Severity) > 0 {
 		baseQuery = baseQuery.Where("severity IN ?", req.Severity)
 	}
-	if req.AlertName != "" {
-		baseQuery = baseQuery.Where("alert_name LIKE ?", "%"+req.AlertName+"%")
+	if len(req.AlertNames) > 0 {
+		// OR logic for multiple alert names
+		orConditions := baseQuery.Where("1 = 0") // Start with false condition
+		for _, alertName := range req.AlertNames {
+			orConditions = orConditions.Or("alert_name LIKE ?", "%"+alertName+"%")
+		}
+		baseQuery = baseQuery.Where(orConditions)
 	}
-	if req.Team != "" {
-		// Query JSONB metadata
-		baseQuery = baseQuery.Where("metadata->'labels'->>'team' = ?", req.Team)
+	if len(req.Teams) > 0 {
+		// OR logic for multiple teams - Query JSONB metadata
+		baseQuery = baseQuery.Where("metadata->'labels'->>'team' IN ?", req.Teams)
 	}
 	if req.SearchQuery != "" {
 		// Search across multiple fields: alert_name, fingerprint, and JSONB metadata fields
@@ -879,11 +884,17 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 		if len(req.Severity) > 0 {
 			fingerprintCheckQuery = fingerprintCheckQuery.Where("severity IN ?", req.Severity)
 		}
-		if req.AlertName != "" {
-			fingerprintCheckQuery = fingerprintCheckQuery.Where("alert_name LIKE ?", "%"+req.AlertName+"%")
+		if len(req.AlertNames) > 0 {
+			// OR logic for multiple alert names
+			orConditions := fingerprintCheckQuery.Where("1 = 0") // Start with false condition
+			for _, alertName := range req.AlertNames {
+				orConditions = orConditions.Or("alert_name LIKE ?", "%"+alertName+"%")
+			}
+			fingerprintCheckQuery = fingerprintCheckQuery.Where(orConditions)
 		}
-		if req.Team != "" {
-			fingerprintCheckQuery = fingerprintCheckQuery.Where("metadata->'labels'->>'team' = ?", req.Team)
+		if len(req.Teams) > 0 {
+			// OR logic for multiple teams
+			fingerprintCheckQuery = fingerprintCheckQuery.Where("metadata->'labels'->>'team' IN ?", req.Teams)
 		}
 		if req.SearchQuery != "" {
 			searchPattern := "%" + req.SearchQuery + "%"
@@ -966,11 +977,17 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 	if len(req.Severity) > 0 {
 		countQuery = countQuery.Where("severity IN ?", req.Severity)
 	}
-	if req.AlertName != "" {
-		countQuery = countQuery.Where("alert_name LIKE ?", "%"+req.AlertName+"%")
+	if len(req.AlertNames) > 0 {
+		// OR logic for multiple alert names
+		orConditions := countQuery.Where("1 = 0")
+		for _, alertName := range req.AlertNames {
+			orConditions = orConditions.Or("alert_name LIKE ?", "%"+alertName+"%")
+		}
+		countQuery = countQuery.Where(orConditions)
 	}
-	if req.Team != "" {
-		countQuery = countQuery.Where("metadata->'labels'->>'team' = ?", req.Team)
+	if len(req.Teams) > 0 {
+		// OR logic for multiple teams
+		countQuery = countQuery.Where("metadata->'labels'->>'team' IN ?", req.Teams)
 	}
 	if req.SearchQuery != "" {
 		searchPattern := "%" + req.SearchQuery + "%"
