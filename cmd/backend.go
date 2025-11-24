@@ -45,6 +45,9 @@ func runBackend(cmd *cobra.Command, args []string) {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Merge headers from environment variables (e.g., METRICS_PROVIDER_HEADERS)
+	cfg.MergeHeaders()
+
 	// Get database type from flag first, then fall back to config
 	dbType := viper.GetString("backend.database.type")
 	if dbType == "" {

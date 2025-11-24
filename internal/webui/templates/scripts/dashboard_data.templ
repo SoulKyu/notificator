@@ -76,6 +76,11 @@ templ DashboardData() {
 			},
 
 			async loadDashboardIncremental() {
+				// Skip incremental updates when in resolved mode (resolved view has its own data)
+				if (this.displayMode === 'resolved') {
+					return;
+				}
+
 				// Don't show loading spinner for incremental updates
 				try {
 					const params = new URLSearchParams();
