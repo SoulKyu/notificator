@@ -7,11 +7,13 @@ templ DashboardResolvedAlertsMixin() {
 			resolvedAlerts: [],
 			resolvedTotalCount: 0,
 			resolvedLoading: false,
+			resolvedAutoLoadEnabled: true, // Enable auto-load on view switch
 
 			// Time range for resolved alerts (separate from main filters)
 			resolvedTimeRange: {
 				start: '', // datetime-local format
 				end: '',   // datetime-local format
+				preset: null // Track which preset button is active (hours value or null for custom)
 			},
 
 			// Include silenced alerts in results (default: false - exclude silenced)
@@ -26,6 +28,19 @@ templ DashboardResolvedAlertsMixin() {
 			// Sorting for resolved alerts
 			resolvedSortField: 'last_resolved_at',  // Default sort by last resolved
 			resolvedSortDirection: 'desc',          // Most recent first
+
+			// Watch for display mode changes and auto-load
+			initResolvedAutoLoad() {
+				this.$watch('displayMode', (newMode, oldMode) => {
+					if (newMode === 'resolved' && oldMode !== 'resolved' && this.resolvedAutoLoadEnabled) {
+						// Auto-load when switching to resolved view
+						if (this.resolvedAlerts.length === 0 || !this.resolvedTimeRange.start) {
+							this.initResolvedTimeRange();
+							this.loadResolvedAlerts();
+						}
+					}
+				});
+			},
 
 			// Initialize time range on component init
 			initResolvedTimeRange() {
@@ -54,12 +69,16 @@ templ DashboardResolvedAlertsMixin() {
 
 				this.resolvedTimeRange.start = this.formatDateTimeLocal(startDate);
 				this.resolvedTimeRange.end = this.formatDateTimeLocal(now);
+				this.resolvedTimeRange.preset = hours; // Track which preset is active
 
-				await this.applyResolvedTimeRange();
+				this.resolvedPagination.offset = 0; // Reset pagination
+				await this.loadResolvedAlerts();
 			},
 
-			// Apply time range change and reload
+			// Apply time range change and reload (called when manually changing dates)
 			async applyResolvedTimeRange() {
+				// Clear preset indicator when manually changing dates
+				this.resolvedTimeRange.preset = null;
 				this.resolvedPagination.offset = 0; // Reset pagination
 				await this.loadResolvedAlerts();
 			},
@@ -121,6 +140,9 @@ templ DashboardResolvedAlertsMixin() {
 						this.resolvedTotalCount = data.data.total_count || 0;
 						console.log(`Loaded ${this.resolvedAlerts.length} unique fingerprints (${this.resolvedTotalCount} total)`);
 						console.log('Sample alert:', this.resolvedAlerts[0]);
+
+						// Load colors for resolved alerts
+						await this.loadResolvedAlertColors();
 					} else {
 						console.error('Failed to load resolved alerts:', data.message || 'Unknown error');
 						this.resolvedAlerts = [];
@@ -323,6 +345,137 @@ templ DashboardResolvedAlertsMixin() {
 					return (num / 1000).toFixed(1) + 'K';
 				}
 				return num.toString();
+			},
+
+			// Export resolved alerts to CSV
+			exportResolvedAlertsCSV() {
+				if (!this.resolvedAlerts || this.resolvedAlerts.length === 0) {
+					alert('No data to export');
+					return;
+				}
+
+				// CSV Header
+				let csv = 'Fingerprint,Alert Name,Severity,Occurrences,First Fired At,Last Resolved At,Avg Duration (s),Total Duration (s),Avg MTTR (s),Total MTTR (s),Team,Source\n';
+
+				// CSV Data rows
+				this.resolvedAlerts.forEach(alert => {
+					const row = [
+						`"${alert.fingerprint || ''}"`,
+						`"${(alert.alert_name || '').replace(/"/g, '""')}"`, // Escape quotes
+						`"${alert.severity || ''}"`,
+						alert.occurrence_count || 0,
+						`"${alert.first_fired_at || ''}"`,
+						`"${alert.last_resolved_at || ''}"`,
+						alert.avg_duration || 0,
+						alert.total_duration || 0,
+						alert.avg_mttr || 0,
+						alert.total_mttr || 0,
+						`"${(alert.team || '').replace(/"/g, '""')}"`,
+						`"${(alert.source || '').replace(/"/g, '""')}"`
+					];
+					csv += row.join(',') + '\n';
+				});
+
+				// Download CSV
+				const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+				const url = window.URL.createObjectURL(blob);
+				const link = document.createElement('a');
+				link.href = url;
+
+				// Generate filename with date range
+				const startDate = new Date(this.resolvedTimeRange.start).toISOString().split('T')[0];
+				const endDate = new Date(this.resolvedTimeRange.end).toISOString().split('T')[0];
+				link.download = `resolved-alerts-${startDate}-to-${endDate}.csv`;
+
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				window.URL.revokeObjectURL(url);
+			},
+
+			// Export resolved alerts to JSON
+			exportResolvedAlertsJSON() {
+				if (!this.resolvedAlerts || this.resolvedAlerts.length === 0) {
+					alert('No data to export');
+					return;
+				}
+
+				// Create export object with metadata
+				const exportData = {
+					exported_at: new Date().toISOString(),
+					time_range: {
+						start: new Date(this.resolvedTimeRange.start).toISOString(),
+						end: new Date(this.resolvedTimeRange.end).toISOString()
+					},
+					filters: {
+						severities: this.filters.severities || [],
+						teams: this.filters.teams || [],
+						alert_names: this.filters.alertNames || [],
+						search_query: this.searchQuery || '',
+						include_silenced: this.resolvedIncludeSilenced
+					},
+					total_count: this.resolvedTotalCount,
+					displayed_count: this.resolvedAlerts.length,
+					alerts: this.resolvedAlerts
+				};
+
+				// Download JSON
+				const jsonStr = JSON.stringify(exportData, null, 2);
+				const blob = new Blob([jsonStr], { type: 'application/json' });
+				const url = window.URL.createObjectURL(blob);
+				const link = document.createElement('a');
+				link.href = url;
+
+				// Generate filename with date range
+				const startDate = new Date(this.resolvedTimeRange.start).toISOString().split('T')[0];
+				const endDate = new Date(this.resolvedTimeRange.end).toISOString().split('T')[0];
+				link.download = `resolved-alerts-${startDate}-to-${endDate}.json`;
+
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				window.URL.revokeObjectURL(url);
+			},
+
+			// Load colors for resolved alerts
+			async loadResolvedAlertColors() {
+				if (!this.resolvedAlerts || this.resolvedAlerts.length === 0) {
+					return;
+				}
+
+				try {
+					console.log('Loading colors for resolved alerts...');
+
+					// Build same URL parameters as dashboard data API
+					const params = new URLSearchParams();
+
+					// Use resolved view filters
+					if (this.searchQuery) params.set('search', this.searchQuery);
+					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
+					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
+					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
+
+					// Set display mode to get colors for resolved alerts
+					params.set('displayMode', 'resolved');
+					params.set('viewMode', this.viewMode);
+					params.set('sortField', this.sortField);
+					params.set('sortDirection', this.sortDirection);
+
+					const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
+						credentials: 'include'
+					});
+
+					if (response.ok) {
+						const result = await response.json();
+						if (result.success && result.data && result.data.colors) {
+							// Merge colors into alertColors object
+							Object.assign(this.alertColors, result.data.colors);
+							console.log(`Loaded colors for ${Object.keys(result.data.colors).length} resolved alerts`);
+						}
+					}
+				} catch (error) {
+					console.error('Error loading resolved alert colors:', error);
+				}
 			}
 		};
 	</script>

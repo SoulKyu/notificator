@@ -197,6 +197,11 @@ templ DashboardCore() {
 
 					this.initializeSessionTracking();
 
+					// Initialize resolved alerts auto-load watcher
+					if (this.initResolvedAutoLoad) {
+						this.initResolvedAutoLoad();
+					}
+
 					// Load notification banner dismissed state from localStorage
 					this.notificationBannerDismissed = localStorage.getItem('notificator_banner_dismissed') === 'true';
 
@@ -299,9 +304,27 @@ templ DashboardCore() {
 
 				setDisplayMode(mode) {
 					if (this.displayMode !== mode) {
+						const previousMode = this.displayMode;
 						this.displayMode = mode;
 						this.clearSelection();
-						this.loadDashboardData();
+
+						// Always reload when switching back from resolved to other views
+						if (previousMode === 'resolved' && mode !== 'resolved') {
+							console.log('Switching from resolved to', mode, '- reloading alerts');
+							// Reset lastUpdateTime to force full reload and avoid stale incremental data
+							this.lastUpdateTime = null;
+							// Initialize empty alerts array to prevent Alpine from trying to render undefined
+							this.alerts = [];
+							this.loadDashboardData();
+						} else if (mode !== 'resolved') {
+							// For other transitions between non-resolved modes, load as normal
+							this.loadDashboardData();
+						} else {
+							// Switching TO resolved mode - reset lastUpdateTime to prevent stale data
+							this.lastUpdateTime = null;
+						}
+						// Note: When switching TO resolved mode, don't call loadDashboardData
+						// because the resolved view has its own data loading logic
 					}
 				},
 
