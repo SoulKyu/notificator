@@ -1537,6 +1537,7 @@ const (
 	StatisticsService_UpdateAlertAcknowledged_FullMethodName = "/notificator.alert.StatisticsService/UpdateAlertAcknowledged"
 	StatisticsService_QueryRecentlyResolved_FullMethodName   = "/notificator.alert.StatisticsService/QueryRecentlyResolved"
 	StatisticsService_GetAlertHistory_FullMethodName         = "/notificator.alert.StatisticsService/GetAlertHistory"
+	StatisticsService_GetAlertsByName_FullMethodName         = "/notificator.alert.StatisticsService/GetAlertsByName"
 )
 
 // StatisticsServiceClient is the client API for StatisticsService service.
@@ -1564,6 +1565,8 @@ type StatisticsServiceClient interface {
 	QueryRecentlyResolved(ctx context.Context, in *QueryRecentlyResolvedRequest, opts ...grpc.CallOption) (*QueryRecentlyResolvedResponse, error)
 	// Get alert history for timeline display
 	GetAlertHistory(ctx context.Context, in *GetAlertHistoryRequest, opts ...grpc.CallOption) (*GetAlertHistoryResponse, error)
+	// Get alerts by name with filters (for drill-down view)
+	GetAlertsByName(ctx context.Context, in *GetAlertsByNameRequest, opts ...grpc.CallOption) (*GetAlertsByNameResponse, error)
 }
 
 type statisticsServiceClient struct {
@@ -1704,6 +1707,16 @@ func (c *statisticsServiceClient) GetAlertHistory(ctx context.Context, in *GetAl
 	return out, nil
 }
 
+func (c *statisticsServiceClient) GetAlertsByName(ctx context.Context, in *GetAlertsByNameRequest, opts ...grpc.CallOption) (*GetAlertsByNameResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAlertsByNameResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_GetAlertsByName_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // StatisticsServiceServer is the server API for StatisticsService service.
 // All implementations must embed UnimplementedStatisticsServiceServer
 // for forward compatibility.
@@ -1729,6 +1742,8 @@ type StatisticsServiceServer interface {
 	QueryRecentlyResolved(context.Context, *QueryRecentlyResolvedRequest) (*QueryRecentlyResolvedResponse, error)
 	// Get alert history for timeline display
 	GetAlertHistory(context.Context, *GetAlertHistoryRequest) (*GetAlertHistoryResponse, error)
+	// Get alerts by name with filters (for drill-down view)
+	GetAlertsByName(context.Context, *GetAlertsByNameRequest) (*GetAlertsByNameResponse, error)
 	mustEmbedUnimplementedStatisticsServiceServer()
 }
 
@@ -1777,6 +1792,9 @@ func (UnimplementedStatisticsServiceServer) QueryRecentlyResolved(context.Contex
 }
 func (UnimplementedStatisticsServiceServer) GetAlertHistory(context.Context, *GetAlertHistoryRequest) (*GetAlertHistoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAlertHistory not implemented")
+}
+func (UnimplementedStatisticsServiceServer) GetAlertsByName(context.Context, *GetAlertsByNameRequest) (*GetAlertsByNameResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAlertsByName not implemented")
 }
 func (UnimplementedStatisticsServiceServer) mustEmbedUnimplementedStatisticsServiceServer() {}
 func (UnimplementedStatisticsServiceServer) testEmbeddedByValue()                           {}
@@ -2033,6 +2051,24 @@ func _StatisticsService_GetAlertHistory_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StatisticsService_GetAlertsByName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAlertsByNameRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).GetAlertsByName(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_GetAlertsByName_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).GetAlertsByName(ctx, req.(*GetAlertsByNameRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // StatisticsService_ServiceDesc is the grpc.ServiceDesc for StatisticsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2091,6 +2127,10 @@ var StatisticsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAlertHistory",
 			Handler:    _StatisticsService_GetAlertHistory_Handler,
+		},
+		{
+			MethodName: "GetAlertsByName",
+			Handler:    _StatisticsService_GetAlertsByName_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

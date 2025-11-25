@@ -174,16 +174,14 @@ func (re *RuleEngine) validateAlertNameCriterion(criterion *models.RuleCriterion
 // ApplyRulesToQuery applies user's on-call rules to a GORM query
 // Returns modified query with WHERE clauses based on rule criteria
 //
-// IMPORTANT LIMITATION: Currently only the first active rule is applied.
-// If a user has multiple active rules, only the first rule (ordered by creation date)
-// will be used for filtering. This is a known limitation planned for future enhancement.
+// Multiple active rules are combined with OR logic - alerts matching ANY active rule
+// will be included in the results. Each individual rule applies its own internal logic
+// (AND/OR for its criteria), then all rules are combined together with OR.
 //
-// To ensure predictable behavior:
-//   - Users should only have ONE active rule at a time
-//   - Deactivate old rules before creating new ones
-//   - Use complex criteria within a single rule (AND/OR logic) instead of multiple rules
-//
-// Future enhancement: Support multiple rules with priority and combination logic
+// Example with 2 active rules:
+//   - Rule A: severity=critical AND team=platform
+//   - Rule B: alert_name CONTAINS "database"
+//   Result: (severity=critical AND team=platform) OR (alert_name LIKE '%database%')
 func (re *RuleEngine) ApplyRulesToQuery(userID string, baseQuery *gorm.DB) (*gorm.DB, error) {
 	// Load user's active rules
 	rules, err := re.db.GetActiveOnCallRules(userID)
@@ -196,38 +194,146 @@ func (re *RuleEngine) ApplyRulesToQuery(userID string, baseQuery *gorm.DB) (*gor
 		return baseQuery, nil
 	}
 
-	// CURRENT LIMITATION: Only use the first active rule
-	// If multiple rules exist, only the first one (by creation date) is applied
-	// TODO: Support multiple rules with priority/combination logic
-	rule := rules[0]
-
-	// Log warning if multiple active rules exist
-	if len(rules) > 1 {
-		fmt.Printf("⚠️  WARNING: User %s has %d active rules, but only the first rule (%s) will be applied\n",
-			userID, len(rules), rule.RuleName)
+	// Parse all rule configs
+	var configs []*models.RuleConfig
+	for _, rule := range rules {
+		config, err := database.ParseRuleConfig(rule.RuleConfig)
+		if err != nil {
+			fmt.Printf("⚠️  WARNING: Failed to parse rule %s config: %v, skipping\n", rule.RuleName, err)
+			continue
+		}
+		configs = append(configs, config)
 	}
 
-	// Parse rule config
-	config, err := database.ParseRuleConfig(rule.RuleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse rule config: %w", err)
+	// No valid configs after parsing
+	if len(configs) == 0 {
+		return baseQuery, nil
 	}
 
-	// Apply criteria to query
-	query := baseQuery
+	// Single rule - apply directly
+	if len(configs) == 1 {
+		return re.applyConfigToQuery(baseQuery, configs[0]), nil
+	}
 
-	// Build WHERE clause based on logic operator
-	if config.Logic == "OR" {
-		// For OR logic, build a single WHERE clause with OR conditions
-		query = re.applyOrLogic(query, config.Criteria)
-	} else {
-		// For AND logic, apply each criterion sequentially
-		for _, criterion := range config.Criteria {
-			query = re.applyCriterion(query, &criterion)
+	// Multiple rules - combine with OR logic using GORM Group Conditions
+	// Each rule becomes a grouped condition, all rules are OR'd together
+	// Example: (rule1_cond1 AND rule1_cond2) OR (rule2_cond1 OR rule2_cond2)
+
+	// Start with a fresh DB session to build OR conditions
+	db := baseQuery.Session(&gorm.Session{NewDB: true})
+
+	// Build the first rule's conditions
+	orCondition := re.buildRuleConditionGroup(db, configs[0])
+
+	// Add remaining rules with OR
+	for i := 1; i < len(configs); i++ {
+		ruleCondition := re.buildRuleConditionGroup(db, configs[i])
+		orCondition = orCondition.Or(ruleCondition)
+	}
+
+	// Apply the combined OR conditions to the base query
+	return baseQuery.Where(orCondition), nil
+}
+
+// buildRuleConditionGroup builds a GORM condition group for a single rule
+func (re *RuleEngine) buildRuleConditionGroup(db *gorm.DB, config *models.RuleConfig) *gorm.DB {
+	if len(config.Criteria) == 0 {
+		return db
+	}
+
+	// Start with the first criterion
+	result := re.applyCriterionToGroup(db, &config.Criteria[0])
+
+	// Add remaining criteria based on rule's internal logic
+	for i := 1; i < len(config.Criteria); i++ {
+		criterion := &config.Criteria[i]
+		if config.Logic == "OR" {
+			result = result.Or(re.applyCriterionToGroup(db, criterion))
+		} else {
+			// AND logic - chain with Where
+			result = re.applyCriterionToGroup(result, criterion)
 		}
 	}
 
-	return query, nil
+	return result
+}
+
+// applyCriterionToGroup applies a single criterion and returns a GORM condition
+func (re *RuleEngine) applyCriterionToGroup(db *gorm.DB, criterion *models.RuleCriterion) *gorm.DB {
+	switch criterion.Type {
+	case "severity":
+		return re.applySeverityCriterionGroup(db, criterion)
+	case "label":
+		return re.applyLabelCriterionGroup(db, criterion)
+	case "alert_name":
+		return re.applyAlertNameCriterionGroup(db, criterion)
+	default:
+		return db
+	}
+}
+
+// applySeverityCriterionGroup applies severity filtering for group conditions
+func (re *RuleEngine) applySeverityCriterionGroup(db *gorm.DB, criterion *models.RuleCriterion) *gorm.DB {
+	switch criterion.Operator {
+	case "in":
+		normalized := make([]string, len(criterion.Values))
+		for i, v := range criterion.Values {
+			normalized[i] = strings.ToLower(v)
+		}
+		return db.Where("LOWER(severity) IN ?", normalized)
+	case "equals":
+		return db.Where("LOWER(severity) = ?", strings.ToLower(criterion.Value))
+	case "not_equals":
+		return db.Where("LOWER(severity) != ?", strings.ToLower(criterion.Value))
+	default:
+		return db
+	}
+}
+
+// applyLabelCriterionGroup applies label filtering for group conditions
+func (re *RuleEngine) applyLabelCriterionGroup(db *gorm.DB, criterion *models.RuleCriterion) *gorm.DB {
+	if err := sanitizeLabelKey(criterion.Key); err != nil {
+		fmt.Printf("ERROR: Invalid label key in stored rule: %v\n", err)
+		return db
+	}
+
+	jsonPath := fmt.Sprintf("metadata->'labels'->>'%s'", criterion.Key)
+
+	switch criterion.Operator {
+	case "equals":
+		return db.Where(fmt.Sprintf("%s = ?", jsonPath), criterion.Value)
+	case "not_equals":
+		return db.Where(fmt.Sprintf("%s != ?", jsonPath), criterion.Value)
+	case "contains":
+		return db.Where(fmt.Sprintf("%s LIKE ?", jsonPath), "%"+criterion.Value+"%")
+	case "regex":
+		return db.Where(fmt.Sprintf("%s ~ ?", jsonPath), criterion.Value)
+	default:
+		return db
+	}
+}
+
+// applyAlertNameCriterionGroup applies alert name filtering for group conditions
+func (re *RuleEngine) applyAlertNameCriterionGroup(db *gorm.DB, criterion *models.RuleCriterion) *gorm.DB {
+	pattern := criterion.Pattern
+	if pattern == "" {
+		pattern = criterion.Value
+	}
+
+	switch criterion.Operator {
+	case "equals":
+		return db.Where("alert_name = ?", pattern)
+	case "contains":
+		return db.Where("alert_name LIKE ?", "%"+pattern+"%")
+	case "starts_with":
+		return db.Where("alert_name LIKE ?", pattern+"%")
+	case "ends_with":
+		return db.Where("alert_name LIKE ?", "%"+pattern)
+	case "regex":
+		return db.Where("alert_name ~ ?", pattern)
+	default:
+		return db
+	}
 }
 
 // applyCriterion applies a single criterion to the query
@@ -317,31 +423,6 @@ func (re *RuleEngine) applyAlertNameCriterion(query *gorm.DB, criterion *models.
 	}
 }
 
-// applyOrLogic builds a query with OR conditions
-func (re *RuleEngine) applyOrLogic(query *gorm.DB, criteria []models.RuleCriterion) *gorm.DB {
-	if len(criteria) == 0 {
-		return query
-	}
-
-	// Build OR condition
-	orQuery := query.Where(func(db *gorm.DB) *gorm.DB {
-		for i, criterion := range criteria {
-			if i == 0 {
-				// First criterion - use Where
-				db = re.applyCriterion(db, &criterion)
-			} else {
-				// Subsequent criteria - use Or
-				db = db.Or(func(subDB *gorm.DB) *gorm.DB {
-					return re.applyCriterion(subDB, &criterion)
-				})
-			}
-		}
-		return db
-	})
-
-	return orQuery
-}
-
 // ==================== Rule Testing ====================
 
 // TestRule tests a rule against existing statistics
@@ -352,39 +433,11 @@ func (re *RuleEngine) TestRule(userID string, config *models.RuleConfig, sampleS
 		return nil, 0, fmt.Errorf("invalid rule: %w", err)
 	}
 
-	// Create a temporary rule for testing
-	tempRule := &models.OnCallRule{
-		UserID:     userID,
-		RuleName:   "temp_test_rule",
-		RuleConfig: nil, // Will be set below
-		IsActive:   true,
-	}
-
-	// Convert config to JSONB
-	ruleConfigJSON, err := database.BuildRuleConfigJSON(config)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to build rule config: %w", err)
-	}
-	tempRule.RuleConfig = ruleConfigJSON
-
-	// Temporarily save the rule (we'll delete it after)
-	if err := re.db.SaveOnCallRule(tempRule); err != nil {
-		return nil, 0, fmt.Errorf("failed to save temp rule: %w", err)
-	}
-
-	// Clean up temp rule after testing
-	defer func() {
-		_ = re.db.DeleteOnCallRule(tempRule.ID)
-	}()
-
 	// Build base query
 	baseQuery := re.db.GetDB().Model(&models.AlertStatistic{})
 
-	// Apply rule to query
-	filteredQuery, err := re.ApplyRulesToQuery(userID, baseQuery)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to apply rule: %w", err)
-	}
+	// Apply the config directly to the query (without saving to DB)
+	filteredQuery := re.applyConfigToQuery(baseQuery, config)
 
 	// Get total count
 	if err := filteredQuery.Count(&totalCount).Error; err != nil {
@@ -402,6 +455,14 @@ func (re *RuleEngine) TestRule(userID string, config *models.RuleConfig, sampleS
 	}
 
 	return sampleMatches, totalCount, nil
+}
+
+// applyConfigToQuery applies a rule config directly to a query without loading from DB
+func (re *RuleEngine) applyConfigToQuery(query *gorm.DB, config *models.RuleConfig) *gorm.DB {
+	// Use GORM Group Conditions approach
+	db := query.Session(&gorm.Session{NewDB: true})
+	ruleCondition := re.buildRuleConditionGroup(db, config)
+	return query.Where(ruleCondition)
 }
 
 // ==================== Rule Management ====================

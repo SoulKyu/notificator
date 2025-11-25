@@ -13,6 +13,9 @@ templ StatisticsDashboard(data StatisticsDashboardData) {
 }
 
 templ StatisticsDashboardContent(data StatisticsDashboardData) {
+	<!-- Chart.js CDN -->
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary py-8" x-data="statisticsDashboardPage()">
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 			<!-- Header -->
@@ -44,7 +47,15 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							View and analyze alert metrics over time
 						</p>
 					</div>
-					<div class="flex space-x-3">
+					<div class="flex items-center space-x-3">
+						<!-- Comparison Mode Toggle -->
+						<div class="flex items-center">
+							<label class="relative inline-flex items-center cursor-pointer">
+								<input type="checkbox" x-model="comparisonMode" class="sr-only peer" @change="if(comparisonMode && hasData) loadComparisonData()"/>
+								<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+								<span class="ms-2 text-sm font-medium text-gray-700 dark:text-gray-300">Compare</span>
+							</label>
+						</div>
 						<a href="/statistics/rules" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
 							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -92,6 +103,65 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<button @click="setDateRange('week')" class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">Last 7 Days</button>
 							<button @click="setDateRange('month')" class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">Last 30 Days</button>
 							<button @click="setDateRange('quarter')" class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">Last 90 Days</button>
+						</div>
+					</div>
+
+					<!-- Time of Day Filter -->
+					<div class="xl:col-span-2">
+						<div class="flex items-center mb-2">
+							<label class="flex items-center cursor-pointer">
+								<input
+									type="checkbox"
+									x-model="filters.filterByTimeOfDay"
+									class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+								/>
+								<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+									Filter by Time of Day
+								</span>
+							</label>
+						</div>
+						<div x-show="filters.filterByTimeOfDay" x-collapse>
+							<div class="flex space-x-2 mb-2">
+								<div class="flex-1">
+									<label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
+									<input
+										type="time"
+										x-model="filters.timeOfDayStart"
+										class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
+									/>
+								</div>
+								<div class="flex-1">
+									<label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
+									<input
+										type="time"
+										x-model="filters.timeOfDayEnd"
+										class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
+									/>
+								</div>
+							</div>
+							<!-- Time Presets -->
+							<div class="flex flex-wrap gap-2">
+								<button @click="setTimePreset('night')" class="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800/40">
+									Night (22:00-06:00)
+								</button>
+								<button @click="setTimePreset('business')" class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800/40">
+									Business (09:00-18:00)
+								</button>
+								<button @click="setTimePreset('morning')" class="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded hover:bg-yellow-200 dark:hover:bg-yellow-800/40">
+									Morning (06:00-12:00)
+								</button>
+								<button @click="setTimePreset('evening')" class="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded hover:bg-orange-200 dark:hover:bg-orange-800/40">
+									Evening (18:00-22:00)
+								</button>
+							</div>
+							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								<span x-show="filters.timeOfDayStart > filters.timeOfDayEnd" class="text-indigo-600 dark:text-indigo-400">
+									Cross-midnight range: alerts from <span x-text="filters.timeOfDayStart"></span> to midnight and midnight to <span x-text="filters.timeOfDayEnd"></span>
+								</span>
+								<span x-show="filters.timeOfDayStart <= filters.timeOfDayEnd">
+									Alerts fired between <span x-text="filters.timeOfDayStart"></span> and <span x-text="filters.timeOfDayEnd"></span>
+								</span>
+							</p>
 						</div>
 					</div>
 
@@ -274,6 +344,117 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					</div>
 				</div>
 
+				<!-- Charts Section -->
+				<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+					<!-- Alerts Over Time Chart -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<div class="flex items-center justify-between mb-4">
+							<h3 class="text-lg font-medium text-gray-900 dark:text-white">Alerts Over Time</h3>
+							<div class="flex space-x-2">
+								<button @click="timeSeriesView = 'fired'" :class="timeSeriesView === 'fired' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'" class="px-2 py-1 text-xs rounded">
+									Fired
+								</button>
+								<button @click="timeSeriesView = 'resolved'" :class="timeSeriesView === 'resolved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'" class="px-2 py-1 text-xs rounded">
+									Resolved
+								</button>
+								<button @click="timeSeriesView = 'both'" :class="timeSeriesView === 'both' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'" class="px-2 py-1 text-xs rounded">
+									Both
+								</button>
+							</div>
+						</div>
+						<div class="h-64">
+							<canvas id="alertsTimeChart" x-ref="alertsTimeChart"></canvas>
+						</div>
+					</div>
+
+					<!-- Severity Distribution Chart -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Severity Distribution</h3>
+						<div class="h-64 flex items-center justify-center">
+							<div class="w-full max-w-xs">
+								<canvas id="severityChart" x-ref="severityChart"></canvas>
+							</div>
+						</div>
+					</div>
+
+					<!-- Top Alert Names Chart -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Top 10 Alerts</h3>
+						<div class="h-64">
+							<canvas id="topAlertsChart" x-ref="topAlertsChart"></canvas>
+						</div>
+					</div>
+
+					<!-- MTTR Percentiles Chart -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+						<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">MTTR Percentiles</h3>
+						<div class="h-64">
+							<canvas id="mttrChart" x-ref="mttrChart"></canvas>
+						</div>
+						<div class="mt-4 grid grid-cols-3 gap-4 text-center">
+							<div>
+								<div class="text-2xl font-bold text-green-600 dark:text-green-400" x-text="formatDuration(mttrPercentiles.p50)"></div>
+								<div class="text-xs text-gray-500 dark:text-gray-400">P50</div>
+							</div>
+							<div>
+								<div class="text-2xl font-bold text-yellow-600 dark:text-yellow-400" x-text="formatDuration(mttrPercentiles.p90)"></div>
+								<div class="text-xs text-gray-500 dark:text-gray-400">P90</div>
+							</div>
+							<div>
+								<div class="text-2xl font-bold text-red-600 dark:text-red-400" x-text="formatDuration(mttrPercentiles.p99)"></div>
+								<div class="text-xs text-gray-500 dark:text-gray-400">P99</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Comparison Panel (shown when comparison mode is active) -->
+				<div x-show="comparisonMode && comparisonData" x-collapse class="mb-6">
+					<div class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg shadow-sm border border-indigo-200 dark:border-indigo-800 p-6">
+						<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center">
+							<svg class="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+							</svg>
+							Period Comparison
+						</h3>
+						<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+							<!-- Total Alerts Comparison -->
+							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
+								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Alerts</div>
+								<div class="flex items-baseline space-x-2">
+									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatNumber(statsData?.total_alerts || 0)"></span>
+									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_alerts)" x-text="getDeltaText(comparisonData?.delta_alerts)"></span>
+								</div>
+								<div class="text-xs text-gray-400 dark:text-gray-500" x-text="'vs ' + formatNumber(comparisonData?.previous_total || 0) + ' previously'"></div>
+							</div>
+							<!-- Avg Duration Comparison -->
+							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
+								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg Duration</div>
+								<div class="flex items-baseline space-x-2">
+									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgDuration())"></span>
+									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_duration, true)" x-text="getDeltaText(comparisonData?.delta_duration)"></span>
+								</div>
+							</div>
+							<!-- Avg MTTR Comparison -->
+							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
+								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg MTTR</div>
+								<div class="flex items-baseline space-x-2">
+									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgMTTR())"></span>
+									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_mttr, true)" x-text="getDeltaText(comparisonData?.delta_mttr)"></span>
+								</div>
+							</div>
+							<!-- Critical Alerts Comparison -->
+							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
+								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Critical Alerts</div>
+								<div class="flex items-baseline space-x-2">
+									<span class="text-xl font-bold text-red-600 dark:text-red-400" x-text="formatNumber(getCriticalCount())"></span>
+									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_critical)" x-text="getDeltaText(comparisonData?.delta_critical)"></span>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<!-- Breakdown Tables/Charts -->
 				<div class="space-y-6">
 					<!-- Statistics by Group (when not using period grouping) -->
@@ -323,10 +504,17 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									</thead>
 									<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-gray-700">
 										<template x-for="[key, stat] in getSortedStatistics()" :key="key">
-											<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary">
+											<tr
+												class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary transition-colors"
+												:class="filters.groupBy === 'alert_name' ? 'cursor-pointer' : ''"
+												@click="filters.groupBy === 'alert_name' && openAlertDetailsModal(key)"
+											>
 												<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
 													<div class="flex items-center">
 														<span x-text="key" :class="getSeverityClass(key)"></span>
+														<svg x-show="filters.groupBy === 'alert_name'" class="ml-2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+														</svg>
 													</div>
 												</td>
 												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -363,7 +551,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<!-- Simple Chart Visualization -->
 							<div class="p-6">
 								<div class="space-y-4">
-									<template x-for="(item, index) in statsData.breakdown" :key="index">
+									<template x-for="(item, index) in (statsData?.breakdown || [])" :key="index">
 										<div class="border-l-4 pl-4 py-2" :class="'border-blue-500'">
 											<div class="flex items-center justify-between mb-2">
 												<div>
@@ -394,6 +582,403 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				</div>
 			</div>
 		</div>
+
+		<!-- Alert Details Modal -->
+		<div
+			x-show="showAlertDetailsModal"
+			x-cloak
+			class="fixed inset-0 z-50 overflow-y-auto"
+			@keydown.escape.window="closeAlertDetailsModal()"
+		>
+			<div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+				<!-- Background overlay -->
+				<div
+					x-show="showAlertDetailsModal"
+					x-transition:enter="ease-out duration-300"
+					x-transition:enter-start="opacity-0"
+					x-transition:enter-end="opacity-100"
+					x-transition:leave="ease-in duration-200"
+					x-transition:leave-start="opacity-100"
+					x-transition:leave-end="opacity-0"
+					class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
+					aria-hidden="true"
+				></div>
+
+				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+				<!-- Modal panel -->
+				<div
+					x-show="showAlertDetailsModal"
+					x-transition:enter="ease-out duration-300"
+					x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+					x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+					x-transition:leave="ease-in duration-200"
+					x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+					x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+					class="inline-block w-full max-w-5xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6 relative z-10"
+					@click.stop
+				>
+					<!-- Header -->
+					<div class="flex items-center justify-between mb-6">
+						<div>
+							<h3 class="text-lg font-medium text-gray-900 dark:text-white">Alert Occurrences</h3>
+							<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+								<span x-text="selectedAlertName"></span>
+								<span class="mx-2">•</span>
+								<span x-text="alertDetailsData?.length || 0"></span> occurrences
+							</p>
+						</div>
+						<button @click="closeAlertDetailsModal()" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+						</button>
+					</div>
+
+					<!-- Loading State -->
+					<div x-show="alertDetailsLoading" class="text-center py-12">
+						<svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading alert details...</p>
+					</div>
+
+					<!-- Alert List -->
+					<div x-show="!alertDetailsLoading && alertDetailsData?.length > 0" class="max-h-[60vh] overflow-y-auto">
+						<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+							<thead class="bg-gray-50 dark:bg-dark-bg-tertiary sticky top-0">
+								<tr>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Severity</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Fired At</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Resolved At</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Duration</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MTTR</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Labels</th>
+								</tr>
+							</thead>
+							<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-gray-700">
+								<template x-for="alert in alertDetailsData" :key="alert.id">
+									<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors"
+										@click.stop="openIndividualAlertDetails(alert)"
+										title="Click to view full alert details">
+										<td class="px-4 py-3 whitespace-nowrap">
+											<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+												:class="{
+													'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': alert.severity === 'critical',
+													'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': alert.severity === 'warning',
+													'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': alert.severity === 'info'
+												}"
+												x-text="alert.severity">
+											</span>
+										</td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDateTime(alert.fired_at)"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.resolved_at ? formatDateTime(alert.resolved_at) : '—'"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(alert.duration_seconds)"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.mttr_seconds ? formatDuration(alert.mttr_seconds) : '—'"></td>
+										<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+											<div class="flex flex-wrap gap-1 max-w-xs">
+												<template x-for="(value, key) in getAlertLabels(alert)" :key="key">
+													<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+														<span x-text="key + '=' + value"></span>
+													</span>
+												</template>
+											</div>
+										</td>
+									</tr>
+								</template>
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Empty State -->
+					<div x-show="!alertDetailsLoading && (!alertDetailsData || alertDetailsData.length === 0)" class="text-center py-12">
+						<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+						</svg>
+						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No alert occurrences found</p>
+					</div>
+
+					<!-- Footer -->
+					<div class="mt-6 flex justify-end">
+						<button
+							@click="closeAlertDetailsModal()"
+							class="px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Individual Alert Details Modal (polished version for statistics) -->
+		<div x-show="showAlertModal"
+			 x-transition:enter="ease-out duration-300"
+			 x-transition:enter-start="opacity-0"
+			 x-transition:enter-end="opacity-100"
+			 x-transition:leave="ease-in duration-200"
+			 x-transition:leave-start="opacity-100"
+			 x-transition:leave-end="opacity-0"
+			 class="relative z-[60]"
+			 role="dialog"
+			 aria-modal="true"
+			 style="display: none;"
+			 @keydown.escape.window="closeAlertModal()">
+
+			<!-- Background backdrop with blur effect -->
+			<div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300" @click="closeAlertModal()"></div>
+
+			<!-- Modal container -->
+			<div class="fixed inset-0 z-[60] overflow-y-auto">
+				<div class="flex min-h-full items-center justify-center p-2 sm:p-4">
+
+					<!-- Modal panel -->
+					<div x-show="showAlertModal"
+						 x-transition:enter="ease-out duration-300"
+						 x-transition:enter-start="opacity-0 translate-y-8 scale-95"
+						 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+						 x-transition:leave="ease-in duration-200"
+						 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+						 x-transition:leave-end="opacity-0 translate-y-8 scale-95"
+						 @click.stop
+						 class="relative transform rounded-2xl bg-white dark:bg-dark-bg-secondary shadow-2xl transition-all w-full max-w-4xl max-h-[95vh] overflow-hidden border border-gray-200/50 dark:border-dark-border-subtle/50">
+
+						<!-- Loading State -->
+						<div x-show="individualAlertLoading" class="flex flex-col items-center justify-center p-16 space-y-4">
+							<div class="relative">
+								<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 dark:border-blue-900"></div>
+								<div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+							</div>
+							<div class="text-center">
+								<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">Loading Alert Details</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400">Please wait while we fetch the alert information...</p>
+							</div>
+						</div>
+
+						<!-- Alert Content -->
+						<div x-show="!individualAlertLoading && individualAlertData" class="flex flex-col h-full">
+							<!-- Modern Header with gradient background -->
+							<div class="relative bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
+								<!-- Close button -->
+								<button @click="closeAlertModal()"
+										class="absolute top-4 right-4 p-2 rounded-full hover:bg-white/80 dark:hover:bg-black/20 transition-colors duration-200 group">
+									<svg class="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+									</svg>
+								</button>
+
+								<div class="flex items-start space-x-4 pr-12">
+									<!-- Status Icon -->
+									<div class="flex-shrink-0 mt-1">
+										<div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/25">
+											<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+											</svg>
+										</div>
+									</div>
+
+									<!-- Alert Info -->
+									<div class="flex-1 min-w-0">
+										<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2 break-words"
+											x-text="individualAlertData?.alert?.alertName || 'Alert Details'">
+										</h1>
+
+										<!-- Status and severity badges -->
+										<div class="flex flex-wrap items-center gap-2">
+											<!-- Severity badge -->
+											<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium shadow-sm"
+												  :class="{
+													  'bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800': individualAlertData?.alert?.severity === 'critical',
+													  'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-200 dark:border-yellow-800': individualAlertData?.alert?.severity === 'warning',
+													  'bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-900/50 dark:text-blue-200 dark:border-blue-800': individualAlertData?.alert?.severity === 'info'
+												  }">
+												<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+												</svg>
+												<span x-text="(individualAlertData?.alert?.severity || 'unknown').toUpperCase()"></span>
+											</span>
+
+											<!-- Resolved status badge -->
+											<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800 shadow-sm">
+												<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+												</svg>
+												RESOLVED
+											</span>
+
+											<!-- Instance badge -->
+											<span x-show="individualAlertData?.alert?.instance"
+												  class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 shadow-sm">
+												<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+												</svg>
+												<span x-text="individualAlertData?.alert?.instance"></span>
+											</span>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Body -->
+							<div class="flex-1 overflow-y-auto px-6 py-6 max-h-[60vh]">
+								<!-- Summary Card -->
+								<div x-show="individualAlertData?.alert?.summary" class="mb-6">
+									<div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800/30">
+										<div class="flex items-start space-x-3">
+											<div class="flex-shrink-0">
+												<div class="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+													<svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+													</svg>
+												</div>
+											</div>
+											<div>
+												<h4 class="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">Summary</h4>
+												<p class="text-sm text-blue-800 dark:text-blue-300" x-text="individualAlertData?.alert?.summary"></p>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Time Information Grid -->
+								<div class="mb-6">
+									<h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+										<svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+										</svg>
+										Timeline
+									</h4>
+									<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+										<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+											<div class="flex items-center space-x-2 mb-2">
+												<div class="w-2 h-2 bg-red-500 rounded-full"></div>
+												<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Fired At</span>
+											</div>
+											<div class="text-sm font-semibold text-gray-900 dark:text-white" x-text="individualAlertData?.alert?.startsAt ? new Date(individualAlertData.alert.startsAt).toLocaleString() : '—'"></div>
+										</div>
+										<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+											<div class="flex items-center space-x-2 mb-2">
+												<div class="w-2 h-2 bg-green-500 rounded-full"></div>
+												<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resolved At</span>
+											</div>
+											<div class="text-sm font-semibold text-gray-900 dark:text-white" x-text="individualAlertData?.alert?.endsAt ? new Date(individualAlertData.alert.endsAt).toLocaleString() : '—'"></div>
+										</div>
+										<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+											<div class="flex items-center space-x-2 mb-2">
+												<div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+												<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Duration</span>
+											</div>
+											<div class="text-sm font-semibold text-gray-900 dark:text-white" x-text="formatDuration(individualAlertData?.alert?.duration)"></div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Fingerprint -->
+								<div class="mb-6">
+									<h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+										<svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+										</svg>
+										Fingerprint
+									</h4>
+									<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+										<div class="flex items-center justify-between">
+											<code class="text-sm text-gray-700 dark:text-gray-300 font-mono break-all" x-text="individualAlertData?.alert?.fingerprint"></code>
+											<button @click="copyToClipboard(individualAlertData?.alert?.fingerprint)"
+													class="ml-3 flex-shrink-0 p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+													title="Copy to clipboard">
+												<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+												</svg>
+											</button>
+										</div>
+									</div>
+								</div>
+
+								<!-- Labels -->
+								<div x-show="individualAlertData?.alert?.labels && Object.keys(individualAlertData.alert.labels).length > 0" class="mb-6">
+									<h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+										<svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+										</svg>
+										Labels
+									</h4>
+									<div class="flex flex-wrap gap-2">
+										<template x-for="[key, value] in Object.entries(individualAlertData?.alert?.labels || {})" :key="key">
+											<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+												<span class="font-semibold text-gray-900 dark:text-white" x-text="key"></span>
+												<span class="mx-1 text-gray-400">=</span>
+												<span x-text="value"></span>
+											</span>
+										</template>
+									</div>
+								</div>
+
+								<!-- Annotations -->
+								<div x-show="individualAlertData?.alert?.annotations && Object.keys(individualAlertData.alert.annotations).length > 0" class="mb-6">
+									<h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+										<svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+										</svg>
+										Annotations
+									</h4>
+									<div class="space-y-3">
+										<template x-for="[key, value] in Object.entries(individualAlertData?.alert?.annotations || {})" :key="key">
+											<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+												<div class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2" x-text="key"></div>
+												<div class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words" x-text="value"></div>
+											</div>
+										</template>
+									</div>
+								</div>
+
+								<!-- Occurrence History -->
+								<div x-show="individualAlertOccurrences && individualAlertOccurrences.length > 0">
+									<h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+										<svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+										</svg>
+										Recent Occurrences
+										<span class="ml-2 px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded-full" x-text="individualAlertOccurrences?.length || 0"></span>
+									</h4>
+									<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+										<div class="max-h-48 overflow-y-auto">
+											<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+												<thead class="bg-gray-100 dark:bg-gray-800 sticky top-0">
+													<tr>
+														<th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Fired At</th>
+														<th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resolved At</th>
+														<th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Duration</th>
+													</tr>
+												</thead>
+												<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-100 dark:divide-gray-700">
+													<template x-for="occ in individualAlertOccurrences" :key="occ.id">
+														<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary transition-colors">
+															<td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="occ.fired_at ? new Date(occ.fired_at).toLocaleString() : '—'"></td>
+															<td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="occ.resolved_at ? new Date(occ.resolved_at).toLocaleString() : '—'"></td>
+															<td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white" x-text="formatDuration(occ.duration_seconds)"></td>
+														</tr>
+													</template>
+												</tbody>
+											</table>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Footer -->
+							<div class="px-6 py-4 border-t border-gray-200/50 dark:border-dark-border-subtle/50 bg-gray-50 dark:bg-dark-bg-tertiary flex justify-end">
+								<button @click="closeAlertModal()"
+										class="px-5 py-2.5 bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-primary transition-colors duration-200">
+									Close
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<script>
@@ -405,16 +990,56 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				sortColumn: 'count',
 				sortDirection: 'desc',
 
+				// Chart instances
+				alertsTimeChart: null,
+				severityChart: null,
+				topAlertsChart: null,
+				mttrChart: null,
+
+				// Chart state
+				timeSeriesView: 'fired',
+				timeSeriesData: null,
+				topAlertsData: null,
+				severityData: null, // Separate severity data for chart
+
+				// Comparison mode
+				comparisonMode: false,
+				comparisonData: null,
+
+				// MTTR percentiles
+				mttrPercentiles: { p50: 0, p90: 0, p99: 0 },
+
+				// Alert details modal (by alert name)
+				showAlertDetailsModal: false,
+				alertDetailsLoading: false,
+				alertDetailsData: null,
+				selectedAlertName: '',
+
+				// Individual alert details modal (simple modal)
+				showAlertModal: false,
+				individualAlertData: null,
+				individualAlertLoading: false,
+				individualAlertOccurrences: [],
+
 				filters: {
 					startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
 					endDate: new Date().toISOString().split('T')[0], // Today
 					groupBy: 'severity',
 					periodType: 'day',
 					applyRules: false,
-					limit: 20
+					limit: 20,
+					filterByTimeOfDay: false,
+					timeOfDayStart: '22:00',
+					timeOfDayEnd: '06:00'
 				},
 
 				init() {
+					// Watch for timeSeriesView changes
+					this.$watch('timeSeriesView', () => {
+						if (this.timeSeriesData) {
+							this.updateTimeSeriesChart();
+						}
+					});
 					// Auto-query on page load
 					this.queryStatistics();
 				},
@@ -429,7 +1054,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							apply_rules: this.filters.applyRules,
 							group_by: this.filters.groupBy,
 							period_type: this.filters.periodType,
-							limit: this.filters.groupBy === 'alert_name' ? this.filters.limit : 0
+							limit: this.filters.groupBy === 'alert_name' ? this.filters.limit : 0,
+							filter_by_time_of_day: this.filters.filterByTimeOfDay,
+							time_of_day_start: this.filters.timeOfDayStart,
+							time_of_day_end: this.filters.timeOfDayEnd
 						};
 
 						const response = await fetch('/api/v1/statistics/query', {
@@ -447,6 +1075,23 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						const data = await response.json();
 						this.statsData = data.data;
 						this.hasData = true;
+
+						// Load additional chart data in parallel
+						await Promise.all([
+							this.loadTimeSeriesData(),
+							this.loadTopAlertsData(),
+							this.loadSeverityData()
+						]);
+
+						// Update all charts after data is loaded
+						this.$nextTick(() => {
+							this.updateAllCharts();
+						});
+
+						// Load comparison data if comparison mode is active
+						if (this.comparisonMode) {
+							await this.loadComparisonData();
+						}
 					} catch (error) {
 						console.error('Error querying statistics:', error);
 						alert('Failed to load statistics: ' + error.message);
@@ -476,6 +1121,27 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						case 'quarter':
 							this.filters.startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 							this.filters.endDate = today.toISOString().split('T')[0];
+							break;
+					}
+				},
+
+				setTimePreset(preset) {
+					switch(preset) {
+						case 'night':
+							this.filters.timeOfDayStart = '22:00';
+							this.filters.timeOfDayEnd = '06:00';
+							break;
+						case 'business':
+							this.filters.timeOfDayStart = '09:00';
+							this.filters.timeOfDayEnd = '18:00';
+							break;
+						case 'morning':
+							this.filters.timeOfDayStart = '06:00';
+							this.filters.timeOfDayEnd = '12:00';
+							break;
+						case 'evening':
+							this.filters.timeOfDayStart = '18:00';
+							this.filters.timeOfDayEnd = '22:00';
 							break;
 					}
 				},
@@ -631,6 +1297,612 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					if (!dateStr) return '';
 					const date = new Date(dateStr);
 					return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+				},
+
+				// ==================== Chart Methods ====================
+
+				async loadTimeSeriesData() {
+					try {
+						// Load period-based data for time series chart
+						const payload = {
+							start_date: this.filters.startDate + 'T00:00:00Z',
+							end_date: this.filters.endDate + 'T23:59:59Z',
+							apply_rules: this.filters.applyRules,
+							group_by: 'period',
+							period_type: this.determinePeriodType(),
+							filter_by_time_of_day: this.filters.filterByTimeOfDay,
+							time_of_day_start: this.filters.timeOfDayStart,
+							time_of_day_end: this.filters.timeOfDayEnd
+						};
+
+						const response = await fetch('/api/v1/statistics/query', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						});
+
+						if (response.ok) {
+							const data = await response.json();
+							this.timeSeriesData = data.data?.breakdown || [];
+						}
+					} catch (error) {
+						console.error('Failed to load time series data:', error);
+					}
+				},
+
+				async loadTopAlertsData() {
+					try {
+						const payload = {
+							start_date: this.filters.startDate + 'T00:00:00Z',
+							end_date: this.filters.endDate + 'T23:59:59Z',
+							apply_rules: this.filters.applyRules,
+							group_by: 'alert_name',
+							limit: 10,
+							filter_by_time_of_day: this.filters.filterByTimeOfDay,
+							time_of_day_start: this.filters.timeOfDayStart,
+							time_of_day_end: this.filters.timeOfDayEnd
+						};
+
+						const response = await fetch('/api/v1/statistics/query', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						});
+
+						if (response.ok) {
+							const data = await response.json();
+							this.topAlertsData = data.data?.statistics || {};
+							// Calculate MTTR percentiles from the data
+							this.calculateMTTRPercentiles(data.data?.statistics || {});
+						}
+					} catch (error) {
+						console.error('Failed to load top alerts data:', error);
+					}
+				},
+
+				async loadSeverityData() {
+					try {
+						// Always load severity-grouped data for the severity chart
+						const payload = {
+							start_date: this.filters.startDate + 'T00:00:00Z',
+							end_date: this.filters.endDate + 'T23:59:59Z',
+							apply_rules: this.filters.applyRules,
+							group_by: 'severity',
+							filter_by_time_of_day: this.filters.filterByTimeOfDay,
+							time_of_day_start: this.filters.timeOfDayStart,
+							time_of_day_end: this.filters.timeOfDayEnd
+						};
+
+						const response = await fetch('/api/v1/statistics/query', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						});
+
+						if (response.ok) {
+							const data = await response.json();
+							this.severityData = data.data?.statistics || {};
+						}
+					} catch (error) {
+						console.error('Failed to load severity data:', error);
+					}
+				},
+
+				determinePeriodType() {
+					const start = new Date(this.filters.startDate);
+					const end = new Date(this.filters.endDate);
+					const days = (end - start) / (1000 * 60 * 60 * 24);
+
+					if (days <= 1) return 'hour';
+					if (days <= 14) return 'day';
+					if (days <= 90) return 'week';
+					return 'month';
+				},
+
+				updateAllCharts() {
+					this.updateSeverityChart();
+					this.updateTopAlertsChart();
+					this.updateTimeSeriesChart();
+					this.updateMTTRChart();
+				},
+
+				updateSeverityChart() {
+					const canvas = document.getElementById('severityChart');
+					if (!canvas) return;
+
+					// Destroy existing chart
+					if (this.severityChart) {
+						this.severityChart.destroy();
+					}
+
+					// Use the dedicated severity data (always loaded with group_by=severity)
+					const severityData = this.severityData || {};
+					const labels = Object.keys(severityData);
+					const counts = labels.map(l => severityData[l]?.count || 0);
+
+					// Severity colors
+					const colors = {
+						'critical': '#dc2626',
+						'warning': '#f59e0b',
+						'info': '#3b82f6'
+					};
+
+					const backgroundColors = labels.map(l => colors[l.toLowerCase()] || '#9ca3af');
+
+					const isDark = document.documentElement.classList.contains('dark');
+
+					this.severityChart = new Chart(canvas, {
+						type: 'doughnut',
+						data: {
+							labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+							datasets: [{
+								data: counts,
+								backgroundColor: backgroundColors,
+								borderColor: isDark ? '#1f2937' : '#ffffff',
+								borderWidth: 2
+							}]
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: {
+									position: 'bottom',
+									labels: {
+										color: isDark ? '#e5e7eb' : '#374151',
+										padding: 15
+									}
+								}
+							},
+							onClick: (event, elements) => {
+								if (elements.length > 0) {
+									const index = elements[0].index;
+									const severity = labels[index];
+									this.filters.groupBy = 'severity';
+									this.queryStatistics();
+								}
+							}
+						}
+					});
+				},
+
+				updateTopAlertsChart() {
+					const canvas = document.getElementById('topAlertsChart');
+					if (!canvas) return;
+
+					if (this.topAlertsChart) {
+						this.topAlertsChart.destroy();
+					}
+
+					const alertData = this.topAlertsData || {};
+					const sortedAlerts = Object.entries(alertData)
+						.sort((a, b) => (b[1]?.count || 0) - (a[1]?.count || 0))
+						.slice(0, 10);
+
+					const labels = sortedAlerts.map(([name]) => name.length > 25 ? name.substring(0, 25) + '...' : name);
+					const counts = sortedAlerts.map(([, stat]) => stat?.count || 0);
+
+					const isDark = document.documentElement.classList.contains('dark');
+
+					this.topAlertsChart = new Chart(canvas, {
+						type: 'bar',
+						data: {
+							labels: labels,
+							datasets: [{
+								label: 'Alert Count',
+								data: counts,
+								backgroundColor: '#3b82f6',
+								borderRadius: 4
+							}]
+						},
+						options: {
+							indexAxis: 'y',
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: { display: false }
+							},
+							scales: {
+								x: {
+									grid: { color: isDark ? '#374151' : '#e5e7eb' },
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' }
+								},
+								y: {
+									grid: { display: false },
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' }
+								}
+							},
+							onClick: (event, elements) => {
+								if (elements.length > 0) {
+									const index = elements[0].index;
+									const alertName = sortedAlerts[index][0];
+									// Could add filtering by alert name here
+									console.log('Clicked alert:', alertName);
+								}
+							}
+						}
+					});
+				},
+
+				updateTimeSeriesChart() {
+					const canvas = document.getElementById('alertsTimeChart');
+					if (!canvas) return;
+
+					if (this.alertsTimeChart) {
+						this.alertsTimeChart.destroy();
+					}
+
+					const timeData = this.timeSeriesData || [];
+					const labels = timeData.map(item => item.period);
+
+					const datasets = [];
+					const isDark = document.documentElement.classList.contains('dark');
+
+					if (this.timeSeriesView === 'fired' || this.timeSeriesView === 'both') {
+						datasets.push({
+							label: 'Alerts Fired',
+							data: timeData.map(item => item.total_count),
+							borderColor: '#3b82f6',
+							backgroundColor: 'rgba(59, 130, 246, 0.1)',
+							fill: true,
+							tension: 0.3
+						});
+					}
+
+					if (this.timeSeriesView === 'resolved' || this.timeSeriesView === 'both') {
+						// For resolved view, we sum all resolved counts per period
+						datasets.push({
+							label: 'Alerts Resolved',
+							data: timeData.map(item => {
+								const stats = item.statistics || {};
+								return Object.values(stats).reduce((sum, s) => sum + (s.count || 0), 0);
+							}),
+							borderColor: '#10b981',
+							backgroundColor: 'rgba(16, 185, 129, 0.1)',
+							fill: true,
+							tension: 0.3,
+							borderDash: this.timeSeriesView === 'both' ? [5, 5] : []
+						});
+					}
+
+					this.alertsTimeChart = new Chart(canvas, {
+						type: 'line',
+						data: { labels, datasets },
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							interaction: {
+								intersect: false,
+								mode: 'index'
+							},
+							plugins: {
+								legend: {
+									display: this.timeSeriesView === 'both',
+									labels: { color: isDark ? '#e5e7eb' : '#374151' }
+								}
+							},
+							scales: {
+								x: {
+									grid: { color: isDark ? '#374151' : '#e5e7eb' },
+									ticks: {
+										color: isDark ? '#9ca3af' : '#6b7280',
+										maxRotation: 45,
+										minRotation: 0
+									}
+								},
+								y: {
+									beginAtZero: true,
+									grid: { color: isDark ? '#374151' : '#e5e7eb' },
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' }
+								}
+							}
+						}
+					});
+				},
+
+				updateMTTRChart() {
+					const canvas = document.getElementById('mttrChart');
+					if (!canvas) return;
+
+					if (this.mttrChart) {
+						this.mttrChart.destroy();
+					}
+
+					const isDark = document.documentElement.classList.contains('dark');
+					const { p50, p90, p99 } = this.mttrPercentiles;
+
+					this.mttrChart = new Chart(canvas, {
+						type: 'bar',
+						data: {
+							labels: ['P50', 'P90', 'P99'],
+							datasets: [{
+								label: 'MTTR (seconds)',
+								data: [p50, p90, p99],
+								backgroundColor: ['#10b981', '#f59e0b', '#dc2626'],
+								borderRadius: 8
+							}]
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: { display: false },
+								tooltip: {
+									callbacks: {
+										label: (context) => {
+											return 'MTTR: ' + this.formatDuration(context.raw);
+										}
+									}
+								}
+							},
+							scales: {
+								x: {
+									grid: { display: false },
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' }
+								},
+								y: {
+									beginAtZero: true,
+									grid: { color: isDark ? '#374151' : '#e5e7eb' },
+									ticks: {
+										color: isDark ? '#9ca3af' : '#6b7280',
+										callback: (value) => this.formatDuration(value)
+									}
+								}
+							}
+						}
+					});
+				},
+
+				calculateMTTRPercentiles(stats) {
+					const mttrValues = Object.values(stats)
+						.map(s => s.avg_mttr_seconds || 0)
+						.filter(v => v > 0)
+						.sort((a, b) => a - b);
+
+					if (mttrValues.length === 0) {
+						this.mttrPercentiles = { p50: 0, p90: 0, p99: 0 };
+						return;
+					}
+
+					const getPercentile = (arr, p) => {
+						const index = Math.ceil((p / 100) * arr.length) - 1;
+						return arr[Math.max(0, Math.min(index, arr.length - 1))];
+					};
+
+					this.mttrPercentiles = {
+						p50: getPercentile(mttrValues, 50),
+						p90: getPercentile(mttrValues, 90),
+						p99: getPercentile(mttrValues, 99)
+					};
+				},
+
+				// ==================== Comparison Mode ====================
+
+				async loadComparisonData() {
+					if (!this.hasData) return;
+
+					try {
+						// Calculate previous period (same duration, shifted back)
+						const start = new Date(this.filters.startDate);
+						const end = new Date(this.filters.endDate);
+						const duration = end - start;
+
+						const prevEnd = new Date(start.getTime() - 1); // Day before current start
+						const prevStart = new Date(prevEnd.getTime() - duration);
+
+						const payload = {
+							start_date: prevStart.toISOString(),
+							end_date: prevEnd.toISOString(),
+							apply_rules: this.filters.applyRules,
+							group_by: 'severity',
+							filter_by_time_of_day: this.filters.filterByTimeOfDay,
+							time_of_day_start: this.filters.timeOfDayStart,
+							time_of_day_end: this.filters.timeOfDayEnd
+						};
+
+						const response = await fetch('/api/v1/statistics/query', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						});
+
+						if (response.ok) {
+							const data = await response.json();
+							const prevData = data.data;
+
+							// Calculate deltas
+							const currentTotal = this.statsData?.total_alerts || 0;
+							const prevTotal = prevData?.total_alerts || 0;
+
+							const currentAvgDuration = this.getOverallAvgDuration();
+							const prevAvgDuration = this.calculateAvgFromStats(prevData?.statistics);
+
+							const currentMTTR = this.getOverallAvgMTTR();
+							const prevMTTR = this.calculateMTTRFromStats(prevData?.statistics);
+
+							const currentCritical = this.getCriticalCount();
+							const prevCritical = prevData?.statistics?.critical?.count || 0;
+
+							this.comparisonData = {
+								previous_total: prevTotal,
+								delta_alerts: prevTotal > 0 ? ((currentTotal - prevTotal) / prevTotal * 100).toFixed(1) : 0,
+								delta_duration: prevAvgDuration > 0 ? ((currentAvgDuration - prevAvgDuration) / prevAvgDuration * 100).toFixed(1) : 0,
+								delta_mttr: prevMTTR > 0 ? ((currentMTTR - prevMTTR) / prevMTTR * 100).toFixed(1) : 0,
+								delta_critical: prevCritical > 0 ? ((currentCritical - prevCritical) / prevCritical * 100).toFixed(1) : 0
+							};
+						}
+					} catch (error) {
+						console.error('Failed to load comparison data:', error);
+					}
+				},
+
+				calculateAvgFromStats(stats) {
+					if (!stats) return 0;
+					const values = Object.values(stats);
+					if (values.length === 0) return 0;
+					return values.reduce((sum, s) => sum + (s.avg_duration_seconds || 0), 0) / values.length;
+				},
+
+				calculateMTTRFromStats(stats) {
+					if (!stats) return 0;
+					const values = Object.values(stats);
+					if (values.length === 0) return 0;
+					return values.reduce((sum, s) => sum + (s.avg_mttr_seconds || 0), 0) / values.length;
+				},
+
+				getCriticalCount() {
+					return this.statsData?.statistics?.critical?.count || 0;
+				},
+
+				getDeltaClass(delta, inverted = false) {
+					const numDelta = parseFloat(delta);
+					if (isNaN(numDelta) || numDelta === 0) return 'text-gray-500';
+
+					// For inverted metrics (like duration/mttr), decrease is good
+					const isGood = inverted ? numDelta < 0 : numDelta < 0;
+
+					if (isGood) return 'text-green-600 dark:text-green-400';
+					return 'text-red-600 dark:text-red-400';
+				},
+
+				getDeltaText(delta) {
+					const numDelta = parseFloat(delta);
+					if (isNaN(numDelta) || numDelta === 0) return '—';
+					const sign = numDelta > 0 ? '↑' : '↓';
+					return `${sign} ${Math.abs(numDelta)}%`;
+				},
+
+				// ==================== Alert Details Modal ====================
+
+				async openAlertDetailsModal(alertName) {
+					this.selectedAlertName = alertName;
+					this.showAlertDetailsModal = true;
+					this.alertDetailsLoading = true;
+					this.alertDetailsData = null;
+
+					try {
+						const payload = {
+							start_date: this.filters.startDate + 'T00:00:00Z',
+							end_date: this.filters.endDate + 'T23:59:59Z',
+							alert_name: alertName,
+							apply_rules: this.filters.applyRules,
+							filter_by_time_of_day: this.filters.filterByTimeOfDay,
+							time_of_day_start: this.filters.timeOfDayStart,
+							time_of_day_end: this.filters.timeOfDayEnd,
+							limit: 100
+						};
+
+						const response = await fetch('/api/v1/statistics/alerts-by-name', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						});
+
+						if (response.ok) {
+							const data = await response.json();
+							this.alertDetailsData = data.data?.alerts || [];
+						} else {
+							console.error('Failed to load alert details');
+							this.alertDetailsData = [];
+						}
+					} catch (error) {
+						console.error('Error loading alert details:', error);
+						this.alertDetailsData = [];
+					} finally {
+						this.alertDetailsLoading = false;
+					}
+				},
+
+				closeAlertDetailsModal() {
+					this.showAlertDetailsModal = false;
+					this.alertDetailsData = null;
+					this.selectedAlertName = '';
+				},
+
+				// Open individual alert details modal
+				async openIndividualAlertDetails(alert) {
+					console.log('Opening alert details for:', alert);
+					this.individualAlertLoading = true;
+					this.showAlertModal = true;
+					this.individualAlertData = null;
+					this.individualAlertOccurrences = [];
+
+					const fingerprint = alert.fingerprint;
+
+					try {
+						// Fetch statistics data for this alert
+						const response = await fetch(`/api/v1/statistics/alert/${fingerprint}`, {
+							credentials: 'include'
+						});
+
+						const result = await response.json();
+
+						if (result.success && result.data) {
+							this.individualAlertData = result.data.details;
+							this.individualAlertOccurrences = result.data.occurrences || [];
+						} else {
+							console.error('Failed to load alert details:', result.error || 'Unknown error');
+							this.closeAlertModal();
+						}
+					} catch (error) {
+						console.error('Error loading alert details:', error);
+						this.closeAlertModal();
+					} finally {
+						this.individualAlertLoading = false;
+					}
+				},
+
+				// Close individual alert details modal
+				closeAlertModal() {
+					this.showAlertModal = false;
+					this.individualAlertData = null;
+					this.individualAlertOccurrences = [];
+				},
+
+				// Format duration for display
+				formatDuration(seconds) {
+					if (!seconds || seconds <= 0) return '—';
+					const hours = Math.floor(seconds / 3600);
+					const minutes = Math.floor((seconds % 3600) / 60);
+					const secs = Math.floor(seconds % 60);
+					if (hours > 0) {
+						return `${hours}h ${minutes}m`;
+					} else if (minutes > 0) {
+						return `${minutes}m ${secs}s`;
+					}
+					return `${secs}s`;
+				},
+
+				// Copy to clipboard
+				copyToClipboard(text) {
+					if (!text) return;
+					navigator.clipboard.writeText(text).then(() => {
+						// Success
+					}).catch(err => {
+						console.error('Failed to copy:', err);
+					});
+				},
+
+				getAlertLabels(alert) {
+					if (!alert.metadata) return {};
+					try {
+						const metadata = typeof alert.metadata === 'string' ? JSON.parse(alert.metadata) : alert.metadata;
+						return metadata.labels || {};
+					} catch (e) {
+						return {};
+					}
+				},
+
+				formatDateTime(dateStr) {
+					if (!dateStr) return '';
+					const date = new Date(dateStr);
+					return date.toLocaleString('en-US', {
+						month: 'short',
+						day: 'numeric',
+						year: 'numeric',
+						hour: '2-digit',
+						minute: '2-digit'
+					});
 				},
 
 				exportData() {

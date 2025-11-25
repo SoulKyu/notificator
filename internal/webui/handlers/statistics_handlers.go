@@ -35,13 +35,16 @@ func QueryStatistics(c *gin.Context) {
 
 	// Parse request body
 	var request struct {
-		StartDate  time.Time `json:"start_date" binding:"required"`
-		EndDate    time.Time `json:"end_date" binding:"required"`
-		ApplyRules bool      `json:"apply_rules"`
-		GroupBy    string    `json:"group_by"` // "severity", "team", "period", "alert_name"
-		PeriodType string    `json:"period_type"` // "hour", "day", "week", "month"
-		Limit      int32     `json:"limit"`
-		Offset     int32     `json:"offset"`
+		StartDate          time.Time `json:"start_date" binding:"required"`
+		EndDate            time.Time `json:"end_date" binding:"required"`
+		ApplyRules         bool      `json:"apply_rules"`
+		GroupBy            string    `json:"group_by"`    // "severity", "team", "period", "alert_name"
+		PeriodType         string    `json:"period_type"` // "hour", "day", "week", "month"
+		Limit              int32     `json:"limit"`
+		Offset             int32     `json:"offset"`
+		FilterByTimeOfDay  bool      `json:"filter_by_time_of_day"`  // Enable time-of-day filtering
+		TimeOfDayStart     string    `json:"time_of_day_start"`      // "HH:MM" format
+		TimeOfDayEnd       string    `json:"time_of_day_end"`        // "HH:MM" format
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -51,14 +54,17 @@ func QueryStatistics(c *gin.Context) {
 
 	// Build gRPC request
 	req := &alertpb.QueryStatisticsRequest{
-		SessionId:  sessionID,
-		StartDate:  timestamppb.New(request.StartDate),
-		EndDate:    timestamppb.New(request.EndDate),
-		ApplyRules: request.ApplyRules,
-		GroupBy:    request.GroupBy,
-		PeriodType: request.PeriodType,
-		Limit:      request.Limit,
-		Offset:     request.Offset,
+		SessionId:          sessionID,
+		StartDate:          timestamppb.New(request.StartDate),
+		EndDate:            timestamppb.New(request.EndDate),
+		ApplyRules:         request.ApplyRules,
+		GroupBy:            request.GroupBy,
+		PeriodType:         request.PeriodType,
+		Limit:              request.Limit,
+		Offset:             request.Offset,
+		FilterByTimeOfDay:  request.FilterByTimeOfDay,
+		TimeOfDayStart:     request.TimeOfDayStart,
+		TimeOfDayEnd:       request.TimeOfDayEnd,
 	}
 
 	// Query statistics
@@ -132,6 +138,92 @@ func GetStatisticsSummary(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(result))
+}
+
+// GetAlertsByName handles fetching alert occurrences for a specific alert name
+func GetAlertsByName(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	// Check backend availability
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	// Parse request body
+	var request struct {
+		StartDate         time.Time `json:"start_date" binding:"required"`
+		EndDate           time.Time `json:"end_date" binding:"required"`
+		AlertName         string    `json:"alert_name" binding:"required"`
+		ApplyRules        bool      `json:"apply_rules"`
+		FilterByTimeOfDay bool      `json:"filter_by_time_of_day"`
+		TimeOfDayStart    string    `json:"time_of_day_start"`
+		TimeOfDayEnd      string    `json:"time_of_day_end"`
+		Limit             int32     `json:"limit"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request: "+err.Error()))
+		return
+	}
+
+	// Set default limit
+	if request.Limit <= 0 {
+		request.Limit = 100
+	}
+
+	// Query alerts
+	alerts, totalCount, err := backendClient.GetAlertsByName(
+		sessionID,
+		request.AlertName,
+		request.StartDate,
+		request.EndDate,
+		request.ApplyRules,
+		request.FilterByTimeOfDay,
+		request.TimeOfDayStart,
+		request.TimeOfDayEnd,
+		request.Limit,
+	)
+	if err != nil {
+		log.Printf("Failed to get alerts by name: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get alerts: "+err.Error()))
+		return
+	}
+
+	// Convert alerts to JSON-friendly format
+	result := make([]gin.H, len(alerts))
+	for i, alert := range alerts {
+		var metadata interface{}
+		if alert.Metadata != nil && len(alert.Metadata) > 0 {
+			if err := json.Unmarshal(alert.Metadata, &metadata); err != nil {
+				metadata = string(alert.Metadata)
+			}
+		}
+
+		result[i] = gin.H{
+			"id":               alert.Id,
+			"fingerprint":      alert.Fingerprint,
+			"alert_name":       alert.AlertName,
+			"severity":         alert.Severity,
+			"fired_at":         alert.FiredAt.AsTime(),
+			"resolved_at":      nil,
+			"duration_seconds": alert.DurationSeconds,
+			"mttr_seconds":     alert.MttrSeconds,
+			"metadata":         metadata,
+		}
+		if alert.ResolvedAt != nil {
+			result[i]["resolved_at"] = alert.ResolvedAt.AsTime()
+		}
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"alerts":      result,
+		"total_count": totalCount,
+	}))
 }
 
 // ==================== On-Call Rules Endpoints ====================

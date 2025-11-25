@@ -110,16 +110,20 @@ Using Grafana Mimir or Cortex with multi-tenancy :
 
 ```bash
 # Alertmanager 0 (Production tenant)
-NOTIFICATOR_ALERTMANAGERS_0_URL="http://mimir-alertmanager:8080/alertmanager"
+NOTIFICATOR_ALERTMANAGERS_0_URL="http://mimir-alertmanager.monitoring.svc.cluster.local:8080/alertmanager"
 NOTIFICATOR_ALERTMANAGERS_0_NAME="Production"
 NOTIFICATOR_ALERTMANAGERS_0_HEADERS="X-Scope-OrgID=prod-tenant"
+NOTIFICATOR_ALERTMANAGERS_0_USERNAME="prod"
+NOTIFICATOR_ALERTMANAGERS_0_PASSWORD="prod"
 
 # Alertmanager 1 (Development tenant)
-NOTIFICATOR_ALERTMANAGERS_1_URL="http://mimir-alertmanager:8080/alertmanager"
+NOTIFICATOR_ALERTMANAGERS_1_URL="http://mimir-alertmanager.monitoring.svc.cluster.local:8080/alertmanager"
 NOTIFICATOR_ALERTMANAGERS_1_NAME="Development"
 NOTIFICATOR_ALERTMANAGERS_1_HEADERS="X-Scope-OrgID=dev-tenant"
+NOTIFICATOR_ALERTMANAGERS_1_USERNAME="dev"
+NOTIFICATOR_ALERTMANAGERS_1_PASSWORD="dev"
 
-# Or use the same header for all alertmanagers
+# Or use the same header for all Alertmanagers
 METRICS_PROVIDER_HEADERS="X-Scope-OrgID=your-tenant"
 ```
 

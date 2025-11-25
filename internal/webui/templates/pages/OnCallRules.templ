@@ -32,6 +32,14 @@ templ OnCallRulesContent(data OnCallRulesData) {
 								<svg class="flex-shrink-0 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
 									<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
 								</svg>
+								<a href="/statistics" class="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Statistics</a>
+							</div>
+						</li>
+						<li>
+							<div class="flex items-center">
+								<svg class="flex-shrink-0 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+								</svg>
 								<span class="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400">On-Call Rules</span>
 							</div>
 						</li>
@@ -44,15 +52,26 @@ templ OnCallRulesContent(data OnCallRulesData) {
 							Define criteria to classify which alerts count as on-call alerts for statistics tracking
 						</p>
 					</div>
-					<button
-						@click="openCreateRuleModal()"
-						class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:ring-offset-dark-bg-primary"
-					>
-						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-						</svg>
-						Create Rule
-					</button>
+					<div class="flex items-center space-x-3">
+						<a
+							href="/statistics"
+							class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+						>
+							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+							</svg>
+							Back to Statistics
+						</a>
+						<button
+							@click="openCreateRuleModal()"
+							class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:ring-offset-dark-bg-primary"
+						>
+							<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+							</svg>
+							Create Rule
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -203,7 +222,7 @@ templ OnCallRulesContent(data OnCallRulesData) {
 					x-transition:leave-start="opacity-100"
 					x-transition:leave-end="opacity-0"
 					class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
-					@click="closeRuleModal()"
+					aria-hidden="true"
 				></div>
 
 				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
@@ -217,7 +236,8 @@ templ OnCallRulesContent(data OnCallRulesData) {
 					x-transition:leave="ease-in duration-200"
 					x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
 					x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-					class="inline-block w-full max-w-4xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6"
+					class="inline-block w-full max-w-4xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6 relative z-10"
+					@click.stop
 				>
 					@RuleModalContent()
 				</div>
@@ -232,6 +252,7 @@ templ OnCallRulesContent(data OnCallRulesData) {
 			@keydown.escape.window="closeTestModal()"
 		>
 			<div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+				<!-- Background overlay -->
 				<div
 					x-show="showTestModal"
 					x-transition:enter="ease-out duration-300"
@@ -241,11 +262,12 @@ templ OnCallRulesContent(data OnCallRulesData) {
 					x-transition:leave-start="opacity-100"
 					x-transition:leave-end="opacity-0"
 					class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
-					@click="closeTestModal()"
+					aria-hidden="true"
 				></div>
 
 				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
+				<!-- Modal panel -->
 				<div
 					x-show="showTestModal"
 					x-transition:enter="ease-out duration-300"
@@ -254,7 +276,8 @@ templ OnCallRulesContent(data OnCallRulesData) {
 					x-transition:leave="ease-in duration-200"
 					x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
 					x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-					class="inline-block w-full max-w-3xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6"
+					class="inline-block w-full max-w-3xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6 relative z-10"
+					@click.stop
 				>
 					@TestResultsContent()
 				</div>

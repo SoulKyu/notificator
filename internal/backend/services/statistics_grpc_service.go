@@ -75,14 +75,17 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 
 	// Build query request
 	queryReq := &QueryRequest{
-		UserID:      user.ID,
-		StartDate:   startDate,
-		EndDate:     endDate,
-		ApplyRules:  req.ApplyRules,
-		GroupBy:     req.GroupBy,
-		PeriodType:  req.PeriodType,
-		Limit:       int(req.Limit),
-		Offset:      int(req.Offset),
+		UserID:            user.ID,
+		StartDate:         startDate,
+		EndDate:           endDate,
+		ApplyRules:        req.ApplyRules,
+		GroupBy:           req.GroupBy,
+		PeriodType:        req.PeriodType,
+		Limit:             int(req.Limit),
+		Offset:            int(req.Offset),
+		FilterByTimeOfDay: req.FilterByTimeOfDay,
+		TimeOfDayStart:    req.TimeOfDayStart,
+		TimeOfDayEnd:      req.TimeOfDayEnd,
 	}
 
 	// Execute query
@@ -998,5 +1001,126 @@ func (s *StatisticsServiceGorm) GetAlertHistory(
 		Success: true,
 		Message: fmt.Sprintf("Found %d occurrences", len(history)),
 		History: history,
+	}, nil
+}
+
+// GetAlertsByName implements the GetAlertsByName RPC method
+// Returns all alerts with a specific alert name, respecting filter criteria
+func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertpb.GetAlertsByNameRequest) (*alertpb.GetAlertsByNameResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetAlertsByNameResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.AlertName == "" {
+		return &alertpb.GetAlertsByNameResponse{
+			Success: false,
+			Message: "Alert name is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetAlertsByNameResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Validate time range
+	if req.StartDate == nil || req.EndDate == nil {
+		return &alertpb.GetAlertsByNameResponse{
+			Success: false,
+			Message: "Start date and end date are required",
+		}, nil
+	}
+
+	startDate := req.StartDate.AsTime()
+	endDate := req.EndDate.AsTime()
+
+	// Build base query - alerts are global, rules are per-user
+	query := s.db.GetDB().Model(&models.AlertStatistic{}).
+		Where("alert_name = ?", req.AlertName).
+		Where("fired_at >= ? AND fired_at <= ?", startDate, endDate)
+
+	// Apply time of day filter if requested
+	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
+		query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+	}
+
+	// Apply on-call rules if requested
+	if req.ApplyRules {
+		query, err = s.ruleEngine.ApplyRulesToQuery(user.ID, query)
+		if err != nil {
+			log.Printf("Warning: Failed to apply rules for user %s: %v", user.ID, err)
+			// Continue without rules applied
+		}
+	}
+
+	// Get total count first
+	var totalCount int64
+	if err := query.Count(&totalCount).Error; err != nil {
+		log.Printf("Failed to count alerts by name for user %s: %v", user.ID, err)
+		return &alertpb.GetAlertsByNameResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to count alerts: %v", err),
+		}, nil
+	}
+
+	// Apply limit
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 100 // Default limit
+	}
+	query = query.Order("fired_at DESC").Limit(limit)
+
+	// Execute query
+	var alerts []models.AlertStatistic
+	if err := query.Find(&alerts).Error; err != nil {
+		log.Printf("Failed to query alerts by name for user %s: %v", user.ID, err)
+		return &alertpb.GetAlertsByNameResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to query alerts: %v", err),
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbAlerts := make([]*alertpb.AlertStatistic, len(alerts))
+	for i, stat := range alerts {
+		pbAlerts[i] = &alertpb.AlertStatistic{
+			Id:          stat.ID,
+			Fingerprint: stat.Fingerprint,
+			AlertName:   stat.AlertName,
+			Severity:    stat.Severity,
+			FiredAt:     timestamppb.New(stat.FiredAt),
+			CreatedAt:   timestamppb.New(stat.CreatedAt),
+			UpdatedAt:   timestamppb.New(stat.UpdatedAt),
+		}
+
+		if stat.ResolvedAt != nil {
+			pbAlerts[i].ResolvedAt = timestamppb.New(*stat.ResolvedAt)
+		}
+		if stat.AcknowledgedAt != nil {
+			pbAlerts[i].AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
+		}
+		if stat.DurationSeconds != nil {
+			pbAlerts[i].DurationSeconds = int32(*stat.DurationSeconds)
+		}
+		if stat.MTTRSeconds != nil {
+			pbAlerts[i].MttrSeconds = int32(*stat.MTTRSeconds)
+		}
+		if stat.Metadata != nil {
+			pbAlerts[i].Metadata = stat.Metadata
+		}
+	}
+
+	return &alertpb.GetAlertsByNameResponse{
+		Success:    true,
+		Message:    fmt.Sprintf("Found %d alerts", len(pbAlerts)),
+		Alerts:     pbAlerts,
+		TotalCount: totalCount,
 	}, nil
 }

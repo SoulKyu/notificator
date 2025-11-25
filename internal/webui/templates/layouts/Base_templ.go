@@ -42,7 +42,7 @@ func Base(title string, content templ.Component) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"icon\" type=\"image/png\" href=\"/static/notificator_background.png\"><link href=\"/static/css/output.css?v=1\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/alpinejs@3.14.6/dist/cdn.min.js\" defer></script></head><body class=\"h-full bg-gray-50 dark:bg-dark-bg-primary\"><div class=\"min-h-full\" x-data=\"darkModeHandler()\" x-init=\"init()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"icon\" type=\"image/png\" href=\"/static/notificator_background.png\"><link href=\"/static/css/output.css?v=1\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><script src=\"https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js\" defer></script><script src=\"https://unpkg.com/alpinejs@3.14.6/dist/cdn.min.js\" defer></script></head><body class=\"h-full bg-gray-50 dark:bg-dark-bg-primary\"><div class=\"min-h-full\" x-data=\"darkModeHandler()\" x-init=\"init()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

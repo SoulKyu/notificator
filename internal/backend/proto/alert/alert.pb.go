@@ -5029,17 +5029,20 @@ func (x *AnnotationButtonConfig) GetUpdatedAt() *timestamppb.Timestamp {
 }
 
 type QueryStatisticsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
-	EndDate       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
-	ApplyRules    bool                   `protobuf:"varint,4,opt,name=apply_rules,json=applyRules,proto3" json:"apply_rules,omitempty"` // Apply user's on-call rules
-	GroupBy       string                 `protobuf:"bytes,5,opt,name=group_by,json=groupBy,proto3" json:"group_by,omitempty"`           // "severity", "team", "period", "alert_name", or empty for overall
-	PeriodType    string                 `protobuf:"bytes,6,opt,name=period_type,json=periodType,proto3" json:"period_type,omitempty"`  // "hour", "day", "week", "month" (required if group_by="period")
-	Limit         int32                  `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`                             // Limit results (for alert_name grouping)
-	Offset        int32                  `protobuf:"varint,8,opt,name=offset,proto3" json:"offset,omitempty"`                           // Pagination offset
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	StartDate         *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	EndDate           *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
+	ApplyRules        bool                   `protobuf:"varint,4,opt,name=apply_rules,json=applyRules,proto3" json:"apply_rules,omitempty"`                            // Apply user's on-call rules
+	GroupBy           string                 `protobuf:"bytes,5,opt,name=group_by,json=groupBy,proto3" json:"group_by,omitempty"`                                      // "severity", "team", "period", "alert_name", or empty for overall
+	PeriodType        string                 `protobuf:"bytes,6,opt,name=period_type,json=periodType,proto3" json:"period_type,omitempty"`                             // "hour", "day", "week", "month" (required if group_by="period")
+	Limit             int32                  `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`                                                        // Limit results (for alert_name grouping)
+	Offset            int32                  `protobuf:"varint,8,opt,name=offset,proto3" json:"offset,omitempty"`                                                      // Pagination offset
+	FilterByTimeOfDay bool                   `protobuf:"varint,9,opt,name=filter_by_time_of_day,json=filterByTimeOfDay,proto3" json:"filter_by_time_of_day,omitempty"` // Enable time-of-day filtering
+	TimeOfDayStart    string                 `protobuf:"bytes,10,opt,name=time_of_day_start,json=timeOfDayStart,proto3" json:"time_of_day_start,omitempty"`            // "HH:MM" format (e.g., "22:00")
+	TimeOfDayEnd      string                 `protobuf:"bytes,11,opt,name=time_of_day_end,json=timeOfDayEnd,proto3" json:"time_of_day_end,omitempty"`                  // "HH:MM" format (e.g., "06:00") - supports cross-midnight
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *QueryStatisticsRequest) Reset() {
@@ -5126,6 +5129,27 @@ func (x *QueryStatisticsRequest) GetOffset() int32 {
 		return x.Offset
 	}
 	return 0
+}
+
+func (x *QueryStatisticsRequest) GetFilterByTimeOfDay() bool {
+	if x != nil {
+		return x.FilterByTimeOfDay
+	}
+	return false
+}
+
+func (x *QueryStatisticsRequest) GetTimeOfDayStart() string {
+	if x != nil {
+		return x.TimeOfDayStart
+	}
+	return ""
+}
+
+func (x *QueryStatisticsRequest) GetTimeOfDayEnd() string {
+	if x != nil {
+		return x.TimeOfDayEnd
+	}
+	return ""
 }
 
 type QueryStatisticsResponse struct {
@@ -7436,6 +7460,182 @@ func (x *GetAlertHistoryResponse) GetHistory() []*AlertStatistic {
 	return nil
 }
 
+type GetAlertsByNameRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	StartDate         *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	EndDate           *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
+	AlertName         string                 `protobuf:"bytes,4,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
+	ApplyRules        bool                   `protobuf:"varint,5,opt,name=apply_rules,json=applyRules,proto3" json:"apply_rules,omitempty"`
+	FilterByTimeOfDay bool                   `protobuf:"varint,6,opt,name=filter_by_time_of_day,json=filterByTimeOfDay,proto3" json:"filter_by_time_of_day,omitempty"`
+	TimeOfDayStart    string                 `protobuf:"bytes,7,opt,name=time_of_day_start,json=timeOfDayStart,proto3" json:"time_of_day_start,omitempty"`
+	TimeOfDayEnd      string                 `protobuf:"bytes,8,opt,name=time_of_day_end,json=timeOfDayEnd,proto3" json:"time_of_day_end,omitempty"`
+	Limit             int32                  `protobuf:"varint,9,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetAlertsByNameRequest) Reset() {
+	*x = GetAlertsByNameRequest{}
+	mi := &file_proto_alert_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAlertsByNameRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAlertsByNameRequest) ProtoMessage() {}
+
+func (x *GetAlertsByNameRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAlertsByNameRequest.ProtoReflect.Descriptor instead.
+func (*GetAlertsByNameRequest) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *GetAlertsByNameRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *GetAlertsByNameRequest) GetStartDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartDate
+	}
+	return nil
+}
+
+func (x *GetAlertsByNameRequest) GetEndDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndDate
+	}
+	return nil
+}
+
+func (x *GetAlertsByNameRequest) GetAlertName() string {
+	if x != nil {
+		return x.AlertName
+	}
+	return ""
+}
+
+func (x *GetAlertsByNameRequest) GetApplyRules() bool {
+	if x != nil {
+		return x.ApplyRules
+	}
+	return false
+}
+
+func (x *GetAlertsByNameRequest) GetFilterByTimeOfDay() bool {
+	if x != nil {
+		return x.FilterByTimeOfDay
+	}
+	return false
+}
+
+func (x *GetAlertsByNameRequest) GetTimeOfDayStart() string {
+	if x != nil {
+		return x.TimeOfDayStart
+	}
+	return ""
+}
+
+func (x *GetAlertsByNameRequest) GetTimeOfDayEnd() string {
+	if x != nil {
+		return x.TimeOfDayEnd
+	}
+	return ""
+}
+
+func (x *GetAlertsByNameRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type GetAlertsByNameResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Alerts        []*AlertStatistic      `protobuf:"bytes,3,rep,name=alerts,proto3" json:"alerts,omitempty"`
+	TotalCount    int64                  `protobuf:"varint,4,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAlertsByNameResponse) Reset() {
+	*x = GetAlertsByNameResponse{}
+	mi := &file_proto_alert_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAlertsByNameResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAlertsByNameResponse) ProtoMessage() {}
+
+func (x *GetAlertsByNameResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_alert_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAlertsByNameResponse.ProtoReflect.Descriptor instead.
+func (*GetAlertsByNameResponse) Descriptor() ([]byte, []int) {
+	return file_proto_alert_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *GetAlertsByNameResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetAlertsByNameResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *GetAlertsByNameResponse) GetAlerts() []*AlertStatistic {
+	if x != nil {
+		return x.Alerts
+	}
+	return nil
+}
+
+func (x *GetAlertsByNameResponse) GetTotalCount() int64 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
 type ColumnConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -7455,7 +7655,7 @@ type ColumnConfig struct {
 
 func (x *ColumnConfig) Reset() {
 	*x = ColumnConfig{}
-	mi := &file_proto_alert_proto_msgTypes[113]
+	mi := &file_proto_alert_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7467,7 +7667,7 @@ func (x *ColumnConfig) String() string {
 func (*ColumnConfig) ProtoMessage() {}
 
 func (x *ColumnConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[113]
+	mi := &file_proto_alert_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7480,7 +7680,7 @@ func (x *ColumnConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ColumnConfig.ProtoReflect.Descriptor instead.
 func (*ColumnConfig) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{113}
+	return file_proto_alert_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *ColumnConfig) GetId() string {
@@ -7572,7 +7772,7 @@ type ColumnPreferences struct {
 
 func (x *ColumnPreferences) Reset() {
 	*x = ColumnPreferences{}
-	mi := &file_proto_alert_proto_msgTypes[114]
+	mi := &file_proto_alert_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7584,7 +7784,7 @@ func (x *ColumnPreferences) String() string {
 func (*ColumnPreferences) ProtoMessage() {}
 
 func (x *ColumnPreferences) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[114]
+	mi := &file_proto_alert_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7597,7 +7797,7 @@ func (x *ColumnPreferences) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ColumnPreferences.ProtoReflect.Descriptor instead.
 func (*ColumnPreferences) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{114}
+	return file_proto_alert_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *ColumnPreferences) GetUserId() string {
@@ -7637,7 +7837,7 @@ type GetUserColumnPreferencesRequest struct {
 
 func (x *GetUserColumnPreferencesRequest) Reset() {
 	*x = GetUserColumnPreferencesRequest{}
-	mi := &file_proto_alert_proto_msgTypes[115]
+	mi := &file_proto_alert_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7649,7 +7849,7 @@ func (x *GetUserColumnPreferencesRequest) String() string {
 func (*GetUserColumnPreferencesRequest) ProtoMessage() {}
 
 func (x *GetUserColumnPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[115]
+	mi := &file_proto_alert_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7662,7 +7862,7 @@ func (x *GetUserColumnPreferencesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserColumnPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*GetUserColumnPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{115}
+	return file_proto_alert_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *GetUserColumnPreferencesRequest) GetSessionId() string {
@@ -7683,7 +7883,7 @@ type GetUserColumnPreferencesResponse struct {
 
 func (x *GetUserColumnPreferencesResponse) Reset() {
 	*x = GetUserColumnPreferencesResponse{}
-	mi := &file_proto_alert_proto_msgTypes[116]
+	mi := &file_proto_alert_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7695,7 +7895,7 @@ func (x *GetUserColumnPreferencesResponse) String() string {
 func (*GetUserColumnPreferencesResponse) ProtoMessage() {}
 
 func (x *GetUserColumnPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[116]
+	mi := &file_proto_alert_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7708,7 +7908,7 @@ func (x *GetUserColumnPreferencesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserColumnPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*GetUserColumnPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{116}
+	return file_proto_alert_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *GetUserColumnPreferencesResponse) GetSuccess() bool {
@@ -7742,7 +7942,7 @@ type SaveUserColumnPreferencesRequest struct {
 
 func (x *SaveUserColumnPreferencesRequest) Reset() {
 	*x = SaveUserColumnPreferencesRequest{}
-	mi := &file_proto_alert_proto_msgTypes[117]
+	mi := &file_proto_alert_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7754,7 +7954,7 @@ func (x *SaveUserColumnPreferencesRequest) String() string {
 func (*SaveUserColumnPreferencesRequest) ProtoMessage() {}
 
 func (x *SaveUserColumnPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[117]
+	mi := &file_proto_alert_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7767,7 +7967,7 @@ func (x *SaveUserColumnPreferencesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveUserColumnPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*SaveUserColumnPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{117}
+	return file_proto_alert_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *SaveUserColumnPreferencesRequest) GetSessionId() string {
@@ -7794,7 +7994,7 @@ type SaveUserColumnPreferencesResponse struct {
 
 func (x *SaveUserColumnPreferencesResponse) Reset() {
 	*x = SaveUserColumnPreferencesResponse{}
-	mi := &file_proto_alert_proto_msgTypes[118]
+	mi := &file_proto_alert_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7806,7 +8006,7 @@ func (x *SaveUserColumnPreferencesResponse) String() string {
 func (*SaveUserColumnPreferencesResponse) ProtoMessage() {}
 
 func (x *SaveUserColumnPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_alert_proto_msgTypes[118]
+	mi := &file_proto_alert_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7819,7 +8019,7 @@ func (x *SaveUserColumnPreferencesResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SaveUserColumnPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*SaveUserColumnPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_alert_proto_rawDescGZIP(), []int{118}
+	return file_proto_alert_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *SaveUserColumnPreferencesResponse) GetSuccess() bool {
@@ -8242,7 +8442,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb4\x02\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb8\x03\n" +
 	"\x16QueryStatisticsRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
@@ -8255,7 +8455,11 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\vperiod_type\x18\x06 \x01(\tR\n" +
 	"periodType\x12\x14\n" +
 	"\x05limit\x18\a \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\b \x01(\x05R\x06offset\"\xb1\x03\n" +
+	"\x06offset\x18\b \x01(\x05R\x06offset\x120\n" +
+	"\x15filter_by_time_of_day\x18\t \x01(\bR\x11filterByTimeOfDay\x12)\n" +
+	"\x11time_of_day_start\x18\n" +
+	" \x01(\tR\x0etimeOfDayStart\x12%\n" +
+	"\x0ftime_of_day_end\x18\v \x01(\tR\ftimeOfDayEnd\"\xb1\x03\n" +
 	"\x17QueryStatisticsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12;\n" +
 	"\n" +
@@ -8485,7 +8689,27 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x17GetAlertHistoryResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12;\n" +
-	"\ahistory\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\ahistory\"\xac\x02\n" +
+	"\ahistory\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\ahistory\"\x83\x03\n" +
+	"\x16GetAlertsByNameRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
+	"\n" +
+	"start_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x125\n" +
+	"\bend_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendDate\x12\x1d\n" +
+	"\n" +
+	"alert_name\x18\x04 \x01(\tR\talertName\x12\x1f\n" +
+	"\vapply_rules\x18\x05 \x01(\bR\n" +
+	"applyRules\x120\n" +
+	"\x15filter_by_time_of_day\x18\x06 \x01(\bR\x11filterByTimeOfDay\x12)\n" +
+	"\x11time_of_day_start\x18\a \x01(\tR\x0etimeOfDayStart\x12%\n" +
+	"\x0ftime_of_day_end\x18\b \x01(\tR\ftimeOfDayEnd\x12\x14\n" +
+	"\x05limit\x18\t \x01(\x05R\x05limit\"\xa9\x01\n" +
+	"\x17GetAlertsByNameResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x129\n" +
+	"\x06alerts\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\x06alerts\x12\x1f\n" +
+	"\vtotal_count\x18\x04 \x01(\x03R\n" +
+	"totalCount\"\xac\x02\n" +
 	"\fColumnConfig\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x1d\n" +
@@ -8571,7 +8795,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x1cUpdateAnnotationButtonConfig\x126.notificator.alert.UpdateAnnotationButtonConfigRequest\x1a7.notificator.alert.UpdateAnnotationButtonConfigResponse\x12\x8f\x01\n" +
 	"\x1cDeleteAnnotationButtonConfig\x126.notificator.alert.DeleteAnnotationButtonConfigRequest\x1a7.notificator.alert.DeleteAnnotationButtonConfigResponse\x12\x83\x01\n" +
 	"\x18GetUserColumnPreferences\x122.notificator.alert.GetUserColumnPreferencesRequest\x1a3.notificator.alert.GetUserColumnPreferencesResponse\x12\x86\x01\n" +
-	"\x19SaveUserColumnPreferences\x123.notificator.alert.SaveUserColumnPreferencesRequest\x1a4.notificator.alert.SaveUserColumnPreferencesResponse2\xb8\v\n" +
+	"\x19SaveUserColumnPreferences\x123.notificator.alert.SaveUserColumnPreferencesRequest\x1a4.notificator.alert.SaveUserColumnPreferencesResponse2\xa2\f\n" +
 	"\x11StatisticsService\x12h\n" +
 	"\x0fQueryStatistics\x12).notificator.alert.QueryStatisticsRequest\x1a*.notificator.alert.QueryStatisticsResponse\x12e\n" +
 	"\x0eSaveOnCallRule\x12(.notificator.alert.SaveOnCallRuleRequest\x1a).notificator.alert.SaveOnCallRuleResponse\x12e\n" +
@@ -8585,7 +8809,8 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x13UpdateAlertResolved\x12-.notificator.alert.UpdateAlertResolvedRequest\x1a..notificator.alert.UpdateAlertResolvedResponse\x12\x80\x01\n" +
 	"\x17UpdateAlertAcknowledged\x121.notificator.alert.UpdateAlertAcknowledgedRequest\x1a2.notificator.alert.UpdateAlertAcknowledgedResponse\x12z\n" +
 	"\x15QueryRecentlyResolved\x12/.notificator.alert.QueryRecentlyResolvedRequest\x1a0.notificator.alert.QueryRecentlyResolvedResponse\x12h\n" +
-	"\x0fGetAlertHistory\x12).notificator.alert.GetAlertHistoryRequest\x1a*.notificator.alert.GetAlertHistoryResponseB*Z(notificator/internal/backend/proto/alertb\x06proto3"
+	"\x0fGetAlertHistory\x12).notificator.alert.GetAlertHistoryRequest\x1a*.notificator.alert.GetAlertHistoryResponse\x12h\n" +
+	"\x0fGetAlertsByName\x12).notificator.alert.GetAlertsByNameRequest\x1a*.notificator.alert.GetAlertsByNameResponseB*Z(notificator/internal/backend/proto/alertb\x06proto3"
 
 var (
 	file_proto_alert_proto_rawDescOnce sync.Once
@@ -8600,7 +8825,7 @@ func file_proto_alert_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_alert_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_proto_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 126)
+var file_proto_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 128)
 var file_proto_alert_proto_goTypes = []any{
 	(UpdateType)(0),                              // 0: notificator.alert.UpdateType
 	(ResolvedAlertUpdateType)(0),                 // 1: notificator.alert.ResolvedAlertUpdateType
@@ -8717,84 +8942,86 @@ var file_proto_alert_proto_goTypes = []any{
 	(*QueryRecentlyResolvedResponse)(nil),        // 112: notificator.alert.QueryRecentlyResolvedResponse
 	(*GetAlertHistoryRequest)(nil),               // 113: notificator.alert.GetAlertHistoryRequest
 	(*GetAlertHistoryResponse)(nil),              // 114: notificator.alert.GetAlertHistoryResponse
-	(*ColumnConfig)(nil),                         // 115: notificator.alert.ColumnConfig
-	(*ColumnPreferences)(nil),                    // 116: notificator.alert.ColumnPreferences
-	(*GetUserColumnPreferencesRequest)(nil),      // 117: notificator.alert.GetUserColumnPreferencesRequest
-	(*GetUserColumnPreferencesResponse)(nil),     // 118: notificator.alert.GetUserColumnPreferencesResponse
-	(*SaveUserColumnPreferencesRequest)(nil),     // 119: notificator.alert.SaveUserColumnPreferencesRequest
-	(*SaveUserColumnPreferencesResponse)(nil),    // 120: notificator.alert.SaveUserColumnPreferencesResponse
-	nil,                           // 121: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
-	nil,                           // 122: notificator.alert.UserColorPreference.LabelConditionsEntry
-	nil,                           // 123: notificator.alert.QueryStatisticsResponse.StatisticsEntry
-	nil,                           // 124: notificator.alert.BreakdownItem.StatisticsEntry
-	nil,                           // 125: notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry
-	nil,                           // 126: notificator.alert.ResolvedAlertItem.LabelsEntry
-	nil,                           // 127: notificator.alert.ResolvedAlertItem.AnnotationsEntry
-	(*timestamppb.Timestamp)(nil), // 128: google.protobuf.Timestamp
+	(*GetAlertsByNameRequest)(nil),               // 115: notificator.alert.GetAlertsByNameRequest
+	(*GetAlertsByNameResponse)(nil),              // 116: notificator.alert.GetAlertsByNameResponse
+	(*ColumnConfig)(nil),                         // 117: notificator.alert.ColumnConfig
+	(*ColumnPreferences)(nil),                    // 118: notificator.alert.ColumnPreferences
+	(*GetUserColumnPreferencesRequest)(nil),      // 119: notificator.alert.GetUserColumnPreferencesRequest
+	(*GetUserColumnPreferencesResponse)(nil),     // 120: notificator.alert.GetUserColumnPreferencesResponse
+	(*SaveUserColumnPreferencesRequest)(nil),     // 121: notificator.alert.SaveUserColumnPreferencesRequest
+	(*SaveUserColumnPreferencesResponse)(nil),    // 122: notificator.alert.SaveUserColumnPreferencesResponse
+	nil,                           // 123: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
+	nil,                           // 124: notificator.alert.UserColorPreference.LabelConditionsEntry
+	nil,                           // 125: notificator.alert.QueryStatisticsResponse.StatisticsEntry
+	nil,                           // 126: notificator.alert.BreakdownItem.StatisticsEntry
+	nil,                           // 127: notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry
+	nil,                           // 128: notificator.alert.ResolvedAlertItem.LabelsEntry
+	nil,                           // 129: notificator.alert.ResolvedAlertItem.AnnotationsEntry
+	(*timestamppb.Timestamp)(nil), // 130: google.protobuf.Timestamp
 }
 var file_proto_alert_proto_depIdxs = []int32{
 	8,   // 0: notificator.alert.AddCommentResponse.comment:type_name -> notificator.alert.Comment
 	8,   // 1: notificator.alert.GetCommentsResponse.comments:type_name -> notificator.alert.Comment
-	128, // 2: notificator.alert.Comment.created_at:type_name -> google.protobuf.Timestamp
+	130, // 2: notificator.alert.Comment.created_at:type_name -> google.protobuf.Timestamp
 	17,  // 3: notificator.alert.AddAcknowledgmentResponse.acknowledgment:type_name -> notificator.alert.Acknowledgment
 	17,  // 4: notificator.alert.GetAcknowledgmentsResponse.acknowledgments:type_name -> notificator.alert.Acknowledgment
-	121, // 5: notificator.alert.GetAllAcknowledgedAlertsResponse.acknowledged_alerts:type_name -> notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
-	128, // 6: notificator.alert.Acknowledgment.created_at:type_name -> google.protobuf.Timestamp
+	123, // 5: notificator.alert.GetAllAcknowledgedAlertsResponse.acknowledged_alerts:type_name -> notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry
+	130, // 6: notificator.alert.Acknowledgment.created_at:type_name -> google.protobuf.Timestamp
 	0,   // 7: notificator.alert.AlertUpdate.update_type:type_name -> notificator.alert.UpdateType
 	8,   // 8: notificator.alert.AlertUpdate.comment:type_name -> notificator.alert.Comment
 	17,  // 9: notificator.alert.AlertUpdate.acknowledgment:type_name -> notificator.alert.Acknowledgment
-	128, // 10: notificator.alert.AlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	130, // 10: notificator.alert.AlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
 	26,  // 11: notificator.alert.GetUserColorPreferencesResponse.preferences:type_name -> notificator.alert.UserColorPreference
 	26,  // 12: notificator.alert.SaveUserColorPreferencesRequest.preferences:type_name -> notificator.alert.UserColorPreference
-	122, // 13: notificator.alert.UserColorPreference.label_conditions:type_name -> notificator.alert.UserColorPreference.LabelConditionsEntry
-	128, // 14: notificator.alert.UserColorPreference.created_at:type_name -> google.protobuf.Timestamp
-	128, // 15: notificator.alert.UserColorPreference.updated_at:type_name -> google.protobuf.Timestamp
+	124, // 13: notificator.alert.UserColorPreference.label_conditions:type_name -> notificator.alert.UserColorPreference.LabelConditionsEntry
+	130, // 14: notificator.alert.UserColorPreference.created_at:type_name -> google.protobuf.Timestamp
+	130, // 15: notificator.alert.UserColorPreference.updated_at:type_name -> google.protobuf.Timestamp
 	37,  // 16: notificator.alert.CreateResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
 	37,  // 17: notificator.alert.GetResolvedAlertsResponse.resolved_alerts:type_name -> notificator.alert.ResolvedAlertInfo
 	37,  // 18: notificator.alert.GetResolvedAlertResponse.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
 	1,   // 19: notificator.alert.ResolvedAlertUpdate.update_type:type_name -> notificator.alert.ResolvedAlertUpdateType
 	37,  // 20: notificator.alert.ResolvedAlertUpdate.resolved_alert:type_name -> notificator.alert.ResolvedAlertInfo
-	128, // 21: notificator.alert.ResolvedAlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
-	128, // 22: notificator.alert.ResolvedAlertInfo.resolved_at:type_name -> google.protobuf.Timestamp
-	128, // 23: notificator.alert.ResolvedAlertInfo.expires_at:type_name -> google.protobuf.Timestamp
-	128, // 24: notificator.alert.ResolvedAlertInfo.created_at:type_name -> google.protobuf.Timestamp
-	128, // 25: notificator.alert.ResolvedAlertInfo.updated_at:type_name -> google.protobuf.Timestamp
+	130, // 21: notificator.alert.ResolvedAlertUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	130, // 22: notificator.alert.ResolvedAlertInfo.resolved_at:type_name -> google.protobuf.Timestamp
+	130, // 23: notificator.alert.ResolvedAlertInfo.expires_at:type_name -> google.protobuf.Timestamp
+	130, // 24: notificator.alert.ResolvedAlertInfo.created_at:type_name -> google.protobuf.Timestamp
+	130, // 25: notificator.alert.ResolvedAlertInfo.updated_at:type_name -> google.protobuf.Timestamp
 	46,  // 26: notificator.alert.GetUserHiddenAlertsResponse.hidden_alerts:type_name -> notificator.alert.UserHiddenAlert
 	46,  // 27: notificator.alert.HideAlertResponse.hidden_alert:type_name -> notificator.alert.UserHiddenAlert
-	128, // 28: notificator.alert.UserHiddenAlert.created_at:type_name -> google.protobuf.Timestamp
-	128, // 29: notificator.alert.UserHiddenAlert.updated_at:type_name -> google.protobuf.Timestamp
+	130, // 28: notificator.alert.UserHiddenAlert.created_at:type_name -> google.protobuf.Timestamp
+	130, // 29: notificator.alert.UserHiddenAlert.updated_at:type_name -> google.protobuf.Timestamp
 	53,  // 30: notificator.alert.GetUserHiddenRulesResponse.hidden_rules:type_name -> notificator.alert.UserHiddenRule
 	53,  // 31: notificator.alert.SaveHiddenRuleRequest.rule:type_name -> notificator.alert.UserHiddenRule
 	53,  // 32: notificator.alert.SaveHiddenRuleResponse.rule:type_name -> notificator.alert.UserHiddenRule
-	128, // 33: notificator.alert.UserHiddenRule.created_at:type_name -> google.protobuf.Timestamp
-	128, // 34: notificator.alert.UserHiddenRule.updated_at:type_name -> google.protobuf.Timestamp
+	130, // 33: notificator.alert.UserHiddenRule.created_at:type_name -> google.protobuf.Timestamp
+	130, // 34: notificator.alert.UserHiddenRule.updated_at:type_name -> google.protobuf.Timestamp
 	58,  // 35: notificator.alert.GetNotificationPreferencesResponse.preferences:type_name -> notificator.alert.NotificationPreference
 	58,  // 36: notificator.alert.SaveNotificationPreferencesResponse.preferences:type_name -> notificator.alert.NotificationPreference
-	128, // 37: notificator.alert.NotificationPreference.created_at:type_name -> google.protobuf.Timestamp
-	128, // 38: notificator.alert.NotificationPreference.updated_at:type_name -> google.protobuf.Timestamp
+	130, // 37: notificator.alert.NotificationPreference.created_at:type_name -> google.protobuf.Timestamp
+	130, // 38: notificator.alert.NotificationPreference.updated_at:type_name -> google.protobuf.Timestamp
 	69,  // 39: notificator.alert.GetFilterPresetsResponse.presets:type_name -> notificator.alert.FilterPreset
 	69,  // 40: notificator.alert.SaveFilterPresetResponse.preset:type_name -> notificator.alert.FilterPreset
 	69,  // 41: notificator.alert.UpdateFilterPresetResponse.preset:type_name -> notificator.alert.FilterPreset
-	128, // 42: notificator.alert.FilterPreset.created_at:type_name -> google.protobuf.Timestamp
-	128, // 43: notificator.alert.FilterPreset.updated_at:type_name -> google.protobuf.Timestamp
+	130, // 42: notificator.alert.FilterPreset.created_at:type_name -> google.protobuf.Timestamp
+	130, // 43: notificator.alert.FilterPreset.updated_at:type_name -> google.protobuf.Timestamp
 	80,  // 44: notificator.alert.GetAnnotationButtonConfigsResponse.configs:type_name -> notificator.alert.AnnotationButtonConfig
 	80,  // 45: notificator.alert.SaveAnnotationButtonConfigsRequest.configs:type_name -> notificator.alert.AnnotationButtonConfig
 	80,  // 46: notificator.alert.CreateAnnotationButtonConfigRequest.config:type_name -> notificator.alert.AnnotationButtonConfig
 	80,  // 47: notificator.alert.CreateAnnotationButtonConfigResponse.config:type_name -> notificator.alert.AnnotationButtonConfig
 	80,  // 48: notificator.alert.UpdateAnnotationButtonConfigRequest.config:type_name -> notificator.alert.AnnotationButtonConfig
 	80,  // 49: notificator.alert.UpdateAnnotationButtonConfigResponse.config:type_name -> notificator.alert.AnnotationButtonConfig
-	128, // 50: notificator.alert.AnnotationButtonConfig.created_at:type_name -> google.protobuf.Timestamp
-	128, // 51: notificator.alert.AnnotationButtonConfig.updated_at:type_name -> google.protobuf.Timestamp
-	128, // 52: notificator.alert.QueryStatisticsRequest.start_date:type_name -> google.protobuf.Timestamp
-	128, // 53: notificator.alert.QueryStatisticsRequest.end_date:type_name -> google.protobuf.Timestamp
+	130, // 50: notificator.alert.AnnotationButtonConfig.created_at:type_name -> google.protobuf.Timestamp
+	130, // 51: notificator.alert.AnnotationButtonConfig.updated_at:type_name -> google.protobuf.Timestamp
+	130, // 52: notificator.alert.QueryStatisticsRequest.start_date:type_name -> google.protobuf.Timestamp
+	130, // 53: notificator.alert.QueryStatisticsRequest.end_date:type_name -> google.protobuf.Timestamp
 	83,  // 54: notificator.alert.QueryStatisticsResponse.time_range:type_name -> notificator.alert.TimeRange
-	123, // 55: notificator.alert.QueryStatisticsResponse.statistics:type_name -> notificator.alert.QueryStatisticsResponse.StatisticsEntry
+	125, // 55: notificator.alert.QueryStatisticsResponse.statistics:type_name -> notificator.alert.QueryStatisticsResponse.StatisticsEntry
 	85,  // 56: notificator.alert.QueryStatisticsResponse.breakdown:type_name -> notificator.alert.BreakdownItem
-	128, // 57: notificator.alert.TimeRange.start:type_name -> google.protobuf.Timestamp
-	128, // 58: notificator.alert.TimeRange.end:type_name -> google.protobuf.Timestamp
-	128, // 59: notificator.alert.BreakdownItem.start_time:type_name -> google.protobuf.Timestamp
-	128, // 60: notificator.alert.BreakdownItem.end_time:type_name -> google.protobuf.Timestamp
-	124, // 61: notificator.alert.BreakdownItem.statistics:type_name -> notificator.alert.BreakdownItem.StatisticsEntry
+	130, // 57: notificator.alert.TimeRange.start:type_name -> google.protobuf.Timestamp
+	130, // 58: notificator.alert.TimeRange.end:type_name -> google.protobuf.Timestamp
+	130, // 59: notificator.alert.BreakdownItem.start_time:type_name -> google.protobuf.Timestamp
+	130, // 60: notificator.alert.BreakdownItem.end_time:type_name -> google.protobuf.Timestamp
+	126, // 61: notificator.alert.BreakdownItem.statistics:type_name -> notificator.alert.BreakdownItem.StatisticsEntry
 	99,  // 62: notificator.alert.SaveOnCallRuleRequest.rule_config:type_name -> notificator.alert.RuleConfig
 	98,  // 63: notificator.alert.SaveOnCallRuleResponse.rule:type_name -> notificator.alert.OnCallRule
 	98,  // 64: notificator.alert.GetOnCallRulesResponse.rules:type_name -> notificator.alert.OnCallRule
@@ -8804,144 +9031,149 @@ var file_proto_alert_proto_depIdxs = []int32{
 	99,  // 68: notificator.alert.TestOnCallRuleRequest.rule_config:type_name -> notificator.alert.RuleConfig
 	101, // 69: notificator.alert.TestOnCallRuleResponse.sample_alerts:type_name -> notificator.alert.AlertStatistic
 	99,  // 70: notificator.alert.OnCallRule.rule_config:type_name -> notificator.alert.RuleConfig
-	128, // 71: notificator.alert.OnCallRule.created_at:type_name -> google.protobuf.Timestamp
-	128, // 72: notificator.alert.OnCallRule.updated_at:type_name -> google.protobuf.Timestamp
+	130, // 71: notificator.alert.OnCallRule.created_at:type_name -> google.protobuf.Timestamp
+	130, // 72: notificator.alert.OnCallRule.updated_at:type_name -> google.protobuf.Timestamp
 	100, // 73: notificator.alert.RuleConfig.criteria:type_name -> notificator.alert.RuleCriterion
-	128, // 74: notificator.alert.AlertStatistic.fired_at:type_name -> google.protobuf.Timestamp
-	128, // 75: notificator.alert.AlertStatistic.resolved_at:type_name -> google.protobuf.Timestamp
-	128, // 76: notificator.alert.AlertStatistic.acknowledged_at:type_name -> google.protobuf.Timestamp
-	128, // 77: notificator.alert.AlertStatistic.created_at:type_name -> google.protobuf.Timestamp
-	128, // 78: notificator.alert.AlertStatistic.updated_at:type_name -> google.protobuf.Timestamp
-	125, // 79: notificator.alert.GetStatisticsSummaryResponse.by_severity:type_name -> notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry
-	128, // 80: notificator.alert.GetStatisticsSummaryResponse.earliest_alert:type_name -> google.protobuf.Timestamp
-	128, // 81: notificator.alert.GetStatisticsSummaryResponse.latest_alert:type_name -> google.protobuf.Timestamp
-	128, // 82: notificator.alert.CaptureAlertFiredRequest.starts_at:type_name -> google.protobuf.Timestamp
-	128, // 83: notificator.alert.UpdateAlertResolvedRequest.resolved_at:type_name -> google.protobuf.Timestamp
-	128, // 84: notificator.alert.UpdateAlertAcknowledgedRequest.acknowledged_at:type_name -> google.protobuf.Timestamp
-	128, // 85: notificator.alert.QueryRecentlyResolvedRequest.start_date:type_name -> google.protobuf.Timestamp
-	128, // 86: notificator.alert.QueryRecentlyResolvedRequest.end_date:type_name -> google.protobuf.Timestamp
-	128, // 87: notificator.alert.ResolvedAlertItem.first_fired_at:type_name -> google.protobuf.Timestamp
-	128, // 88: notificator.alert.ResolvedAlertItem.last_resolved_at:type_name -> google.protobuf.Timestamp
-	126, // 89: notificator.alert.ResolvedAlertItem.labels:type_name -> notificator.alert.ResolvedAlertItem.LabelsEntry
-	127, // 90: notificator.alert.ResolvedAlertItem.annotations:type_name -> notificator.alert.ResolvedAlertItem.AnnotationsEntry
+	130, // 74: notificator.alert.AlertStatistic.fired_at:type_name -> google.protobuf.Timestamp
+	130, // 75: notificator.alert.AlertStatistic.resolved_at:type_name -> google.protobuf.Timestamp
+	130, // 76: notificator.alert.AlertStatistic.acknowledged_at:type_name -> google.protobuf.Timestamp
+	130, // 77: notificator.alert.AlertStatistic.created_at:type_name -> google.protobuf.Timestamp
+	130, // 78: notificator.alert.AlertStatistic.updated_at:type_name -> google.protobuf.Timestamp
+	127, // 79: notificator.alert.GetStatisticsSummaryResponse.by_severity:type_name -> notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry
+	130, // 80: notificator.alert.GetStatisticsSummaryResponse.earliest_alert:type_name -> google.protobuf.Timestamp
+	130, // 81: notificator.alert.GetStatisticsSummaryResponse.latest_alert:type_name -> google.protobuf.Timestamp
+	130, // 82: notificator.alert.CaptureAlertFiredRequest.starts_at:type_name -> google.protobuf.Timestamp
+	130, // 83: notificator.alert.UpdateAlertResolvedRequest.resolved_at:type_name -> google.protobuf.Timestamp
+	130, // 84: notificator.alert.UpdateAlertAcknowledgedRequest.acknowledged_at:type_name -> google.protobuf.Timestamp
+	130, // 85: notificator.alert.QueryRecentlyResolvedRequest.start_date:type_name -> google.protobuf.Timestamp
+	130, // 86: notificator.alert.QueryRecentlyResolvedRequest.end_date:type_name -> google.protobuf.Timestamp
+	130, // 87: notificator.alert.ResolvedAlertItem.first_fired_at:type_name -> google.protobuf.Timestamp
+	130, // 88: notificator.alert.ResolvedAlertItem.last_resolved_at:type_name -> google.protobuf.Timestamp
+	128, // 89: notificator.alert.ResolvedAlertItem.labels:type_name -> notificator.alert.ResolvedAlertItem.LabelsEntry
+	129, // 90: notificator.alert.ResolvedAlertItem.annotations:type_name -> notificator.alert.ResolvedAlertItem.AnnotationsEntry
 	111, // 91: notificator.alert.QueryRecentlyResolvedResponse.alerts:type_name -> notificator.alert.ResolvedAlertItem
-	128, // 92: notificator.alert.QueryRecentlyResolvedResponse.start_date:type_name -> google.protobuf.Timestamp
-	128, // 93: notificator.alert.QueryRecentlyResolvedResponse.end_date:type_name -> google.protobuf.Timestamp
+	130, // 92: notificator.alert.QueryRecentlyResolvedResponse.start_date:type_name -> google.protobuf.Timestamp
+	130, // 93: notificator.alert.QueryRecentlyResolvedResponse.end_date:type_name -> google.protobuf.Timestamp
 	101, // 94: notificator.alert.GetAlertHistoryResponse.history:type_name -> notificator.alert.AlertStatistic
-	115, // 95: notificator.alert.ColumnPreferences.column_configs:type_name -> notificator.alert.ColumnConfig
-	128, // 96: notificator.alert.ColumnPreferences.created_at:type_name -> google.protobuf.Timestamp
-	128, // 97: notificator.alert.ColumnPreferences.updated_at:type_name -> google.protobuf.Timestamp
-	116, // 98: notificator.alert.GetUserColumnPreferencesResponse.preferences:type_name -> notificator.alert.ColumnPreferences
-	115, // 99: notificator.alert.SaveUserColumnPreferencesRequest.column_configs:type_name -> notificator.alert.ColumnConfig
-	17,  // 100: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry.value:type_name -> notificator.alert.Acknowledgment
-	84,  // 101: notificator.alert.QueryStatisticsResponse.StatisticsEntry.value:type_name -> notificator.alert.AggregatedStatistics
-	84,  // 102: notificator.alert.BreakdownItem.StatisticsEntry.value:type_name -> notificator.alert.AggregatedStatistics
-	84,  // 103: notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry.value:type_name -> notificator.alert.AggregatedStatistics
-	2,   // 104: notificator.alert.AlertService.AddComment:input_type -> notificator.alert.AddCommentRequest
-	4,   // 105: notificator.alert.AlertService.GetComments:input_type -> notificator.alert.GetCommentsRequest
-	6,   // 106: notificator.alert.AlertService.DeleteComment:input_type -> notificator.alert.DeleteCommentRequest
-	9,   // 107: notificator.alert.AlertService.AddAcknowledgment:input_type -> notificator.alert.AddAcknowledgmentRequest
-	11,  // 108: notificator.alert.AlertService.GetAcknowledgments:input_type -> notificator.alert.GetAcknowledgmentsRequest
-	13,  // 109: notificator.alert.AlertService.GetAllAcknowledgedAlerts:input_type -> notificator.alert.GetAllAcknowledgedAlertsRequest
-	15,  // 110: notificator.alert.AlertService.DeleteAcknowledgment:input_type -> notificator.alert.DeleteAcknowledgmentRequest
-	18,  // 111: notificator.alert.AlertService.SubscribeToAlertUpdates:input_type -> notificator.alert.SubscribeToAlertUpdatesRequest
-	27,  // 112: notificator.alert.AlertService.CreateResolvedAlert:input_type -> notificator.alert.CreateResolvedAlertRequest
-	29,  // 113: notificator.alert.AlertService.GetResolvedAlerts:input_type -> notificator.alert.GetResolvedAlertsRequest
-	31,  // 114: notificator.alert.AlertService.GetResolvedAlert:input_type -> notificator.alert.GetResolvedAlertRequest
-	33,  // 115: notificator.alert.AlertService.RemoveAllResolvedAlerts:input_type -> notificator.alert.RemoveAllResolvedAlertsRequest
-	35,  // 116: notificator.alert.AlertService.StreamResolvedAlertUpdates:input_type -> notificator.alert.StreamResolvedAlertUpdatesRequest
-	20,  // 117: notificator.alert.AlertService.GetUserColorPreferences:input_type -> notificator.alert.GetUserColorPreferencesRequest
-	22,  // 118: notificator.alert.AlertService.SaveUserColorPreferences:input_type -> notificator.alert.SaveUserColorPreferencesRequest
-	24,  // 119: notificator.alert.AlertService.DeleteUserColorPreference:input_type -> notificator.alert.DeleteUserColorPreferenceRequest
-	38,  // 120: notificator.alert.AlertService.GetUserHiddenAlerts:input_type -> notificator.alert.GetUserHiddenAlertsRequest
-	40,  // 121: notificator.alert.AlertService.HideAlert:input_type -> notificator.alert.HideAlertRequest
-	42,  // 122: notificator.alert.AlertService.UnhideAlert:input_type -> notificator.alert.UnhideAlertRequest
-	44,  // 123: notificator.alert.AlertService.ClearAllHiddenAlerts:input_type -> notificator.alert.ClearAllHiddenAlertsRequest
-	47,  // 124: notificator.alert.AlertService.GetUserHiddenRules:input_type -> notificator.alert.GetUserHiddenRulesRequest
-	49,  // 125: notificator.alert.AlertService.SaveHiddenRule:input_type -> notificator.alert.SaveHiddenRuleRequest
-	51,  // 126: notificator.alert.AlertService.RemoveHiddenRule:input_type -> notificator.alert.RemoveHiddenRuleRequest
-	54,  // 127: notificator.alert.AlertService.GetNotificationPreferences:input_type -> notificator.alert.GetNotificationPreferencesRequest
-	56,  // 128: notificator.alert.AlertService.SaveNotificationPreferences:input_type -> notificator.alert.SaveNotificationPreferencesRequest
-	59,  // 129: notificator.alert.AlertService.GetFilterPresets:input_type -> notificator.alert.GetFilterPresetsRequest
-	61,  // 130: notificator.alert.AlertService.SaveFilterPreset:input_type -> notificator.alert.SaveFilterPresetRequest
-	63,  // 131: notificator.alert.AlertService.UpdateFilterPreset:input_type -> notificator.alert.UpdateFilterPresetRequest
-	65,  // 132: notificator.alert.AlertService.DeleteFilterPreset:input_type -> notificator.alert.DeleteFilterPresetRequest
-	67,  // 133: notificator.alert.AlertService.SetDefaultFilterPreset:input_type -> notificator.alert.SetDefaultFilterPresetRequest
-	70,  // 134: notificator.alert.AlertService.GetAnnotationButtonConfigs:input_type -> notificator.alert.GetAnnotationButtonConfigsRequest
-	72,  // 135: notificator.alert.AlertService.SaveAnnotationButtonConfigs:input_type -> notificator.alert.SaveAnnotationButtonConfigsRequest
-	74,  // 136: notificator.alert.AlertService.CreateAnnotationButtonConfig:input_type -> notificator.alert.CreateAnnotationButtonConfigRequest
-	76,  // 137: notificator.alert.AlertService.UpdateAnnotationButtonConfig:input_type -> notificator.alert.UpdateAnnotationButtonConfigRequest
-	78,  // 138: notificator.alert.AlertService.DeleteAnnotationButtonConfig:input_type -> notificator.alert.DeleteAnnotationButtonConfigRequest
-	117, // 139: notificator.alert.AlertService.GetUserColumnPreferences:input_type -> notificator.alert.GetUserColumnPreferencesRequest
-	119, // 140: notificator.alert.AlertService.SaveUserColumnPreferences:input_type -> notificator.alert.SaveUserColumnPreferencesRequest
-	81,  // 141: notificator.alert.StatisticsService.QueryStatistics:input_type -> notificator.alert.QueryStatisticsRequest
-	86,  // 142: notificator.alert.StatisticsService.SaveOnCallRule:input_type -> notificator.alert.SaveOnCallRuleRequest
-	88,  // 143: notificator.alert.StatisticsService.GetOnCallRules:input_type -> notificator.alert.GetOnCallRulesRequest
-	90,  // 144: notificator.alert.StatisticsService.GetOnCallRule:input_type -> notificator.alert.GetOnCallRuleRequest
-	92,  // 145: notificator.alert.StatisticsService.UpdateOnCallRule:input_type -> notificator.alert.UpdateOnCallRuleRequest
-	94,  // 146: notificator.alert.StatisticsService.DeleteOnCallRule:input_type -> notificator.alert.DeleteOnCallRuleRequest
-	96,  // 147: notificator.alert.StatisticsService.TestOnCallRule:input_type -> notificator.alert.TestOnCallRuleRequest
-	102, // 148: notificator.alert.StatisticsService.GetStatisticsSummary:input_type -> notificator.alert.GetStatisticsSummaryRequest
-	104, // 149: notificator.alert.StatisticsService.CaptureAlertFired:input_type -> notificator.alert.CaptureAlertFiredRequest
-	106, // 150: notificator.alert.StatisticsService.UpdateAlertResolved:input_type -> notificator.alert.UpdateAlertResolvedRequest
-	108, // 151: notificator.alert.StatisticsService.UpdateAlertAcknowledged:input_type -> notificator.alert.UpdateAlertAcknowledgedRequest
-	110, // 152: notificator.alert.StatisticsService.QueryRecentlyResolved:input_type -> notificator.alert.QueryRecentlyResolvedRequest
-	113, // 153: notificator.alert.StatisticsService.GetAlertHistory:input_type -> notificator.alert.GetAlertHistoryRequest
-	3,   // 154: notificator.alert.AlertService.AddComment:output_type -> notificator.alert.AddCommentResponse
-	5,   // 155: notificator.alert.AlertService.GetComments:output_type -> notificator.alert.GetCommentsResponse
-	7,   // 156: notificator.alert.AlertService.DeleteComment:output_type -> notificator.alert.DeleteCommentResponse
-	10,  // 157: notificator.alert.AlertService.AddAcknowledgment:output_type -> notificator.alert.AddAcknowledgmentResponse
-	12,  // 158: notificator.alert.AlertService.GetAcknowledgments:output_type -> notificator.alert.GetAcknowledgmentsResponse
-	14,  // 159: notificator.alert.AlertService.GetAllAcknowledgedAlerts:output_type -> notificator.alert.GetAllAcknowledgedAlertsResponse
-	16,  // 160: notificator.alert.AlertService.DeleteAcknowledgment:output_type -> notificator.alert.DeleteAcknowledgmentResponse
-	19,  // 161: notificator.alert.AlertService.SubscribeToAlertUpdates:output_type -> notificator.alert.AlertUpdate
-	28,  // 162: notificator.alert.AlertService.CreateResolvedAlert:output_type -> notificator.alert.CreateResolvedAlertResponse
-	30,  // 163: notificator.alert.AlertService.GetResolvedAlerts:output_type -> notificator.alert.GetResolvedAlertsResponse
-	32,  // 164: notificator.alert.AlertService.GetResolvedAlert:output_type -> notificator.alert.GetResolvedAlertResponse
-	34,  // 165: notificator.alert.AlertService.RemoveAllResolvedAlerts:output_type -> notificator.alert.RemoveAllResolvedAlertsResponse
-	36,  // 166: notificator.alert.AlertService.StreamResolvedAlertUpdates:output_type -> notificator.alert.ResolvedAlertUpdate
-	21,  // 167: notificator.alert.AlertService.GetUserColorPreferences:output_type -> notificator.alert.GetUserColorPreferencesResponse
-	23,  // 168: notificator.alert.AlertService.SaveUserColorPreferences:output_type -> notificator.alert.SaveUserColorPreferencesResponse
-	25,  // 169: notificator.alert.AlertService.DeleteUserColorPreference:output_type -> notificator.alert.DeleteUserColorPreferenceResponse
-	39,  // 170: notificator.alert.AlertService.GetUserHiddenAlerts:output_type -> notificator.alert.GetUserHiddenAlertsResponse
-	41,  // 171: notificator.alert.AlertService.HideAlert:output_type -> notificator.alert.HideAlertResponse
-	43,  // 172: notificator.alert.AlertService.UnhideAlert:output_type -> notificator.alert.UnhideAlertResponse
-	45,  // 173: notificator.alert.AlertService.ClearAllHiddenAlerts:output_type -> notificator.alert.ClearAllHiddenAlertsResponse
-	48,  // 174: notificator.alert.AlertService.GetUserHiddenRules:output_type -> notificator.alert.GetUserHiddenRulesResponse
-	50,  // 175: notificator.alert.AlertService.SaveHiddenRule:output_type -> notificator.alert.SaveHiddenRuleResponse
-	52,  // 176: notificator.alert.AlertService.RemoveHiddenRule:output_type -> notificator.alert.RemoveHiddenRuleResponse
-	55,  // 177: notificator.alert.AlertService.GetNotificationPreferences:output_type -> notificator.alert.GetNotificationPreferencesResponse
-	57,  // 178: notificator.alert.AlertService.SaveNotificationPreferences:output_type -> notificator.alert.SaveNotificationPreferencesResponse
-	60,  // 179: notificator.alert.AlertService.GetFilterPresets:output_type -> notificator.alert.GetFilterPresetsResponse
-	62,  // 180: notificator.alert.AlertService.SaveFilterPreset:output_type -> notificator.alert.SaveFilterPresetResponse
-	64,  // 181: notificator.alert.AlertService.UpdateFilterPreset:output_type -> notificator.alert.UpdateFilterPresetResponse
-	66,  // 182: notificator.alert.AlertService.DeleteFilterPreset:output_type -> notificator.alert.DeleteFilterPresetResponse
-	68,  // 183: notificator.alert.AlertService.SetDefaultFilterPreset:output_type -> notificator.alert.SetDefaultFilterPresetResponse
-	71,  // 184: notificator.alert.AlertService.GetAnnotationButtonConfigs:output_type -> notificator.alert.GetAnnotationButtonConfigsResponse
-	73,  // 185: notificator.alert.AlertService.SaveAnnotationButtonConfigs:output_type -> notificator.alert.SaveAnnotationButtonConfigsResponse
-	75,  // 186: notificator.alert.AlertService.CreateAnnotationButtonConfig:output_type -> notificator.alert.CreateAnnotationButtonConfigResponse
-	77,  // 187: notificator.alert.AlertService.UpdateAnnotationButtonConfig:output_type -> notificator.alert.UpdateAnnotationButtonConfigResponse
-	79,  // 188: notificator.alert.AlertService.DeleteAnnotationButtonConfig:output_type -> notificator.alert.DeleteAnnotationButtonConfigResponse
-	118, // 189: notificator.alert.AlertService.GetUserColumnPreferences:output_type -> notificator.alert.GetUserColumnPreferencesResponse
-	120, // 190: notificator.alert.AlertService.SaveUserColumnPreferences:output_type -> notificator.alert.SaveUserColumnPreferencesResponse
-	82,  // 191: notificator.alert.StatisticsService.QueryStatistics:output_type -> notificator.alert.QueryStatisticsResponse
-	87,  // 192: notificator.alert.StatisticsService.SaveOnCallRule:output_type -> notificator.alert.SaveOnCallRuleResponse
-	89,  // 193: notificator.alert.StatisticsService.GetOnCallRules:output_type -> notificator.alert.GetOnCallRulesResponse
-	91,  // 194: notificator.alert.StatisticsService.GetOnCallRule:output_type -> notificator.alert.GetOnCallRuleResponse
-	93,  // 195: notificator.alert.StatisticsService.UpdateOnCallRule:output_type -> notificator.alert.UpdateOnCallRuleResponse
-	95,  // 196: notificator.alert.StatisticsService.DeleteOnCallRule:output_type -> notificator.alert.DeleteOnCallRuleResponse
-	97,  // 197: notificator.alert.StatisticsService.TestOnCallRule:output_type -> notificator.alert.TestOnCallRuleResponse
-	103, // 198: notificator.alert.StatisticsService.GetStatisticsSummary:output_type -> notificator.alert.GetStatisticsSummaryResponse
-	105, // 199: notificator.alert.StatisticsService.CaptureAlertFired:output_type -> notificator.alert.CaptureAlertFiredResponse
-	107, // 200: notificator.alert.StatisticsService.UpdateAlertResolved:output_type -> notificator.alert.UpdateAlertResolvedResponse
-	109, // 201: notificator.alert.StatisticsService.UpdateAlertAcknowledged:output_type -> notificator.alert.UpdateAlertAcknowledgedResponse
-	112, // 202: notificator.alert.StatisticsService.QueryRecentlyResolved:output_type -> notificator.alert.QueryRecentlyResolvedResponse
-	114, // 203: notificator.alert.StatisticsService.GetAlertHistory:output_type -> notificator.alert.GetAlertHistoryResponse
-	154, // [154:204] is the sub-list for method output_type
-	104, // [104:154] is the sub-list for method input_type
-	104, // [104:104] is the sub-list for extension type_name
-	104, // [104:104] is the sub-list for extension extendee
-	0,   // [0:104] is the sub-list for field type_name
+	130, // 95: notificator.alert.GetAlertsByNameRequest.start_date:type_name -> google.protobuf.Timestamp
+	130, // 96: notificator.alert.GetAlertsByNameRequest.end_date:type_name -> google.protobuf.Timestamp
+	101, // 97: notificator.alert.GetAlertsByNameResponse.alerts:type_name -> notificator.alert.AlertStatistic
+	117, // 98: notificator.alert.ColumnPreferences.column_configs:type_name -> notificator.alert.ColumnConfig
+	130, // 99: notificator.alert.ColumnPreferences.created_at:type_name -> google.protobuf.Timestamp
+	130, // 100: notificator.alert.ColumnPreferences.updated_at:type_name -> google.protobuf.Timestamp
+	118, // 101: notificator.alert.GetUserColumnPreferencesResponse.preferences:type_name -> notificator.alert.ColumnPreferences
+	117, // 102: notificator.alert.SaveUserColumnPreferencesRequest.column_configs:type_name -> notificator.alert.ColumnConfig
+	17,  // 103: notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntry.value:type_name -> notificator.alert.Acknowledgment
+	84,  // 104: notificator.alert.QueryStatisticsResponse.StatisticsEntry.value:type_name -> notificator.alert.AggregatedStatistics
+	84,  // 105: notificator.alert.BreakdownItem.StatisticsEntry.value:type_name -> notificator.alert.AggregatedStatistics
+	84,  // 106: notificator.alert.GetStatisticsSummaryResponse.BySeverityEntry.value:type_name -> notificator.alert.AggregatedStatistics
+	2,   // 107: notificator.alert.AlertService.AddComment:input_type -> notificator.alert.AddCommentRequest
+	4,   // 108: notificator.alert.AlertService.GetComments:input_type -> notificator.alert.GetCommentsRequest
+	6,   // 109: notificator.alert.AlertService.DeleteComment:input_type -> notificator.alert.DeleteCommentRequest
+	9,   // 110: notificator.alert.AlertService.AddAcknowledgment:input_type -> notificator.alert.AddAcknowledgmentRequest
+	11,  // 111: notificator.alert.AlertService.GetAcknowledgments:input_type -> notificator.alert.GetAcknowledgmentsRequest
+	13,  // 112: notificator.alert.AlertService.GetAllAcknowledgedAlerts:input_type -> notificator.alert.GetAllAcknowledgedAlertsRequest
+	15,  // 113: notificator.alert.AlertService.DeleteAcknowledgment:input_type -> notificator.alert.DeleteAcknowledgmentRequest
+	18,  // 114: notificator.alert.AlertService.SubscribeToAlertUpdates:input_type -> notificator.alert.SubscribeToAlertUpdatesRequest
+	27,  // 115: notificator.alert.AlertService.CreateResolvedAlert:input_type -> notificator.alert.CreateResolvedAlertRequest
+	29,  // 116: notificator.alert.AlertService.GetResolvedAlerts:input_type -> notificator.alert.GetResolvedAlertsRequest
+	31,  // 117: notificator.alert.AlertService.GetResolvedAlert:input_type -> notificator.alert.GetResolvedAlertRequest
+	33,  // 118: notificator.alert.AlertService.RemoveAllResolvedAlerts:input_type -> notificator.alert.RemoveAllResolvedAlertsRequest
+	35,  // 119: notificator.alert.AlertService.StreamResolvedAlertUpdates:input_type -> notificator.alert.StreamResolvedAlertUpdatesRequest
+	20,  // 120: notificator.alert.AlertService.GetUserColorPreferences:input_type -> notificator.alert.GetUserColorPreferencesRequest
+	22,  // 121: notificator.alert.AlertService.SaveUserColorPreferences:input_type -> notificator.alert.SaveUserColorPreferencesRequest
+	24,  // 122: notificator.alert.AlertService.DeleteUserColorPreference:input_type -> notificator.alert.DeleteUserColorPreferenceRequest
+	38,  // 123: notificator.alert.AlertService.GetUserHiddenAlerts:input_type -> notificator.alert.GetUserHiddenAlertsRequest
+	40,  // 124: notificator.alert.AlertService.HideAlert:input_type -> notificator.alert.HideAlertRequest
+	42,  // 125: notificator.alert.AlertService.UnhideAlert:input_type -> notificator.alert.UnhideAlertRequest
+	44,  // 126: notificator.alert.AlertService.ClearAllHiddenAlerts:input_type -> notificator.alert.ClearAllHiddenAlertsRequest
+	47,  // 127: notificator.alert.AlertService.GetUserHiddenRules:input_type -> notificator.alert.GetUserHiddenRulesRequest
+	49,  // 128: notificator.alert.AlertService.SaveHiddenRule:input_type -> notificator.alert.SaveHiddenRuleRequest
+	51,  // 129: notificator.alert.AlertService.RemoveHiddenRule:input_type -> notificator.alert.RemoveHiddenRuleRequest
+	54,  // 130: notificator.alert.AlertService.GetNotificationPreferences:input_type -> notificator.alert.GetNotificationPreferencesRequest
+	56,  // 131: notificator.alert.AlertService.SaveNotificationPreferences:input_type -> notificator.alert.SaveNotificationPreferencesRequest
+	59,  // 132: notificator.alert.AlertService.GetFilterPresets:input_type -> notificator.alert.GetFilterPresetsRequest
+	61,  // 133: notificator.alert.AlertService.SaveFilterPreset:input_type -> notificator.alert.SaveFilterPresetRequest
+	63,  // 134: notificator.alert.AlertService.UpdateFilterPreset:input_type -> notificator.alert.UpdateFilterPresetRequest
+	65,  // 135: notificator.alert.AlertService.DeleteFilterPreset:input_type -> notificator.alert.DeleteFilterPresetRequest
+	67,  // 136: notificator.alert.AlertService.SetDefaultFilterPreset:input_type -> notificator.alert.SetDefaultFilterPresetRequest
+	70,  // 137: notificator.alert.AlertService.GetAnnotationButtonConfigs:input_type -> notificator.alert.GetAnnotationButtonConfigsRequest
+	72,  // 138: notificator.alert.AlertService.SaveAnnotationButtonConfigs:input_type -> notificator.alert.SaveAnnotationButtonConfigsRequest
+	74,  // 139: notificator.alert.AlertService.CreateAnnotationButtonConfig:input_type -> notificator.alert.CreateAnnotationButtonConfigRequest
+	76,  // 140: notificator.alert.AlertService.UpdateAnnotationButtonConfig:input_type -> notificator.alert.UpdateAnnotationButtonConfigRequest
+	78,  // 141: notificator.alert.AlertService.DeleteAnnotationButtonConfig:input_type -> notificator.alert.DeleteAnnotationButtonConfigRequest
+	119, // 142: notificator.alert.AlertService.GetUserColumnPreferences:input_type -> notificator.alert.GetUserColumnPreferencesRequest
+	121, // 143: notificator.alert.AlertService.SaveUserColumnPreferences:input_type -> notificator.alert.SaveUserColumnPreferencesRequest
+	81,  // 144: notificator.alert.StatisticsService.QueryStatistics:input_type -> notificator.alert.QueryStatisticsRequest
+	86,  // 145: notificator.alert.StatisticsService.SaveOnCallRule:input_type -> notificator.alert.SaveOnCallRuleRequest
+	88,  // 146: notificator.alert.StatisticsService.GetOnCallRules:input_type -> notificator.alert.GetOnCallRulesRequest
+	90,  // 147: notificator.alert.StatisticsService.GetOnCallRule:input_type -> notificator.alert.GetOnCallRuleRequest
+	92,  // 148: notificator.alert.StatisticsService.UpdateOnCallRule:input_type -> notificator.alert.UpdateOnCallRuleRequest
+	94,  // 149: notificator.alert.StatisticsService.DeleteOnCallRule:input_type -> notificator.alert.DeleteOnCallRuleRequest
+	96,  // 150: notificator.alert.StatisticsService.TestOnCallRule:input_type -> notificator.alert.TestOnCallRuleRequest
+	102, // 151: notificator.alert.StatisticsService.GetStatisticsSummary:input_type -> notificator.alert.GetStatisticsSummaryRequest
+	104, // 152: notificator.alert.StatisticsService.CaptureAlertFired:input_type -> notificator.alert.CaptureAlertFiredRequest
+	106, // 153: notificator.alert.StatisticsService.UpdateAlertResolved:input_type -> notificator.alert.UpdateAlertResolvedRequest
+	108, // 154: notificator.alert.StatisticsService.UpdateAlertAcknowledged:input_type -> notificator.alert.UpdateAlertAcknowledgedRequest
+	110, // 155: notificator.alert.StatisticsService.QueryRecentlyResolved:input_type -> notificator.alert.QueryRecentlyResolvedRequest
+	113, // 156: notificator.alert.StatisticsService.GetAlertHistory:input_type -> notificator.alert.GetAlertHistoryRequest
+	115, // 157: notificator.alert.StatisticsService.GetAlertsByName:input_type -> notificator.alert.GetAlertsByNameRequest
+	3,   // 158: notificator.alert.AlertService.AddComment:output_type -> notificator.alert.AddCommentResponse
+	5,   // 159: notificator.alert.AlertService.GetComments:output_type -> notificator.alert.GetCommentsResponse
+	7,   // 160: notificator.alert.AlertService.DeleteComment:output_type -> notificator.alert.DeleteCommentResponse
+	10,  // 161: notificator.alert.AlertService.AddAcknowledgment:output_type -> notificator.alert.AddAcknowledgmentResponse
+	12,  // 162: notificator.alert.AlertService.GetAcknowledgments:output_type -> notificator.alert.GetAcknowledgmentsResponse
+	14,  // 163: notificator.alert.AlertService.GetAllAcknowledgedAlerts:output_type -> notificator.alert.GetAllAcknowledgedAlertsResponse
+	16,  // 164: notificator.alert.AlertService.DeleteAcknowledgment:output_type -> notificator.alert.DeleteAcknowledgmentResponse
+	19,  // 165: notificator.alert.AlertService.SubscribeToAlertUpdates:output_type -> notificator.alert.AlertUpdate
+	28,  // 166: notificator.alert.AlertService.CreateResolvedAlert:output_type -> notificator.alert.CreateResolvedAlertResponse
+	30,  // 167: notificator.alert.AlertService.GetResolvedAlerts:output_type -> notificator.alert.GetResolvedAlertsResponse
+	32,  // 168: notificator.alert.AlertService.GetResolvedAlert:output_type -> notificator.alert.GetResolvedAlertResponse
+	34,  // 169: notificator.alert.AlertService.RemoveAllResolvedAlerts:output_type -> notificator.alert.RemoveAllResolvedAlertsResponse
+	36,  // 170: notificator.alert.AlertService.StreamResolvedAlertUpdates:output_type -> notificator.alert.ResolvedAlertUpdate
+	21,  // 171: notificator.alert.AlertService.GetUserColorPreferences:output_type -> notificator.alert.GetUserColorPreferencesResponse
+	23,  // 172: notificator.alert.AlertService.SaveUserColorPreferences:output_type -> notificator.alert.SaveUserColorPreferencesResponse
+	25,  // 173: notificator.alert.AlertService.DeleteUserColorPreference:output_type -> notificator.alert.DeleteUserColorPreferenceResponse
+	39,  // 174: notificator.alert.AlertService.GetUserHiddenAlerts:output_type -> notificator.alert.GetUserHiddenAlertsResponse
+	41,  // 175: notificator.alert.AlertService.HideAlert:output_type -> notificator.alert.HideAlertResponse
+	43,  // 176: notificator.alert.AlertService.UnhideAlert:output_type -> notificator.alert.UnhideAlertResponse
+	45,  // 177: notificator.alert.AlertService.ClearAllHiddenAlerts:output_type -> notificator.alert.ClearAllHiddenAlertsResponse
+	48,  // 178: notificator.alert.AlertService.GetUserHiddenRules:output_type -> notificator.alert.GetUserHiddenRulesResponse
+	50,  // 179: notificator.alert.AlertService.SaveHiddenRule:output_type -> notificator.alert.SaveHiddenRuleResponse
+	52,  // 180: notificator.alert.AlertService.RemoveHiddenRule:output_type -> notificator.alert.RemoveHiddenRuleResponse
+	55,  // 181: notificator.alert.AlertService.GetNotificationPreferences:output_type -> notificator.alert.GetNotificationPreferencesResponse
+	57,  // 182: notificator.alert.AlertService.SaveNotificationPreferences:output_type -> notificator.alert.SaveNotificationPreferencesResponse
+	60,  // 183: notificator.alert.AlertService.GetFilterPresets:output_type -> notificator.alert.GetFilterPresetsResponse
+	62,  // 184: notificator.alert.AlertService.SaveFilterPreset:output_type -> notificator.alert.SaveFilterPresetResponse
+	64,  // 185: notificator.alert.AlertService.UpdateFilterPreset:output_type -> notificator.alert.UpdateFilterPresetResponse
+	66,  // 186: notificator.alert.AlertService.DeleteFilterPreset:output_type -> notificator.alert.DeleteFilterPresetResponse
+	68,  // 187: notificator.alert.AlertService.SetDefaultFilterPreset:output_type -> notificator.alert.SetDefaultFilterPresetResponse
+	71,  // 188: notificator.alert.AlertService.GetAnnotationButtonConfigs:output_type -> notificator.alert.GetAnnotationButtonConfigsResponse
+	73,  // 189: notificator.alert.AlertService.SaveAnnotationButtonConfigs:output_type -> notificator.alert.SaveAnnotationButtonConfigsResponse
+	75,  // 190: notificator.alert.AlertService.CreateAnnotationButtonConfig:output_type -> notificator.alert.CreateAnnotationButtonConfigResponse
+	77,  // 191: notificator.alert.AlertService.UpdateAnnotationButtonConfig:output_type -> notificator.alert.UpdateAnnotationButtonConfigResponse
+	79,  // 192: notificator.alert.AlertService.DeleteAnnotationButtonConfig:output_type -> notificator.alert.DeleteAnnotationButtonConfigResponse
+	120, // 193: notificator.alert.AlertService.GetUserColumnPreferences:output_type -> notificator.alert.GetUserColumnPreferencesResponse
+	122, // 194: notificator.alert.AlertService.SaveUserColumnPreferences:output_type -> notificator.alert.SaveUserColumnPreferencesResponse
+	82,  // 195: notificator.alert.StatisticsService.QueryStatistics:output_type -> notificator.alert.QueryStatisticsResponse
+	87,  // 196: notificator.alert.StatisticsService.SaveOnCallRule:output_type -> notificator.alert.SaveOnCallRuleResponse
+	89,  // 197: notificator.alert.StatisticsService.GetOnCallRules:output_type -> notificator.alert.GetOnCallRulesResponse
+	91,  // 198: notificator.alert.StatisticsService.GetOnCallRule:output_type -> notificator.alert.GetOnCallRuleResponse
+	93,  // 199: notificator.alert.StatisticsService.UpdateOnCallRule:output_type -> notificator.alert.UpdateOnCallRuleResponse
+	95,  // 200: notificator.alert.StatisticsService.DeleteOnCallRule:output_type -> notificator.alert.DeleteOnCallRuleResponse
+	97,  // 201: notificator.alert.StatisticsService.TestOnCallRule:output_type -> notificator.alert.TestOnCallRuleResponse
+	103, // 202: notificator.alert.StatisticsService.GetStatisticsSummary:output_type -> notificator.alert.GetStatisticsSummaryResponse
+	105, // 203: notificator.alert.StatisticsService.CaptureAlertFired:output_type -> notificator.alert.CaptureAlertFiredResponse
+	107, // 204: notificator.alert.StatisticsService.UpdateAlertResolved:output_type -> notificator.alert.UpdateAlertResolvedResponse
+	109, // 205: notificator.alert.StatisticsService.UpdateAlertAcknowledged:output_type -> notificator.alert.UpdateAlertAcknowledgedResponse
+	112, // 206: notificator.alert.StatisticsService.QueryRecentlyResolved:output_type -> notificator.alert.QueryRecentlyResolvedResponse
+	114, // 207: notificator.alert.StatisticsService.GetAlertHistory:output_type -> notificator.alert.GetAlertHistoryResponse
+	116, // 208: notificator.alert.StatisticsService.GetAlertsByName:output_type -> notificator.alert.GetAlertsByNameResponse
+	158, // [158:209] is the sub-list for method output_type
+	107, // [107:158] is the sub-list for method input_type
+	107, // [107:107] is the sub-list for extension type_name
+	107, // [107:107] is the sub-list for extension extendee
+	0,   // [0:107] is the sub-list for field type_name
 }
 
 func init() { file_proto_alert_proto_init() }
@@ -8961,7 +9193,7 @@ func file_proto_alert_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_alert_proto_rawDesc), len(file_proto_alert_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   126,
+			NumMessages:   128,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

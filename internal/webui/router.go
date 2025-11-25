@@ -283,6 +283,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			statistics.GET("/summary", handlers.GetStatisticsSummary)
 			statistics.POST("/recently-resolved", handlers.QueryRecentlyResolved)
 			statistics.GET("/alert/:fingerprint", handlers.GetResolvedAlertDetails)
+			statistics.POST("/alerts-by-name", handlers.GetAlertsByName)
 
 			// On-call rules CRUD
 			statistics.GET("/rules", handlers.GetOnCallRules)
