@@ -29,6 +29,10 @@ templ DashboardResolvedAlertsMixin() {
 			resolvedSortField: 'last_resolved_at',  // Default sort by last resolved
 			resolvedSortDirection: 'desc',          // Most recent first
 
+			// State for resolved alert details modal (occurrence history)
+			resolvedAlertOccurrences: [],
+			resolvedAlertTotalOccurrences: 0,
+
 			// Watch for display mode changes and auto-load
 			initResolvedAutoLoad() {
 				this.$watch('displayMode', (newMode, oldMode) => {
@@ -50,6 +54,7 @@ templ DashboardResolvedAlertsMixin() {
 				// Format for datetime-local input (YYYY-MM-DDTHH:mm)
 				this.resolvedTimeRange.end = this.formatDateTimeLocal(now);
 				this.resolvedTimeRange.start = this.formatDateTimeLocal(oneDayAgo);
+				this.resolvedTimeRange.preset = 24; // Mark 24h preset as active
 			},
 
 			// Format date for datetime-local input
@@ -83,17 +88,17 @@ templ DashboardResolvedAlertsMixin() {
 				await this.loadResolvedAlerts();
 			},
 
-			// Count active filters from main dashboard
+			// Count active filters relevant to resolved alerts view
+			// Only counts filters that actually affect the resolved alerts query
 			getActiveFiltersCount() {
 				let count = 0;
-				if (this.filters.alertmanagers && this.filters.alertmanagers.length > 0) count++;
+				// These filters ARE used in resolved alerts query
 				if (this.filters.severities && this.filters.severities.length > 0) count++;
-				if (this.filters.statuses && this.filters.statuses.length > 0) count++;
 				if (this.filters.teams && this.filters.teams.length > 0) count++;
 				if (this.filters.alertNames && this.filters.alertNames.length > 0) count++;
 				if (this.searchQuery && this.searchQuery.trim().length > 0) count++;
-				if (this.acknowledgmentFilter !== null) count++;
-				if (this.commentsFilter !== null) count++;
+				// Note: alertmanagers, statuses, acknowledgmentFilter, commentsFilter
+				// are NOT used in the resolved alerts query (statistics endpoint)
 				return count;
 			},
 
@@ -120,7 +125,7 @@ templ DashboardResolvedAlertsMixin() {
 						teams: this.filters.teams || [],
 						alert_names: this.filters.alertNames || [],
 						search_query: this.searchQuery || '',
-						include_silenced: this.resolvedIncludeSilenced,
+						include_silenced: true, // Always fetch all, we filter client-side with live status
 						limit: this.resolvedPagination.limit,
 						offset: this.resolvedPagination.offset
 					};
@@ -136,9 +141,55 @@ templ DashboardResolvedAlertsMixin() {
 					const data = await response.json();
 
 					if (data.success && data.data) {
-						this.resolvedAlerts = data.data.alerts || [];
+						let alerts = data.data.alerts || [];
 						this.resolvedTotalCount = data.data.total_count || 0;
-						console.log(`Loaded ${this.resolvedAlerts.length} unique fingerprints (${this.resolvedTotalCount} total)`);
+						console.log(`Loaded ${alerts.length} unique fingerprints (${this.resolvedTotalCount} total)`);
+
+						// Fetch live status for all alerts to get accurate silenced state
+						if (alerts.length > 0) {
+							const fingerprints = alerts.map(a => a.fingerprint);
+							const statusResponse = await fetch('/api/v1/dashboard/alerts/bulk-status', {
+								method: 'POST',
+								credentials: 'include',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ fingerprints })
+							});
+
+							const statusData = await statusResponse.json();
+
+							if (statusData.success && statusData.data?.statuses) {
+								// Enrich alerts with live status
+								alerts = alerts.map(alert => {
+									const liveStatus = statusData.data.statuses[alert.fingerprint];
+									if (liveStatus) {
+										alert.live_status = liveStatus;
+									}
+									return alert;
+								});
+
+								// Filter out currently silenced alerts if not including silenced
+								if (!this.resolvedIncludeSilenced) {
+									const beforeCount = alerts.length;
+									alerts = alerts.filter(alert => {
+										const liveStatus = alert.live_status;
+										// Keep alert if:
+										// - Not in cache (fully resolved, can't be silenced)
+										// - In cache but not suppressed
+										if (!liveStatus || !liveStatus.in_cache) {
+											return true;
+										}
+										return liveStatus.state !== 'suppressed';
+									});
+									const filteredCount = beforeCount - alerts.length;
+									if (filteredCount > 0) {
+										console.log(`Filtered out ${filteredCount} currently silenced alerts`);
+										this.resolvedTotalCount -= filteredCount;
+									}
+								}
+							}
+						}
+
+						this.resolvedAlerts = alerts;
 						console.log('Sample alert:', this.resolvedAlerts[0]);
 
 						// Load colors for resolved alerts
@@ -190,9 +241,81 @@ templ DashboardResolvedAlertsMixin() {
 			},
 
 			// Show alert details from resolved tab
+			// Uses dedicated statistics endpoint since resolved alerts are not in the live cache
+			// Also checks live cache for current status (in case alert is still firing/silenced)
 			async showResolvedAlertDetails(alert) {
-				// Use existing modal infrastructure - just pass fingerprint
-				await this.showAlertDetails(alert.fingerprint);
+				this.alertDetailsLoading = true;
+				this.showAlertModal = true;
+				this.currentAlertTab = 'overview';
+				this.alertDetails = null;
+
+				const fingerprint = alert.fingerprint;
+				const currentPath = window.location.pathname;
+				const newPath = `/dashboard/alert/${fingerprint}`;
+				if (currentPath !== newPath) {
+					window.history.pushState({ alertId: fingerprint }, '', newPath);
+				}
+
+				try {
+					// Fetch both statistics data and live status in parallel
+					const [statsResponse, statusResponse] = await Promise.all([
+						fetch(`/api/v1/statistics/alert/${fingerprint}`, {
+							credentials: 'include'
+						}),
+						fetch('/api/v1/dashboard/alerts/bulk-status', {
+							method: 'POST',
+							credentials: 'include',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ fingerprints: [fingerprint] })
+						})
+					]);
+
+					// Check for authentication errors
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(statsResponse)) {
+						return;
+					}
+
+					const statsResult = await statsResponse.json();
+					const statusResult = await statusResponse.json();
+
+					if (statsResult.success && statsResult.data) {
+						// Map the response to expected alertDetails structure
+						this.alertDetails = statsResult.data.details;
+						// Store occurrences for the history tab
+						this.resolvedAlertOccurrences = statsResult.data.occurrences || [];
+						this.resolvedAlertTotalOccurrences = statsResult.data.total_occurrences || 0;
+
+						// Update status from live cache if available
+						if (statusResult.success && statusResult.data?.statuses?.[fingerprint]) {
+							const liveStatus = statusResult.data.statuses[fingerprint];
+							if (liveStatus.in_cache) {
+								// Alert is still in live cache - use live status
+								this.alertDetails.alert.status = {
+									state: liveStatus.state,
+									silencedBy: liveStatus.silenced_by || [],
+									inhibitedBy: liveStatus.inhibited_by || []
+								};
+								this.alertDetails.alert.isResolved = liveStatus.is_resolved;
+							} else {
+								// Alert not in live cache - mark as fully resolved
+								this.alertDetails.alert.status = {
+									state: 'resolved',
+									silencedBy: [],
+									inhibitedBy: []
+								};
+								this.alertDetails.alert.isResolved = true;
+							}
+						}
+					} else {
+						console.error('Failed to load resolved alert details:', statsResult.error || 'Unknown error');
+						this.closeAlertModal();
+					}
+				} catch (error) {
+					console.error('Error loading resolved alert details:', error);
+					this.closeAlertModal();
+				} finally {
+					this.alertDetailsLoading = false;
+				}
 			},
 
 			// Toggle sort for resolved alerts table
@@ -272,7 +395,7 @@ templ DashboardResolvedAlertsMixin() {
 
 				this.resolvedAlerts.forEach(alert => {
 					// Count occurrences
-					const occurrences = alert.occurrences || 1;
+					const occurrences = alert.occurrence_count || 1;
 					totalOccurrences += occurrences;
 
 					// Sum durations
@@ -437,7 +560,8 @@ templ DashboardResolvedAlertsMixin() {
 				window.URL.revokeObjectURL(url);
 			},
 
-			// Load colors for resolved alerts
+			// Load colors for resolved alerts using bulk endpoint
+			// This sends the alert labels directly since resolved alerts come from statistics DB
 			async loadResolvedAlertColors() {
 				if (!this.resolvedAlerts || this.resolvedAlerts.length === 0) {
 					return;
@@ -446,23 +570,17 @@ templ DashboardResolvedAlertsMixin() {
 				try {
 					console.log('Loading colors for resolved alerts...');
 
-					// Build same URL parameters as dashboard data API
-					const params = new URLSearchParams();
+					// Build alerts array with fingerprints and labels
+					const alertsData = this.resolvedAlerts.map(alert => ({
+						fingerprint: alert.fingerprint,
+						labels: alert.labels || {}
+					}));
 
-					// Use resolved view filters
-					if (this.searchQuery) params.set('search', this.searchQuery);
-					if (this.filters.severities.length > 0) params.set('severities', this.filters.severities.join(','));
-					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
-					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
-
-					// Set display mode to get colors for resolved alerts
-					params.set('displayMode', 'resolved');
-					params.set('viewMode', this.viewMode);
-					params.set('sortField', this.sortField);
-					params.set('sortDirection', this.sortDirection);
-
-					const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
-						credentials: 'include'
+					const response = await fetch('/api/v1/dashboard/alerts/bulk-colors', {
+						method: 'POST',
+						credentials: 'include',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ alerts: alertsData })
 					});
 
 					if (response.ok) {

@@ -218,6 +218,8 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.GET("/alert/:fingerprint/history", handlers.HandleGetAlertHistory)
 			dashboard.POST("/alert/:fingerprint/comments", handlers.AddAlertComment)
 			dashboard.DELETE("/alert/:fingerprint/comments/:commentId", handlers.DeleteAlertComment)
+			dashboard.POST("/alerts/bulk-status", handlers.GetBulkAlertStatus)
+			dashboard.POST("/alerts/bulk-colors", handlers.GetBulkAlertColors)
 			dashboard.GET("/color-preferences", handlers.GetUserColorPreferences)
 			dashboard.POST("/color-preferences", handlers.SaveUserColorPreferences)
 			dashboard.DELETE("/color-preferences/:id", handlers.DeleteUserColorPreference)
@@ -280,6 +282,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			statistics.POST("/query", handlers.QueryStatistics)
 			statistics.GET("/summary", handlers.GetStatisticsSummary)
 			statistics.POST("/recently-resolved", handlers.QueryRecentlyResolved)
+			statistics.GET("/alert/:fingerprint", handlers.GetResolvedAlertDetails)
 
 			// On-call rules CRUD
 			statistics.GET("/rules", handlers.GetOnCallRules)

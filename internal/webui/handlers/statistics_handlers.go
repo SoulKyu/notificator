@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -645,4 +647,196 @@ func QueryRecentlyResolved(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(result))
+}
+
+// GetResolvedAlertDetails handles fetching details for a resolved alert from statistics
+func GetResolvedAlertDetails(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	fingerprint := c.Param("fingerprint")
+	if fingerprint == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Fingerprint is required"))
+		return
+	}
+
+	// Check backend availability
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	// Get alert history from statistics database
+	history, err := backendClient.GetAlertHistory(sessionID, fingerprint, 50)
+	if err != nil {
+		log.Printf("Failed to get alert history for %s: %v", fingerprint, err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get alert history"))
+		return
+	}
+
+	if len(history) == 0 {
+		c.JSON(http.StatusNotFound, webuimodels.ErrorResponse("No statistics found for this alert"))
+		return
+	}
+
+	// Use the most recent occurrence to build alert details
+	latestStat := history[0]
+
+	// Parse metadata from the latest occurrence
+	var metadata map[string]interface{}
+	if latestStat.Metadata != nil {
+		if err := json.Unmarshal(latestStat.Metadata, &metadata); err != nil {
+			log.Printf("Failed to parse metadata for %s: %v", fingerprint, err)
+			metadata = make(map[string]interface{})
+		}
+	}
+
+	// Extract labels and annotations from metadata
+	labels := make(map[string]string)
+	annotations := make(map[string]string)
+
+	if labelsRaw, ok := metadata["labels"].(map[string]interface{}); ok {
+		for k, v := range labelsRaw {
+			if str, ok := v.(string); ok {
+				labels[k] = str
+			}
+		}
+	}
+
+	if annotationsRaw, ok := metadata["annotations"].(map[string]interface{}); ok {
+		for k, v := range annotationsRaw {
+			if str, ok := v.(string); ok {
+				annotations[k] = str
+			}
+		}
+	}
+
+	// Extract other metadata fields
+	source := ""
+	if s, ok := metadata["source"].(string); ok {
+		source = s
+	}
+	instance := ""
+	if i, ok := metadata["instance"].(string); ok {
+		instance = i
+	}
+	generatorURL := ""
+	if g, ok := metadata["generatorURL"].(string); ok {
+		generatorURL = g
+	}
+
+	// Build a DashboardAlert-compatible structure for the resolved alert
+	alert := &webuimodels.DashboardAlert{
+		Fingerprint:  fingerprint,
+		Labels:       labels,
+		Annotations:  annotations,
+		StartsAt:     latestStat.FiredAt.AsTime(),
+		GeneratorURL: generatorURL,
+		Source:       source,
+		IsResolved:   true,
+		AlertName:    latestStat.AlertName,
+		Severity:     latestStat.Severity,
+		Instance:     instance,
+		Team:         labels["team"],
+		Summary:      annotations["summary"],
+	}
+
+	// Set EndsAt if resolved
+	if latestStat.ResolvedAt != nil {
+		alert.EndsAt = latestStat.ResolvedAt.AsTime()
+	}
+
+	// Calculate duration
+	if latestStat.DurationSeconds > 0 {
+		alert.Duration = int64(latestStat.DurationSeconds)
+	}
+
+	// Build alert details response
+	details := &webuimodels.AlertDetails{
+		Alert:        alert,
+		GeneratorURL: generatorURL,
+		StartedAt:    latestStat.FiredAt.AsTime(),
+	}
+
+	if latestStat.ResolvedAt != nil {
+		endTime := latestStat.ResolvedAt.AsTime()
+		details.EndedAt = &endTime
+		details.Duration = endTime.Sub(details.StartedAt)
+	}
+
+	// Get comments if available
+	comments, err := backendClient.GetComments(fingerprint)
+	if err == nil && len(comments) > 0 {
+		details.Comments = make([]webuimodels.Comment, len(comments))
+		for i, comment := range comments {
+			details.Comments[i] = webuimodels.Comment{
+				ID:        comment.Id,
+				Username:  comment.Username,
+				UserID:    comment.UserId,
+				Content:   comment.Content,
+				CreatedAt: comment.CreatedAt.AsTime(),
+				UpdatedAt: comment.CreatedAt.AsTime(),
+			}
+		}
+	} else {
+		details.Comments = []webuimodels.Comment{}
+	}
+
+	// Get acknowledgments if available
+	acknowledgments, err := backendClient.GetAcknowledgments(fingerprint)
+	if err == nil && len(acknowledgments) > 0 {
+		details.Acknowledgments = make([]webuimodels.Acknowledgment, len(acknowledgments))
+		for i, ack := range acknowledgments {
+			details.Acknowledgments[i] = webuimodels.Acknowledgment{
+				ID:        fmt.Sprintf("%d", ack.Id),
+				Username:  ack.Username,
+				UserID:    fmt.Sprintf("%d", ack.UserId),
+				Reason:    ack.Reason,
+				CreatedAt: ack.CreatedAt.AsTime(),
+				UpdatedAt: ack.CreatedAt.AsTime(),
+			}
+		}
+	} else {
+		details.Acknowledgments = []webuimodels.Acknowledgment{}
+	}
+
+	// Initialize empty silences
+	details.Silences = []webuimodels.Silence{}
+
+	// Build occurrence history for the response
+	occurrences := make([]map[string]interface{}, len(history))
+	for i, stat := range history {
+		occ := map[string]interface{}{
+			"id":          stat.Id,
+			"fingerprint": stat.Fingerprint,
+			"alert_name":  stat.AlertName,
+			"severity":    stat.Severity,
+			"fired_at":    stat.FiredAt.AsTime(),
+		}
+
+		if stat.ResolvedAt != nil {
+			occ["resolved_at"] = stat.ResolvedAt.AsTime()
+		}
+		if stat.AcknowledgedAt != nil {
+			occ["acknowledged_at"] = stat.AcknowledgedAt.AsTime()
+		}
+		if stat.DurationSeconds > 0 {
+			occ["duration_seconds"] = stat.DurationSeconds
+		}
+		if stat.MttrSeconds > 0 {
+			occ["mttr_seconds"] = stat.MttrSeconds
+		}
+
+		occurrences[i] = occ
+	}
+
+	// Return response with both details and history
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"details":     details,
+		"occurrences": occurrences,
+		"total_occurrences": len(history),
+	}))
 }
