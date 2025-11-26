@@ -834,6 +834,11 @@ func GetResolvedAlertDetails(c *gin.Context) {
 		Instance:     instance,
 		Team:         labels["team"],
 		Summary:      annotations["summary"],
+		Status: webuimodels.AlertStatus{
+			State:       "resolved",
+			SilencedBy:  []string{},
+			InhibitedBy: []string{},
+		},
 	}
 
 	// Set EndsAt if resolved
