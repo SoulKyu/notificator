@@ -14,6 +14,62 @@ templ DashboardFilterPresetsMixin() {
 		editingPreset: null,
 		activeTab: 'list',
 
+		// Filter-specific hidden alerts state
+		activeFilterPresetId: null,
+		filterHiddenAlerts: [],
+		filterHiddenRules: [],
+		showFilterHiddenManager: false,
+		newFilterRule: {
+			name: '',
+			label_key: '',
+			label_value: '',
+			is_regex: false,
+			is_enabled: true
+		},
+
+		// Available labels for autocomplete
+		filterAvailableLabels: {},
+		filterAvailableLabelsLastLoaded: null,
+
+		// Load available labels for autocomplete
+		async loadFilterAvailableLabels() {
+			// Check if we already have cached labels and they're not too old (cache for 5 minutes)
+			if (this.filterAvailableLabels && Object.keys(this.filterAvailableLabels).length > 0 &&
+				this.filterAvailableLabelsLastLoaded &&
+				(Date.now() - this.filterAvailableLabelsLastLoaded) < 300000) {
+				return;
+			}
+
+			try {
+				const response = await fetch('/api/v1/dashboard/available-labels', {
+					credentials: 'include'
+				});
+				if (response.ok) {
+					const result = await response.json();
+					if (result.success) {
+						this.filterAvailableLabels = result.data.labels || {};
+						this.filterAvailableLabelsLastLoaded = Date.now();
+						console.log('Loaded available labels for filter rules:', Object.keys(this.filterAvailableLabels).length, 'label types');
+					}
+				}
+			} catch (error) {
+				console.error('Error loading available labels:', error);
+			}
+		},
+
+		// Ensure labels are loaded (call on focus)
+		ensureFilterAvailableLabels() {
+			if (!this.filterAvailableLabels || Object.keys(this.filterAvailableLabels).length === 0) {
+				this.loadFilterAvailableLabels();
+			}
+		},
+
+		// Get available values for a specific label key
+		getFilterAvailableValues(labelKey) {
+			if (!labelKey || !this.filterAvailableLabels) return [];
+			return this.filterAvailableLabels[labelKey] || [];
+		},
+
 		// Load all filter presets
 		async loadFilterPresets() {
 			try {
@@ -105,6 +161,10 @@ templ DashboardFilterPresetsMixin() {
 			console.log('Applying filter preset:', preset.name);
 			const data = preset.filter_data;
 
+			// Track active preset
+			this.activeFilterPresetId = preset.id;
+			this.activePresetName = preset.name;
+
 			// Apply filters
 			this.searchQuery = data.search || '';
 			this.filters.alertmanagers = data.alertmanagers || [];
@@ -134,6 +194,11 @@ templ DashboardFilterPresetsMixin() {
 				console.log('Applied', data.column_configs.length, 'column configurations from preset');
 			}
 
+			// Apply filter-specific hidden alerts
+			this.filterHiddenAlerts = data.hidden_alerts || [];
+			this.filterHiddenRules = data.hidden_rules || [];
+			console.log('Applied', this.filterHiddenAlerts.length, 'filter hidden alerts and', this.filterHiddenRules.length, 'filter hidden rules');
+
 			// Reload dashboard data with new filters
 			await this.loadDashboardData();
 
@@ -153,6 +218,17 @@ templ DashboardFilterPresetsMixin() {
 			this.newPreset.name = preset.name;
 			this.newPreset.description = preset.description;
 			this.newPreset.is_shared = preset.is_shared;
+
+			// Load filter-specific hidden alerts from the preset's filter_data
+			if (preset.filter_data) {
+				this.filterHiddenAlerts = preset.filter_data.hidden_alerts || [];
+				this.filterHiddenRules = preset.filter_data.hidden_rules || [];
+				console.log('Loaded', this.filterHiddenAlerts.length, 'hidden alerts and', this.filterHiddenRules.length, 'hidden rules for editing');
+			} else {
+				this.filterHiddenAlerts = [];
+				this.filterHiddenRules = [];
+			}
+
 			this.activeTab = 'save';
 		},
 
@@ -219,8 +295,120 @@ templ DashboardFilterPresetsMixin() {
 				sort_by: this.sortField,
 				sort_direction: this.sortDirection,
 				items_per_page: this.itemsPerPage,
-				column_configs: this.includeColumnConfig ? (this.columns || []) : []
+				column_configs: this.includeColumnConfig ? (this.columns || []) : [],
+				// Filter-specific hidden alerts
+				hidden_alerts: this.filterHiddenAlerts || [],
+				hidden_rules: this.filterHiddenRules || []
 			};
+		},
+
+		// ========== Filter Hidden Alerts Management ==========
+
+		// Add an alert to filter-specific hidden alerts
+		addFilterHiddenAlert(fingerprint, alertName, instance, reason = '') {
+			if (!fingerprint) return;
+
+			// Check if already hidden in this filter
+			const exists = this.filterHiddenAlerts.some(a => a.fingerprint === fingerprint);
+			if (exists) {
+				console.log('Alert already hidden in filter:', fingerprint);
+				return;
+			}
+
+			this.filterHiddenAlerts.push({
+				fingerprint: fingerprint,
+				alert_name: alertName || '',
+				instance: instance || '',
+				reason: reason
+			});
+			console.log('Added alert to filter hidden:', fingerprint);
+		},
+
+		// Remove an alert from filter-specific hidden alerts
+		removeFilterHiddenAlert(fingerprint) {
+			const index = this.filterHiddenAlerts.findIndex(a => a.fingerprint === fingerprint);
+			if (index !== -1) {
+				this.filterHiddenAlerts.splice(index, 1);
+				console.log('Removed alert from filter hidden:', fingerprint);
+			}
+		},
+
+		// Add a rule to filter-specific hidden rules
+		addFilterHiddenRule(rule) {
+			if (!rule || !rule.label_key) return;
+
+			this.filterHiddenRules.push({
+				name: rule.name || '',
+				description: rule.description || '',
+				label_key: rule.label_key,
+				label_value: rule.label_value || '',
+				is_regex: rule.is_regex || false,
+				is_enabled: rule.is_enabled !== false // Default to true
+			});
+			console.log('Added rule to filter hidden:', rule.name);
+		},
+
+		// Remove a rule from filter-specific hidden rules
+		removeFilterHiddenRule(index) {
+			if (index >= 0 && index < this.filterHiddenRules.length) {
+				this.filterHiddenRules.splice(index, 1);
+				console.log('Removed rule from filter hidden at index:', index);
+			}
+		},
+
+		// Toggle a filter hidden rule enabled state
+		toggleFilterHiddenRule(index) {
+			if (index >= 0 && index < this.filterHiddenRules.length) {
+				this.filterHiddenRules[index].is_enabled = !this.filterHiddenRules[index].is_enabled;
+			}
+		},
+
+		// Clear all filter-specific hidden alerts when no filter is active
+		clearFilterHiddenState() {
+			this.activeFilterPresetId = null;
+			this.activePresetName = null;
+			this.filterHiddenAlerts = [];
+			this.filterHiddenRules = [];
+		},
+
+		// Update the active filter preset with current hidden alerts
+		async updateActiveFilterPreset() {
+			if (!this.activeFilterPresetId) {
+				console.error('No active filter preset to update');
+				return;
+			}
+
+			const preset = this.presets.find(p => p.id === this.activeFilterPresetId);
+			if (!preset) {
+				console.error('Active filter preset not found');
+				return;
+			}
+
+			try {
+				const filterData = this.captureCurrentFilterState();
+				const payload = {
+					name: preset.name,
+					description: preset.description,
+					is_shared: preset.is_shared,
+					filter_data: filterData
+				};
+
+				const response = await fetch(`/api/v1/dashboard/filter-presets/${preset.id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload)
+				});
+
+				const data = await response.json();
+				if (data.success) {
+					console.log('Filter preset updated with hidden alerts');
+					await this.loadFilterPresets();
+				} else {
+					console.error('Failed to update filter preset:', data.message);
+				}
+			} catch (error) {
+				console.error('Error updating filter preset:', error);
+			}
 		},
 
 		// Get filter summary for display
@@ -256,6 +444,14 @@ templ DashboardFilterPresetsMixin() {
 			parts.push(`<div><strong>Sort:</strong> ${this.sortField} (${this.sortDirection})</div>`);
 			parts.push(`<div><strong>Items Per Page:</strong> ${this.itemsPerPage}</div>`);
 
+			// Show filter-specific hidden alerts count
+			if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
+				parts.push(`<div><strong>Filter Hidden Alerts:</strong> ${this.filterHiddenAlerts.length}</div>`);
+			}
+			if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
+				parts.push(`<div><strong>Filter Hidden Rules:</strong> ${this.filterHiddenRules.length}</div>`);
+			}
+
 			return parts.length > 0 ? parts.join('') : '<div>No filters applied</div>';
 		},
 
@@ -267,6 +463,10 @@ templ DashboardFilterPresetsMixin() {
 				is_shared: false
 			};
 			this.editingPreset = null;
+			// Reset filter-specific hidden state when creating a new preset
+			// Note: we don't clear filterHiddenAlerts/filterHiddenRules here
+			// because the user may want to keep their current hidden state
+			// for a new filter they're creating
 		},
 
 		// Cancel editing

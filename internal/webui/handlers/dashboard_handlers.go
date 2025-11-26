@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -204,6 +206,22 @@ func parseDashboardFilters(c *gin.Context) webuimodels.DashboardFilters {
 		}
 	}
 
+	// Parse filter-specific hidden alerts (JSON)
+	if hiddenAlertsJSON := c.Query("filterHiddenAlerts"); hiddenAlertsJSON != "" {
+		var hiddenAlerts []webuimodels.FilterHiddenAlert
+		if err := json.Unmarshal([]byte(hiddenAlertsJSON), &hiddenAlerts); err == nil {
+			filters.FilterHiddenAlerts = hiddenAlerts
+		}
+	}
+
+	// Parse filter-specific hidden rules (JSON)
+	if hiddenRulesJSON := c.Query("filterHiddenRules"); hiddenRulesJSON != "" {
+		var hiddenRules []webuimodels.FilterHiddenRule
+		if err := json.Unmarshal([]byte(hiddenRulesJSON), &hiddenRules); err == nil {
+			filters.FilterHiddenRules = hiddenRules
+		}
+	}
+
 	return filters
 }
 
@@ -311,9 +329,26 @@ func getAcknowledgedAlerts() []*webuimodels.DashboardAlert {
 func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string) []*webuimodels.DashboardAlert {
 	var filtered []*webuimodels.DashboardAlert
 
+	// Pre-compile filter-specific hidden rules for performance
+	var compiledFilterRules map[int]*regexp.Regexp
+	if len(filters.FilterHiddenRules) > 0 && hiddenAlertsService != nil {
+		compiledFilterRules = hiddenAlertsService.CompileFilterRules(filters.FilterHiddenRules)
+	}
+
 	for _, alert := range alerts {
 		// Handle hidden alerts based on display mode
-		isHidden := hiddenAlertsService != nil && hiddenAlertsService.IsAlertHidden(sessionID, alert)
+		// Check both global hidden and filter-specific hidden (additive)
+		isGlobalHidden := hiddenAlertsService != nil && hiddenAlertsService.IsAlertHidden(sessionID, alert)
+		isFilterHidden := false
+		if hiddenAlertsService != nil && (len(filters.FilterHiddenAlerts) > 0 || len(filters.FilterHiddenRules) > 0) {
+			isFilterHidden = hiddenAlertsService.IsAlertHiddenByFilter(
+				alert,
+				filters.FilterHiddenAlerts,
+				filters.FilterHiddenRules,
+				compiledFilterRules,
+			)
+		}
+		isHidden := isGlobalHidden || isFilterHidden
 
 		if filters.DisplayMode == webuimodels.DisplayModeHidden {
 			// For hidden mode, only show hidden alerts

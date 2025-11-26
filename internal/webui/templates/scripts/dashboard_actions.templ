@@ -104,7 +104,7 @@ templ DashboardActions() {
 
 				try {
 					let hiddenCount = 0;
-					
+
 					// Hide individual alerts
 					for (const fingerprint of this.selectedAlerts) {
 						const response = await fetch('/api/v1/dashboard/hidden-alerts', {
@@ -129,19 +129,76 @@ templ DashboardActions() {
 							hiddenCount++;
 						}
 					}
-					
+
 					// TODO: Handle group hiding when groups are supported
-					
+
 					if (hiddenCount > 0) {
-						
+
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						
+
 					}
 				} catch (error) {
 					console.error('Error hiding alerts:', error);
-					
+
+				}
+			},
+
+			// Hide selected alerts in the active filter (filter-specific hiding)
+			hideSelectedInFilter() {
+				if (this.selectedAlerts.length === 0) {
+					return;
+				}
+
+				// Check if a filter preset is active
+				if (!this.activeFilterPresetId) {
+					alert('No saved filter is currently active. Load a saved filter first, or use "Hide Globally" to hide alerts for all views.');
+					return;
+				}
+
+				// Add each selected alert to the filter hidden alerts
+				let addedCount = 0;
+				for (const fingerprint of this.selectedAlerts) {
+					const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+					if (alert) {
+						// Check if not already in filter hidden
+						const alreadyHidden = this.filterHiddenAlerts.some(h => h.fingerprint === fingerprint);
+						if (!alreadyHidden) {
+							this.addFilterHiddenAlert(fingerprint, alert.alertName, alert.instance, 'Hidden from bulk action');
+							addedCount++;
+						}
+					}
+				}
+
+				if (addedCount > 0) {
+					console.log(`Added ${addedCount} alerts to filter hidden list`);
+					this.clearSelection();
+					// Reload to apply the filter
+					this.loadDashboardData();
+				}
+			},
+
+			// Hide a single alert in the active filter
+			hideAlertInFilter(fingerprint) {
+				// Check if a filter preset is active
+				if (!this.activeFilterPresetId) {
+					alert('No saved filter is currently active. Load a saved filter first, or use "Hide Globally" to hide alerts for all views.');
+					return;
+				}
+
+				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+				if (alert) {
+					// Check if not already in filter hidden
+					const alreadyHidden = this.filterHiddenAlerts.some(h => h.fingerprint === fingerprint);
+					if (!alreadyHidden) {
+						this.addFilterHiddenAlert(fingerprint, alert.alertName, alert.instance, 'Hidden from alert action');
+						console.log('Added alert to filter hidden list:', fingerprint);
+						// Reload to apply the filter
+						this.loadDashboardData();
+					} else {
+						console.log('Alert already hidden in filter:', fingerprint);
+					}
 				}
 			},
 
