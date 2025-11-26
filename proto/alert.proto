@@ -612,6 +612,9 @@ service StatisticsService {
 
   // Get alert history for timeline display
   rpc GetAlertHistory(GetAlertHistoryRequest) returns (GetAlertHistoryResponse);
+
+  // Get alerts by name with filters (for drill-down view)
+  rpc GetAlertsByName(GetAlertsByNameRequest) returns (GetAlertsByNameResponse);
 }
 
 // ==================== Statistics Query Messages ====================
@@ -625,6 +628,9 @@ message QueryStatisticsRequest {
   string period_type = 6;         // "hour", "day", "week", "month" (required if group_by="period")
   int32 limit = 7;                // Limit results (for alert_name grouping)
   int32 offset = 8;               // Pagination offset
+  bool filter_by_time_of_day = 9; // Enable time-of-day filtering
+  string time_of_day_start = 10;  // "HH:MM" format (e.g., "22:00")
+  string time_of_day_end = 11;    // "HH:MM" format (e.g., "06:00") - supports cross-midnight
 }
 
 message QueryStatisticsResponse {
@@ -874,6 +880,27 @@ message GetAlertHistoryResponse {
   bool success = 1;
   string message = 2;
   repeated AlertStatistic history = 3;
+}
+
+// ==================== Get Alerts By Name Messages ====================
+
+message GetAlertsByNameRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+  string alert_name = 4;
+  bool apply_rules = 5;
+  bool filter_by_time_of_day = 6;
+  string time_of_day_start = 7;
+  string time_of_day_end = 8;
+  int32 limit = 9;
+}
+
+message GetAlertsByNameResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AlertStatistic alerts = 3;
+  int64 total_count = 4;
 }
 
 // ==================== User Column Preferences Messages ====================

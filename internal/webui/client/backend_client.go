@@ -1851,6 +1851,35 @@ func (c *BackendClient) GetAlertHistory(sessionID, fingerprint string, limit int
 	return resp.History, nil
 }
 
+// GetAlertsByName retrieves all alerts with a specific alert name, respecting filter criteria
+func (c *BackendClient) GetAlertsByName(sessionID string, alertName string, startDate, endDate time.Time, applyRules, filterByTimeOfDay bool, timeOfDayStart, timeOfDayEnd string, limit int32) ([]*alertpb.AlertStatistic, int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetAlertsByNameRequest{
+		SessionId:         sessionID,
+		AlertName:         alertName,
+		StartDate:         timestamppb.New(startDate),
+		EndDate:           timestamppb.New(endDate),
+		ApplyRules:        applyRules,
+		FilterByTimeOfDay: filterByTimeOfDay,
+		TimeOfDayStart:    timeOfDayStart,
+		TimeOfDayEnd:      timeOfDayEnd,
+		Limit:             limit,
+	}
+
+	resp, err := c.statisticsClient.GetAlertsByName(ctx, req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if !resp.Success {
+		return nil, 0, fmt.Errorf("failed to get alerts by name: %s", resp.Message)
+	}
+
+	return resp.Alerts, resp.TotalCount, nil
+}
+
 // GetUserColumnPreferences gets the user's column preferences via gRPC
 func (c *BackendClient) GetUserColumnPreferences(sessionID, userID string) (*models.UserColumnPreference, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

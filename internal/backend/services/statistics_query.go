@@ -29,14 +29,17 @@ func NewStatisticsQueryService(db *database.GormDB) *StatisticsQueryService {
 
 // QueryRequest represents a statistics query request
 type QueryRequest struct {
-	UserID          string
-	StartDate       time.Time
-	EndDate         time.Time
-	ApplyRules      bool
-	GroupBy         string // "severity", "team", "period", "alert_name"
-	PeriodType      string // "hour", "day", "week", "month"
-	Limit           int
-	Offset          int
+	UserID             string
+	StartDate          time.Time
+	EndDate            time.Time
+	ApplyRules         bool
+	GroupBy            string // "severity", "team", "period", "alert_name"
+	PeriodType         string // "hour", "day", "week", "month"
+	Limit              int
+	Offset             int
+	FilterByTimeOfDay  bool   // Enable time-of-day filtering
+	TimeOfDayStart     string // "HH:MM" format (e.g., "22:00")
+	TimeOfDayEnd       string // "HH:MM" format (e.g., "06:00") - supports cross-midnight
 }
 
 // QueryResponse represents the aggregated statistics response
@@ -73,6 +76,11 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 	baseQuery := sqs.db.GetDB().Model(&models.AlertStatistic{}).
 		Where("fired_at >= ?", req.StartDate).
 		Where("fired_at <= ?", req.EndDate)
+
+	// Apply time-of-day filter if enabled
+	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
+		baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
+	}
 
 	// Apply user's on-call rules if requested
 	if req.ApplyRules && req.UserID != "" {
@@ -175,6 +183,85 @@ func (sqs *StatisticsQueryService) validateQueryRequest(req *QueryRequest) error
 	}
 
 	return nil
+}
+
+// applyTimeOfDayFilter adds a WHERE clause to filter by time of day
+// Supports cross-midnight ranges (e.g., 22:00 to 06:00 means "night hours")
+func (sqs *StatisticsQueryService) applyTimeOfDayFilter(query *gorm.DB, startTime, endTime string) *gorm.DB {
+	// Parse HH:MM to minutes since midnight
+	startMinutes := parseTimeToMinutes(startTime)
+	endMinutes := parseTimeToMinutes(endTime)
+
+	if startMinutes < 0 || endMinutes < 0 {
+		// Invalid time format, return query unchanged
+		return query
+	}
+
+	// Determine if we're using PostgreSQL or SQLite
+	isPostgres := sqs.db.IsPostgreSQL()
+
+	if startMinutes <= endMinutes {
+		// Same-day range (e.g., 09:00 to 18:00)
+		// Filter: time_of_day BETWEEN start AND end
+		if isPostgres {
+			return query.Where(
+				"(EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) BETWEEN ? AND ?",
+				startMinutes, endMinutes,
+			)
+		}
+		// SQLite
+		return query.Where(
+			"(CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) BETWEEN ? AND ?",
+			startMinutes, endMinutes,
+		)
+	}
+
+	// Cross-midnight range (e.g., 22:00 to 06:00)
+	// Filter: time_of_day >= start OR time_of_day <= end
+	if isPostgres {
+		return query.Where(
+			"((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) >= ? OR (EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) <= ?)",
+			startMinutes, endMinutes,
+		)
+	}
+	// SQLite
+	return query.Where(
+		"((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) >= ? OR (CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) <= ?)",
+		startMinutes, endMinutes,
+	)
+}
+
+// parseTimeToMinutes parses "HH:MM" format to minutes since midnight
+// Returns -1 if the format is invalid
+func parseTimeToMinutes(timeStr string) int {
+	if len(timeStr) != 5 || timeStr[2] != ':' {
+		return -1
+	}
+
+	hours := 0
+	minutes := 0
+
+	// Parse hours
+	for i := 0; i < 2; i++ {
+		if timeStr[i] < '0' || timeStr[i] > '9' {
+			return -1
+		}
+		hours = hours*10 + int(timeStr[i]-'0')
+	}
+
+	// Parse minutes
+	for i := 3; i < 5; i++ {
+		if timeStr[i] < '0' || timeStr[i] > '9' {
+			return -1
+		}
+		minutes = minutes*10 + int(timeStr[i]-'0')
+	}
+
+	if hours > 23 || minutes > 59 {
+		return -1
+	}
+
+	return hours*60 + minutes
 }
 
 // ==================== Aggregation Methods ====================

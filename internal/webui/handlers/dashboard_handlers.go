@@ -1223,6 +1223,60 @@ func GetAlertDetails(c *gin.Context) {
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(details))
 }
 
+// GetBulkAlertStatus returns the current status for multiple alerts from the live cache
+// This is used by the resolved alerts view to determine which alerts are currently silenced
+func GetBulkAlertStatus(c *gin.Context) {
+	var request struct {
+		Fingerprints []string `json:"fingerprints" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request format: "+err.Error()))
+		return
+	}
+
+	if len(request.Fingerprints) == 0 {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("At least one fingerprint is required"))
+		return
+	}
+
+	// Limit the number of fingerprints to prevent abuse
+	if len(request.Fingerprints) > 1000 {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Maximum 1000 fingerprints allowed per request"))
+		return
+	}
+
+	// Build status map from alert cache
+	statuses := make(map[string]map[string]interface{})
+
+	for _, fingerprint := range request.Fingerprints {
+		alert := alertCache.GetAlertByFingerprint(fingerprint)
+		if alert != nil {
+			// Alert found in live cache
+			statuses[fingerprint] = map[string]interface{}{
+				"in_cache":     true,
+				"state":        alert.Status.State,
+				"silenced_by":  alert.Status.SilencedBy,
+				"inhibited_by": alert.Status.InhibitedBy,
+				"is_resolved":  alert.IsResolved,
+			}
+		} else {
+			// Alert not in live cache (fully resolved)
+			statuses[fingerprint] = map[string]interface{}{
+				"in_cache":    false,
+				"state":       "resolved",
+				"silenced_by": []string{},
+				"is_resolved": true,
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(map[string]interface{}{
+		"statuses": statuses,
+		"count":    len(statuses),
+	}))
+}
+
 func AddAlertComment(c *gin.Context) {
 	fingerprint := c.Param("fingerprint")
 	if fingerprint == "" {
@@ -1609,6 +1663,74 @@ func convertDashboardToModel(dashAlert *webuimodels.DashboardAlert) *models.Aler
 	}
 
 	return alert
+}
+
+// GetBulkAlertColors returns colors for alerts based on provided labels
+// This is used by resolved alerts view where alerts come from statistics DB, not live cache
+func GetBulkAlertColors(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Authentication required"))
+		return
+	}
+
+	var request struct {
+		Alerts []struct {
+			Fingerprint string            `json:"fingerprint"`
+			Labels      map[string]string `json:"labels"`
+		} `json:"alerts"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request format: "+err.Error()))
+		return
+	}
+
+	if len(request.Alerts) == 0 {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("At least one alert is required"))
+		return
+	}
+
+	if len(request.Alerts) > 1000 {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Maximum 1000 alerts allowed per request"))
+		return
+	}
+
+	// Check if color service is available
+	if colorService == nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Color service not available"))
+		return
+	}
+
+	// Convert request alerts to models.Alert for color service
+	var modelAlerts []*models.Alert
+	fingerprintMap := make(map[string]string) // generatedFingerprint -> originalFingerprint
+
+	for _, reqAlert := range request.Alerts {
+		modelAlert := &models.Alert{
+			Labels: reqAlert.Labels,
+		}
+		modelAlerts = append(modelAlerts, modelAlert)
+		// Map generated fingerprint back to original
+		fingerprintMap[modelAlert.GetFingerprint()] = reqAlert.Fingerprint
+	}
+
+	// Get colors using the color service
+	colorResults := colorService.GetAlertColorsOptimized(modelAlerts, sessionID)
+
+	// Remap results to use original fingerprints
+	finalResults := make(map[string]*services.AlertColorResult)
+	for generatedFP, originalFP := range fingerprintMap {
+		if colorResult, exists := colorResults[generatedFP]; exists {
+			finalResults[originalFP] = colorResult
+		}
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"colors":     finalResults,
+		"colorCount": len(finalResults),
+		"timestamp":  time.Now().Unix(),
+	}))
 }
 
 func RemoveAllResolvedAlerts(c *gin.Context) {

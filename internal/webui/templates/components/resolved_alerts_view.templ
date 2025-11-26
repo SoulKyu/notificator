@@ -216,10 +216,12 @@ templ ResolvedAlertsView() {
 								<span class="text-blue-600 dark:text-blue-400" x-text="searchQuery"></span>
 							</div>
 						</template>
-						<div class="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-blue-900/40 rounded border border-blue-300 dark:border-blue-700">
-							<span class="font-medium text-blue-700 dark:text-blue-300">Include Silenced:</span>
-							<span class="text-blue-600 dark:text-blue-400" x-text="resolvedIncludeSilenced ? 'Yes' : 'No'"></span>
-						</div>
+						<template x-if="resolvedIncludeSilenced">
+							<div class="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-blue-900/40 rounded border border-blue-300 dark:border-blue-700">
+								<span class="font-medium text-blue-700 dark:text-blue-300">Include Silenced:</span>
+								<span class="text-blue-600 dark:text-blue-400">Yes</span>
+							</div>
+						</template>
 					</div>
 				</div>
 				<button
