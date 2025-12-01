@@ -325,7 +325,7 @@ templ NewDashboardContent() {
 						<!-- Filter Controls -->
 						<div class="flex flex-wrap items-center gap-3">
 							<!-- Alertmanager Filter -->
-							<div class="relative" x-data="{ open: false }">
+							<div class="relative" x-data="{ open: false, searchTerm: '' }">
 								<button @click="open = !open" type="button"
 										class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
 										:class="{ 'ring-2 ring-blue-500 ring-opacity-50': filters.alertmanagers.length > 0 }">
@@ -335,38 +335,53 @@ templ NewDashboardContent() {
 										<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
 									</svg>
 								</button>
-								
-								<div x-show="open" @click.away="open = false" x-transition
-									 class="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
+
+								<div x-show="open" @click.away="open = false; searchTerm = ''" x-transition
+									 class="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
 									<div class="py-2">
 										<div class="px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT">
-											<div class="flex items-center justify-between">
+											<div class="flex items-center justify-between mb-2">
 												<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Alertmanager Sources</span>
-												<button x-text="`Clear (${filters.alertmanagers.length})`" 
-														@click="clearFilter('alertmanagers')" 
+												<button x-text="`Clear (${filters.alertmanagers.length})`"
+														@click="clearFilter('alertmanagers'); searchTerm = ''"
 														class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500"
 														x-show="filters.alertmanagers.length > 0">
 												</button>
 											</div>
+											<!-- Search input for alertmanagers -->
+											<div class="relative">
+												<input type="text"
+													   x-model="searchTerm"
+													   placeholder="Search alertmanagers..."
+													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+												<svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+													<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+												</svg>
+											</div>
 										</div>
 										<div class="max-h-48 overflow-y-auto">
-											<template x-for="option in metadata.availableFilters.alertmanagers" x-key="option">
+											<template x-for="option in metadata.availableFilters.alertmanagers.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
 												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-													<input type="checkbox" 
-														   x-model="filters.alertmanagers" 
-														   :value="option" 
+													<input type="checkbox"
+														   x-model="filters.alertmanagers"
+														   :value="option"
 														   @change="applyFilters()"
 														   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
-													<span x-text="option"></span>
+													<span x-text="option" class="truncate"></span>
 												</label>
 											</template>
+											<div x-show="metadata.availableFilters.alertmanagers.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase())).length === 0"
+												 class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+												<span x-show="searchTerm === ''">No alertmanagers available</span>
+												<span x-show="searchTerm !== ''">No matching alertmanagers</span>
+											</div>
 										</div>
 									</div>
 								</div>
 							</div>
 
 							<!-- Severity Filter -->
-							<div class="relative" x-data="{ open: false }">
+							<div class="relative" x-data="{ open: false, searchTerm: '' }">
 								<button @click="open = !open" type="button"
 										class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
 										:class="{ 'ring-2 ring-blue-500 ring-opacity-50': filters.severities.length > 0 }">
@@ -376,46 +391,61 @@ templ NewDashboardContent() {
 										<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
 									</svg>
 								</button>
-								
-								<div x-show="open" @click.away="open = false" x-transition
-									 class="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
+
+								<div x-show="open" @click.away="open = false; searchTerm = ''" x-transition
+									 class="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
 									<div class="py-2">
 										<div class="px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT">
-											<div class="flex items-center justify-between">
+											<div class="flex items-center justify-between mb-2">
 												<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Severity Levels</span>
-												<button x-text="`Clear (${filters.severities.length})`" 
-														@click="clearFilter('severities')" 
+												<button x-text="`Clear (${filters.severities.length})`"
+														@click="clearFilter('severities'); searchTerm = ''"
 														class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500"
 														x-show="filters.severities.length > 0">
 												</button>
 											</div>
+											<!-- Search input for severities -->
+											<div class="relative">
+												<input type="text"
+													   x-model="searchTerm"
+													   placeholder="Search severities..."
+													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+												<svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+													<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+												</svg>
+											</div>
 										</div>
 										<div class="max-h-48 overflow-y-auto">
-											<template x-for="option in metadata.availableFilters.severities" x-key="option">
+											<template x-for="option in metadata.availableFilters.severities.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
 												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-													<input type="checkbox" 
-														   x-model="filters.severities" 
-														   :value="option" 
+													<input type="checkbox"
+														   x-model="filters.severities"
+														   :value="option"
 														   @change="applyFilters()"
 														   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 													<span class="flex items-center">
 														<div class="w-2 h-2 rounded-full mr-2"
 															 :class="{
 																 'bg-red-500': option === 'critical',
-																 'bg-yellow-500': option === 'warning', 
+																 'bg-yellow-500': option === 'warning',
 																 'bg-blue-500': option === 'info'
 															 }"></div>
 														<span x-text="option"></span>
 													</span>
 												</label>
 											</template>
+											<div x-show="metadata.availableFilters.severities.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase())).length === 0"
+												 class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+												<span x-show="searchTerm === ''">No severities available</span>
+												<span x-show="searchTerm !== ''">No matching severities</span>
+											</div>
 										</div>
 									</div>
 								</div>
 							</div>
 
 							<!-- Status Filter -->
-							<div class="relative" x-data="{ open: false }">
+							<div class="relative" x-data="{ open: false, searchTerm: '' }">
 								<button @click="open = !open" type="button"
 										class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
 										:class="{ 'ring-2 ring-blue-500 ring-opacity-50': filters.statuses.length > 0 }">
@@ -425,26 +455,36 @@ templ NewDashboardContent() {
 										<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
 									</svg>
 								</button>
-								
-								<div x-show="open" @click.away="open = false" x-transition
-									 class="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
+
+								<div x-show="open" @click.away="open = false; searchTerm = ''" x-transition
+									 class="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
 									<div class="py-2">
 										<div class="px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT">
-											<div class="flex items-center justify-between">
+											<div class="flex items-center justify-between mb-2">
 												<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Alert Status</span>
-												<button x-text="`Clear (${filters.statuses.length})`" 
-														@click="clearFilter('statuses')" 
+												<button x-text="`Clear (${filters.statuses.length})`"
+														@click="clearFilter('statuses'); searchTerm = ''"
 														class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500"
 														x-show="filters.statuses.length > 0">
 												</button>
 											</div>
+											<!-- Search input for statuses -->
+											<div class="relative">
+												<input type="text"
+													   x-model="searchTerm"
+													   placeholder="Search statuses..."
+													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+												<svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+													<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+												</svg>
+											</div>
 										</div>
 										<div class="max-h-48 overflow-y-auto">
-											<template x-for="option in metadata.availableFilters.statuses" x-key="option">
+											<template x-for="option in metadata.availableFilters.statuses.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
 												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-													<input type="checkbox" 
-														   x-model="filters.statuses" 
-														   :value="option" 
+													<input type="checkbox"
+														   x-model="filters.statuses"
+														   :value="option"
 														   @change="applyFilters()"
 														   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 													<span class="flex items-center">
@@ -462,13 +502,18 @@ templ NewDashboardContent() {
 													</span>
 												</label>
 											</template>
+											<div x-show="metadata.availableFilters.statuses.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase())).length === 0"
+												 class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+												<span x-show="searchTerm === ''">No statuses available</span>
+												<span x-show="searchTerm !== ''">No matching statuses</span>
+											</div>
 										</div>
 									</div>
 								</div>
 							</div>
 
 							<!-- Team Filter -->
-							<div class="relative" x-data="{ open: false }">
+							<div class="relative" x-data="{ open: false, searchTerm: '' }">
 								<button @click="open = !open" type="button"
 										class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
 										:class="{ 'ring-2 ring-blue-500 ring-opacity-50': filters.teams.length > 0 }">
@@ -478,27 +523,41 @@ templ NewDashboardContent() {
 										<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
 									</svg>
 								</button>
-								<div x-show="open" @click.away="open = false" x-transition
-									 class="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
+								<div x-show="open" @click.away="open = false; searchTerm = ''" x-transition
+									 class="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
 									<div class="py-2">
 										<div class="px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT">
-											<div class="flex items-center justify-between">
+											<div class="flex items-center justify-between mb-2">
 												<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Teams</span>
-												<button @click="clearFilter('teams')" class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-													Clear
+												<button x-text="`Clear (${filters.teams.length})`"
+														@click="clearFilter('teams'); searchTerm = ''"
+														class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500"
+														x-show="filters.teams.length > 0">
 												</button>
+											</div>
+											<!-- Search input for teams -->
+											<div class="relative">
+												<input type="text"
+													   x-model="searchTerm"
+													   placeholder="Search teams..."
+													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+												<svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+													<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+												</svg>
 											</div>
 										</div>
 										<div class="max-h-48 overflow-y-auto">
-											<template x-for="option in metadata.availableFilters.teams" :key="option">
+											<template x-for="option in metadata.availableFilters.teams.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" :key="option">
 												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
 													<input type="checkbox" x-model="filters.teams" :value="option" @change="applyFilters()"
 														   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
-													<span x-text="option"></span>
+													<span x-text="option" class="truncate"></span>
 												</label>
 											</template>
-											<div x-show="metadata.availableFilters.teams.length === 0" class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-												No teams available
+											<div x-show="metadata.availableFilters.teams.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase())).length === 0"
+												 class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+												<span x-show="searchTerm === ''">No teams available</span>
+												<span x-show="searchTerm !== ''">No matching teams</span>
 											</div>
 										</div>
 									</div>
