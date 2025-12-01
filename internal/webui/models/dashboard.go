@@ -91,6 +91,10 @@ type DashboardFilters struct {
 	DisplayMode         DashboardDisplayMode `json:"displayMode"`
 	ViewMode            DashboardViewMode    `json:"viewMode"`
 	ResolvedAlertsLimit int                  `json:"resolvedAlertsLimit,omitempty"` // Client-side limit for resolved alerts display
+
+	// Filter-specific hidden alerts (from active saved filter, additive with global hidden)
+	FilterHiddenAlerts []FilterHiddenAlert `json:"filterHiddenAlerts,omitempty"`
+	FilterHiddenRules  []FilterHiddenRule  `json:"filterHiddenRules,omitempty"`
 }
 
 // DashboardSorting represents sorting configuration

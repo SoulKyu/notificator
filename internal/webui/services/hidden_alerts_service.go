@@ -154,6 +154,77 @@ func (s *HiddenAlertsService) IsAlertHidden(sessionID string, alert *webuimodels
 	return false
 }
 
+// IsAlertHiddenByFilter checks if an alert is hidden by filter-specific hidden alerts/rules
+// This is used for per-filter hiding that's additive to global hidden alerts
+func (s *HiddenAlertsService) IsAlertHiddenByFilter(
+	alert *webuimodels.DashboardAlert,
+	filterHiddenAlerts []webuimodels.FilterHiddenAlert,
+	filterHiddenRules []webuimodels.FilterHiddenRule,
+	compiledRules map[int]*regexp.Regexp,
+) bool {
+	if alert == nil {
+		return false
+	}
+
+	// Check specific hidden alerts by fingerprint
+	for _, hiddenAlert := range filterHiddenAlerts {
+		if hiddenAlert.Fingerprint == alert.Fingerprint {
+			return true
+		}
+	}
+
+	// Check hidden rules
+	for i, rule := range filterHiddenRules {
+		if !rule.IsEnabled {
+			continue
+		}
+
+		// Check if the alert has the label
+		labelValue, exists := alert.Labels[rule.LabelKey]
+		if !exists {
+			continue
+		}
+
+		// Check if the label value matches
+		if rule.IsRegex {
+			// Use compiled regex if available
+			if compiledRules != nil {
+				if regex, ok := compiledRules[i]; ok && regex != nil {
+					if regex.MatchString(labelValue) {
+						return true
+					}
+				}
+			}
+		} else {
+			// Exact match or empty value (match all)
+			if rule.LabelValue == "" || rule.LabelValue == labelValue {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// CompileFilterRules pre-compiles regex rules for a filter preset
+// Returns a map from rule index to compiled regex
+func (s *HiddenAlertsService) CompileFilterRules(rules []webuimodels.FilterHiddenRule) map[int]*regexp.Regexp {
+	compiledRules := make(map[int]*regexp.Regexp)
+
+	for i, rule := range rules {
+		if rule.IsRegex && rule.LabelValue != "" {
+			regex, err := regexp.Compile(rule.LabelValue)
+			if err != nil {
+				log.Printf("Failed to compile filter regex for rule %s: %v", rule.Name, err)
+				continue
+			}
+			compiledRules[i] = regex
+		}
+	}
+
+	return compiledRules
+}
+
 // HideAlert hides a specific alert for a user
 func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.DashboardAlert, reason string) error {
 	err := s.backendClient.HideAlert(sessionID, alert.Fingerprint, alert.AlertName, alert.Instance, reason)

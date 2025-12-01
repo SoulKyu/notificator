@@ -42,6 +42,30 @@ type FilterPresetData struct {
 
 	// Column Configuration
 	ColumnConfigs []ColumnConfig `json:"column_configs,omitempty"`
+
+	// Filter-specific hidden alerts (additive with global hidden alerts)
+	HiddenAlerts []FilterHiddenAlert `json:"hidden_alerts,omitempty"`
+
+	// Filter-specific hidden rules (additive with global hidden rules)
+	HiddenRules []FilterHiddenRule `json:"hidden_rules,omitempty"`
+}
+
+// FilterHiddenAlert represents an alert hidden specifically within a saved filter
+type FilterHiddenAlert struct {
+	Fingerprint string `json:"fingerprint"`
+	AlertName   string `json:"alert_name"`
+	Instance    string `json:"instance,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+}
+
+// FilterHiddenRule represents a label-based hiding rule specific to a saved filter
+type FilterHiddenRule struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	LabelKey    string `json:"label_key"`
+	LabelValue  string `json:"label_value"`
+	IsRegex     bool   `json:"is_regex"`
+	IsEnabled   bool   `json:"is_enabled"`
 }
 
 // FilterPresetRequest is used for creating/updating presets

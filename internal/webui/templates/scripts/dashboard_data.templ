@@ -36,7 +36,15 @@ templ DashboardData() {
 					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
 						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
 					}
-					
+
+					// Add filter-specific hidden alerts (if a saved filter is active)
+					if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
+						params.set('filterHiddenAlerts', JSON.stringify(this.filterHiddenAlerts));
+					}
+					if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
+						params.set('filterHiddenRules', JSON.stringify(this.filterHiddenRules));
+					}
+
 					const response = await fetch(`/api/v1/dashboard/data?${params.toString()}`, {
 						credentials: 'include'
 					});
@@ -112,7 +120,15 @@ templ DashboardData() {
 					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
 						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
 					}
-					
+
+					// Add filter-specific hidden alerts (if a saved filter is active)
+					if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
+						params.set('filterHiddenAlerts', JSON.stringify(this.filterHiddenAlerts));
+					}
+					if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
+						params.set('filterHiddenRules', JSON.stringify(this.filterHiddenRules));
+					}
+
 					if (this.lastUpdateTime) {
 						params.set('lastUpdate', Math.floor(this.lastUpdateTime / 1000).toString());
 					}
@@ -190,7 +206,15 @@ templ DashboardData() {
 					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
 						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
 					}
-					
+
+					// Add filter-specific hidden alerts (if a saved filter is active)
+					if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
+						params.set('filterHiddenAlerts', JSON.stringify(this.filterHiddenAlerts));
+					}
+					if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
+						params.set('filterHiddenRules', JSON.stringify(this.filterHiddenRules));
+					}
+
 					const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
 						credentials: 'include'
 					});
