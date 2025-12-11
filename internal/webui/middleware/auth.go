@@ -152,3 +152,42 @@ func GetSessionIDFromContext(c *gin.Context) string {
 	}
 	return ""
 }
+
+// GetEffectiveUser returns the impersonated user if impersonating, otherwise the real user.
+// This should be used when loading user-specific preferences (filters, colors, hidden alerts, etc.)
+func GetEffectiveUser(c *gin.Context) *client.User {
+	// Check if we're impersonating
+	if IsImpersonating(c) {
+		impersonatedID := GetImpersonatedUserID(c)
+		impersonatedUsername := GetImpersonatedUsername(c)
+		if impersonatedID != "" {
+			return &client.User{
+				ID:       impersonatedID,
+				Username: impersonatedUsername,
+			}
+		}
+	}
+	// Return the real user
+	return GetCurrentUserFromContext(c)
+}
+
+// GetEffectiveUserID returns the user ID to use for data operations.
+// Returns the impersonated user's ID if impersonating, otherwise the real user's ID.
+func GetEffectiveUserID(c *gin.Context) string {
+	if IsImpersonating(c) {
+		if impersonatedID := GetImpersonatedUserID(c); impersonatedID != "" {
+			return impersonatedID
+		}
+	}
+	if user := GetCurrentUserFromContext(c); user != nil {
+		return user.ID
+	}
+	return ""
+}
+
+// GetEffectiveSessionID returns the session ID to use for backend calls.
+// When impersonating, we still use the admin's session for authentication,
+// but the backend should use the impersonated user's data.
+func GetEffectiveSessionID(c *gin.Context) string {
+	return GetSessionIDFromContext(c)
+}

@@ -519,7 +519,8 @@ func (c *BackendClient) RemoveAllResolvedAlerts() error {
 // Color Preference methods
 
 // GetUserColorPreferences retrieves user color preferences from the backend
-func (c *BackendClient) GetUserColorPreferences(sessionID string) ([]*alertpb.UserColorPreference, error) {
+// If impersonateUserID is provided, loads preferences for that user instead
+func (c *BackendClient) GetUserColorPreferences(sessionID string, impersonateUserID ...string) ([]*alertpb.UserColorPreference, error) {
 	if c.alertClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -529,6 +530,9 @@ func (c *BackendClient) GetUserColorPreferences(sessionID string) ([]*alertpb.Us
 
 	req := &alertpb.GetUserColorPreferencesRequest{
 		SessionId: sessionID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.GetUserColorPreferences(ctx, req)
@@ -544,7 +548,7 @@ func (c *BackendClient) GetUserColorPreferences(sessionID string) ([]*alertpb.Us
 }
 
 // SaveUserColorPreferences saves user color preferences to the backend
-func (c *BackendClient) SaveUserColorPreferences(sessionID string, preferences []models.UserColorPreference) error {
+func (c *BackendClient) SaveUserColorPreferences(sessionID string, preferences []models.UserColorPreference, impersonateUserID ...string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -571,6 +575,9 @@ func (c *BackendClient) SaveUserColorPreferences(sessionID string, preferences [
 		SessionId:   sessionID,
 		Preferences: pbPreferences,
 	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
+	}
 
 	resp, err := c.alertClient.SaveUserColorPreferences(ctx, req)
 	if err != nil {
@@ -585,7 +592,7 @@ func (c *BackendClient) SaveUserColorPreferences(sessionID string, preferences [
 }
 
 // DeleteUserColorPreference deletes a specific user color preference
-func (c *BackendClient) DeleteUserColorPreference(sessionID, preferenceID string) error {
+func (c *BackendClient) DeleteUserColorPreference(sessionID, preferenceID string, impersonateUserID ...string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -596,6 +603,9 @@ func (c *BackendClient) DeleteUserColorPreference(sessionID, preferenceID string
 	req := &alertpb.DeleteUserColorPreferenceRequest{
 		SessionId:    sessionID,
 		PreferenceId: preferenceID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.DeleteUserColorPreference(ctx, req)
@@ -810,10 +820,46 @@ func (c *BackendClient) SyncUserGroups(userID, provider string) error {
 	return nil
 }
 
+// ListUsers retrieves all users with pagination (for impersonation dropdown)
+func (c *BackendClient) ListUsers(sessionID string, limit, offset int) ([]*User, int32, error) {
+	if c.authClient == nil {
+		return nil, 0, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &authpb.ListUsersRequest{
+		SessionId: sessionID,
+		Limit:     int32(limit),
+		Offset:    int32(offset),
+	}
+
+	resp, err := c.authClient.ListUsers(ctx, req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if !resp.Success {
+		return nil, 0, fmt.Errorf("failed to list users: %s", resp.Message)
+	}
+
+	users := make([]*User, len(resp.Users))
+	for i, u := range resp.Users {
+		users[i] = &User{
+			ID:       u.Id,
+			Username: u.Username,
+			Email:    u.Email,
+		}
+	}
+
+	return users, resp.TotalCount, nil
+}
+
 // Hidden Alerts methods
 
 // GetUserHiddenAlerts retrieves hidden alerts for a user
-func (c *BackendClient) GetUserHiddenAlerts(sessionID string) ([]*alertpb.UserHiddenAlert, error) {
+func (c *BackendClient) GetUserHiddenAlerts(sessionID string, impersonateUserID ...string) ([]*alertpb.UserHiddenAlert, error) {
 	if c.alertClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -823,6 +869,9 @@ func (c *BackendClient) GetUserHiddenAlerts(sessionID string) ([]*alertpb.UserHi
 
 	req := &alertpb.GetUserHiddenAlertsRequest{
 		SessionId: sessionID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.GetUserHiddenAlerts(ctx, req)
@@ -838,7 +887,7 @@ func (c *BackendClient) GetUserHiddenAlerts(sessionID string) ([]*alertpb.UserHi
 }
 
 // HideAlert hides a specific alert for a user
-func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, reason string) error {
+func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, reason string, impersonateUserID ...string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -852,6 +901,9 @@ func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, r
 		AlertName:   alertName,
 		Instance:    instance,
 		Reason:      reason,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.HideAlert(ctx, req)
@@ -867,7 +919,7 @@ func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, r
 }
 
 // UnhideAlert unhides a specific alert for a user
-func (c *BackendClient) UnhideAlert(sessionID, fingerprint string) error {
+func (c *BackendClient) UnhideAlert(sessionID, fingerprint string, impersonateUserID ...string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -878,6 +930,9 @@ func (c *BackendClient) UnhideAlert(sessionID, fingerprint string) error {
 	req := &alertpb.UnhideAlertRequest{
 		SessionId:   sessionID,
 		Fingerprint: fingerprint,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.UnhideAlert(ctx, req)
@@ -893,7 +948,7 @@ func (c *BackendClient) UnhideAlert(sessionID, fingerprint string) error {
 }
 
 // ClearAllHiddenAlerts removes all hidden alerts for a user
-func (c *BackendClient) ClearAllHiddenAlerts(sessionID string) error {
+func (c *BackendClient) ClearAllHiddenAlerts(sessionID string, impersonateUserID ...string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -903,6 +958,9 @@ func (c *BackendClient) ClearAllHiddenAlerts(sessionID string) error {
 
 	req := &alertpb.ClearAllHiddenAlertsRequest{
 		SessionId: sessionID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.ClearAllHiddenAlerts(ctx, req)
@@ -918,7 +976,7 @@ func (c *BackendClient) ClearAllHiddenAlerts(sessionID string) error {
 }
 
 // GetUserHiddenRules retrieves hidden rules for a user
-func (c *BackendClient) GetUserHiddenRules(sessionID string) ([]*alertpb.UserHiddenRule, error) {
+func (c *BackendClient) GetUserHiddenRules(sessionID string, impersonateUserID ...string) ([]*alertpb.UserHiddenRule, error) {
 	if c.alertClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -928,6 +986,9 @@ func (c *BackendClient) GetUserHiddenRules(sessionID string) ([]*alertpb.UserHid
 
 	req := &alertpb.GetUserHiddenRulesRequest{
 		SessionId: sessionID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.GetUserHiddenRules(ctx, req)
@@ -943,7 +1004,7 @@ func (c *BackendClient) GetUserHiddenRules(sessionID string) ([]*alertpb.UserHid
 }
 
 // SaveHiddenRule saves or updates a hidden rule for a user
-func (c *BackendClient) SaveHiddenRule(sessionID string, rule *alertpb.UserHiddenRule) (*alertpb.UserHiddenRule, error) {
+func (c *BackendClient) SaveHiddenRule(sessionID string, rule *alertpb.UserHiddenRule, impersonateUserID ...string) (*alertpb.UserHiddenRule, error) {
 	if c.alertClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -954,6 +1015,9 @@ func (c *BackendClient) SaveHiddenRule(sessionID string, rule *alertpb.UserHidde
 	req := &alertpb.SaveHiddenRuleRequest{
 		SessionId: sessionID,
 		Rule:      rule,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.SaveHiddenRule(ctx, req)
@@ -969,7 +1033,7 @@ func (c *BackendClient) SaveHiddenRule(sessionID string, rule *alertpb.UserHidde
 }
 
 // RemoveHiddenRule removes a hidden rule for a user
-func (c *BackendClient) RemoveHiddenRule(sessionID, ruleID string) error {
+func (c *BackendClient) RemoveHiddenRule(sessionID, ruleID string, impersonateUserID ...string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -980,6 +1044,9 @@ func (c *BackendClient) RemoveHiddenRule(sessionID, ruleID string) error {
 	req := &alertpb.RemoveHiddenRuleRequest{
 		SessionId: sessionID,
 		RuleId:    ruleID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.RemoveHiddenRule(ctx, req)
@@ -1198,13 +1265,16 @@ func (c *BackendClient) SaveNotificationPreferences(sessionID string, prefs *Not
 }
 
 // GetFilterPresets gets all filter presets for the current user
-func (c *BackendClient) GetFilterPresets(sessionID string, includeShared bool) ([]models.FilterPreset, error) {
+func (c *BackendClient) GetFilterPresets(sessionID string, includeShared bool, impersonateUserID ...string) ([]models.FilterPreset, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	req := &alertpb.GetFilterPresetsRequest{
 		SessionId:     sessionID,
 		IncludeShared: includeShared,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.GetFilterPresets(ctx, req)
@@ -1244,7 +1314,7 @@ func (c *BackendClient) GetFilterPresets(sessionID string, includeShared bool) (
 }
 
 // SaveFilterPreset creates a new filter preset
-func (c *BackendClient) SaveFilterPreset(sessionID, name, description string, isShared bool, filterData models.FilterPresetData) (*models.FilterPreset, error) {
+func (c *BackendClient) SaveFilterPreset(sessionID, name, description string, isShared bool, filterData models.FilterPresetData, impersonateUserID ...string) (*models.FilterPreset, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1260,6 +1330,9 @@ func (c *BackendClient) SaveFilterPreset(sessionID, name, description string, is
 		Description: description,
 		IsShared:    isShared,
 		FilterData:  filterDataBytes,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.SaveFilterPreset(ctx, req)
@@ -1295,7 +1368,7 @@ func (c *BackendClient) SaveFilterPreset(sessionID, name, description string, is
 }
 
 // UpdateFilterPreset updates an existing filter preset
-func (c *BackendClient) UpdateFilterPreset(sessionID, presetID, name, description string, isShared bool, filterData models.FilterPresetData) (*models.FilterPreset, error) {
+func (c *BackendClient) UpdateFilterPreset(sessionID, presetID, name, description string, isShared bool, filterData models.FilterPresetData, impersonateUserID ...string) (*models.FilterPreset, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1312,6 +1385,9 @@ func (c *BackendClient) UpdateFilterPreset(sessionID, presetID, name, descriptio
 		Description: description,
 		IsShared:    isShared,
 		FilterData:  filterDataBytes,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.UpdateFilterPreset(ctx, req)
@@ -1347,13 +1423,16 @@ func (c *BackendClient) UpdateFilterPreset(sessionID, presetID, name, descriptio
 }
 
 // DeleteFilterPreset deletes a filter preset
-func (c *BackendClient) DeleteFilterPreset(sessionID, presetID string) error {
+func (c *BackendClient) DeleteFilterPreset(sessionID, presetID string, impersonateUserID ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	req := &alertpb.DeleteFilterPresetRequest{
 		SessionId: sessionID,
 		PresetId:  presetID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.DeleteFilterPreset(ctx, req)
@@ -1369,13 +1448,16 @@ func (c *BackendClient) DeleteFilterPreset(sessionID, presetID string) error {
 }
 
 // SetDefaultFilterPreset sets a filter preset as the default
-func (c *BackendClient) SetDefaultFilterPreset(sessionID, presetID string) error {
+func (c *BackendClient) SetDefaultFilterPreset(sessionID, presetID string, impersonateUserID ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	req := &alertpb.SetDefaultFilterPresetRequest{
 		SessionId: sessionID,
 		PresetId:  presetID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
 	}
 
 	resp, err := c.alertClient.SetDefaultFilterPreset(ctx, req)

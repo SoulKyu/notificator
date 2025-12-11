@@ -17,7 +17,10 @@ func GetUserHiddenAlerts(c *gin.Context) {
 		return
 	}
 
-	hiddenAlerts, err := hiddenAlertsService.GetUserHiddenAlerts(sessionID)
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
+	hiddenAlerts, err := hiddenAlertsService.GetUserHiddenAlerts(sessionID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get hidden alerts"))
 		return
@@ -37,6 +40,9 @@ func HideAlert(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	var request struct {
 		Fingerprint string `json:"fingerprint" binding:"required"`
 		AlertName   string `json:"alertName"`
@@ -52,7 +58,7 @@ func HideAlert(c *gin.Context) {
 	// Get the alert from cache to get full details
 	alert, exists := alertCache.GetAlert(request.Fingerprint)
 	if exists {
-		err := hiddenAlertsService.HideAlert(sessionID, alert, request.Reason)
+		err := hiddenAlertsService.HideAlert(sessionID, alert, request.Reason, impersonateUserID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to hide alert"))
 			return
@@ -64,7 +70,7 @@ func HideAlert(c *gin.Context) {
 			AlertName:   request.AlertName,
 			Instance:    request.Instance,
 		}
-		err := hiddenAlertsService.HideAlert(sessionID, alert, request.Reason)
+		err := hiddenAlertsService.HideAlert(sessionID, alert, request.Reason, impersonateUserID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to hide alert"))
 			return
@@ -84,13 +90,16 @@ func UnhideAlert(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	fingerprint := c.Param("fingerprint")
 	if fingerprint == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Fingerprint is required"))
 		return
 	}
 
-	err := hiddenAlertsService.UnhideAlert(sessionID, fingerprint)
+	err := hiddenAlertsService.UnhideAlert(sessionID, fingerprint, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to unhide alert"))
 		return
@@ -109,7 +118,10 @@ func GetUserHiddenRules(c *gin.Context) {
 		return
 	}
 
-	rules, err := hiddenAlertsService.GetUserHiddenRules(sessionID)
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
+	rules, err := hiddenAlertsService.GetUserHiddenRules(sessionID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get hidden rules"))
 		return
@@ -129,6 +141,9 @@ func CreateHiddenRule(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	var rule models.UserHiddenRule
 	if err := c.ShouldBindJSON(&rule); err != nil {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request format"))
@@ -138,7 +153,7 @@ func CreateHiddenRule(c *gin.Context) {
 	// Clear ID to ensure new rule is created
 	rule.ID = ""
 
-	err := hiddenAlertsService.SaveHiddenRule(sessionID, &rule)
+	err := hiddenAlertsService.SaveHiddenRule(sessionID, &rule, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to create hidden rule: " + err.Error()))
 		return
@@ -158,6 +173,9 @@ func UpdateHiddenRule(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	ruleID := c.Param("id")
 	if ruleID == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Rule ID is required"))
@@ -172,7 +190,7 @@ func UpdateHiddenRule(c *gin.Context) {
 
 	rule.ID = ruleID
 
-	err := hiddenAlertsService.SaveHiddenRule(sessionID, &rule)
+	err := hiddenAlertsService.SaveHiddenRule(sessionID, &rule, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to update hidden rule"))
 		return
@@ -192,13 +210,16 @@ func DeleteHiddenRule(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	ruleID := c.Param("id")
 	if ruleID == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Rule ID is required"))
 		return
 	}
 
-	err := hiddenAlertsService.RemoveHiddenRule(sessionID, ruleID)
+	err := hiddenAlertsService.RemoveHiddenRule(sessionID, ruleID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to delete hidden rule"))
 		return
@@ -217,7 +238,10 @@ func ClearAllHiddenAlerts(c *gin.Context) {
 		return
 	}
 
-	err := hiddenAlertsService.ClearAllHiddenAlerts(sessionID)
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
+	err := hiddenAlertsService.ClearAllHiddenAlerts(sessionID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to clear hidden alerts"))
 		return

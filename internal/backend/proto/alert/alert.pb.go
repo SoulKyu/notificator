@@ -1219,10 +1219,11 @@ func (*AlertUpdate_DeletedAcknowledgmentId) isAlertUpdate_UpdateData() {}
 
 // User Color Preferences Messages
 type GetUserColorPreferencesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,2,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: load preferences for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetUserColorPreferencesRequest) Reset() {
@@ -1258,6 +1259,13 @@ func (*GetUserColorPreferencesRequest) Descriptor() ([]byte, []int) {
 func (x *GetUserColorPreferencesRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
+	}
+	return ""
+}
+
+func (x *GetUserColorPreferencesRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -1323,11 +1331,12 @@ func (x *GetUserColorPreferencesResponse) GetMessage() string {
 }
 
 type SaveUserColorPreferencesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Preferences   []*UserColorPreference `protobuf:"bytes,2,rep,name=preferences,proto3" json:"preferences,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Preferences       []*UserColorPreference `protobuf:"bytes,2,rep,name=preferences,proto3" json:"preferences,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: save preferences for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SaveUserColorPreferencesRequest) Reset() {
@@ -1372,6 +1381,13 @@ func (x *SaveUserColorPreferencesRequest) GetPreferences() []*UserColorPreferenc
 		return x.Preferences
 	}
 	return nil
+}
+
+func (x *SaveUserColorPreferencesRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
+	}
+	return ""
 }
 
 type SaveUserColorPreferencesResponse struct {
@@ -1427,11 +1443,12 @@ func (x *SaveUserColorPreferencesResponse) GetMessage() string {
 }
 
 type DeleteUserColorPreferenceRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	PreferenceId  string                 `protobuf:"bytes,2,opt,name=preference_id,json=preferenceId,proto3" json:"preference_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PreferenceId      string                 `protobuf:"bytes,2,opt,name=preference_id,json=preferenceId,proto3" json:"preference_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: delete preference for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *DeleteUserColorPreferenceRequest) Reset() {
@@ -1474,6 +1491,13 @@ func (x *DeleteUserColorPreferenceRequest) GetSessionId() string {
 func (x *DeleteUserColorPreferenceRequest) GetPreferenceId() string {
 	if x != nil {
 		return x.PreferenceId
+	}
+	return ""
+}
+
+func (x *DeleteUserColorPreferenceRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -2341,10 +2365,11 @@ func (x *ResolvedAlertInfo) GetUpdatedAt() *timestamppb.Timestamp {
 
 // User Hidden Alerts Messages
 type GetUserHiddenAlertsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,2,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: load hidden alerts for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetUserHiddenAlertsRequest) Reset() {
@@ -2380,6 +2405,13 @@ func (*GetUserHiddenAlertsRequest) Descriptor() ([]byte, []int) {
 func (x *GetUserHiddenAlertsRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
+	}
+	return ""
+}
+
+func (x *GetUserHiddenAlertsRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -2445,14 +2477,15 @@ func (x *GetUserHiddenAlertsResponse) GetMessage() string {
 }
 
 type HideAlertRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Fingerprint   string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	AlertName     string                 `protobuf:"bytes,3,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
-	Instance      string                 `protobuf:"bytes,4,opt,name=instance,proto3" json:"instance,omitempty"`
-	Reason        string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Fingerprint       string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AlertName         string                 `protobuf:"bytes,3,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
+	Instance          string                 `protobuf:"bytes,4,opt,name=instance,proto3" json:"instance,omitempty"`
+	Reason            string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,6,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: hide for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *HideAlertRequest) Reset() {
@@ -2520,6 +2553,13 @@ func (x *HideAlertRequest) GetReason() string {
 	return ""
 }
 
+func (x *HideAlertRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
+	}
+	return ""
+}
+
 type HideAlertResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -2581,11 +2621,12 @@ func (x *HideAlertResponse) GetMessage() string {
 }
 
 type UnhideAlertRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Fingerprint   string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Fingerprint       string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: unhide for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *UnhideAlertRequest) Reset() {
@@ -2628,6 +2669,13 @@ func (x *UnhideAlertRequest) GetSessionId() string {
 func (x *UnhideAlertRequest) GetFingerprint() string {
 	if x != nil {
 		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *UnhideAlertRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -2685,10 +2733,11 @@ func (x *UnhideAlertResponse) GetMessage() string {
 }
 
 type ClearAllHiddenAlertsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,2,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: clear for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ClearAllHiddenAlertsRequest) Reset() {
@@ -2724,6 +2773,13 @@ func (*ClearAllHiddenAlertsRequest) Descriptor() ([]byte, []int) {
 func (x *ClearAllHiddenAlertsRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
+	}
+	return ""
+}
+
+func (x *ClearAllHiddenAlertsRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -2890,10 +2946,11 @@ func (x *UserHiddenAlert) GetUpdatedAt() *timestamppb.Timestamp {
 
 // User Hidden Rules Messages
 type GetUserHiddenRulesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,2,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: load rules for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetUserHiddenRulesRequest) Reset() {
@@ -2929,6 +2986,13 @@ func (*GetUserHiddenRulesRequest) Descriptor() ([]byte, []int) {
 func (x *GetUserHiddenRulesRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
+	}
+	return ""
+}
+
+func (x *GetUserHiddenRulesRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -2994,11 +3058,12 @@ func (x *GetUserHiddenRulesResponse) GetMessage() string {
 }
 
 type SaveHiddenRuleRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Rule          *UserHiddenRule        `protobuf:"bytes,2,opt,name=rule,proto3" json:"rule,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Rule              *UserHiddenRule        `protobuf:"bytes,2,opt,name=rule,proto3" json:"rule,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: save rule for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SaveHiddenRuleRequest) Reset() {
@@ -3043,6 +3108,13 @@ func (x *SaveHiddenRuleRequest) GetRule() *UserHiddenRule {
 		return x.Rule
 	}
 	return nil
+}
+
+func (x *SaveHiddenRuleRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
+	}
+	return ""
 }
 
 type SaveHiddenRuleResponse struct {
@@ -3106,11 +3178,12 @@ func (x *SaveHiddenRuleResponse) GetMessage() string {
 }
 
 type RemoveHiddenRuleRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	RuleId        string                 `protobuf:"bytes,2,opt,name=rule_id,json=ruleId,proto3" json:"rule_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RuleId            string                 `protobuf:"bytes,2,opt,name=rule_id,json=ruleId,proto3" json:"rule_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: remove rule for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RemoveHiddenRuleRequest) Reset() {
@@ -3153,6 +3226,13 @@ func (x *RemoveHiddenRuleRequest) GetSessionId() string {
 func (x *RemoveHiddenRuleRequest) GetRuleId() string {
 	if x != nil {
 		return x.RuleId
+	}
+	return ""
+}
+
+func (x *RemoveHiddenRuleRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -3660,11 +3740,12 @@ func (x *NotificationPreference) GetUpdatedAt() *timestamppb.Timestamp {
 
 // Filter Presets Messages
 type GetFilterPresetsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	IncludeShared bool                   `protobuf:"varint,2,opt,name=include_shared,json=includeShared,proto3" json:"include_shared,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	IncludeShared     bool                   `protobuf:"varint,2,opt,name=include_shared,json=includeShared,proto3" json:"include_shared,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: load presets for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetFilterPresetsRequest) Reset() {
@@ -3709,6 +3790,13 @@ func (x *GetFilterPresetsRequest) GetIncludeShared() bool {
 		return x.IncludeShared
 	}
 	return false
+}
+
+func (x *GetFilterPresetsRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
+	}
+	return ""
 }
 
 type GetFilterPresetsResponse struct {
@@ -3772,14 +3860,15 @@ func (x *GetFilterPresetsResponse) GetMessage() string {
 }
 
 type SaveFilterPresetRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	IsShared      bool                   `protobuf:"varint,4,opt,name=is_shared,json=isShared,proto3" json:"is_shared,omitempty"`
-	FilterData    []byte                 `protobuf:"bytes,5,opt,name=filter_data,json=filterData,proto3" json:"filter_data,omitempty"` // JSON serialized filter state
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Name              string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description       string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	IsShared          bool                   `protobuf:"varint,4,opt,name=is_shared,json=isShared,proto3" json:"is_shared,omitempty"`
+	FilterData        []byte                 `protobuf:"bytes,5,opt,name=filter_data,json=filterData,proto3" json:"filter_data,omitempty"`                        // JSON serialized filter state
+	ImpersonateUserId string                 `protobuf:"bytes,6,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: save preset for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SaveFilterPresetRequest) Reset() {
@@ -3847,6 +3936,13 @@ func (x *SaveFilterPresetRequest) GetFilterData() []byte {
 	return nil
 }
 
+func (x *SaveFilterPresetRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
+	}
+	return ""
+}
+
 type SaveFilterPresetResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -3908,15 +4004,16 @@ func (x *SaveFilterPresetResponse) GetMessage() string {
 }
 
 type UpdateFilterPresetRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	PresetId      string                 `protobuf:"bytes,2,opt,name=preset_id,json=presetId,proto3" json:"preset_id,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	IsShared      bool                   `protobuf:"varint,5,opt,name=is_shared,json=isShared,proto3" json:"is_shared,omitempty"`
-	FilterData    []byte                 `protobuf:"bytes,6,opt,name=filter_data,json=filterData,proto3" json:"filter_data,omitempty"` // JSON serialized filter state
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PresetId          string                 `protobuf:"bytes,2,opt,name=preset_id,json=presetId,proto3" json:"preset_id,omitempty"`
+	Name              string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Description       string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	IsShared          bool                   `protobuf:"varint,5,opt,name=is_shared,json=isShared,proto3" json:"is_shared,omitempty"`
+	FilterData        []byte                 `protobuf:"bytes,6,opt,name=filter_data,json=filterData,proto3" json:"filter_data,omitempty"`                        // JSON serialized filter state
+	ImpersonateUserId string                 `protobuf:"bytes,7,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: update preset for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *UpdateFilterPresetRequest) Reset() {
@@ -3991,6 +4088,13 @@ func (x *UpdateFilterPresetRequest) GetFilterData() []byte {
 	return nil
 }
 
+func (x *UpdateFilterPresetRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
+	}
+	return ""
+}
+
 type UpdateFilterPresetResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -4052,11 +4156,12 @@ func (x *UpdateFilterPresetResponse) GetMessage() string {
 }
 
 type DeleteFilterPresetRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	PresetId      string                 `protobuf:"bytes,2,opt,name=preset_id,json=presetId,proto3" json:"preset_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PresetId          string                 `protobuf:"bytes,2,opt,name=preset_id,json=presetId,proto3" json:"preset_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: delete preset for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *DeleteFilterPresetRequest) Reset() {
@@ -4099,6 +4204,13 @@ func (x *DeleteFilterPresetRequest) GetSessionId() string {
 func (x *DeleteFilterPresetRequest) GetPresetId() string {
 	if x != nil {
 		return x.PresetId
+	}
+	return ""
+}
+
+func (x *DeleteFilterPresetRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -4156,11 +4268,12 @@ func (x *DeleteFilterPresetResponse) GetMessage() string {
 }
 
 type SetDefaultFilterPresetRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	PresetId      string                 `protobuf:"bytes,2,opt,name=preset_id,json=presetId,proto3" json:"preset_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SessionId         string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PresetId          string                 `protobuf:"bytes,2,opt,name=preset_id,json=presetId,proto3" json:"preset_id,omitempty"`
+	ImpersonateUserId string                 `protobuf:"bytes,3,opt,name=impersonate_user_id,json=impersonateUserId,proto3" json:"impersonate_user_id,omitempty"` // Optional: set default for this user instead
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SetDefaultFilterPresetRequest) Reset() {
@@ -4203,6 +4316,13 @@ func (x *SetDefaultFilterPresetRequest) GetSessionId() string {
 func (x *SetDefaultFilterPresetRequest) GetPresetId() string {
 	if x != nil {
 		return x.PresetId
+	}
+	return ""
+}
+
+func (x *SetDefaultFilterPresetRequest) GetImpersonateUserId() string {
+	if x != nil {
+		return x.ImpersonateUserId
 	}
 	return ""
 }
@@ -8120,25 +8240,28 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x12deleted_comment_id\x18\x05 \x01(\tH\x00R\x10deletedCommentId\x12<\n" +
 	"\x19deleted_acknowledgment_id\x18\x06 \x01(\tH\x00R\x17deletedAcknowledgmentId\x128\n" +
 	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestampB\r\n" +
-	"\vupdate_data\"?\n" +
+	"\vupdate_data\"o\n" +
 	"\x1eGetUserColorPreferencesRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"\x9f\x01\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12.\n" +
+	"\x13impersonate_user_id\x18\x02 \x01(\tR\x11impersonateUserId\"\x9f\x01\n" +
 	"\x1fGetUserColorPreferencesResponse\x12H\n" +
 	"\vpreferences\x18\x01 \x03(\v2&.notificator.alert.UserColorPreferenceR\vpreferences\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\x8a\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xba\x01\n" +
 	"\x1fSaveUserColorPreferencesRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12H\n" +
-	"\vpreferences\x18\x02 \x03(\v2&.notificator.alert.UserColorPreferenceR\vpreferences\"V\n" +
+	"\vpreferences\x18\x02 \x03(\v2&.notificator.alert.UserColorPreferenceR\vpreferences\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"V\n" +
 	" SaveUserColorPreferencesResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"f\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x96\x01\n" +
 	" DeleteUserColorPreferenceRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12#\n" +
-	"\rpreference_id\x18\x02 \x01(\tR\fpreferenceId\"W\n" +
+	"\rpreference_id\x18\x02 \x01(\tR\fpreferenceId\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"W\n" +
 	"!DeleteUserColorPreferenceResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\x93\x04\n" +
@@ -8217,14 +8340,15 @@ const file_proto_alert_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\";\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"k\n" +
 	"\x1aGetUserHiddenAlertsRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"\x9a\x01\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12.\n" +
+	"\x13impersonate_user_id\x18\x02 \x01(\tR\x11impersonateUserId\"\x9a\x01\n" +
 	"\x1bGetUserHiddenAlertsResponse\x12G\n" +
 	"\rhidden_alerts\x18\x01 \x03(\v2\".notificator.alert.UserHiddenAlertR\fhiddenAlerts\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xa6\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xd6\x01\n" +
 	"\x10HideAlertRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12 \n" +
@@ -8232,21 +8356,24 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
 	"alert_name\x18\x03 \x01(\tR\talertName\x12\x1a\n" +
 	"\binstance\x18\x04 \x01(\tR\binstance\x12\x16\n" +
-	"\x06reason\x18\x05 \x01(\tR\x06reason\"\x8e\x01\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\x12.\n" +
+	"\x13impersonate_user_id\x18\x06 \x01(\tR\x11impersonateUserId\"\x8e\x01\n" +
 	"\x11HideAlertResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12E\n" +
 	"\fhidden_alert\x18\x02 \x01(\v2\".notificator.alert.UserHiddenAlertR\vhiddenAlert\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"U\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x85\x01\n" +
 	"\x12UnhideAlertRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12 \n" +
-	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\"I\n" +
+	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"I\n" +
 	"\x13UnhideAlertResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"<\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"l\n" +
 	"\x1bClearAllHiddenAlertsRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"w\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12.\n" +
+	"\x13impersonate_user_id\x18\x02 \x01(\tR\x11impersonateUserId\"w\n" +
 	"\x1cClearAllHiddenAlertsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
 	"\rcleared_count\x18\x02 \x01(\x05R\fclearedCount\x12\x18\n" +
@@ -8262,26 +8389,29 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\":\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"j\n" +
 	"\x19GetUserHiddenRulesRequest\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"\x96\x01\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12.\n" +
+	"\x13impersonate_user_id\x18\x02 \x01(\tR\x11impersonateUserId\"\x96\x01\n" +
 	"\x1aGetUserHiddenRulesResponse\x12D\n" +
 	"\fhidden_rules\x18\x01 \x03(\v2!.notificator.alert.UserHiddenRuleR\vhiddenRules\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"m\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x9d\x01\n" +
 	"\x15SaveHiddenRuleRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x125\n" +
-	"\x04rule\x18\x02 \x01(\v2!.notificator.alert.UserHiddenRuleR\x04rule\"\x83\x01\n" +
+	"\x04rule\x18\x02 \x01(\v2!.notificator.alert.UserHiddenRuleR\x04rule\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"\x83\x01\n" +
 	"\x16SaveHiddenRuleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x125\n" +
 	"\x04rule\x18\x02 \x01(\v2!.notificator.alert.UserHiddenRuleR\x04rule\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"Q\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x81\x01\n" +
 	"\x17RemoveHiddenRuleRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
-	"\arule_id\x18\x02 \x01(\tR\x06ruleId\"N\n" +
+	"\arule_id\x18\x02 \x01(\tR\x06ruleId\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"N\n" +
 	"\x18RemoveHiddenRuleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\xf9\x02\n" +
@@ -8328,15 +8458,16 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"_\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8f\x01\n" +
 	"\x17GetFilterPresetsRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12%\n" +
-	"\x0einclude_shared\x18\x02 \x01(\bR\rincludeShared\"\x89\x01\n" +
+	"\x0einclude_shared\x18\x02 \x01(\bR\rincludeShared\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"\x89\x01\n" +
 	"\x18GetFilterPresetsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x129\n" +
 	"\apresets\x18\x02 \x03(\v2\x1f.notificator.alert.FilterPresetR\apresets\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xac\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xdc\x01\n" +
 	"\x17SaveFilterPresetRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
@@ -8344,11 +8475,12 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1b\n" +
 	"\tis_shared\x18\x04 \x01(\bR\bisShared\x12\x1f\n" +
 	"\vfilter_data\x18\x05 \x01(\fR\n" +
-	"filterData\"\x87\x01\n" +
+	"filterData\x12.\n" +
+	"\x13impersonate_user_id\x18\x06 \x01(\tR\x11impersonateUserId\"\x87\x01\n" +
 	"\x18SaveFilterPresetResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x127\n" +
 	"\x06preset\x18\x02 \x01(\v2\x1f.notificator.alert.FilterPresetR\x06preset\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xcb\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xfb\x01\n" +
 	"\x19UpdateFilterPresetRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
@@ -8357,22 +8489,25 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1b\n" +
 	"\tis_shared\x18\x05 \x01(\bR\bisShared\x12\x1f\n" +
 	"\vfilter_data\x18\x06 \x01(\fR\n" +
-	"filterData\"\x89\x01\n" +
+	"filterData\x12.\n" +
+	"\x13impersonate_user_id\x18\a \x01(\tR\x11impersonateUserId\"\x89\x01\n" +
 	"\x1aUpdateFilterPresetResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x127\n" +
 	"\x06preset\x18\x02 \x01(\v2\x1f.notificator.alert.FilterPresetR\x06preset\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"W\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x87\x01\n" +
 	"\x19DeleteFilterPresetRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
-	"\tpreset_id\x18\x02 \x01(\tR\bpresetId\"P\n" +
+	"\tpreset_id\x18\x02 \x01(\tR\bpresetId\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"P\n" +
 	"\x1aDeleteFilterPresetResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"[\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x8b\x01\n" +
 	"\x1dSetDefaultFilterPresetRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
-	"\tpreset_id\x18\x02 \x01(\tR\bpresetId\"T\n" +
+	"\tpreset_id\x18\x02 \x01(\tR\bpresetId\x12.\n" +
+	"\x13impersonate_user_id\x18\x03 \x01(\tR\x11impersonateUserId\"T\n" +
 	"\x1eSetDefaultFilterPresetResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\xc0\x02\n" +

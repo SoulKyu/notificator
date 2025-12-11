@@ -266,10 +266,9 @@ func parseStringArray(s string) []string {
 }
 
 func getCurrentUserID(c *gin.Context) string {
-	if userID := middleware.GetSessionValue(c, "user_id"); userID != nil {
-		if uid, ok := userID.(string); ok {
-			return uid
-		}
+	// Use effective user ID (respects impersonation)
+	if effectiveID := middleware.GetEffectiveUserID(c); effectiveID != "" {
+		return effectiveID
 	}
 	if user := c.GetHeader("X-User-ID"); user != "" {
 		return user
@@ -1436,8 +1435,11 @@ func GetUserColorPreferences(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Get color preferences from backend
-	pbPreferences, err := backendClient.GetUserColorPreferences(sessionID)
+	pbPreferences, err := backendClient.GetUserColorPreferences(sessionID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get color preferences: "+err.Error()))
 		return
@@ -1485,6 +1487,9 @@ func SaveUserColorPreferences(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Parse request body
 	var request struct {
 		Preferences []webuimodels.UserColorPreference `json:"preferences"`
@@ -1495,7 +1500,7 @@ func SaveUserColorPreferences(c *gin.Context) {
 	}
 
 	// Convert to backend format and save
-	err := backendClient.SaveUserColorPreferences(sessionID, request.Preferences)
+	err := backendClient.SaveUserColorPreferences(sessionID, request.Preferences, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to save color preferences: "+err.Error()))
 		return
@@ -1523,6 +1528,9 @@ func DeleteUserColorPreference(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	preferenceID := c.Param("id")
 	if preferenceID == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Preference ID is required"))
@@ -1530,7 +1538,7 @@ func DeleteUserColorPreference(c *gin.Context) {
 	}
 
 	// Delete color preference via backend
-	err := backendClient.DeleteUserColorPreference(sessionID, preferenceID)
+	err := backendClient.DeleteUserColorPreference(sessionID, preferenceID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to delete color preference: "+err.Error()))
 		return
@@ -2434,10 +2442,16 @@ func GetUserColumnPreferences(c *gin.Context) {
 
 	sessionID, _ := c.Get("session_id")
 
+	// Use effective user ID (respects impersonation)
+	effectiveUserID := middleware.GetEffectiveUserID(c)
+	if effectiveUserID == "" {
+		effectiveUserID = user.ID
+	}
+
 	// Get user column preferences from backend
-	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
-	if err != nil {
-		// If not found, return nil to let frontend use defaults
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), effectiveUserID)
+	if err != nil || prefs == nil {
+		// If not found or nil, return nil to let frontend use defaults
 		c.JSON(http.StatusOK, gin.H{
 			"success":        true,
 			"column_configs": nil,
@@ -2466,6 +2480,12 @@ func SaveUserColumnPreferences(c *gin.Context) {
 	}
 
 	sessionID, _ := c.Get("session_id")
+
+	// Use effective user ID (respects impersonation)
+	effectiveUserID := middleware.GetEffectiveUserID(c)
+	if effectiveUserID == "" {
+		effectiveUserID = user.ID
+	}
 
 	// Parse request
 	var req SaveUserColumnPreferencesRequest
@@ -2528,7 +2548,7 @@ func SaveUserColumnPreferences(c *gin.Context) {
 	}
 
 	// Save to backend
-	err := backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, req.ColumnConfigs)
+	err := backendClient.SaveUserColumnPreferences(sessionID.(string), effectiveUserID, req.ColumnConfigs)
 	if err != nil {
 		log.Printf("Error saving column preferences: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -2561,6 +2581,12 @@ func UpdateColumnWidth(c *gin.Context) {
 
 	sessionID, _ := c.Get("session_id")
 
+	// Use effective user ID (respects impersonation)
+	effectiveUserID := middleware.GetEffectiveUserID(c)
+	if effectiveUserID == "" {
+		effectiveUserID = user.ID
+	}
+
 	// Parse request
 	var req UpdateColumnWidthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -2572,8 +2598,8 @@ func UpdateColumnWidth(c *gin.Context) {
 	}
 
 	// Get current preferences
-	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
-	if err != nil {
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), effectiveUserID)
+	if err != nil || prefs == nil {
 		// If no preferences exist yet, can't update width
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
@@ -2601,7 +2627,7 @@ func UpdateColumnWidth(c *gin.Context) {
 	}
 
 	// Save updated preferences
-	err = backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, prefs.ColumnConfigs)
+	err = backendClient.SaveUserColumnPreferences(sessionID.(string), effectiveUserID, prefs.ColumnConfigs)
 	if err != nil {
 		log.Printf("Error updating column width: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

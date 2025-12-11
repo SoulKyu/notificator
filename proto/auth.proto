@@ -15,7 +15,8 @@ service AuthService {
   rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
   rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
-  
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
   // OAuth Methods
   rpc GetOAuthAuthURL(OAuthAuthURLRequest) returns (OAuthAuthURLResponse);
   rpc OAuthCallback(OAuthCallbackRequest) returns (LoginResponse);
@@ -109,6 +110,19 @@ message SearchUsersRequest {
 message SearchUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
+}
+
+message ListUsersRequest {
+  string session_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListUsersResponse {
+  bool success = 1;
+  string message = 2;
+  repeated User users = 3;
+  int32 total_count = 4;
 }
 
 // OAuth Messages

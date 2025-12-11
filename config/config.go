@@ -24,6 +24,21 @@ type Config struct {
 	WebUI          WebUIConfig          `json:"webui"`
 	OAuth          *OAuthPortalConfig   `json:"oauth,omitempty"`
 	Sentry         *SentryConfig        `json:"sentry,omitempty"`
+	Admin          AdminConfig          `json:"admin"`
+}
+
+type AdminConfig struct {
+	ImpersonationAllowedUsers []string `json:"impersonation_allowed_users"`
+}
+
+// CanImpersonate checks if a user (by username or email) is allowed to impersonate others
+func (a *AdminConfig) CanImpersonate(usernameOrEmail string) bool {
+	for _, allowed := range a.ImpersonationAllowedUsers {
+		if strings.EqualFold(allowed, usernameOrEmail) {
+			return true
+		}
+	}
+	return false
 }
 
 type BackendConfig struct {
@@ -306,6 +321,18 @@ func LoadConfigWithViper() (*Config, error) {
 
 	initializeFilterStates(cfg)
 
+	// Load Admin impersonation allowed users from environment variable (comma-separated)
+	if adminUsersEnv := os.Getenv("NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS"); adminUsersEnv != "" {
+		users := strings.Split(adminUsersEnv, ",")
+		var cleanUsers []string
+		for _, u := range users {
+			if trimmed := strings.TrimSpace(u); trimmed != "" {
+				cleanUsers = append(cleanUsers, trimmed)
+			}
+		}
+		cfg.Admin.ImpersonationAllowedUsers = cleanUsers
+	}
+
 	// Load Sentry configuration if enabled
 	if viper.GetBool("sentry.enabled") {
 		cfg.Sentry = &SentryConfig{
@@ -527,6 +554,12 @@ func setViperDefaults(cfg *Config) {
 	viper.BindEnv("sentry.enabled", "NOTIFICATOR_SENTRY_ENABLED")
 	viper.BindEnv("sentry.base_url", "NOTIFICATOR_SENTRY_BASE_URL")
 	viper.BindEnv("sentry.global_token", "NOTIFICATOR_SENTRY_GLOBAL_TOKEN")
+
+	// Admin defaults
+	viper.SetDefault("admin.impersonation_allowed_users", []string{})
+
+	// Admin environment variable bindings
+	viper.BindEnv("admin.impersonation_allowed_users", "NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS")
 
 	// Alertmanager defaults - DISABLED to allow JSON config to work properly
 	// The alertmanager configuration should come from the config file, not defaults

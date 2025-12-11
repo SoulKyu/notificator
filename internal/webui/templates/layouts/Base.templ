@@ -14,7 +14,28 @@ templ Base(title string, content templ.Component) {
 		<script src="https://unpkg.com/alpinejs@3.14.6/dist/cdn.min.js" defer></script>
 	</head>
 	<body class="h-full bg-gray-50 dark:bg-dark-bg-primary">
-		
+		<!-- Impersonation Banner (hidden by default, shown via JS when impersonating) -->
+		<div id="impersonation-banner"
+			 style="display: none;"
+			 class="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between shadow-md">
+			<div class="flex items-center gap-2">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+					<path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+					<path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+				</svg>
+				<span class="font-medium">
+					Viewing as <strong id="impersonated-username"></strong>
+				</span>
+			</div>
+			<button
+				onclick="stopImpersonation()"
+				class="px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded text-sm font-medium transition-colors">
+				Exit Impersonation
+			</button>
+		</div>
+		<!-- Spacer for impersonation banner (hidden by default) -->
+		<div id="impersonation-spacer" style="display: none;" class="h-10"></div>
+
 		<div class="min-h-full" x-data="darkModeHandler()" x-init="init()">
 			@content
 		</div>
@@ -68,6 +89,134 @@ templ Base(title string, content templ.Component) {
 					},
 					toggle() {
 						window.darkModeState.toggle();
+					}
+				}
+			}
+		</script>
+
+		<!-- Impersonation scripts -->
+		<script>
+			// Impersonation state
+			window.impersonationState = {
+				isImpersonating: false,
+				impersonatedUsername: '',
+				canImpersonate: false,
+
+				async init() {
+					try {
+						const response = await fetch('/api/impersonate/status');
+						if (response.ok) {
+							const data = await response.json();
+							this.isImpersonating = data.is_impersonating || false;
+							this.impersonatedUsername = data.impersonated_username || '';
+							this.canImpersonate = data.can_impersonate || false;
+							this.updateUI();
+						}
+					} catch (error) {
+						console.error('Error checking impersonation status:', error);
+					}
+				},
+
+				updateUI() {
+					const banner = document.getElementById('impersonation-banner');
+					const spacer = document.getElementById('impersonation-spacer');
+					const usernameEl = document.getElementById('impersonated-username');
+
+					if (this.isImpersonating && banner && spacer && usernameEl) {
+						usernameEl.textContent = this.impersonatedUsername;
+						banner.style.display = 'flex';
+						spacer.style.display = 'block';
+					}
+				}
+			};
+
+			// Initialize on page load
+			document.addEventListener('DOMContentLoaded', function() {
+				window.impersonationState.init();
+			});
+
+			// Global function to stop impersonation
+			async function stopImpersonation() {
+				try {
+					const response = await fetch('/api/impersonate/stop', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' }
+					});
+					if (response.ok) {
+						window.location.reload();
+					} else {
+						const data = await response.json();
+						alert(data.error || 'Failed to stop impersonation');
+					}
+				} catch (error) {
+					console.error('Error stopping impersonation:', error);
+					alert('Failed to stop impersonation');
+				}
+			}
+
+			// Global function to start impersonation
+			async function startImpersonation(username) {
+				try {
+					const response = await fetch('/api/impersonate/start', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ username: username })
+					});
+					if (response.ok) {
+						window.location.reload();
+					} else {
+						const data = await response.json();
+						alert(data.error || 'Failed to start impersonation');
+					}
+				} catch (error) {
+					console.error('Error starting impersonation:', error);
+					alert('Failed to start impersonation');
+				}
+			}
+
+			// Alpine.js component for impersonation dropdown
+			function impersonationDropdown() {
+				return {
+					isOpen: false,
+					loading: false,
+					search: '',
+					users: [],
+					filteredUsers: [],
+
+					toggleDropdown() {
+						this.isOpen = !this.isOpen;
+						if (this.isOpen && this.users.length === 0) {
+							this.loadUsers();
+						}
+					},
+
+					async loadUsers() {
+						this.loading = true;
+						try {
+							const response = await fetch('/api/impersonate/users');
+							if (response.ok) {
+								const data = await response.json();
+								this.users = data.users || [];
+								this.filteredUsers = this.users;
+							}
+						} catch (error) {
+							console.error('Error loading users:', error);
+						} finally {
+							this.loading = false;
+						}
+					},
+
+					filterUsers() {
+						const searchLower = this.search.toLowerCase();
+						this.filteredUsers = this.users.filter(user =>
+							user.username.toLowerCase().includes(searchLower) ||
+							(user.email && user.email.toLowerCase().includes(searchLower))
+						);
+					},
+
+					startImpersonation(username) {
+						this.isOpen = false;
+						window.startImpersonation(username);
 					}
 				}
 			}

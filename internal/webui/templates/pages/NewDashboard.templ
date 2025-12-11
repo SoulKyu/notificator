@@ -102,6 +102,58 @@ templ NewDashboardContent() {
 							</svg>
 						</a>
 
+						<!-- Impersonation Dropdown (only visible to admins) -->
+						<div x-data="{ ...impersonationDropdown(), canImpersonate: false }"
+						     x-init="fetch('/api/impersonate/status').then(r => r.json()).then(d => canImpersonate = d.can_impersonate)"
+						     x-show="canImpersonate"
+						     x-cloak
+						     class="relative">
+							<button
+								@click="toggleDropdown()"
+								class="flex items-center gap-1 p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary rounded-md transition-colors"
+								title="Impersonate User">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+									<path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
+								</svg>
+							</button>
+							<!-- Dropdown panel -->
+							<div
+								x-show="isOpen"
+								x-cloak
+								@click.outside="isOpen = false"
+								x-transition
+								class="absolute right-0 mt-2 w-72 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg border border-gray-200 dark:border-dark-border-subtle z-50">
+								<div class="p-3 border-b border-gray-200 dark:border-dark-border-subtle">
+									<input
+										type="text"
+										x-model="search"
+										@input="filterUsers()"
+										placeholder="Search users..."
+										class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500">
+								</div>
+								<div class="max-h-64 overflow-y-auto">
+									<template x-if="loading">
+										<div class="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
+											Loading users...
+										</div>
+									</template>
+									<template x-if="!loading && filteredUsers.length === 0">
+										<div class="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
+											No users found
+										</div>
+									</template>
+									<template x-for="user in filteredUsers" :key="user.id">
+										<button
+											@click="startImpersonation(user.username)"
+											class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary flex flex-col">
+											<span class="font-medium text-gray-900 dark:text-white" x-text="user.username"></span>
+											<span class="text-gray-500 dark:text-gray-400 text-xs" x-text="user.email"></span>
+										</button>
+									</template>
+								</div>
+							</div>
+						</div>
+
 						<!-- Settings Button -->
 						<button @click="openSettings()"
 								class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary transition-colors text-gray-600 dark:text-gray-300">

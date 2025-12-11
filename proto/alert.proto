@@ -189,6 +189,7 @@ enum UpdateType {
 // User Color Preferences Messages
 message GetUserColorPreferencesRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: load preferences for this user instead
 }
 
 message GetUserColorPreferencesResponse {
@@ -200,6 +201,7 @@ message GetUserColorPreferencesResponse {
 message SaveUserColorPreferencesRequest {
   string session_id = 1;
   repeated UserColorPreference preferences = 2;
+  string impersonate_user_id = 3;  // Optional: save preferences for this user instead
 }
 
 message SaveUserColorPreferencesResponse {
@@ -210,6 +212,7 @@ message SaveUserColorPreferencesResponse {
 message DeleteUserColorPreferenceRequest {
   string session_id = 1;
   string preference_id = 2;
+  string impersonate_user_id = 3;  // Optional: delete preference for this user instead
 }
 
 message DeleteUserColorPreferenceResponse {
@@ -305,6 +308,7 @@ message ResolvedAlertInfo {
 // User Hidden Alerts Messages
 message GetUserHiddenAlertsRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: load hidden alerts for this user instead
 }
 
 message GetUserHiddenAlertsResponse {
@@ -319,6 +323,7 @@ message HideAlertRequest {
   string alert_name = 3;
   string instance = 4;
   string reason = 5;
+  string impersonate_user_id = 6;  // Optional: hide for this user instead
 }
 
 message HideAlertResponse {
@@ -330,6 +335,7 @@ message HideAlertResponse {
 message UnhideAlertRequest {
   string session_id = 1;
   string fingerprint = 2;
+  string impersonate_user_id = 3;  // Optional: unhide for this user instead
 }
 
 message UnhideAlertResponse {
@@ -339,6 +345,7 @@ message UnhideAlertResponse {
 
 message ClearAllHiddenAlertsRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: clear for this user instead
 }
 
 message ClearAllHiddenAlertsResponse {
@@ -361,6 +368,7 @@ message UserHiddenAlert {
 // User Hidden Rules Messages
 message GetUserHiddenRulesRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: load rules for this user instead
 }
 
 message GetUserHiddenRulesResponse {
@@ -372,6 +380,7 @@ message GetUserHiddenRulesResponse {
 message SaveHiddenRuleRequest {
   string session_id = 1;
   UserHiddenRule rule = 2;
+  string impersonate_user_id = 3;  // Optional: save rule for this user instead
 }
 
 message SaveHiddenRuleResponse {
@@ -383,6 +392,7 @@ message SaveHiddenRuleResponse {
 message RemoveHiddenRuleRequest {
   string session_id = 1;
   string rule_id = 2;
+  string impersonate_user_id = 3;  // Optional: remove rule for this user instead
 }
 
 message RemoveHiddenRuleResponse {
@@ -448,6 +458,7 @@ message NotificationPreference {
 message GetFilterPresetsRequest {
   string session_id = 1;
   bool include_shared = 2;
+  string impersonate_user_id = 3;  // Optional: load presets for this user instead
 }
 
 message GetFilterPresetsResponse {
@@ -462,6 +473,7 @@ message SaveFilterPresetRequest {
   string description = 3;
   bool is_shared = 4;
   bytes filter_data = 5;  // JSON serialized filter state
+  string impersonate_user_id = 6;  // Optional: save preset for this user instead
 }
 
 message SaveFilterPresetResponse {
@@ -477,6 +489,7 @@ message UpdateFilterPresetRequest {
   string description = 4;
   bool is_shared = 5;
   bytes filter_data = 6;  // JSON serialized filter state
+  string impersonate_user_id = 7;  // Optional: update preset for this user instead
 }
 
 message UpdateFilterPresetResponse {
@@ -488,6 +501,7 @@ message UpdateFilterPresetResponse {
 message DeleteFilterPresetRequest {
   string session_id = 1;
   string preset_id = 2;
+  string impersonate_user_id = 3;  // Optional: delete preset for this user instead
 }
 
 message DeleteFilterPresetResponse {
@@ -498,6 +512,7 @@ message DeleteFilterPresetResponse {
 message SetDefaultFilterPresetRequest {
   string session_id = 1;
   string preset_id = 2;
+  string impersonate_user_id = 3;  // Optional: set default for this user instead
 }
 
 message SetDefaultFilterPresetResponse {

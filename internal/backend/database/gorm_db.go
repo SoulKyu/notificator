@@ -249,6 +249,31 @@ func (gdb *GormDB) SearchUsers(query string, limit int) ([]models.User, error) {
 	return users, nil
 }
 
+func (gdb *GormDB) ListUsers(limit, offset int) ([]models.User, int64, error) {
+	var users []models.User
+	var totalCount int64
+
+	// Get total count
+	if err := gdb.db.Model(&models.User{}).Count(&totalCount).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	// Get paginated users
+	query := gdb.db.Order("username")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	if err := query.Find(&users).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+	}
+
+	return users, totalCount, nil
+}
+
 func (gdb *GormDB) CreateSession(userID, sessionID string, expiresAt time.Time) error {
 	session := &models.Session{
 		ID:        sessionID,

@@ -56,6 +56,9 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	handlers.SetBackendClient(backendClient)
 	handlers.SetFilterPresetBackendClient(backendClient)
 
+	// Set app config for impersonation handlers
+	handlers.SetAppConfig(cfg)
+
 	// Fetch OAuth configuration from backend and update local config
 	oauthEnabled, err := backendClient.IsOAuthEnabled()
 	if err != nil {
@@ -195,7 +198,20 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			oauthProtected.GET("/groups", handlers.GetUserGroups)
 			oauthProtected.POST("/sync-groups", handlers.SyncUserGroups)
 		}
+	}
 
+	// Impersonation API routes (separate from v1 to avoid conflicts)
+	impersonate := r.Group("/api/impersonate")
+	impersonate.Use(authMiddleware.RequireAuth())
+	{
+		impersonate.POST("/start", handlers.StartImpersonation)
+		impersonate.POST("/stop", handlers.StopImpersonation)
+		impersonate.GET("/users", handlers.ListUsersForImpersonation)
+		impersonate.GET("/status", handlers.GetImpersonationStatus)
+	}
+
+	// Continue with more v1 API routes (reusing api variable)
+	{
 		// Protected alert routes
 		alerts := api.Group("/alerts")
 		alerts.Use(authMiddleware.OptionalAuth()) // Optional auth for now

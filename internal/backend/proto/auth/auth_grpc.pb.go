@@ -27,6 +27,7 @@ const (
 	AuthService_ValidateSession_FullMethodName        = "/notificator.auth.AuthService/ValidateSession"
 	AuthService_GetProfile_FullMethodName             = "/notificator.auth.AuthService/GetProfile"
 	AuthService_SearchUsers_FullMethodName            = "/notificator.auth.AuthService/SearchUsers"
+	AuthService_ListUsers_FullMethodName              = "/notificator.auth.AuthService/ListUsers"
 	AuthService_GetOAuthAuthURL_FullMethodName        = "/notificator.auth.AuthService/GetOAuthAuthURL"
 	AuthService_OAuthCallback_FullMethodName          = "/notificator.auth.AuthService/OAuthCallback"
 	AuthService_GetOAuthProviders_FullMethodName      = "/notificator.auth.AuthService/GetOAuthProviders"
@@ -51,6 +52,7 @@ type AuthServiceClient interface {
 	ValidateSession(ctx context.Context, in *ValidateSessionRequest, opts ...grpc.CallOption) (*ValidateSessionResponse, error)
 	GetProfile(ctx context.Context, in *GetProfileRequest, opts ...grpc.CallOption) (*GetProfileResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
+	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	// OAuth Methods
 	GetOAuthAuthURL(ctx context.Context, in *OAuthAuthURLRequest, opts ...grpc.CallOption) (*OAuthAuthURLResponse, error)
 	OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*LoginResponse, error)
@@ -128,6 +130,16 @@ func (c *authServiceClient) SearchUsers(ctx context.Context, in *SearchUsersRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SearchUsersResponse)
 	err := c.cc.Invoke(ctx, AuthService_SearchUsers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUsersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListUsers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +258,7 @@ type AuthServiceServer interface {
 	ValidateSession(context.Context, *ValidateSessionRequest) (*ValidateSessionResponse, error)
 	GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
+	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	// OAuth Methods
 	GetOAuthAuthURL(context.Context, *OAuthAuthURLRequest) (*OAuthAuthURLResponse, error)
 	OAuthCallback(context.Context, *OAuthCallbackRequest) (*LoginResponse, error)
@@ -286,6 +299,9 @@ func (UnimplementedAuthServiceServer) GetProfile(context.Context, *GetProfileReq
 }
 func (UnimplementedAuthServiceServer) SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchUsers not implemented")
+}
+func (UnimplementedAuthServiceServer) ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
 }
 func (UnimplementedAuthServiceServer) GetOAuthAuthURL(context.Context, *OAuthAuthURLRequest) (*OAuthAuthURLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOAuthAuthURL not implemented")
@@ -442,6 +458,24 @@ func _AuthService_SearchUsers_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).SearchUsers(ctx, req.(*SearchUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUsersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListUsers(ctx, req.(*ListUsersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -656,6 +690,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SearchUsers",
 			Handler:    _AuthService_SearchUsers_Handler,
+		},
+		{
+			MethodName: "ListUsers",
+			Handler:    _AuthService_ListUsers_Handler,
 		},
 		{
 			MethodName: "GetOAuthAuthURL",
