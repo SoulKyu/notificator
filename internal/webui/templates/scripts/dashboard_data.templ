@@ -328,7 +328,7 @@ templ DashboardData() {
 							bVal = b.alertName.toLowerCase();
 							break;
 						case 'severity':
-							const severityOrder = { 'critical': 3, 'warning': 2, 'info': 1 };
+							const severityOrder = { 'critical': 4, 'critical-daytime': 3, 'warning': 2, 'info': 1 };
 							aVal = severityOrder[a.severity] || 0;
 							bVal = severityOrder[b.severity] || 0;
 							break;

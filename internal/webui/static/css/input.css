@@ -33,12 +33,12 @@
   --color-severity-critical-text-light: #991b1b;
   --color-severity-critical-text-dark: #fca5a5;
 
-  --color-severity-critical-daytime-light: #be123c;
-  --color-severity-critical-daytime-dark: #fb7185;
-  --color-severity-critical-daytime-bg-light: #ffe4e6;
-  --color-severity-critical-daytime-bg-dark: #881337;
-  --color-severity-critical-daytime-text-light: #9f1239;
-  --color-severity-critical-daytime-text-dark: #fda4af;
+  --color-severity-critical-daytime-light: #7c3aed;
+  --color-severity-critical-daytime-dark: #a78bfa;
+  --color-severity-critical-daytime-bg-light: #ede9fe;
+  --color-severity-critical-daytime-bg-dark: #4c1d95;
+  --color-severity-critical-daytime-text-light: #5b21b6;
+  --color-severity-critical-daytime-text-dark: #c4b5fd;
 
   --color-severity-warning-light: #d97706;
   --color-severity-warning-dark: #fbbf24;

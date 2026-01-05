@@ -382,14 +382,14 @@ templ DashboardResolvedAlertsMixin() {
 						avgDuration: 0,
 						mostFrequent: null,
 						fastestResolution: null,
-						severityBreakdown: { critical: 0, warning: 0, info: 0 }
+						severityBreakdown: { critical: 0, 'critical-daytime': 0, warning: 0, info: 0 }
 					};
 				}
 
 				let totalOccurrences = 0;
 				let totalDuration = 0;
 				let totalMTTR = 0;
-				const severityBreakdown = { critical: 0, warning: 0, info: 0 };
+				const severityBreakdown = { critical: 0, 'critical-daytime': 0, warning: 0, info: 0 };
 				let fastestResolution = null;
 				let mostFrequent = null;
 
@@ -410,8 +410,10 @@ templ DashboardResolvedAlertsMixin() {
 
 					// Count by severity
 					const severity = (alert.severity || 'info').toLowerCase();
-					if (severity === 'critical' || severity === 'critical-daytime') {
+					if (severity === 'critical') {
 						severityBreakdown.critical += occurrences;
+					} else if (severity === 'critical-daytime') {
+						severityBreakdown['critical-daytime'] += occurrences;
 					} else if (severity === 'warning') {
 						severityBreakdown.warning += occurrences;
 					} else {

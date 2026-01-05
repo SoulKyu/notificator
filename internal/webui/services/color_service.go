@@ -53,7 +53,7 @@ func NewColorService(backendClient *client.BackendClient) *ColorService {
 		cacheTTL:      5 * time.Minute,
 		defaultColors: map[string]string{
 			"critical":         "#dc2626",
-			"critical-daytime": "#be123c",
+			"critical-daytime": "#7c3aed",
 			"warning":          "#d97706",
 			"info":             "#2563eb",
 			"default":          "#6b7280",
@@ -392,8 +392,6 @@ func (cs *ColorService) normalizeSeverity(severity string) string {
 	switch strings.ToLower(severity) {
 	case "information":
 		return "info"
-	case "critical-daytime":
-		return "critical"
 	default:
 		return strings.ToLower(severity)
 	}

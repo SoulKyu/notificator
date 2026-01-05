@@ -28,8 +28,8 @@ templ FilterDropdown(filterType, title string) {
 							<div x-show="filterType === 'severities'" class="w-2 h-2 rounded-full mr-2"
 								 :class="{
 									 'bg-red-500': option === 'critical' || option === 'CRITICAL',
-									 'bg-rose-500': option === 'critical-daytime',
-									 'bg-amber-500': option === 'warning' || option === 'WARNING', 
+									 'bg-violet-500': option === 'critical-daytime',
+									 'bg-amber-500': option === 'warning' || option === 'WARNING',
 									 'bg-blue-500': option === 'info' || option === 'INFO' || option === 'information' || option === 'INFORMATION'
 								 }"></div>
 							<div x-show="filterType === 'statuses'" class="flex items-center mr-2">

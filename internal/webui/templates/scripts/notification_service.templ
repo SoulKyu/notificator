@@ -221,7 +221,7 @@ templ NotificationService() {
 				const severityLower = severity.toLowerCase();
 				const iconMap = {
 					'critical': '/static/images/critical-icon.png',
-					'critical-daytime': '/static/images/critical-icon.png',
+					'critical-daytime': '/static/images/warning-icon.png',
 					'warning': '/static/images/warning-icon.png',
 					'info': '/static/images/info-icon.png',
 					'information': '/static/images/info-icon.png',
@@ -235,7 +235,7 @@ templ NotificationService() {
 				const severityLower = severity.toLowerCase();
 				const soundMap = {
 					'critical': '/static/sounds/critical.mp3',
-					'critical-daytime': '/static/sounds/critical.mp3',
+					'critical-daytime': '/static/sounds/warning.mp3',
 					'warning': '/static/sounds/warning.mp3',
 					'info': '/static/sounds/info.mp3',
 					'information': '/static/sounds/info.mp3'
@@ -312,7 +312,7 @@ templ NotificationService() {
 			getSeverityColor(severity) {
 				const colors = {
 					critical: '#dc2626',      // red-600
-					'critical-daytime': '#be123c', // rose-700
+					'critical-daytime': '#7c3aed', // violet-600
 					warning: '#d97706',       // amber-600
 					info: '#2563eb',          // blue-600
 					information: '#2563eb',   // blue-600

@@ -265,9 +265,10 @@ func (n *Notifier) shouldNotify(alert models.Alert) bool {
 // isEscalation checks if an alert has escalated in severity
 func (n *Notifier) isEscalation(oldAlert, newAlert models.Alert) bool {
 	severityOrder := map[string]int{
-		"info":     1,
-		"warning":  2,
-		"critical": 3,
+		"info":             1,
+		"warning":          2,
+		"critical-daytime": 3,
+		"critical":         4,
 	}
 
 	oldSev := severityOrder[oldAlert.GetSeverity()]

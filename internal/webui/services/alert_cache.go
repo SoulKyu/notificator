@@ -28,8 +28,6 @@ func transformSeverity(severity string) string {
 	switch strings.ToLower(severity) {
 	case "information":
 		return "info"
-	case "critical-daytime":
-		return "critical"
 	default:
 		return strings.ToLower(severity)
 	}
