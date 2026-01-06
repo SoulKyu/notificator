@@ -91,7 +91,11 @@ The following standard database environment variables are also supported:
 
 - `NOTIFICATOR_RESOLVED_ALERTS_ENABLED` - Enable resolved alerts tracking (true/false)
 - `NOTIFICATOR_RESOLVED_ALERTS_NOTIFICATIONS_ENABLED` - Send resolved alert notifications (true/false)
-- `NOTIFICATOR_RESOLVED_ALERTS_RETENTION_DURATION` - How long to keep resolved alerts (e.g., "1h", "24h")
+- `NOTIFICATOR_RESOLVED_ALERTS_RETENTION_DAYS` - How many days to keep resolved alerts (default: 31)
+
+## Statistics Configuration
+
+- `NOTIFICATOR_STATISTICS_RETENTION_DAYS` - How many days to keep alert statistics (default: 31)
 
 ## Global Settings
 

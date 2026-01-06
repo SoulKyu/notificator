@@ -60,7 +60,7 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 
 	// Ensure valid retention days
 	if resolvedRetentionDays <= 0 {
-		resolvedRetentionDays = 90 // Default to 90 days
+		resolvedRetentionDays = 31 // Default to 31 days
 	}
 
 	return &AlertCache{

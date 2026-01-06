@@ -736,8 +736,8 @@ func (s *StatisticsServiceGorm) CaptureAlertFired(ctx context.Context, req *aler
 		Metadata:    metadataJSON,
 	}
 
-	// Save to database
-	if err := s.db.CreateAlertStatistic(stat); err != nil {
+	// Save to database (use upsert to handle duplicate alerts gracefully)
+	if err := s.db.UpsertAlertStatistic(stat); err != nil {
 		log.Printf("❌ Failed to capture alert statistic for %s: %v", req.Fingerprint, err)
 		return &alertpb.CaptureAlertFiredResponse{
 			Success: false,

@@ -499,6 +499,30 @@ func (gdb *GormDB) RemoveAllResolvedAlerts() (int64, error) {
 	return result.RowsAffected, nil
 }
 
+// UpdateResolvedAlertsExpiration updates the expires_at field for all resolved alerts
+// based on the new retention period. This allows changing retention to affect existing alerts.
+func (gdb *GormDB) UpdateResolvedAlertsExpiration(retentionDays int) (int64, error) {
+	ttlHours := retentionDays * 24
+
+	// Detect database type for appropriate SQL syntax
+	dbName := gdb.db.Dialector.Name()
+
+	var result *gorm.DB
+	if dbName == "sqlite" {
+		// SQLite syntax: datetime(resolved_at, '+X hours')
+		result = gdb.db.Model(&models.ResolvedAlert{}).
+			Where("1 = 1").
+			Update("expires_at", gorm.Expr("datetime(resolved_at, '+' || ? || ' hours')", ttlHours))
+	} else {
+		// PostgreSQL syntax: resolved_at + (interval '1 hour' * X)
+		result = gdb.db.Model(&models.ResolvedAlert{}).
+			Where("1 = 1").
+			Update("expires_at", gorm.Expr("resolved_at + (interval '1 hour' * ?)", ttlHours))
+	}
+
+	return result.RowsAffected, result.Error
+}
+
 func (gdb *GormDB) SaveUserColorPreferences(userID string, preferences []mainmodels.UserColorPreference) error {
 	tx := gdb.db.Begin()
 	if tx.Error != nil {

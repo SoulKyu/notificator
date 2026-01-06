@@ -56,6 +56,9 @@ func (s *Server) Start() error {
 
 	s.initServices()
 
+	// Update existing resolved alerts expiration based on current retention config
+	s.updateResolvedAlertsRetention()
+
 	if err := s.startGRPCServer(); err != nil {
 		return fmt.Errorf("failed to start gRPC server: %w", err)
 	}
@@ -338,6 +341,35 @@ func (s *Server) stopResolvedAlertCleanup() {
 	}
 }
 
+// updateResolvedAlertsRetention updates the expiration of existing resolved alerts
+// based on the current retention configuration. This ensures that changing retention
+// affects existing alerts, not just new ones.
+func (s *Server) updateResolvedAlertsRetention() {
+	if s.db == nil {
+		log.Println("⚠️  Database not initialized, skipping resolved alerts retention update")
+		return
+	}
+
+	retentionDays := s.config.ResolvedAlerts.RetentionDays
+	if retentionDays <= 0 {
+		retentionDays = 31 // Default to 31 days if invalid
+	}
+
+	log.Printf("🔄 Updating resolved alerts expiration (retention: %d days)...", retentionDays)
+
+	updatedCount, err := s.db.UpdateResolvedAlertsExpiration(retentionDays)
+	if err != nil {
+		log.Printf("❌ Error updating resolved alerts expiration: %v", err)
+		return
+	}
+
+	if updatedCount > 0 {
+		log.Printf("✅ Updated expiration for %d resolved alerts", updatedCount)
+	} else {
+		log.Println("ℹ️  No resolved alerts to update")
+	}
+}
+
 // startStatisticsCleanup starts a background job to clean up old alert statistics
 func (s *Server) startStatisticsCleanup() {
 	// Run cleanup daily at midnight (or every 24 hours)
@@ -374,7 +406,7 @@ func (s *Server) performStatisticsCleanup() {
 	// Get retention days from config
 	retentionDays := s.config.Statistics.RetentionDays
 	if retentionDays <= 0 {
-		retentionDays = 90 // Fallback to 90 days if invalid
+		retentionDays = 31 // Fallback to 31 days if invalid
 	}
 
 	log.Printf("🧹 Running alert statistics cleanup (retention: %d days)...", retentionDays)

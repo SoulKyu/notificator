@@ -207,10 +207,10 @@ func DefaultConfig() *Config {
 		ResolvedAlerts: ResolvedAlertsConfig{
 			Enabled:              true, // Enable by default
 			NotificationsEnabled: true, // Send notifications by default
-			RetentionDays:        90,   // Keep for 90 days by default
+			RetentionDays:        31,   // Keep for 31 days by default
 		},
 		Statistics: StatisticsConfig{
-			RetentionDays: 90, // Keep alert statistics for 90 days by default
+			RetentionDays: 31, // Keep alert statistics for 31 days by default
 		},
 		WebUI: WebUIConfig{
 			Playground: false, // Playground mode disabled by default
