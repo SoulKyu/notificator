@@ -630,6 +630,17 @@ service StatisticsService {
 
   // Get alerts by name with filters (for drill-down view)
   rpc GetAlertsByName(GetAlertsByNameRequest) returns (GetAlertsByNameResponse);
+
+  // Statistics Views
+  rpc GetStatisticsViews(GetStatisticsViewsRequest) returns (GetStatisticsViewsResponse);
+  rpc SaveStatisticsView(SaveStatisticsViewRequest) returns (SaveStatisticsViewResponse);
+  rpc UpdateStatisticsView(UpdateStatisticsViewRequest) returns (UpdateStatisticsViewResponse);
+  rpc DeleteStatisticsView(DeleteStatisticsViewRequest) returns (GenericResponse);
+  rpc SetDefaultStatisticsView(SetDefaultStatisticsViewRequest) returns (GenericResponse);
+
+  // On-Call Config
+  rpc GetOnCallConfig(GetOnCallConfigRequest) returns (GetOnCallConfigResponse);
+  rpc SaveOnCallConfig(SaveOnCallConfigRequest) returns (SaveOnCallConfigResponse);
 }
 
 // ==================== Statistics Query Messages ====================
@@ -957,6 +968,118 @@ message SaveUserColumnPreferencesRequest {
 }
 
 message SaveUserColumnPreferencesResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ==================== Statistics Views Messages ====================
+
+message StatisticsViewData {
+  string time_range_type = 1;
+  string custom_start = 2;
+  string custom_end = 3;
+  string hours_filter = 4;
+  repeated string teams = 5;
+  repeated string severities = 6;
+  string group_by = 7;
+  int32 top_n_limit = 8;
+  string sort_by = 9;
+  string sort_direction = 10;
+}
+
+message StatisticsView {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  bool is_default = 6;
+  bytes view_data = 7;  // JSON encoded StatisticsViewData
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message GetStatisticsViewsRequest {
+  string session_id = 1;
+  bool include_shared = 2;
+}
+
+message GetStatisticsViewsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated StatisticsView views = 3;
+}
+
+message SaveStatisticsViewRequest {
+  string session_id = 1;
+  string name = 2;
+  string description = 3;
+  bool is_shared = 4;
+  bytes view_data = 5;  // JSON encoded StatisticsViewData
+}
+
+message SaveStatisticsViewResponse {
+  bool success = 1;
+  string message = 2;
+  StatisticsView view = 3;
+}
+
+message UpdateStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  bytes view_data = 6;  // JSON encoded StatisticsViewData
+}
+
+message UpdateStatisticsViewResponse {
+  bool success = 1;
+  string message = 2;
+  StatisticsView view = 3;
+}
+
+message DeleteStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;
+}
+
+message SetDefaultStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;
+}
+
+message GenericResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ==================== On-Call Config Messages ====================
+
+message OnCallConfigProto {
+  string id = 1;
+  repeated string on_call_days = 2;
+  string on_call_start_time = 3;
+  string on_call_end_time = 4;
+  bool include_weekends = 5;
+}
+
+message GetOnCallConfigRequest {
+  string session_id = 1;
+}
+
+message GetOnCallConfigResponse {
+  bool success = 1;
+  string message = 2;
+  OnCallConfigProto config = 3;
+}
+
+message SaveOnCallConfigRequest {
+  string session_id = 1;
+  OnCallConfigProto config = 2;
+}
+
+message SaveOnCallConfigResponse {
   bool success = 1;
   string message = 2;
 }

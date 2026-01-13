@@ -308,6 +308,17 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			statistics.PUT("/rules/:id", handlers.UpdateOnCallRule)
 			statistics.DELETE("/rules/:id", handlers.DeleteOnCallRule)
 			statistics.POST("/rules/test", handlers.TestOnCallRule)
+
+			// Statistics views CRUD
+			statistics.GET("/views", handlers.GetStatisticsViews)
+			statistics.POST("/views", handlers.SaveStatisticsView)
+			statistics.PUT("/views/:id", handlers.UpdateStatisticsView)
+			statistics.DELETE("/views/:id", handlers.DeleteStatisticsView)
+			statistics.POST("/views/:id/default", handlers.SetDefaultStatisticsView)
+
+			// On-call config
+			statistics.GET("/config", handlers.GetOnCallConfig)
+			statistics.POST("/config", handlers.SaveOnCallConfig)
 		}
 	}
 

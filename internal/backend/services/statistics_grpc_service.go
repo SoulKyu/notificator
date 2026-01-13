@@ -1124,3 +1124,369 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		TotalCount: totalCount,
 	}, nil
 }
+
+// ==================== Statistics Views ====================
+
+// GetStatisticsViews implements the GetStatisticsViews RPC method
+func (s *StatisticsServiceGorm) GetStatisticsViews(ctx context.Context, req *alertpb.GetStatisticsViewsRequest) (*alertpb.GetStatisticsViewsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	views, err := s.db.GetStatisticsViews(user.ID, req.IncludeShared)
+	if err != nil {
+		log.Printf("Failed to get statistics views for user %s: %v", user.ID, err)
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Failed to retrieve views",
+		}, nil
+	}
+
+	pbViews := make([]*alertpb.StatisticsView, len(views))
+	for i, v := range views {
+		pbViews[i] = &alertpb.StatisticsView{
+			Id:          v.ID,
+			UserId:      v.UserID,
+			Name:        v.Name,
+			Description: v.Description,
+			IsShared:    v.IsShared,
+			IsDefault:   v.IsDefault,
+			ViewData:    []byte(v.ViewData),
+			CreatedAt:   timestamppb.New(v.CreatedAt),
+			UpdatedAt:   timestamppb.New(v.UpdatedAt),
+		}
+	}
+
+	return &alertpb.GetStatisticsViewsResponse{
+		Success: true,
+		Views:   pbViews,
+		Message: "Views retrieved successfully",
+	}, nil
+}
+
+// SaveStatisticsView implements the SaveStatisticsView RPC method
+func (s *StatisticsServiceGorm) SaveStatisticsView(ctx context.Context, req *alertpb.SaveStatisticsViewRequest) (*alertpb.SaveStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Name == "" {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "View name is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	view := &models.StatisticsView{
+		UserID:      user.ID,
+		Name:        req.Name,
+		Description: req.Description,
+		IsShared:    req.IsShared,
+		ViewData:    models.JSONB(req.ViewData),
+	}
+
+	created, err := s.db.CreateStatisticsView(view)
+	if err != nil {
+		log.Printf("Failed to create statistics view for user %s: %v", user.ID, err)
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to create view",
+		}, nil
+	}
+
+	log.Printf("Statistics view '%s' created for user %s", req.Name, user.ID)
+
+	return &alertpb.SaveStatisticsViewResponse{
+		Success: true,
+		View: &alertpb.StatisticsView{
+			Id:          created.ID,
+			UserId:      created.UserID,
+			Name:        created.Name,
+			Description: created.Description,
+			IsShared:    created.IsShared,
+			IsDefault:   created.IsDefault,
+			ViewData:    []byte(created.ViewData),
+			CreatedAt:   timestamppb.New(created.CreatedAt),
+			UpdatedAt:   timestamppb.New(created.UpdatedAt),
+		},
+		Message: "View created successfully",
+	}, nil
+}
+
+// UpdateStatisticsView implements the UpdateStatisticsView RPC method
+func (s *StatisticsServiceGorm) UpdateStatisticsView(ctx context.Context, req *alertpb.UpdateStatisticsViewRequest) (*alertpb.UpdateStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ViewId == "" {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "View ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get existing view
+	view, err := s.db.GetStatisticsViewByID(req.ViewId)
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "View not found",
+		}, nil
+	}
+
+	// Verify ownership
+	if view.UserID != user.ID {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Not authorized to update this view",
+		}, nil
+	}
+
+	// Update fields
+	view.Name = req.Name
+	view.Description = req.Description
+	view.IsShared = req.IsShared
+	view.ViewData = models.JSONB(req.ViewData)
+
+	if err := s.db.UpdateStatisticsView(view); err != nil {
+		log.Printf("Failed to update statistics view %s for user %s: %v", req.ViewId, user.ID, err)
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to update view",
+		}, nil
+	}
+
+	log.Printf("Statistics view %s updated for user %s", req.ViewId, user.ID)
+
+	return &alertpb.UpdateStatisticsViewResponse{
+		Success: true,
+		View: &alertpb.StatisticsView{
+			Id:          view.ID,
+			UserId:      view.UserID,
+			Name:        view.Name,
+			Description: view.Description,
+			IsShared:    view.IsShared,
+			IsDefault:   view.IsDefault,
+			ViewData:    []byte(view.ViewData),
+			CreatedAt:   timestamppb.New(view.CreatedAt),
+			UpdatedAt:   timestamppb.New(view.UpdatedAt),
+		},
+		Message: "View updated successfully",
+	}, nil
+}
+
+// DeleteStatisticsView implements the DeleteStatisticsView RPC method
+func (s *StatisticsServiceGorm) DeleteStatisticsView(ctx context.Context, req *alertpb.DeleteStatisticsViewRequest) (*alertpb.GenericResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ViewId == "" {
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "View ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	if err := s.db.DeleteStatisticsView(req.ViewId, user.ID); err != nil {
+		log.Printf("Failed to delete statistics view %s for user %s: %v", req.ViewId, user.ID, err)
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "Failed to delete view",
+		}, nil
+	}
+
+	log.Printf("Statistics view %s deleted for user %s", req.ViewId, user.ID)
+
+	return &alertpb.GenericResponse{
+		Success: true,
+		Message: "View deleted successfully",
+	}, nil
+}
+
+// SetDefaultStatisticsView implements the SetDefaultStatisticsView RPC method
+func (s *StatisticsServiceGorm) SetDefaultStatisticsView(ctx context.Context, req *alertpb.SetDefaultStatisticsViewRequest) (*alertpb.GenericResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ViewId == "" {
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "View ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	if err := s.db.SetDefaultStatisticsView(req.ViewId, user.ID); err != nil {
+		log.Printf("Failed to set default statistics view %s for user %s: %v", req.ViewId, user.ID, err)
+		return &alertpb.GenericResponse{
+			Success: false,
+			Message: "Failed to set default view",
+		}, nil
+	}
+
+	log.Printf("Statistics view %s set as default for user %s", req.ViewId, user.ID)
+
+	return &alertpb.GenericResponse{
+		Success: true,
+		Message: "Default view set successfully",
+	}, nil
+}
+
+// ==================== On-Call Config ====================
+
+// GetOnCallConfig implements the GetOnCallConfig RPC method
+func (s *StatisticsServiceGorm) GetOnCallConfig(ctx context.Context, req *alertpb.GetOnCallConfigRequest) (*alertpb.GetOnCallConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetOnCallConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	_, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetOnCallConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	config, err := s.db.GetOnCallConfig()
+	if err != nil {
+		log.Printf("Failed to get on-call config: %v", err)
+		return &alertpb.GetOnCallConfigResponse{
+			Success: false,
+			Message: "Failed to get config",
+		}, nil
+	}
+
+	var days []string
+	if err := json.Unmarshal(config.OnCallDays, &days); err != nil {
+		days = []string{"mon", "tue", "wed", "thu", "fri"}
+	}
+
+	return &alertpb.GetOnCallConfigResponse{
+		Success: true,
+		Config: &alertpb.OnCallConfigProto{
+			Id:              config.ID,
+			OnCallDays:      days,
+			OnCallStartTime: config.OnCallStartTime,
+			OnCallEndTime:   config.OnCallEndTime,
+			IncludeWeekends: config.IncludeWeekends,
+		},
+		Message: "Config retrieved successfully",
+	}, nil
+}
+
+// SaveOnCallConfig implements the SaveOnCallConfig RPC method
+func (s *StatisticsServiceGorm) SaveOnCallConfig(ctx context.Context, req *alertpb.SaveOnCallConfigRequest) (*alertpb.SaveOnCallConfigResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveOnCallConfigResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// TODO: Add admin check here
+	_, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveOnCallConfigResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	if req.Config == nil {
+		return &alertpb.SaveOnCallConfigResponse{
+			Success: false,
+			Message: "Config is required",
+		}, nil
+	}
+
+	daysJSON, err := json.Marshal(req.Config.OnCallDays)
+	if err != nil {
+		return &alertpb.SaveOnCallConfigResponse{
+			Success: false,
+			Message: "Invalid on-call days",
+		}, nil
+	}
+
+	config := &models.OnCallConfig{
+		OnCallDays:      models.JSONB(daysJSON),
+		OnCallStartTime: req.Config.OnCallStartTime,
+		OnCallEndTime:   req.Config.OnCallEndTime,
+		IncludeWeekends: req.Config.IncludeWeekends,
+	}
+
+	if err := s.db.SaveOnCallConfig(config); err != nil {
+		log.Printf("Failed to save on-call config: %v", err)
+		return &alertpb.SaveOnCallConfigResponse{
+			Success: false,
+			Message: "Failed to save config",
+		}, nil
+	}
+
+	log.Printf("On-call config saved successfully")
+
+	return &alertpb.SaveOnCallConfigResponse{
+		Success: true,
+		Message: "Config saved successfully",
+	}, nil
+}

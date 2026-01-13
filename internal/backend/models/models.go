@@ -319,6 +319,58 @@ type UserColumnPreference struct {
 
 func (UserColumnPreference) TableName() string { return "user_column_preferences" }
 
+// StatisticsView represents a saved statistics view configuration
+type StatisticsView struct {
+	ID          string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
+	UserID      string    `gorm:"not null;size:32;index" json:"user_id"`
+	Name        string    `gorm:"not null;size:255" json:"name"`
+	Description string    `gorm:"type:text" json:"description,omitempty"`
+	IsShared    bool      `gorm:"default:false;index" json:"is_shared"`
+	IsDefault   bool      `gorm:"default:false" json:"is_default"`
+	ViewData    JSONB     `gorm:"type:jsonb;not null" json:"view_data"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+func (sv *StatisticsView) BeforeCreate(tx *gorm.DB) error {
+	if sv.ID == "" {
+		sv.ID = GenerateID()
+	}
+	return nil
+}
+
+func (StatisticsView) TableName() string { return "statistics_views" }
+
+// UserDefaultStatisticsView tracks which view is default for a user
+type UserDefaultStatisticsView struct {
+	UserID           string `gorm:"primaryKey;type:varchar(32)" json:"user_id"`
+	StatisticsViewID string `gorm:"not null;type:varchar(32)" json:"statistics_view_id"`
+}
+
+func (UserDefaultStatisticsView) TableName() string { return "user_default_statistics_views" }
+
+// OnCallConfig represents the global on-call schedule configuration
+type OnCallConfig struct {
+	ID              string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
+	OnCallDays      JSONB     `gorm:"type:jsonb;not null" json:"on_call_days"` // ["mon","tue","wed","thu","fri"]
+	OnCallStartTime string    `gorm:"not null;size:5" json:"on_call_start_time"` // "18:00"
+	OnCallEndTime   string    `gorm:"not null;size:5" json:"on_call_end_time"`   // "09:00"
+	IncludeWeekends bool      `gorm:"default:true" json:"include_weekends"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+func (oc *OnCallConfig) BeforeCreate(tx *gorm.DB) error {
+	if oc.ID == "" {
+		oc.ID = GenerateID()
+	}
+	return nil
+}
+
+func (OnCallConfig) TableName() string { return "on_call_configs" }
+
 func GenerateID() string {
 	return generateRandomString(32)
 }

@@ -2052,3 +2052,257 @@ func (c *BackendClient) SaveUserColumnPreferences(sessionID, userID string, colu
 
 	return nil
 }
+
+// ==================== Statistics Views ====================
+
+// GetStatisticsViews retrieves all statistics views for the current user
+func (c *BackendClient) GetStatisticsViews(sessionID string, includeShared bool) ([]models.StatisticsView, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetStatisticsViewsRequest{
+		SessionId:     sessionID,
+		IncludeShared: includeShared,
+	}
+
+	resp, err := c.statisticsClient.GetStatisticsViews(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get statistics views: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("get statistics views failed: %s", resp.Message)
+	}
+
+	views := make([]models.StatisticsView, len(resp.Views))
+	for i, v := range resp.Views {
+		var viewData models.StatisticsViewData
+		if len(v.ViewData) > 0 {
+			json.Unmarshal(v.ViewData, &viewData)
+		}
+		views[i] = models.StatisticsView{
+			ID:          v.Id,
+			UserID:      v.UserId,
+			Name:        v.Name,
+			Description: v.Description,
+			IsShared:    v.IsShared,
+			IsDefault:   v.IsDefault,
+			ViewData:    viewData,
+			CreatedAt:   v.CreatedAt.AsTime(),
+			UpdatedAt:   v.UpdatedAt.AsTime(),
+		}
+	}
+
+	return views, nil
+}
+
+// SaveStatisticsView creates a new statistics view
+func (c *BackendClient) SaveStatisticsView(sessionID string, req models.StatisticsViewRequest) (*models.StatisticsView, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	viewDataBytes, err := json.Marshal(req.ViewData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal view data: %w", err)
+	}
+
+	pbReq := &alertpb.SaveStatisticsViewRequest{
+		SessionId:   sessionID,
+		Name:        req.Name,
+		Description: req.Description,
+		IsShared:    req.IsShared,
+		ViewData:    viewDataBytes,
+	}
+
+	resp, err := c.statisticsClient.SaveStatisticsView(ctx, pbReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save statistics view: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("save statistics view failed: %s", resp.Message)
+	}
+
+	var viewData models.StatisticsViewData
+	if len(resp.View.ViewData) > 0 {
+		json.Unmarshal(resp.View.ViewData, &viewData)
+	}
+
+	return &models.StatisticsView{
+		ID:          resp.View.Id,
+		UserID:      resp.View.UserId,
+		Name:        resp.View.Name,
+		Description: resp.View.Description,
+		IsShared:    resp.View.IsShared,
+		IsDefault:   resp.View.IsDefault,
+		ViewData:    viewData,
+		CreatedAt:   resp.View.CreatedAt.AsTime(),
+		UpdatedAt:   resp.View.UpdatedAt.AsTime(),
+	}, nil
+}
+
+// UpdateStatisticsView updates an existing statistics view
+func (c *BackendClient) UpdateStatisticsView(sessionID, viewID string, req models.StatisticsViewRequest) (*models.StatisticsView, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	viewDataBytes, err := json.Marshal(req.ViewData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal view data: %w", err)
+	}
+
+	pbReq := &alertpb.UpdateStatisticsViewRequest{
+		SessionId:   sessionID,
+		ViewId:      viewID,
+		Name:        req.Name,
+		Description: req.Description,
+		IsShared:    req.IsShared,
+		ViewData:    viewDataBytes,
+	}
+
+	resp, err := c.statisticsClient.UpdateStatisticsView(ctx, pbReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update statistics view: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("update statistics view failed: %s", resp.Message)
+	}
+
+	var viewData models.StatisticsViewData
+	if len(resp.View.ViewData) > 0 {
+		json.Unmarshal(resp.View.ViewData, &viewData)
+	}
+
+	return &models.StatisticsView{
+		ID:          resp.View.Id,
+		UserID:      resp.View.UserId,
+		Name:        resp.View.Name,
+		Description: resp.View.Description,
+		IsShared:    resp.View.IsShared,
+		IsDefault:   resp.View.IsDefault,
+		ViewData:    viewData,
+		CreatedAt:   resp.View.CreatedAt.AsTime(),
+		UpdatedAt:   resp.View.UpdatedAt.AsTime(),
+	}, nil
+}
+
+// DeleteStatisticsView deletes a statistics view
+func (c *BackendClient) DeleteStatisticsView(sessionID, viewID string) error {
+	if c.statisticsClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.statisticsClient.DeleteStatisticsView(ctx, &alertpb.DeleteStatisticsViewRequest{
+		SessionId: sessionID,
+		ViewId:    viewID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete statistics view: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("delete statistics view failed: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// SetDefaultStatisticsView sets a statistics view as the default
+func (c *BackendClient) SetDefaultStatisticsView(sessionID, viewID string) error {
+	if c.statisticsClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.statisticsClient.SetDefaultStatisticsView(ctx, &alertpb.SetDefaultStatisticsViewRequest{
+		SessionId: sessionID,
+		ViewId:    viewID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set default statistics view: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("set default statistics view failed: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// ==================== On-Call Config ====================
+
+// GetOnCallConfig retrieves the on-call configuration
+func (c *BackendClient) GetOnCallConfig(sessionID string) (*models.OnCallConfig, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.statisticsClient.GetOnCallConfig(ctx, &alertpb.GetOnCallConfigRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get on-call config: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("get on-call config failed: %s", resp.Message)
+	}
+
+	return &models.OnCallConfig{
+		ID:              resp.Config.Id,
+		OnCallDays:      resp.Config.OnCallDays,
+		OnCallStartTime: resp.Config.OnCallStartTime,
+		OnCallEndTime:   resp.Config.OnCallEndTime,
+		IncludeWeekends: resp.Config.IncludeWeekends,
+	}, nil
+}
+
+// SaveOnCallConfig saves the on-call configuration
+func (c *BackendClient) SaveOnCallConfig(sessionID string, config *models.OnCallConfig) error {
+	if c.statisticsClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.statisticsClient.SaveOnCallConfig(ctx, &alertpb.SaveOnCallConfigRequest{
+		SessionId: sessionID,
+		Config: &alertpb.OnCallConfigProto{
+			OnCallDays:      config.OnCallDays,
+			OnCallStartTime: config.OnCallStartTime,
+			OnCallEndTime:   config.OnCallEndTime,
+			IncludeWeekends: config.IncludeWeekends,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save on-call config: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("save on-call config failed: %s", resp.Message)
+	}
+
+	return nil
+}

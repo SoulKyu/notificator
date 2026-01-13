@@ -147,6 +147,10 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.StatisticsAggregate{},
 		// Annotation button configs
 		&models.AnnotationButtonConfig{},
+		// Statistics views and on-call config
+		&models.StatisticsView{},
+		&models.UserDefaultStatisticsView{},
+		&models.OnCallConfig{},
 	)
 
 	if err != nil {
@@ -893,6 +897,164 @@ func (gdb *GormDB) GetDefaultFilterPreset(userID string) (*models.FilterPreset, 
 	}
 
 	return &preset, nil
+}
+
+// ==================== Statistics Views ====================
+
+// CreateStatisticsView creates a new statistics view for a user
+func (gdb *GormDB) CreateStatisticsView(view *models.StatisticsView) (*models.StatisticsView, error) {
+	if err := gdb.db.Create(view).Error; err != nil {
+		return nil, fmt.Errorf("failed to create statistics view: %w", err)
+	}
+	return view, nil
+}
+
+// GetStatisticsViews gets all statistics views for a user (private + shared)
+func (gdb *GormDB) GetStatisticsViews(userID string, includeShared bool) ([]models.StatisticsView, error) {
+	var views []models.StatisticsView
+	query := gdb.db.Where("user_id = ?", userID)
+	if includeShared {
+		query = gdb.db.Where("user_id = ? OR is_shared = ?", userID, true)
+	}
+	if err := query.Order("created_at DESC").Find(&views).Error; err != nil {
+		return nil, fmt.Errorf("failed to get statistics views: %w", err)
+	}
+
+	// Check for user default
+	var userDefault models.UserDefaultStatisticsView
+	var defaultViewID string
+	if err := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error; err == nil {
+		defaultViewID = userDefault.StatisticsViewID
+	}
+
+	// Mark default and sort
+	var sortedViews []models.StatisticsView
+	var defaultView *models.StatisticsView
+	for i := range views {
+		views[i].IsDefault = (views[i].ID == defaultViewID)
+		if views[i].IsDefault {
+			defaultView = &views[i]
+		} else {
+			sortedViews = append(sortedViews, views[i])
+		}
+	}
+	if defaultView != nil {
+		sortedViews = append([]models.StatisticsView{*defaultView}, sortedViews...)
+	}
+
+	return sortedViews, nil
+}
+
+// GetStatisticsViewByID gets a specific statistics view by ID
+func (gdb *GormDB) GetStatisticsViewByID(id string) (*models.StatisticsView, error) {
+	var view models.StatisticsView
+	if err := gdb.db.Where("id = ?", id).First(&view).Error; err != nil {
+		return nil, err
+	}
+	return &view, nil
+}
+
+// UpdateStatisticsView updates an existing statistics view
+func (gdb *GormDB) UpdateStatisticsView(view *models.StatisticsView) error {
+	if err := gdb.db.Save(view).Error; err != nil {
+		return fmt.Errorf("failed to update statistics view: %w", err)
+	}
+	return nil
+}
+
+// DeleteStatisticsView deletes a statistics view (with ownership check)
+func (gdb *GormDB) DeleteStatisticsView(id, userID string) error {
+	result := gdb.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.StatisticsView{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("statistics view not found or not authorized")
+	}
+	return nil
+}
+
+// SetDefaultStatisticsView sets a statistics view as default for a user
+func (gdb *GormDB) SetDefaultStatisticsView(id, userID string) error {
+	return gdb.db.Transaction(func(tx *gorm.DB) error {
+		// Verify view exists and is accessible
+		var view models.StatisticsView
+		err := tx.Where("id = ? AND (user_id = ? OR is_shared = ?)", id, userID, true).First(&view).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("statistics view not found or not accessible")
+			}
+			return err
+		}
+
+		// Delete existing default
+		if err := tx.Where("user_id = ?", userID).Delete(&models.UserDefaultStatisticsView{}).Error; err != nil {
+			return err
+		}
+
+		// Set new default
+		userDefault := &models.UserDefaultStatisticsView{
+			UserID:           userID,
+			StatisticsViewID: id,
+		}
+		return tx.Create(userDefault).Error
+	})
+}
+
+// GetDefaultStatisticsView gets the default statistics view for a user
+func (gdb *GormDB) GetDefaultStatisticsView(userID string) (*models.StatisticsView, error) {
+	var userDefault models.UserDefaultStatisticsView
+	err := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var view models.StatisticsView
+	err = gdb.db.Where("id = ?", userDefault.StatisticsViewID).First(&view).Error
+	if err != nil {
+		return nil, err
+	}
+	view.IsDefault = true
+	return &view, nil
+}
+
+// ==================== On-Call Config ====================
+
+// GetOnCallConfig gets the global on-call configuration (singleton)
+func (gdb *GormDB) GetOnCallConfig() (*models.OnCallConfig, error) {
+	var config models.OnCallConfig
+	err := gdb.db.First(&config).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Return default config
+			return &models.OnCallConfig{
+				OnCallDays:      models.JSONB(`["mon","tue","wed","thu","fri"]`),
+				OnCallStartTime: "18:00",
+				OnCallEndTime:   "09:00",
+				IncludeWeekends: true,
+			}, nil
+		}
+		return nil, err
+	}
+	return &config, nil
+}
+
+// SaveOnCallConfig saves or updates the global on-call configuration
+func (gdb *GormDB) SaveOnCallConfig(config *models.OnCallConfig) error {
+	// Get existing config
+	var existing models.OnCallConfig
+	err := gdb.db.First(&existing).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	if existing.ID != "" {
+		// Update existing
+		config.ID = existing.ID
+		return gdb.db.Save(config).Error
+	}
+	// Create new
+	return gdb.db.Create(config).Error
 }
 
 // Annotation Button Config Methods

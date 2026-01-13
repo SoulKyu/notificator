@@ -1524,20 +1524,27 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	StatisticsService_QueryStatistics_FullMethodName         = "/notificator.alert.StatisticsService/QueryStatistics"
-	StatisticsService_SaveOnCallRule_FullMethodName          = "/notificator.alert.StatisticsService/SaveOnCallRule"
-	StatisticsService_GetOnCallRules_FullMethodName          = "/notificator.alert.StatisticsService/GetOnCallRules"
-	StatisticsService_GetOnCallRule_FullMethodName           = "/notificator.alert.StatisticsService/GetOnCallRule"
-	StatisticsService_UpdateOnCallRule_FullMethodName        = "/notificator.alert.StatisticsService/UpdateOnCallRule"
-	StatisticsService_DeleteOnCallRule_FullMethodName        = "/notificator.alert.StatisticsService/DeleteOnCallRule"
-	StatisticsService_TestOnCallRule_FullMethodName          = "/notificator.alert.StatisticsService/TestOnCallRule"
-	StatisticsService_GetStatisticsSummary_FullMethodName    = "/notificator.alert.StatisticsService/GetStatisticsSummary"
-	StatisticsService_CaptureAlertFired_FullMethodName       = "/notificator.alert.StatisticsService/CaptureAlertFired"
-	StatisticsService_UpdateAlertResolved_FullMethodName     = "/notificator.alert.StatisticsService/UpdateAlertResolved"
-	StatisticsService_UpdateAlertAcknowledged_FullMethodName = "/notificator.alert.StatisticsService/UpdateAlertAcknowledged"
-	StatisticsService_QueryRecentlyResolved_FullMethodName   = "/notificator.alert.StatisticsService/QueryRecentlyResolved"
-	StatisticsService_GetAlertHistory_FullMethodName         = "/notificator.alert.StatisticsService/GetAlertHistory"
-	StatisticsService_GetAlertsByName_FullMethodName         = "/notificator.alert.StatisticsService/GetAlertsByName"
+	StatisticsService_QueryStatistics_FullMethodName          = "/notificator.alert.StatisticsService/QueryStatistics"
+	StatisticsService_SaveOnCallRule_FullMethodName           = "/notificator.alert.StatisticsService/SaveOnCallRule"
+	StatisticsService_GetOnCallRules_FullMethodName           = "/notificator.alert.StatisticsService/GetOnCallRules"
+	StatisticsService_GetOnCallRule_FullMethodName            = "/notificator.alert.StatisticsService/GetOnCallRule"
+	StatisticsService_UpdateOnCallRule_FullMethodName         = "/notificator.alert.StatisticsService/UpdateOnCallRule"
+	StatisticsService_DeleteOnCallRule_FullMethodName         = "/notificator.alert.StatisticsService/DeleteOnCallRule"
+	StatisticsService_TestOnCallRule_FullMethodName           = "/notificator.alert.StatisticsService/TestOnCallRule"
+	StatisticsService_GetStatisticsSummary_FullMethodName     = "/notificator.alert.StatisticsService/GetStatisticsSummary"
+	StatisticsService_CaptureAlertFired_FullMethodName        = "/notificator.alert.StatisticsService/CaptureAlertFired"
+	StatisticsService_UpdateAlertResolved_FullMethodName      = "/notificator.alert.StatisticsService/UpdateAlertResolved"
+	StatisticsService_UpdateAlertAcknowledged_FullMethodName  = "/notificator.alert.StatisticsService/UpdateAlertAcknowledged"
+	StatisticsService_QueryRecentlyResolved_FullMethodName    = "/notificator.alert.StatisticsService/QueryRecentlyResolved"
+	StatisticsService_GetAlertHistory_FullMethodName          = "/notificator.alert.StatisticsService/GetAlertHistory"
+	StatisticsService_GetAlertsByName_FullMethodName          = "/notificator.alert.StatisticsService/GetAlertsByName"
+	StatisticsService_GetStatisticsViews_FullMethodName       = "/notificator.alert.StatisticsService/GetStatisticsViews"
+	StatisticsService_SaveStatisticsView_FullMethodName       = "/notificator.alert.StatisticsService/SaveStatisticsView"
+	StatisticsService_UpdateStatisticsView_FullMethodName     = "/notificator.alert.StatisticsService/UpdateStatisticsView"
+	StatisticsService_DeleteStatisticsView_FullMethodName     = "/notificator.alert.StatisticsService/DeleteStatisticsView"
+	StatisticsService_SetDefaultStatisticsView_FullMethodName = "/notificator.alert.StatisticsService/SetDefaultStatisticsView"
+	StatisticsService_GetOnCallConfig_FullMethodName          = "/notificator.alert.StatisticsService/GetOnCallConfig"
+	StatisticsService_SaveOnCallConfig_FullMethodName         = "/notificator.alert.StatisticsService/SaveOnCallConfig"
 )
 
 // StatisticsServiceClient is the client API for StatisticsService service.
@@ -1567,6 +1574,15 @@ type StatisticsServiceClient interface {
 	GetAlertHistory(ctx context.Context, in *GetAlertHistoryRequest, opts ...grpc.CallOption) (*GetAlertHistoryResponse, error)
 	// Get alerts by name with filters (for drill-down view)
 	GetAlertsByName(ctx context.Context, in *GetAlertsByNameRequest, opts ...grpc.CallOption) (*GetAlertsByNameResponse, error)
+	// Statistics Views
+	GetStatisticsViews(ctx context.Context, in *GetStatisticsViewsRequest, opts ...grpc.CallOption) (*GetStatisticsViewsResponse, error)
+	SaveStatisticsView(ctx context.Context, in *SaveStatisticsViewRequest, opts ...grpc.CallOption) (*SaveStatisticsViewResponse, error)
+	UpdateStatisticsView(ctx context.Context, in *UpdateStatisticsViewRequest, opts ...grpc.CallOption) (*UpdateStatisticsViewResponse, error)
+	DeleteStatisticsView(ctx context.Context, in *DeleteStatisticsViewRequest, opts ...grpc.CallOption) (*GenericResponse, error)
+	SetDefaultStatisticsView(ctx context.Context, in *SetDefaultStatisticsViewRequest, opts ...grpc.CallOption) (*GenericResponse, error)
+	// On-Call Config
+	GetOnCallConfig(ctx context.Context, in *GetOnCallConfigRequest, opts ...grpc.CallOption) (*GetOnCallConfigResponse, error)
+	SaveOnCallConfig(ctx context.Context, in *SaveOnCallConfigRequest, opts ...grpc.CallOption) (*SaveOnCallConfigResponse, error)
 }
 
 type statisticsServiceClient struct {
@@ -1717,6 +1733,76 @@ func (c *statisticsServiceClient) GetAlertsByName(ctx context.Context, in *GetAl
 	return out, nil
 }
 
+func (c *statisticsServiceClient) GetStatisticsViews(ctx context.Context, in *GetStatisticsViewsRequest, opts ...grpc.CallOption) (*GetStatisticsViewsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetStatisticsViewsResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_GetStatisticsViews_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) SaveStatisticsView(ctx context.Context, in *SaveStatisticsViewRequest, opts ...grpc.CallOption) (*SaveStatisticsViewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveStatisticsViewResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_SaveStatisticsView_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) UpdateStatisticsView(ctx context.Context, in *UpdateStatisticsViewRequest, opts ...grpc.CallOption) (*UpdateStatisticsViewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateStatisticsViewResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_UpdateStatisticsView_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) DeleteStatisticsView(ctx context.Context, in *DeleteStatisticsViewRequest, opts ...grpc.CallOption) (*GenericResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenericResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_DeleteStatisticsView_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) SetDefaultStatisticsView(ctx context.Context, in *SetDefaultStatisticsViewRequest, opts ...grpc.CallOption) (*GenericResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenericResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_SetDefaultStatisticsView_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) GetOnCallConfig(ctx context.Context, in *GetOnCallConfigRequest, opts ...grpc.CallOption) (*GetOnCallConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOnCallConfigResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_GetOnCallConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) SaveOnCallConfig(ctx context.Context, in *SaveOnCallConfigRequest, opts ...grpc.CallOption) (*SaveOnCallConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveOnCallConfigResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_SaveOnCallConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // StatisticsServiceServer is the server API for StatisticsService service.
 // All implementations must embed UnimplementedStatisticsServiceServer
 // for forward compatibility.
@@ -1744,6 +1830,15 @@ type StatisticsServiceServer interface {
 	GetAlertHistory(context.Context, *GetAlertHistoryRequest) (*GetAlertHistoryResponse, error)
 	// Get alerts by name with filters (for drill-down view)
 	GetAlertsByName(context.Context, *GetAlertsByNameRequest) (*GetAlertsByNameResponse, error)
+	// Statistics Views
+	GetStatisticsViews(context.Context, *GetStatisticsViewsRequest) (*GetStatisticsViewsResponse, error)
+	SaveStatisticsView(context.Context, *SaveStatisticsViewRequest) (*SaveStatisticsViewResponse, error)
+	UpdateStatisticsView(context.Context, *UpdateStatisticsViewRequest) (*UpdateStatisticsViewResponse, error)
+	DeleteStatisticsView(context.Context, *DeleteStatisticsViewRequest) (*GenericResponse, error)
+	SetDefaultStatisticsView(context.Context, *SetDefaultStatisticsViewRequest) (*GenericResponse, error)
+	// On-Call Config
+	GetOnCallConfig(context.Context, *GetOnCallConfigRequest) (*GetOnCallConfigResponse, error)
+	SaveOnCallConfig(context.Context, *SaveOnCallConfigRequest) (*SaveOnCallConfigResponse, error)
 	mustEmbedUnimplementedStatisticsServiceServer()
 }
 
@@ -1795,6 +1890,27 @@ func (UnimplementedStatisticsServiceServer) GetAlertHistory(context.Context, *Ge
 }
 func (UnimplementedStatisticsServiceServer) GetAlertsByName(context.Context, *GetAlertsByNameRequest) (*GetAlertsByNameResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAlertsByName not implemented")
+}
+func (UnimplementedStatisticsServiceServer) GetStatisticsViews(context.Context, *GetStatisticsViewsRequest) (*GetStatisticsViewsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStatisticsViews not implemented")
+}
+func (UnimplementedStatisticsServiceServer) SaveStatisticsView(context.Context, *SaveStatisticsViewRequest) (*SaveStatisticsViewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveStatisticsView not implemented")
+}
+func (UnimplementedStatisticsServiceServer) UpdateStatisticsView(context.Context, *UpdateStatisticsViewRequest) (*UpdateStatisticsViewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatisticsView not implemented")
+}
+func (UnimplementedStatisticsServiceServer) DeleteStatisticsView(context.Context, *DeleteStatisticsViewRequest) (*GenericResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteStatisticsView not implemented")
+}
+func (UnimplementedStatisticsServiceServer) SetDefaultStatisticsView(context.Context, *SetDefaultStatisticsViewRequest) (*GenericResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetDefaultStatisticsView not implemented")
+}
+func (UnimplementedStatisticsServiceServer) GetOnCallConfig(context.Context, *GetOnCallConfigRequest) (*GetOnCallConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOnCallConfig not implemented")
+}
+func (UnimplementedStatisticsServiceServer) SaveOnCallConfig(context.Context, *SaveOnCallConfigRequest) (*SaveOnCallConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveOnCallConfig not implemented")
 }
 func (UnimplementedStatisticsServiceServer) mustEmbedUnimplementedStatisticsServiceServer() {}
 func (UnimplementedStatisticsServiceServer) testEmbeddedByValue()                           {}
@@ -2069,6 +2185,132 @@ func _StatisticsService_GetAlertsByName_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StatisticsService_GetStatisticsViews_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStatisticsViewsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).GetStatisticsViews(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_GetStatisticsViews_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).GetStatisticsViews(ctx, req.(*GetStatisticsViewsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_SaveStatisticsView_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveStatisticsViewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).SaveStatisticsView(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_SaveStatisticsView_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).SaveStatisticsView(ctx, req.(*SaveStatisticsViewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_UpdateStatisticsView_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateStatisticsViewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).UpdateStatisticsView(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_UpdateStatisticsView_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).UpdateStatisticsView(ctx, req.(*UpdateStatisticsViewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_DeleteStatisticsView_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteStatisticsViewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).DeleteStatisticsView(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_DeleteStatisticsView_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).DeleteStatisticsView(ctx, req.(*DeleteStatisticsViewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_SetDefaultStatisticsView_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetDefaultStatisticsViewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).SetDefaultStatisticsView(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_SetDefaultStatisticsView_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).SetDefaultStatisticsView(ctx, req.(*SetDefaultStatisticsViewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_GetOnCallConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOnCallConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).GetOnCallConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_GetOnCallConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).GetOnCallConfig(ctx, req.(*GetOnCallConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_SaveOnCallConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveOnCallConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).SaveOnCallConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_SaveOnCallConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).SaveOnCallConfig(ctx, req.(*SaveOnCallConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // StatisticsService_ServiceDesc is the grpc.ServiceDesc for StatisticsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2131,6 +2373,34 @@ var StatisticsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAlertsByName",
 			Handler:    _StatisticsService_GetAlertsByName_Handler,
+		},
+		{
+			MethodName: "GetStatisticsViews",
+			Handler:    _StatisticsService_GetStatisticsViews_Handler,
+		},
+		{
+			MethodName: "SaveStatisticsView",
+			Handler:    _StatisticsService_SaveStatisticsView_Handler,
+		},
+		{
+			MethodName: "UpdateStatisticsView",
+			Handler:    _StatisticsService_UpdateStatisticsView_Handler,
+		},
+		{
+			MethodName: "DeleteStatisticsView",
+			Handler:    _StatisticsService_DeleteStatisticsView_Handler,
+		},
+		{
+			MethodName: "SetDefaultStatisticsView",
+			Handler:    _StatisticsService_SetDefaultStatisticsView_Handler,
+		},
+		{
+			MethodName: "GetOnCallConfig",
+			Handler:    _StatisticsService_GetOnCallConfig_Handler,
+		},
+		{
+			MethodName: "SaveOnCallConfig",
+			Handler:    _StatisticsService_SaveOnCallConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

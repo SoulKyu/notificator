@@ -57,6 +57,12 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<span class="ms-2 text-sm font-medium text-gray-700 dark:text-gray-300">Compare</span>
 							</label>
 						</div>
+						<button @click="showSavedViewsModal = true" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+							</svg>
+							Saved Views
+						</button>
 						<a href="/statistics/rules" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
 							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -715,6 +721,145 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 		<!-- Individual Alert Details Modal (using shared component) -->
 		@components.AlertModalReadonly("showAlertModal", "individualAlertLoading", "individualAlertData", "individualAlertOccurrences", "closeAlertModal()", "z-[60]")
+
+		<!-- Saved Views Modal -->
+		<div x-show="showSavedViewsModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+			<div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+				<!-- Backdrop -->
+				<div
+					x-show="showSavedViewsModal"
+					x-transition:enter="ease-out duration-300"
+					x-transition:enter-start="opacity-0"
+					x-transition:enter-end="opacity-100"
+					x-transition:leave="ease-in duration-200"
+					x-transition:leave-start="opacity-100"
+					x-transition:leave-end="opacity-0"
+					class="fixed inset-0 bg-gray-500/75 dark:bg-gray-900/75 transition-opacity"
+					@click="showSavedViewsModal = false"
+				></div>
+
+				<!-- Modal Panel -->
+				<div
+					x-show="showSavedViewsModal"
+					x-transition:enter="ease-out duration-300"
+					x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+					x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+					x-transition:leave="ease-in duration-200"
+					x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+					x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+					class="relative inline-block w-full max-w-lg p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-dark-bg-secondary shadow-xl rounded-lg"
+				>
+					<div class="flex items-center justify-between mb-4">
+						<h3 class="text-lg font-medium text-gray-900 dark:text-white">Saved Views</h3>
+						<button @click="showSavedViewsModal = false" class="text-gray-400 hover:text-gray-500">
+							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+							</svg>
+						</button>
+					</div>
+
+					<!-- Save Current View Form -->
+					<div class="mb-4 p-3 bg-gray-50 dark:bg-dark-bg-tertiary rounded-lg">
+						<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Save Current View</h4>
+						<div class="space-y-2">
+							<input
+								type="text"
+								x-model="newViewName"
+								placeholder="View name"
+								class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-secondary dark:text-white text-sm"
+							/>
+							<input
+								type="text"
+								x-model="newViewDescription"
+								placeholder="Description (optional)"
+								class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-secondary dark:text-white text-sm"
+							/>
+							<div class="flex items-center justify-between">
+								<label class="flex items-center">
+									<input type="checkbox" x-model="newViewIsShared" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"/>
+									<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Share with team</span>
+								</label>
+								<button
+									@click="saveCurrentView()"
+									class="px-3 py-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+								>
+									Save View
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Saved Views List -->
+					<div class="space-y-2 max-h-64 overflow-y-auto">
+						<template x-if="savedViewsLoading">
+							<div class="text-center py-4">
+								<svg class="animate-spin h-6 w-6 mx-auto text-blue-600" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+								</svg>
+							</div>
+						</template>
+						<template x-if="!savedViewsLoading && savedViews.length === 0">
+							<div class="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+								No saved views yet
+							</div>
+						</template>
+						<template x-for="view in savedViews" :key="view.id">
+							<div
+								class="flex items-center justify-between p-3 rounded-lg border transition-colors"
+								:class="currentViewId === view.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600' : 'bg-white dark:bg-dark-bg-tertiary border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-dark-bg-primary'"
+							>
+								<div class="flex-1 min-w-0 cursor-pointer" @click="applyView(view)">
+									<div class="flex items-center">
+										<span class="font-medium text-gray-900 dark:text-white truncate" x-text="view.name"></span>
+										<template x-if="view.is_default">
+											<span class="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded">Default</span>
+										</template>
+										<template x-if="view.is_shared">
+											<span class="ml-2 px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">Shared</span>
+										</template>
+									</div>
+									<template x-if="view.description">
+										<p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="view.description"></p>
+									</template>
+								</div>
+								<div class="flex items-center space-x-1 ml-2">
+									<button
+										@click.stop="setDefaultView(view.id)"
+										class="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+										:class="view.is_default ? 'text-blue-600' : ''"
+										title="Set as default"
+									>
+										<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+											<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+										</svg>
+									</button>
+									<button
+										@click.stop="deleteView(view.id)"
+										class="p-1 text-gray-400 hover:text-red-600 transition-colors"
+										title="Delete view"
+									>
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+										</svg>
+									</button>
+								</div>
+							</div>
+						</template>
+					</div>
+
+					<!-- Close Button -->
+					<div class="mt-4 flex justify-end">
+						<button
+							@click="showSavedViewsModal = false"
+							class="px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<script>
@@ -766,10 +911,32 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					limit: 20,
 					filterByTimeOfDay: false,
 					timeOfDayStart: '22:00',
-					timeOfDayEnd: '06:00'
+					timeOfDayEnd: '06:00',
+					// New filters for saved views
+					timeRangeType: 'last_week',
+					customStart: '',
+					customEnd: '',
+					hoursFilter: '24_7',
+					teams: [],
+					severities: []
 				},
 
+				// Statistics views state
+				savedViews: [],
+				showSavedViewsModal: false,
+				savedViewsLoading: false,
+				currentViewId: null,
+				newViewName: '',
+				newViewDescription: '',
+				newViewIsShared: false,
+				editingView: null,
+
+				// On-call config
+				onCallConfig: null,
+
 				init() {
+					// Load saved views on init
+					this.loadSavedViews();
 					// Watch for timeSeriesView changes
 					this.$watch('timeSeriesView', () => {
 						if (this.timeSeriesData) {
@@ -1685,6 +1852,269 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					a.click();
 					document.body.removeChild(a);
 					window.URL.revokeObjectURL(url);
+				},
+
+				// ==================== Statistics Views ====================
+
+				async loadSavedViews() {
+					this.savedViewsLoading = true;
+					try {
+						const response = await fetch('/api/v1/statistics/views?include_shared=true', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const data = await response.json();
+							this.savedViews = data.data?.views || [];
+							// Apply default view if exists
+							const defaultView = this.savedViews.find(v => v.is_default);
+							if (defaultView && !this.currentViewId) {
+								this.applyView(defaultView);
+							}
+						}
+					} catch (error) {
+						console.error('Failed to load saved views:', error);
+					} finally {
+						this.savedViewsLoading = false;
+					}
+				},
+
+				async saveCurrentView() {
+					if (!this.newViewName.trim()) {
+						alert('Please enter a view name');
+						return;
+					}
+
+					const viewData = {
+						time_range_type: this.filters.timeRangeType,
+						custom_start: this.filters.customStart,
+						custom_end: this.filters.customEnd,
+						hours_filter: this.filters.hoursFilter,
+						teams: this.filters.teams,
+						severities: this.filters.severities,
+						group_by: this.filters.groupBy,
+						top_n_limit: this.filters.limit,
+						sort_by: this.sortColumn,
+						sort_direction: this.sortDirection
+					};
+
+					try {
+						const response = await fetch('/api/v1/statistics/views', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							credentials: 'include',
+							body: JSON.stringify({
+								name: this.newViewName,
+								description: this.newViewDescription,
+								is_shared: this.newViewIsShared,
+								view_data: viewData
+							})
+						});
+
+						if (response.ok) {
+							const data = await response.json();
+							this.savedViews.unshift(data.data.view);
+							this.currentViewId = data.data.view.id;
+							this.newViewName = '';
+							this.newViewDescription = '';
+							this.newViewIsShared = false;
+							this.showSavedViewsModal = false;
+						} else {
+							alert('Failed to save view');
+						}
+					} catch (error) {
+						console.error('Failed to save view:', error);
+						alert('Failed to save view');
+					}
+				},
+
+				async deleteView(viewId) {
+					if (!confirm('Are you sure you want to delete this view?')) return;
+
+					try {
+						const response = await fetch(`/api/v1/statistics/views/${viewId}`, {
+							method: 'DELETE',
+							credentials: 'include'
+						});
+
+						if (response.ok) {
+							this.savedViews = this.savedViews.filter(v => v.id !== viewId);
+							if (this.currentViewId === viewId) {
+								this.currentViewId = null;
+							}
+						} else {
+							alert('Failed to delete view');
+						}
+					} catch (error) {
+						console.error('Failed to delete view:', error);
+						alert('Failed to delete view');
+					}
+				},
+
+				async setDefaultView(viewId) {
+					try {
+						const response = await fetch(`/api/v1/statistics/views/${viewId}/default`, {
+							method: 'POST',
+							credentials: 'include'
+						});
+
+						if (response.ok) {
+							// Update local state
+							this.savedViews.forEach(v => {
+								v.is_default = (v.id === viewId);
+							});
+						} else {
+							alert('Failed to set default view');
+						}
+					} catch (error) {
+						console.error('Failed to set default view:', error);
+						alert('Failed to set default view');
+					}
+				},
+
+				applyView(view) {
+					this.currentViewId = view.id;
+					const vd = view.view_data;
+
+					// Apply view settings
+					if (vd.time_range_type) this.filters.timeRangeType = vd.time_range_type;
+					if (vd.custom_start) this.filters.customStart = vd.custom_start;
+					if (vd.custom_end) this.filters.customEnd = vd.custom_end;
+					if (vd.hours_filter) this.filters.hoursFilter = vd.hours_filter;
+					if (vd.teams) this.filters.teams = vd.teams;
+					if (vd.severities) this.filters.severities = vd.severities;
+					if (vd.group_by) this.filters.groupBy = vd.group_by;
+					if (vd.top_n_limit) this.filters.limit = vd.top_n_limit;
+					if (vd.sort_by) this.sortColumn = vd.sort_by;
+					if (vd.sort_direction) this.sortDirection = vd.sort_direction;
+
+					// Calculate actual date range from time range type
+					this.setTimeRange(this.filters.timeRangeType);
+
+					this.showSavedViewsModal = false;
+					this.queryStatistics();
+				},
+
+				setTimeRange(type) {
+					this.filters.timeRangeType = type;
+					const now = new Date();
+					let start, end;
+
+					switch (type) {
+						case 'this_week':
+							start = new Date(now);
+							start.setDate(now.getDate() - now.getDay());
+							end = now;
+							break;
+						case 'last_week':
+							start = new Date(now);
+							start.setDate(now.getDate() - now.getDay() - 7);
+							end = new Date(now);
+							end.setDate(now.getDate() - now.getDay() - 1);
+							break;
+						case 'this_month':
+							start = new Date(now.getFullYear(), now.getMonth(), 1);
+							end = now;
+							break;
+						case 'last_month':
+							start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+							end = new Date(now.getFullYear(), now.getMonth(), 0);
+							break;
+						case 'this_quarter':
+							const qMonth = Math.floor(now.getMonth() / 3) * 3;
+							start = new Date(now.getFullYear(), qMonth, 1);
+							end = now;
+							break;
+						case 'last_quarter':
+							const lqMonth = Math.floor(now.getMonth() / 3) * 3 - 3;
+							start = new Date(now.getFullYear(), lqMonth, 1);
+							end = new Date(now.getFullYear(), lqMonth + 3, 0);
+							break;
+						case 'custom':
+							if (this.filters.customStart && this.filters.customEnd) {
+								start = new Date(this.filters.customStart);
+								end = new Date(this.filters.customEnd);
+							} else {
+								return; // Don't update if custom dates not set
+							}
+							break;
+						default:
+							start = new Date(now);
+							start.setDate(now.getDate() - 7);
+							end = now;
+					}
+
+					this.filters.startDate = start.toISOString().split('T')[0];
+					this.filters.endDate = end.toISOString().split('T')[0];
+				},
+
+				getTimeRangeLabel() {
+					const labels = {
+						'this_week': 'This Week',
+						'last_week': 'Last Week',
+						'this_month': 'This Month',
+						'last_month': 'Last Month',
+						'this_quarter': 'This Quarter',
+						'last_quarter': 'Last Quarter',
+						'custom': 'Custom'
+					};
+					return labels[this.filters.timeRangeType] || 'Last Week';
+				},
+
+				getHoursFilterLabel() {
+					const labels = {
+						'24_7': '24/7',
+						'on_call': 'On-Call Period',
+						'business': 'Business Hours'
+					};
+					return labels[this.filters.hoursFilter] || '24/7';
+				},
+
+				getGroupByAccentClass() {
+					const classes = {
+						'': 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary',
+						'severity': 'border-red-300 dark:border-red-600 text-red-700 dark:text-red-200 bg-red-50 dark:bg-red-900/20',
+						'team': 'border-purple-300 dark:border-purple-600 text-purple-700 dark:text-purple-200 bg-purple-50 dark:bg-purple-900/20',
+						'alert_name': 'border-orange-300 dark:border-orange-600 text-orange-700 dark:text-orange-200 bg-orange-50 dark:bg-orange-900/20'
+					};
+					return classes[this.filters.groupBy] || classes[''];
+				},
+
+				// ==================== On-Call Config ====================
+
+				async loadOnCallConfig() {
+					try {
+						const response = await fetch('/api/v1/statistics/config', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const data = await response.json();
+							this.onCallConfig = data.data?.config;
+						}
+					} catch (error) {
+						console.error('Failed to load on-call config:', error);
+					}
+				},
+
+				async saveOnCallConfig() {
+					if (!this.onCallConfig) return;
+
+					try {
+						const response = await fetch('/api/v1/statistics/config', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							credentials: 'include',
+							body: JSON.stringify(this.onCallConfig)
+						});
+
+						if (response.ok) {
+							alert('On-call configuration saved');
+						} else {
+							alert('Failed to save on-call configuration');
+						}
+					} catch (error) {
+						console.error('Failed to save on-call config:', error);
+						alert('Failed to save on-call configuration');
+					}
 				}
 			};
 		}

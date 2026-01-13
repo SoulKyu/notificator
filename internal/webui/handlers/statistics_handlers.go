@@ -937,3 +937,225 @@ func GetResolvedAlertDetails(c *gin.Context) {
 		"total_occurrences": len(history),
 	}))
 }
+
+// ==================== Statistics Views Endpoints ====================
+
+// GetStatisticsViews handles retrieving all statistics views for the user
+func GetStatisticsViews(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	includeShared := c.DefaultQuery("include_shared", "true") == "true"
+
+	views, err := backendClient.GetStatisticsViews(sessionID, includeShared)
+	if err != nil {
+		log.Printf("Failed to get statistics views: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get views"))
+		return
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"views": views,
+	}))
+}
+
+// SaveStatisticsView handles creating a new statistics view
+func SaveStatisticsView(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	var req webuimodels.StatisticsViewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request: "+err.Error()))
+		return
+	}
+
+	view, err := backendClient.SaveStatisticsView(sessionID, req)
+	if err != nil {
+		log.Printf("Failed to save statistics view: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to save view"))
+		return
+	}
+
+	log.Printf("Statistics view '%s' created successfully", req.Name)
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"view": view,
+	}))
+}
+
+// UpdateStatisticsView handles updating an existing statistics view
+func UpdateStatisticsView(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	viewID := c.Param("id")
+	if viewID == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("View ID is required"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	var req webuimodels.StatisticsViewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request: "+err.Error()))
+		return
+	}
+
+	view, err := backendClient.UpdateStatisticsView(sessionID, viewID, req)
+	if err != nil {
+		log.Printf("Failed to update statistics view: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to update view"))
+		return
+	}
+
+	log.Printf("Statistics view %s updated successfully", viewID)
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"view": view,
+	}))
+}
+
+// DeleteStatisticsView handles deleting a statistics view
+func DeleteStatisticsView(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	viewID := c.Param("id")
+	if viewID == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("View ID is required"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	err := backendClient.DeleteStatisticsView(sessionID, viewID)
+	if err != nil {
+		log.Printf("Failed to delete statistics view: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to delete view"))
+		return
+	}
+
+	log.Printf("Statistics view %s deleted successfully", viewID)
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"message": "View deleted successfully",
+	}))
+}
+
+// SetDefaultStatisticsView handles setting a statistics view as default
+func SetDefaultStatisticsView(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	viewID := c.Param("id")
+	if viewID == "" {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("View ID is required"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	err := backendClient.SetDefaultStatisticsView(sessionID, viewID)
+	if err != nil {
+		log.Printf("Failed to set default statistics view: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to set default view"))
+		return
+	}
+
+	log.Printf("Statistics view %s set as default successfully", viewID)
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"message": "Default view set successfully",
+	}))
+}
+
+// ==================== On-Call Config Endpoints ====================
+
+// GetOnCallConfig handles retrieving the on-call configuration
+func GetOnCallConfig(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	config, err := backendClient.GetOnCallConfig(sessionID)
+	if err != nil {
+		log.Printf("Failed to get on-call config: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get config"))
+		return
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"config": config,
+	}))
+}
+
+// SaveOnCallConfig handles saving the on-call configuration
+func SaveOnCallConfig(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	var config webuimodels.OnCallConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request: "+err.Error()))
+		return
+	}
+
+	err := backendClient.SaveOnCallConfig(sessionID, &config)
+	if err != nil {
+		log.Printf("Failed to save on-call config: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to save config"))
+		return
+	}
+
+	log.Printf("On-call config saved successfully")
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"message": "Config saved successfully",
+	}))
+}
