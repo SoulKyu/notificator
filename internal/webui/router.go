@@ -55,6 +55,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	// Set backend client for handlers
 	handlers.SetBackendClient(backendClient)
 	handlers.SetFilterPresetBackendClient(backendClient)
+	handlers.SetStatisticsViewBackendClient(backendClient)
 
 	// Set app config for impersonation handlers
 	handlers.SetAppConfig(cfg)
@@ -308,6 +309,14 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			statistics.PUT("/rules/:id", handlers.UpdateOnCallRule)
 			statistics.DELETE("/rules/:id", handlers.DeleteOnCallRule)
 			statistics.POST("/rules/test", handlers.TestOnCallRule)
+
+			// Statistics views (saved filter configurations)
+			statistics.GET("/views", handlers.GetStatisticsViews)
+			statistics.POST("/views", handlers.CreateStatisticsView)
+			statistics.PUT("/views/:id", handlers.UpdateStatisticsView)
+			statistics.DELETE("/views/:id", handlers.DeleteStatisticsView)
+			statistics.POST("/views/:id/default", handlers.SetDefaultStatisticsView)
+			statistics.DELETE("/views/default", handlers.ClearDefaultStatisticsView)
 		}
 	}
 

@@ -89,7 +89,7 @@ templ SettingsModal() {
 										Refresh Interval (seconds)
 									</label>
 									<div class="mt-1">
-										<select x-model="settings.refreshInterval" 
+										<select x-model="settings.refreshInterval"
 												class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
 											<option value="5">5 seconds</option>
 											<option value="10">10 seconds</option>
@@ -98,7 +98,37 @@ templ SettingsModal() {
 										</select>
 									</div>
 								</div>
-								
+
+								<!-- On-Call Schedule -->
+								<div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+										On-Call Schedule
+									</label>
+									<p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+										Configure your on-call hours for quick filtering in Statistics.
+									</p>
+									<div class="space-y-3">
+										<!-- Weekday Hours -->
+										<div class="flex items-center space-x-3">
+											<span class="text-sm text-gray-600 dark:text-gray-400 w-28">Weekday hours:</span>
+											<input type="time" x-model="settings.onCallSchedule.weekdayStart"
+												   class="px-2 py-1 text-sm border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white"/>
+											<span class="text-sm text-gray-500 dark:text-gray-400">to</span>
+											<input type="time" x-model="settings.onCallSchedule.weekdayEnd"
+												   class="px-2 py-1 text-sm border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white"/>
+										</div>
+										<!-- Weekend Toggle -->
+										<label class="flex items-center cursor-pointer">
+											<input type="checkbox" x-model="settings.onCallSchedule.includeWeekends"
+												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"/>
+											<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Include full weekends as on-call</span>
+										</label>
+									</div>
+									<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+										Default: 18:00 - 08:00 weekdays + full weekends
+									</p>
+								</div>
+
 								<!-- Remove All Resolved Alerts -->
 								<div>
 									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

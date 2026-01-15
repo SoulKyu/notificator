@@ -29,7 +29,12 @@ templ DashboardSettings() {
 				settings: {
 					theme: 'light',
 					resolvedAlertsLimit: 100,
-					refreshInterval: 30
+					refreshInterval: 30,
+					onCallSchedule: {
+						weekdayStart: '18:00',
+						weekdayEnd: '08:00',
+						includeWeekends: true
+					}
 				},
 				
 				// Sentry integration data
@@ -76,14 +81,24 @@ templ DashboardSettings() {
 						const savedSettings = localStorage.getItem('dashboardSettings');
 						if (savedSettings) {
 							const parsedSettings = JSON.parse(savedSettings);
+							// Merge top-level settings
 							this.settings = { ...this.settings, ...parsedSettings };
+							// Deep merge onCallSchedule to preserve defaults for missing fields
+							if (parsedSettings.onCallSchedule) {
+								this.settings.onCallSchedule = {
+									weekdayStart: '18:00',
+									weekdayEnd: '08:00',
+									includeWeekends: true,
+									...parsedSettings.onCallSchedule
+								};
+							}
 						}
-						
+
 						// Also check for theme preference from dashboard instance
 						if (window.dashboardInstance && window.dashboardInstance.currentTheme) {
 							this.settings.theme = window.dashboardInstance.currentTheme;
 						}
-						
+
 						console.log('Loaded general settings:', this.settings);
 					} catch (error) {
 						console.error('Error loading general settings:', error);

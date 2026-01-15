@@ -630,6 +630,13 @@ service StatisticsService {
 
   // Get alerts by name with filters (for drill-down view)
   rpc GetAlertsByName(GetAlertsByNameRequest) returns (GetAlertsByNameResponse);
+
+  // Statistics Views (saved filter configurations)
+  rpc GetStatisticsViews(GetStatisticsViewsRequest) returns (GetStatisticsViewsResponse);
+  rpc SaveStatisticsView(SaveStatisticsViewRequest) returns (SaveStatisticsViewResponse);
+  rpc UpdateStatisticsView(UpdateStatisticsViewRequest) returns (UpdateStatisticsViewResponse);
+  rpc DeleteStatisticsView(DeleteStatisticsViewRequest) returns (DeleteStatisticsViewResponse);
+  rpc SetDefaultStatisticsView(SetDefaultStatisticsViewRequest) returns (SetDefaultStatisticsViewResponse);
 }
 
 // ==================== Statistics Query Messages ====================
@@ -646,6 +653,10 @@ message QueryStatisticsRequest {
   bool filter_by_time_of_day = 9; // Enable time-of-day filtering
   string time_of_day_start = 10;  // "HH:MM" format (e.g., "22:00")
   string time_of_day_end = 11;    // "HH:MM" format (e.g., "06:00") - supports cross-midnight
+  bool include_weekends = 12;     // Include weekends in time-of-day filter (default: true)
+  string secondary_group_by = 13; // For period grouping: sub-group breakdown by "severity", "team", "alert_name"
+  repeated string severities = 14; // Filter by severities (multi-select, OR logic)
+  repeated string teams = 15;      // Filter by teams (multi-select, OR logic)
 }
 
 message QueryStatisticsResponse {
@@ -674,7 +685,7 @@ message BreakdownItem {
   google.protobuf.Timestamp start_time = 2;
   google.protobuf.Timestamp end_time = 3;
   int32 total_count = 4;
-  map<string, AggregatedStatistics> statistics = 5;  // Breakdown by severity within period
+  map<string, AggregatedStatistics> statistics = 5;  // Breakdown by secondary_group_by within period (default: severity)
 }
 
 // ==================== On-Call Rules Messages ====================
@@ -909,6 +920,7 @@ message GetAlertsByNameRequest {
   string time_of_day_start = 7;
   string time_of_day_end = 8;
   int32 limit = 9;
+  bool include_weekends = 10;     // Include weekends in time-of-day filter (default: true)
 }
 
 message GetAlertsByNameResponse {
@@ -959,4 +971,98 @@ message SaveUserColumnPreferencesRequest {
 message SaveUserColumnPreferencesResponse {
   bool success = 1;
   string message = 2;
+}
+
+// ==================== Statistics Views Messages ====================
+
+message GetStatisticsViewsRequest {
+  string session_id = 1;
+  bool include_shared = 2;                // Include shared views from other users
+  string impersonate_user_id = 3;         // Optional: load views for this user instead
+}
+
+message GetStatisticsViewsResponse {
+  bool success = 1;
+  repeated StatisticsView views = 2;
+  string message = 3;
+}
+
+message SaveStatisticsViewRequest {
+  string session_id = 1;
+  string name = 2;
+  string description = 3;
+  bool is_shared = 4;
+  StatisticsViewData view_data = 5;
+  string impersonate_user_id = 6;         // Optional: save view for this user instead
+}
+
+message SaveStatisticsViewResponse {
+  bool success = 1;
+  StatisticsView view = 2;
+  string message = 3;
+}
+
+message UpdateStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  StatisticsViewData view_data = 6;
+  string impersonate_user_id = 7;         // Optional: update view for this user instead
+}
+
+message UpdateStatisticsViewResponse {
+  bool success = 1;
+  StatisticsView view = 2;
+  string message = 3;
+}
+
+message DeleteStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;
+  string impersonate_user_id = 3;         // Optional: delete view for this user instead
+}
+
+message DeleteStatisticsViewResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SetDefaultStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;                     // Empty string to clear default
+  string impersonate_user_id = 3;         // Optional: set default for this user instead
+}
+
+message SetDefaultStatisticsViewResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message StatisticsView {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  bool is_default = 6;
+  StatisticsViewData view_data = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message StatisticsViewData {
+  string date_range_type = 1;             // "relative" or "absolute"
+  string start_date = 2;                  // Relative: "7d", "30d", "past_month" or absolute: "2024-01-01"
+  string end_date = 3;                    // For absolute date ranges
+  bool filter_by_time_of_day = 4;
+  string time_of_day_start = 5;           // "HH:MM" format
+  string time_of_day_end = 6;             // "HH:MM" format
+  bool use_on_call_period = 7;            // Use global on-call config
+  bool include_weekends = 8;              // Include weekends in time-of-day filter
+  string group_by = 9;                    // "", "severity", "team", "alert_name", "period"
+  string period_type = 10;                // "hour", "day", "week", "month"
+  bool apply_rules = 11;
+  int32 limit = 12;                       // For top N alerts when groupBy is "alert_name"
 }

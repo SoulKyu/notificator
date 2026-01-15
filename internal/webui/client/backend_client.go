@@ -2052,3 +2052,201 @@ func (c *BackendClient) SaveUserColumnPreferences(sessionID, userID string, colu
 
 	return nil
 }
+
+// ==================== Statistics Views ====================
+
+// GetStatisticsViews gets all statistics views for the current user
+func (c *BackendClient) GetStatisticsViews(sessionID string, includeShared bool, impersonateUserID ...string) ([]models.StatisticsView, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetStatisticsViewsRequest{
+		SessionId:     sessionID,
+		IncludeShared: includeShared,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
+	}
+
+	resp, err := c.statisticsClient.GetStatisticsViews(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to get statistics views: %s", resp.Message)
+	}
+
+	// Convert protobuf to model
+	views := make([]models.StatisticsView, len(resp.Views))
+	for i, pbView := range resp.Views {
+		views[i] = protoToModelStatisticsView(pbView)
+	}
+
+	return views, nil
+}
+
+// SaveStatisticsView creates a new statistics view
+func (c *BackendClient) SaveStatisticsView(sessionID, name, description string, isShared bool, viewData models.StatisticsViewData, impersonateUserID ...string) (*models.StatisticsView, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.SaveStatisticsViewRequest{
+		SessionId:   sessionID,
+		Name:        name,
+		Description: description,
+		IsShared:    isShared,
+		ViewData:    modelToProtoStatisticsViewData(&viewData),
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
+	}
+
+	resp, err := c.statisticsClient.SaveStatisticsView(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to save statistics view: %s", resp.Message)
+	}
+
+	view := protoToModelStatisticsView(resp.View)
+	return &view, nil
+}
+
+// UpdateStatisticsView updates an existing statistics view
+func (c *BackendClient) UpdateStatisticsView(sessionID, viewID, name, description string, isShared bool, viewData models.StatisticsViewData, impersonateUserID ...string) (*models.StatisticsView, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.UpdateStatisticsViewRequest{
+		SessionId:   sessionID,
+		ViewId:      viewID,
+		Name:        name,
+		Description: description,
+		IsShared:    isShared,
+		ViewData:    modelToProtoStatisticsViewData(&viewData),
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
+	}
+
+	resp, err := c.statisticsClient.UpdateStatisticsView(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("failed to update statistics view: %s", resp.Message)
+	}
+
+	view := protoToModelStatisticsView(resp.View)
+	return &view, nil
+}
+
+// DeleteStatisticsView deletes a statistics view
+func (c *BackendClient) DeleteStatisticsView(sessionID, viewID string, impersonateUserID ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.DeleteStatisticsViewRequest{
+		SessionId: sessionID,
+		ViewId:    viewID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
+	}
+
+	resp, err := c.statisticsClient.DeleteStatisticsView(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to delete statistics view: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// SetDefaultStatisticsView sets or clears the default statistics view
+func (c *BackendClient) SetDefaultStatisticsView(sessionID, viewID string, impersonateUserID ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.SetDefaultStatisticsViewRequest{
+		SessionId: sessionID,
+		ViewId:    viewID,
+	}
+	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
+		req.ImpersonateUserId = impersonateUserID[0]
+	}
+
+	resp, err := c.statisticsClient.SetDefaultStatisticsView(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("failed to set default statistics view: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// Helper functions for Statistics Views conversion
+
+func protoToModelStatisticsView(pbView *alertpb.StatisticsView) models.StatisticsView {
+	return models.StatisticsView{
+		ID:          pbView.Id,
+		UserID:      pbView.UserId,
+		Name:        pbView.Name,
+		Description: pbView.Description,
+		IsShared:    pbView.IsShared,
+		IsDefault:   pbView.IsDefault,
+		ViewData:    protoToModelStatisticsViewData(pbView.ViewData),
+		CreatedAt:   pbView.CreatedAt.AsTime(),
+		UpdatedAt:   pbView.UpdatedAt.AsTime(),
+	}
+}
+
+func protoToModelStatisticsViewData(pbData *alertpb.StatisticsViewData) models.StatisticsViewData {
+	if pbData == nil {
+		return models.StatisticsViewData{}
+	}
+	return models.StatisticsViewData{
+		DateRangeType:     pbData.DateRangeType,
+		StartDate:         pbData.StartDate,
+		EndDate:           pbData.EndDate,
+		FilterByTimeOfDay: pbData.FilterByTimeOfDay,
+		TimeOfDayStart:    pbData.TimeOfDayStart,
+		TimeOfDayEnd:      pbData.TimeOfDayEnd,
+		UseOnCallPeriod:   pbData.UseOnCallPeriod,
+		IncludeWeekends:   pbData.IncludeWeekends,
+		GroupBy:           pbData.GroupBy,
+		PeriodType:        pbData.PeriodType,
+		ApplyRules:        pbData.ApplyRules,
+		Limit:             int(pbData.Limit),
+	}
+}
+
+func modelToProtoStatisticsViewData(data *models.StatisticsViewData) *alertpb.StatisticsViewData {
+	if data == nil {
+		return &alertpb.StatisticsViewData{}
+	}
+	return &alertpb.StatisticsViewData{
+		DateRangeType:     data.DateRangeType,
+		StartDate:         data.StartDate,
+		EndDate:           data.EndDate,
+		FilterByTimeOfDay: data.FilterByTimeOfDay,
+		TimeOfDayStart:    data.TimeOfDayStart,
+		TimeOfDayEnd:      data.TimeOfDayEnd,
+		UseOnCallPeriod:   data.UseOnCallPeriod,
+		IncludeWeekends:   data.IncludeWeekends,
+		GroupBy:           data.GroupBy,
+		PeriodType:        data.PeriodType,
+		ApplyRules:        data.ApplyRules,
+		Limit:             int32(data.Limit),
+	}
+}

@@ -38,13 +38,17 @@ func QueryStatistics(c *gin.Context) {
 		StartDate          time.Time `json:"start_date" binding:"required"`
 		EndDate            time.Time `json:"end_date" binding:"required"`
 		ApplyRules         bool      `json:"apply_rules"`
-		GroupBy            string    `json:"group_by"`    // "severity", "team", "period", "alert_name"
-		PeriodType         string    `json:"period_type"` // "hour", "day", "week", "month"
+		GroupBy            string    `json:"group_by"`           // "severity", "team", "period", "alert_name"
+		SecondaryGroupBy   string    `json:"secondary_group_by"` // For period: "severity", "team", "alert_name"
+		PeriodType         string    `json:"period_type"`        // "hour", "day", "week", "month"
 		Limit              int32     `json:"limit"`
 		Offset             int32     `json:"offset"`
 		FilterByTimeOfDay  bool      `json:"filter_by_time_of_day"`  // Enable time-of-day filtering
 		TimeOfDayStart     string    `json:"time_of_day_start"`      // "HH:MM" format
 		TimeOfDayEnd       string    `json:"time_of_day_end"`        // "HH:MM" format
+		IncludeWeekends    bool      `json:"include_weekends"`       // Include weekends in time-of-day filter
+		Severities         []string  `json:"severities"`             // Filter by severities (multi-select)
+		Teams              []string  `json:"teams"`                  // Filter by teams (multi-select)
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -59,12 +63,16 @@ func QueryStatistics(c *gin.Context) {
 		EndDate:            timestamppb.New(request.EndDate),
 		ApplyRules:         request.ApplyRules,
 		GroupBy:            request.GroupBy,
+		SecondaryGroupBy:   request.SecondaryGroupBy,
 		PeriodType:         request.PeriodType,
 		Limit:              request.Limit,
 		Offset:             request.Offset,
 		FilterByTimeOfDay:  request.FilterByTimeOfDay,
 		TimeOfDayStart:     request.TimeOfDayStart,
 		TimeOfDayEnd:       request.TimeOfDayEnd,
+		IncludeWeekends:    request.IncludeWeekends,
+		Severities:         request.Severities,
+		Teams:              request.Teams,
 	}
 
 	// Query statistics

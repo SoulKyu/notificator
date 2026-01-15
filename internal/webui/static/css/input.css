@@ -75,6 +75,11 @@
   html {
     font-family: system-ui, sans-serif;
   }
+
+  /* Hide x-cloak elements until Alpine.js initializes */
+  [x-cloak] {
+    display: none !important;
+  }
 }
 
 @layer components {

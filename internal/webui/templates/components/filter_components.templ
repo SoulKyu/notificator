@@ -2,7 +2,7 @@ package components
 
 // Filter dropdown component
 templ FilterDropdown(filterType, title string) {
-	<div x-show="open" @click.away="open = false" x-transition
+	<div x-show="open" x-cloak @click.away="open = false" x-transition
 		 class="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50"
 		 x-data={ "{ filterType: '" + filterType + "', title: '" + title + "' }" }>
 		<div class="py-2">

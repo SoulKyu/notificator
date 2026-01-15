@@ -80,12 +80,16 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 		EndDate:           endDate,
 		ApplyRules:        req.ApplyRules,
 		GroupBy:           req.GroupBy,
+		SecondaryGroupBy:  req.SecondaryGroupBy,
 		PeriodType:        req.PeriodType,
 		Limit:             int(req.Limit),
 		Offset:            int(req.Offset),
 		FilterByTimeOfDay: req.FilterByTimeOfDay,
 		TimeOfDayStart:    req.TimeOfDayStart,
 		TimeOfDayEnd:      req.TimeOfDayEnd,
+		IncludeWeekends:   req.IncludeWeekends,
+		Severities:        req.Severities,
+		Teams:             req.Teams,
 	}
 
 	// Execute query
@@ -1049,6 +1053,10 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 	// Apply time of day filter if requested
 	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
 		query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+		// Apply weekend filter if not including weekends
+		if !req.IncludeWeekends {
+			query = s.queryService.applyWeekendFilter(query)
+		}
 	}
 
 	// Apply on-call rules if requested
@@ -1123,4 +1131,370 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		Alerts:     pbAlerts,
 		TotalCount: totalCount,
 	}, nil
+}
+
+// ==================== Statistics Views ====================
+
+// GetStatisticsViews implements the GetStatisticsViews RPC method
+func (s *StatisticsServiceGorm) GetStatisticsViews(ctx context.Context, req *alertpb.GetStatisticsViewsRequest) (*alertpb.GetStatisticsViewsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Get views from database
+	views, err := s.db.GetStatisticsViews(userID, req.IncludeShared)
+	if err != nil {
+		log.Printf("Failed to get statistics views for user %s: %v", userID, err)
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Failed to retrieve views",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbViews := make([]*alertpb.StatisticsView, len(views))
+	for i, view := range views {
+		pbViews[i] = modelToProtoStatisticsView(&view)
+	}
+
+	return &alertpb.GetStatisticsViewsResponse{
+		Success: true,
+		Views:   pbViews,
+		Message: "Views retrieved successfully",
+	}, nil
+}
+
+// SaveStatisticsView implements the SaveStatisticsView RPC method
+func (s *StatisticsServiceGorm) SaveStatisticsView(ctx context.Context, req *alertpb.SaveStatisticsViewRequest) (*alertpb.SaveStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Name == "" {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "View name is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Build view data JSON
+	viewDataJSON, err := database.BuildStatisticsViewDataJSON(protoToModelViewData(req.ViewData))
+	if err != nil {
+		log.Printf("Failed to build view data JSON: %v", err)
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to process view data",
+		}, nil
+	}
+
+	// Create view model
+	view := &models.StatisticsView{
+		UserID:      userID,
+		Name:        req.Name,
+		Description: req.Description,
+		IsShared:    req.IsShared,
+		ViewData:    viewDataJSON,
+	}
+
+	// Save to database
+	savedView, err := s.db.CreateStatisticsView(view)
+	if err != nil {
+		log.Printf("Failed to save statistics view for user %s: %v", userID, err)
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to save view",
+		}, nil
+	}
+
+	log.Printf("Statistics view '%s' saved for user %s", req.Name, userID)
+
+	return &alertpb.SaveStatisticsViewResponse{
+		Success: true,
+		View:    modelToProtoStatisticsView(savedView),
+		Message: "View saved successfully",
+	}, nil
+}
+
+// UpdateStatisticsView implements the UpdateStatisticsView RPC method
+func (s *StatisticsServiceGorm) UpdateStatisticsView(ctx context.Context, req *alertpb.UpdateStatisticsViewRequest) (*alertpb.UpdateStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ViewId == "" {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "View ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Get existing view
+	view, err := s.db.GetStatisticsViewByID(req.ViewId)
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "View not found",
+		}, nil
+	}
+
+	// Verify ownership
+	if view.UserID != userID {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Not authorized to update this view",
+		}, nil
+	}
+
+	// Build view data JSON
+	viewDataJSON, err := database.BuildStatisticsViewDataJSON(protoToModelViewData(req.ViewData))
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to process view data",
+		}, nil
+	}
+
+	// Update view fields
+	view.Name = req.Name
+	view.Description = req.Description
+	view.IsShared = req.IsShared
+	view.ViewData = viewDataJSON
+
+	// Save to database
+	if err := s.db.UpdateStatisticsView(view); err != nil {
+		log.Printf("Failed to update view %s for user %s: %v", req.ViewId, userID, err)
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to update view",
+		}, nil
+	}
+
+	log.Printf("Statistics view %s updated for user %s", req.ViewId, userID)
+
+	return &alertpb.UpdateStatisticsViewResponse{
+		Success: true,
+		View:    modelToProtoStatisticsView(view),
+		Message: "View updated successfully",
+	}, nil
+}
+
+// DeleteStatisticsView implements the DeleteStatisticsView RPC method
+func (s *StatisticsServiceGorm) DeleteStatisticsView(ctx context.Context, req *alertpb.DeleteStatisticsViewRequest) (*alertpb.DeleteStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ViewId == "" {
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "View ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Delete from database (with ownership check)
+	if err := s.db.DeleteStatisticsView(req.ViewId, userID); err != nil {
+		log.Printf("Failed to delete view %s for user %s: %v", req.ViewId, userID, err)
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to delete view",
+		}, nil
+	}
+
+	log.Printf("Statistics view %s deleted for user %s", req.ViewId, userID)
+
+	return &alertpb.DeleteStatisticsViewResponse{
+		Success: true,
+		Message: "View deleted successfully",
+	}, nil
+}
+
+// SetDefaultStatisticsView implements the SetDefaultStatisticsView RPC method
+func (s *StatisticsServiceGorm) SetDefaultStatisticsView(ctx context.Context, req *alertpb.SetDefaultStatisticsViewRequest) (*alertpb.SetDefaultStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// If view_id is empty, clear the default
+	if req.ViewId == "" {
+		if err := s.db.ClearDefaultStatisticsView(userID); err != nil {
+			log.Printf("Failed to clear default view for user %s: %v", userID, err)
+			return &alertpb.SetDefaultStatisticsViewResponse{
+				Success: false,
+				Message: "Failed to clear default view",
+			}, nil
+		}
+		log.Printf("Default statistics view cleared for user %s", userID)
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: true,
+			Message: "Default view cleared successfully",
+		}, nil
+	}
+
+	// Set new default
+	if err := s.db.SetDefaultStatisticsView(req.ViewId, userID); err != nil {
+		log.Printf("Failed to set default view %s for user %s: %v", req.ViewId, userID, err)
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to set default view",
+		}, nil
+	}
+
+	log.Printf("Default statistics view set to %s for user %s", req.ViewId, userID)
+
+	return &alertpb.SetDefaultStatisticsViewResponse{
+		Success: true,
+		Message: "Default view set successfully",
+	}, nil
+}
+
+// Helper functions for Statistics Views
+
+// modelToProtoStatisticsView converts model StatisticsView to protobuf StatisticsView
+func modelToProtoStatisticsView(view *models.StatisticsView) *alertpb.StatisticsView {
+	// Parse view data from JSONB
+	viewData := database.ParseStatisticsViewData(view.ViewData)
+
+	return &alertpb.StatisticsView{
+		Id:          view.ID,
+		UserId:      view.UserID,
+		Name:        view.Name,
+		Description: view.Description,
+		IsShared:    view.IsShared,
+		IsDefault:   view.IsDefault,
+		ViewData:    modelToProtoViewData(viewData),
+		CreatedAt:   timestamppb.New(view.CreatedAt),
+		UpdatedAt:   timestamppb.New(view.UpdatedAt),
+	}
+}
+
+// protoToModelViewData converts protobuf StatisticsViewData to model StatisticsViewData
+func protoToModelViewData(pbData *alertpb.StatisticsViewData) *models.StatisticsViewData {
+	if pbData == nil {
+		return &models.StatisticsViewData{}
+	}
+	return &models.StatisticsViewData{
+		DateRangeType:     pbData.DateRangeType,
+		StartDate:         pbData.StartDate,
+		EndDate:           pbData.EndDate,
+		FilterByTimeOfDay: pbData.FilterByTimeOfDay,
+		TimeOfDayStart:    pbData.TimeOfDayStart,
+		TimeOfDayEnd:      pbData.TimeOfDayEnd,
+		UseOnCallPeriod:   pbData.UseOnCallPeriod,
+		IncludeWeekends:   pbData.IncludeWeekends,
+		GroupBy:           pbData.GroupBy,
+		PeriodType:        pbData.PeriodType,
+		ApplyRules:        pbData.ApplyRules,
+		Limit:             int(pbData.Limit),
+	}
+}
+
+// modelToProtoViewData converts model StatisticsViewData to protobuf StatisticsViewData
+func modelToProtoViewData(data *models.StatisticsViewData) *alertpb.StatisticsViewData {
+	if data == nil {
+		return &alertpb.StatisticsViewData{}
+	}
+	return &alertpb.StatisticsViewData{
+		DateRangeType:     data.DateRangeType,
+		StartDate:         data.StartDate,
+		EndDate:           data.EndDate,
+		FilterByTimeOfDay: data.FilterByTimeOfDay,
+		TimeOfDayStart:    data.TimeOfDayStart,
+		TimeOfDayEnd:      data.TimeOfDayEnd,
+		UseOnCallPeriod:   data.UseOnCallPeriod,
+		IncludeWeekends:   data.IncludeWeekends,
+		GroupBy:           data.GroupBy,
+		PeriodType:        data.PeriodType,
+		ApplyRules:        data.ApplyRules,
+		Limit:             int32(data.Limit),
+	}
 }

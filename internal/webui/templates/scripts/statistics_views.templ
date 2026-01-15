@@ -1,0 +1,266 @@
+package scripts
+
+templ StatisticsViews() {
+	<script>
+		// Statistics Views Mixin - provides saved views functionality with backend persistence
+		function statisticsViewsMixin() {
+			return {
+				// Views data
+				views: [],
+				viewsLoading: false,
+				currentViewId: null,
+
+				// Save view modal
+				showSaveViewModal: false,
+				viewForm: {
+					id: null,
+					name: '',
+					description: '',
+					isShared: false,
+					isEditing: false
+				},
+
+				// Initialize views from backend
+				async initViews() {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch('/api/v1/statistics/views?include_shared=true');
+						const data = await resp.json();
+						if (data.success) {
+							this.views = data.views || [];
+							// Check if there's a default view to apply
+							const defaultView = this.views.find(v => v.is_default);
+							if (defaultView) {
+								this.applyView(defaultView, false); // Don't query immediately
+							}
+						} else {
+							console.error('Error loading statistics views:', data.message);
+							this.views = [];
+						}
+					} catch (e) {
+						console.error('Error loading statistics views:', e);
+						this.views = [];
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Get current filter state as view data
+				getCurrentViewData() {
+					return {
+						date_range_type: 'relative',
+						start_date: this.filters.startDate,
+						end_date: this.filters.endDate,
+						filter_by_time_of_day: this.filters.filterByTimeOfDay,
+						time_of_day_start: this.filters.timeOfDayStart,
+						time_of_day_end: this.filters.timeOfDayEnd,
+						include_weekends: this.filters.includeWeekends !== false,
+						group_by: this.filters.groupBy,
+						period_type: this.filters.periodType,
+						apply_rules: this.filters.applyRules,
+						limit: this.filters.limit
+					};
+				},
+
+				// Open save view modal
+				openSaveViewModal(existingView = null) {
+					if (existingView) {
+						this.viewForm = {
+							id: existingView.id,
+							name: existingView.name,
+							description: existingView.description || '',
+							isShared: existingView.is_shared || false,
+							isEditing: true
+						};
+					} else {
+						this.viewForm = {
+							id: null,
+							name: '',
+							description: '',
+							isShared: false,
+							isEditing: false
+						};
+					}
+					this.showSaveViewModal = true;
+				},
+
+				// Close save view modal
+				closeSaveViewModal() {
+					this.showSaveViewModal = false;
+					this.viewForm = { id: null, name: '', description: '', isShared: false, isEditing: false };
+				},
+
+				// Save current view
+				async saveView() {
+					if (!this.viewForm.name.trim()) {
+						return;
+					}
+
+					const viewData = this.getCurrentViewData();
+					this.viewsLoading = true;
+
+					try {
+						let resp;
+						if (this.viewForm.isEditing && this.viewForm.id) {
+							// Update existing view
+							resp = await fetch(`/api/v1/statistics/views/${this.viewForm.id}`, {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									name: this.viewForm.name.trim(),
+									description: this.viewForm.description.trim(),
+									is_shared: this.viewForm.isShared,
+									view_data: viewData
+								})
+							});
+						} else {
+							// Create new view
+							resp = await fetch('/api/v1/statistics/views', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									name: this.viewForm.name.trim(),
+									description: this.viewForm.description.trim(),
+									is_shared: this.viewForm.isShared,
+									view_data: viewData
+								})
+							});
+						}
+
+						const data = await resp.json();
+						if (data.success) {
+							// Reload views from backend
+							await this.initViews();
+							this.closeSaveViewModal();
+						} else {
+							console.error('Error saving view:', data.message);
+							alert('Failed to save view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error saving view:', e);
+						alert('Failed to save view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Apply a view to filters
+				applyView(view, runQuery = true) {
+					if (!view || !view.view_data) return;
+
+					const data = view.view_data;
+
+					// Apply filter values
+					if (data.start_date) this.filters.startDate = data.start_date;
+					if (data.end_date) this.filters.endDate = data.end_date;
+					this.filters.filterByTimeOfDay = data.filter_by_time_of_day || false;
+					if (data.time_of_day_start) this.filters.timeOfDayStart = data.time_of_day_start;
+					if (data.time_of_day_end) this.filters.timeOfDayEnd = data.time_of_day_end;
+					this.filters.includeWeekends = data.include_weekends !== false;
+					if (data.group_by !== undefined) this.filters.groupBy = data.group_by;
+					if (data.period_type) this.filters.periodType = data.period_type;
+					this.filters.applyRules = data.apply_rules || false;
+					if (data.limit) this.filters.limit = data.limit;
+
+					this.currentViewId = view.id;
+
+					// Optionally run query
+					if (runQuery) {
+						this.queryStatistics();
+					}
+				},
+
+				// Delete a view
+				async deleteView(viewId) {
+					if (!confirm('Are you sure you want to delete this view?')) {
+						return;
+					}
+
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch(`/api/v1/statistics/views/${viewId}`, {
+							method: 'DELETE'
+						});
+						const data = await resp.json();
+						if (data.success) {
+							if (this.currentViewId === viewId) {
+								this.currentViewId = null;
+							}
+							// Reload views from backend
+							await this.initViews();
+						} else {
+							console.error('Error deleting view:', data.message);
+							alert('Failed to delete view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error deleting view:', e);
+						alert('Failed to delete view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Set a view as default
+				async setDefaultView(viewId) {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch(`/api/v1/statistics/views/${viewId}/default`, {
+							method: 'POST'
+						});
+						const data = await resp.json();
+						if (data.success) {
+							// Reload views from backend
+							await this.initViews();
+						} else {
+							console.error('Error setting default view:', data.message);
+							alert('Failed to set default view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error setting default view:', e);
+						alert('Failed to set default view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Clear default view
+				async clearDefaultView() {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch('/api/v1/statistics/views/default', {
+							method: 'DELETE'
+						});
+						const data = await resp.json();
+						if (data.success) {
+							// Reload views from backend
+							await this.initViews();
+						} else {
+							console.error('Error clearing default view:', data.message);
+							alert('Failed to clear default view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error clearing default view:', e);
+						alert('Failed to clear default view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Check if current filters match a view
+				isViewActive(view) {
+					return this.currentViewId === view.id;
+				},
+
+				// Get the currently active view name
+				getActiveViewName() {
+					if (!this.currentViewId) return null;
+					const view = this.views.find(v => v.id === this.currentViewId);
+					return view ? view.name : null;
+				}
+			};
+		}
+
+		// Make mixin available globally
+		window.statisticsViewsMixin = statisticsViewsMixin;
+	</script>
+}

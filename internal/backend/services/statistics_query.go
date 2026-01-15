@@ -34,12 +34,16 @@ type QueryRequest struct {
 	EndDate            time.Time
 	ApplyRules         bool
 	GroupBy            string // "severity", "team", "period", "alert_name"
+	SecondaryGroupBy   string // For period grouping: "severity", "team", "alert_name" (breakdown within each period)
 	PeriodType         string // "hour", "day", "week", "month"
 	Limit              int
 	Offset             int
-	FilterByTimeOfDay  bool   // Enable time-of-day filtering
-	TimeOfDayStart     string // "HH:MM" format (e.g., "22:00")
-	TimeOfDayEnd       string // "HH:MM" format (e.g., "06:00") - supports cross-midnight
+	FilterByTimeOfDay  bool     // Enable time-of-day filtering
+	TimeOfDayStart     string   // "HH:MM" format (e.g., "22:00")
+	TimeOfDayEnd       string   // "HH:MM" format (e.g., "06:00") - supports cross-midnight
+	IncludeWeekends    bool     // Include weekends in time-of-day filter (default: true means include)
+	Severities         []string // Filter by severities (multi-select, OR logic)
+	Teams              []string // Filter by teams (multi-select, OR logic)
 }
 
 // QueryResponse represents the aggregated statistics response
@@ -80,6 +84,10 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 	// Apply time-of-day filter if enabled
 	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
 		baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
+		// Apply weekend filter if not including weekends
+		if !req.IncludeWeekends {
+			baseQuery = sqs.applyWeekendFilter(baseQuery)
+		}
 	}
 
 	// Apply user's on-call rules if requested
@@ -89,6 +97,16 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 			return nil, fmt.Errorf("failed to apply rules: %w", err)
 		}
 		baseQuery = filteredQuery
+	}
+
+	// Apply severity filter if specified (multi-select, OR logic)
+	if len(req.Severities) > 0 {
+		baseQuery = baseQuery.Where("severity IN ?", req.Severities)
+	}
+
+	// Apply team filter if specified (multi-select, OR logic)
+	if len(req.Teams) > 0 {
+		baseQuery = baseQuery.Where("COALESCE(metadata->'labels'->>'team', 'unknown') IN ?", req.Teams)
 	}
 
 	// Count total alerts
@@ -110,7 +128,7 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 	case "alert_name":
 		statistics, err = sqs.aggregateByAlertName(baseQuery, req.Limit)
 	case "period":
-		breakdown, err = sqs.aggregateByPeriod(baseQuery, req.PeriodType, req.StartDate, req.EndDate)
+		breakdown, err = sqs.aggregateByPeriod(baseQuery, req.PeriodType, req.SecondaryGroupBy, req.StartDate, req.EndDate)
 	default:
 		// No grouping - return overall statistics
 		statistics, err = sqs.aggregateOverall(baseQuery)
@@ -229,6 +247,18 @@ func (sqs *StatisticsQueryService) applyTimeOfDayFilter(query *gorm.DB, startTim
 		"((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) >= ? OR (CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) <= ?)",
 		startMinutes, endMinutes,
 	)
+}
+
+// applyWeekendFilter adds a WHERE clause to exclude weekends (Saturday and Sunday)
+func (sqs *StatisticsQueryService) applyWeekendFilter(query *gorm.DB) *gorm.DB {
+	isPostgres := sqs.db.IsPostgreSQL()
+
+	if isPostgres {
+		// PostgreSQL: EXTRACT(DOW FROM timestamp) returns 0 for Sunday, 6 for Saturday
+		return query.Where("EXTRACT(DOW FROM fired_at) NOT IN (0, 6)")
+	}
+	// SQLite: strftime('%w', timestamp) returns 0 for Sunday, 6 for Saturday
+	return query.Where("CAST(strftime('%w', fired_at) AS INTEGER) NOT IN (0, 6)")
 }
 
 // parseTimeToMinutes parses "HH:MM" format to minutes since midnight
@@ -431,23 +461,43 @@ func (sqs *StatisticsQueryService) aggregateByAlertName(query *gorm.DB, limit in
 }
 
 // aggregateByPeriod groups statistics by time periods using optimized single query
-func (sqs *StatisticsQueryService) aggregateByPeriod(query *gorm.DB, periodType string, startDate, endDate time.Time) ([]*BreakdownItem, error) {
+// secondaryGroupBy determines what dimension to break down within each period: "severity", "team", "alert_name"
+func (sqs *StatisticsQueryService) aggregateByPeriod(query *gorm.DB, periodType string, secondaryGroupBy string, startDate, endDate time.Time) ([]*BreakdownItem, error) {
 	// Determine SQL date truncation function based on period type
 	dateTrunc := sqs.getDateTruncSQL(periodType)
 
-	var results []PeriodSeverityResult
+	// Default to severity if not specified
+	if secondaryGroupBy == "" {
+		secondaryGroupBy = "severity"
+	}
+
+	// Determine the grouping column and SELECT expression based on secondaryGroupBy
+	var groupByColumn, selectColumn string
+	switch secondaryGroupBy {
+	case "team":
+		groupByColumn = "COALESCE(metadata->'labels'->>'team', 'unknown')"
+		selectColumn = groupByColumn + " as group_key"
+	case "alert_name":
+		groupByColumn = "alert_name"
+		selectColumn = "alert_name as group_key"
+	default: // "severity" or any other value
+		groupByColumn = "severity"
+		selectColumn = "severity as group_key"
+	}
+
+	var results []PeriodGroupResult
 
 	// Single optimized query with GROUP BY instead of N+1 queries
 	err := query.
 		Select(fmt.Sprintf(`
 			%s as period,
-			severity,
+			%s,
 			COUNT(*) as count,
 			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration_seconds,
 			COALESCE(SUM(duration_seconds), 0) as total_duration,
 			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds
-		`, dateTrunc)).
-		Group("period, severity").
+		`, dateTrunc, selectColumn)).
+		Group(fmt.Sprintf("period, %s", groupByColumn)).
 		Order("period ASC").
 		Scan(&results).Error
 
@@ -456,7 +506,7 @@ func (sqs *StatisticsQueryService) aggregateByPeriod(query *gorm.DB, periodType 
 	}
 
 	// Convert results to breakdown items
-	breakdown := sqs.groupResultsByPeriod(results, periodType, startDate, endDate)
+	breakdown := sqs.groupResultsByPeriodGeneric(results, periodType, startDate, endDate)
 
 	return breakdown, nil
 }
@@ -507,6 +557,16 @@ type PeriodSeverityResult struct {
 	AvgMTTRSeconds     float64
 }
 
+// PeriodGroupResult represents a query result for period-based aggregation with dynamic grouping
+type PeriodGroupResult struct {
+	Period             time.Time
+	GroupKey           string  // Can be severity, team, or alert_name based on secondaryGroupBy
+	Count              int64
+	AvgDurationSeconds float64
+	TotalDuration      int64
+	AvgMTTRSeconds     float64
+}
+
 // groupResultsByPeriod converts flat query results into hierarchical breakdown items
 func (sqs *StatisticsQueryService) groupResultsByPeriod(results []PeriodSeverityResult, periodType string, startDate, endDate time.Time) []*BreakdownItem {
 
@@ -528,6 +588,53 @@ func (sqs *StatisticsQueryService) groupResultsByPeriod(results []PeriodSeverity
 
 		// Add severity statistics
 		item.Statistics[r.Severity] = &models.AggregatedStatistics{
+			Count:                int(r.Count),
+			AvgDurationSeconds:   r.AvgDurationSeconds,
+			TotalDurationSeconds: int(r.TotalDuration),
+			AvgMTTRSeconds:       r.AvgMTTRSeconds,
+		}
+		item.TotalCount += int(r.Count)
+	}
+
+	// Convert map to sorted slice
+	breakdown := make([]*BreakdownItem, 0, len(periodMap))
+	for _, item := range periodMap {
+		breakdown = append(breakdown, item)
+	}
+
+	// Sort by start time
+	for i := 0; i < len(breakdown)-1; i++ {
+		for j := i + 1; j < len(breakdown); j++ {
+			if breakdown[i].StartTime.After(breakdown[j].StartTime) {
+				breakdown[i], breakdown[j] = breakdown[j], breakdown[i]
+			}
+		}
+	}
+
+	return breakdown
+}
+
+// groupResultsByPeriodGeneric converts flat query results into hierarchical breakdown items using generic group key
+func (sqs *StatisticsQueryService) groupResultsByPeriodGeneric(results []PeriodGroupResult, periodType string, startDate, endDate time.Time) []*BreakdownItem {
+
+	// Group results by period
+	periodMap := make(map[time.Time]*BreakdownItem)
+
+	for _, r := range results {
+		item, exists := periodMap[r.Period]
+		if !exists {
+			item = &BreakdownItem{
+				Period:     sqs.formatPeriodLabel(r.Period, periodType),
+				StartTime:  r.Period,
+				EndTime:    sqs.calculatePeriodEnd(r.Period, periodType),
+				TotalCount: 0,
+				Statistics: make(map[string]*models.AggregatedStatistics),
+			}
+			periodMap[r.Period] = item
+		}
+
+		// Add statistics for this group key (severity, team, or alert_name)
+		item.Statistics[r.GroupKey] = &models.AggregatedStatistics{
 			Count:                int(r.Count),
 			AvgDurationSeconds:   r.AvgDurationSeconds,
 			TotalDurationSeconds: int(r.TotalDuration),

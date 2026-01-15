@@ -8,6 +8,8 @@ templ Base(title string, content templ.Component) {
 		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 		<title>{ title }</title>
 		<link rel="icon" type="image/png" href="/static/notificator_background.png"/>
+		<!-- Critical: Hide x-cloak elements immediately before Alpine.js loads -->
+		<style>[x-cloak] { display: none !important; }</style>
 		<link href="/static/css/output.css?v=1" rel="stylesheet"/>
 		<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 		<script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>

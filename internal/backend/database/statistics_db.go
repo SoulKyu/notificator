@@ -336,3 +336,26 @@ func ParseRuleConfig(jsonb models.JSONB) (*models.RuleConfig, error) {
 
 	return &config, nil
 }
+
+// BuildStatisticsViewDataJSON converts statistics view data to JSONB
+func BuildStatisticsViewDataJSON(data *models.StatisticsViewData) (models.JSONB, error) {
+	if data == nil {
+		return models.JSONB("{}"), nil
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal statistics view data: %w", err)
+	}
+	return models.JSONB(jsonData), nil
+}
+
+// ParseStatisticsViewData parses JSONB view_data into StatisticsViewData struct
+func ParseStatisticsViewData(jsonb models.JSONB) *models.StatisticsViewData {
+	var data models.StatisticsViewData
+
+	if err := json.Unmarshal([]byte(jsonb), &data); err != nil {
+		return &models.StatisticsViewData{}
+	}
+
+	return &data
+}

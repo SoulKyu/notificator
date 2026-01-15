@@ -30,7 +30,7 @@ func FilterDropdown(filterType, title string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-show=\"open\" @click.away=\"open = false\" x-transition class=\"absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50\" x-data=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-show=\"open\" x-cloak @click.away=\"open = false\" x-transition class=\"absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50\" x-data=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
