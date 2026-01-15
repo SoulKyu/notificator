@@ -117,10 +117,11 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 	// Convert statistics map
 	for key, stats := range result.Statistics {
 		pbResponse.Statistics[key] = &alertpb.AggregatedStatistics{
-			Count:                int32(stats.Count),
-			AvgDurationSeconds:   stats.AvgDurationSeconds,
-			TotalDurationSeconds: int32(stats.TotalDurationSeconds),
-			AvgMttrSeconds:       stats.AvgMTTRSeconds,
+			Count:              int32(stats.Count),
+			AvgMttrSeconds:     stats.AvgMTTRSeconds,
+			TotalMttrSeconds:   int32(stats.TotalMTTRSeconds),
+			AvgMttaSeconds:     stats.AvgMTTASeconds,
+			AvgFixTimeSeconds:  stats.AvgFixTimeSeconds,
 		}
 	}
 
@@ -139,10 +140,11 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 			// Convert nested statistics
 			for key, stats := range item.Statistics {
 				pbBreakdownItem.Statistics[key] = &alertpb.AggregatedStatistics{
-					Count:                int32(stats.Count),
-					AvgDurationSeconds:   stats.AvgDurationSeconds,
-					TotalDurationSeconds: int32(stats.TotalDurationSeconds),
-					AvgMttrSeconds:       stats.AvgMTTRSeconds,
+					Count:              int32(stats.Count),
+					AvgMttrSeconds:     stats.AvgMTTRSeconds,
+					TotalMttrSeconds:   int32(stats.TotalMTTRSeconds),
+					AvgMttaSeconds:     stats.AvgMTTASeconds,
+					AvgFixTimeSeconds:  stats.AvgFixTimeSeconds,
 				}
 			}
 
@@ -554,11 +556,14 @@ func (s *StatisticsServiceGorm) TestOnCallRule(ctx context.Context, req *alertpb
 		if stat.AcknowledgedAt != nil {
 			pbSampleAlerts[i].AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
 		}
-		if stat.DurationSeconds != nil {
-			pbSampleAlerts[i].DurationSeconds = int32(*stat.DurationSeconds)
-		}
 		if stat.MTTRSeconds != nil {
 			pbSampleAlerts[i].MttrSeconds = int32(*stat.MTTRSeconds)
+		}
+		if stat.MTTASeconds != nil {
+			pbSampleAlerts[i].MttaSeconds = int32(*stat.MTTASeconds)
+		}
+		if stat.FixTimeSeconds != nil {
+			pbSampleAlerts[i].FixTimeSeconds = int32(*stat.FixTimeSeconds)
 		}
 	}
 
@@ -605,10 +610,11 @@ func (s *StatisticsServiceGorm) GetStatisticsSummary(ctx context.Context, req *a
 	if severityStats, ok := summary["by_severity"].(map[string]*models.AggregatedStatistics); ok {
 		for key, stats := range severityStats {
 			bySeverity[key] = &alertpb.AggregatedStatistics{
-				Count:                int32(stats.Count),
-				AvgDurationSeconds:   stats.AvgDurationSeconds,
-				TotalDurationSeconds: int32(stats.TotalDurationSeconds),
-				AvgMttrSeconds:       stats.AvgMTTRSeconds,
+				Count:             int32(stats.Count),
+				AvgMttrSeconds:    stats.AvgMTTRSeconds,
+				TotalMttrSeconds:  int32(stats.TotalMTTRSeconds),
+				AvgMttaSeconds:    stats.AvgMTTASeconds,
+				AvgFixTimeSeconds: stats.AvgFixTimeSeconds,
 			}
 		}
 	}
@@ -781,10 +787,17 @@ func (s *StatisticsServiceGorm) UpdateAlertResolved(ctx context.Context, req *al
 	resolvedAt := req.ResolvedAt.AsTime()
 	stat.ResolvedAt = &resolvedAt
 
-	// Calculate duration in seconds
-	duration := resolvedAt.Sub(stat.FiredAt)
-	durationSec := int(duration.Seconds())
-	stat.DurationSeconds = &durationSec
+	// Calculate MTTR (Mean Time To Resolve) in seconds
+	mttr := resolvedAt.Sub(stat.FiredAt)
+	mttrSec := int(mttr.Seconds())
+	stat.MTTRSeconds = &mttrSec
+
+	// Calculate Fix Time (resolved - acknowledged) if acknowledged
+	if stat.AcknowledgedAt != nil {
+		fixTime := resolvedAt.Sub(*stat.AcknowledgedAt)
+		fixTimeSec := int(fixTime.Seconds())
+		stat.FixTimeSeconds = &fixTimeSec
+	}
 
 	// Update in database
 	if err := s.db.UpdateAlertStatistic(stat); err != nil {
@@ -795,7 +808,7 @@ func (s *StatisticsServiceGorm) UpdateAlertResolved(ctx context.Context, req *al
 		}, nil
 	}
 
-	log.Printf("📊 Updated resolution for alert: fingerprint=%s (duration: %ds)", req.Fingerprint, durationSec)
+	log.Printf("📊 Updated resolution for alert: fingerprint=%s (MTTR: %ds)", req.Fingerprint, mttrSec)
 
 	return &alertpb.UpdateAlertResolvedResponse{
 		Success: true,
@@ -915,10 +928,11 @@ func (s *StatisticsServiceGorm) QueryRecentlyResolved(ctx context.Context, req *
 			OccurrenceCount:  int32(item.OccurrenceCount),
 			FirstFiredAt:     timestamppb.New(item.FirstFiredAt),
 			LastResolvedAt:   timestamppb.New(item.LastResolvedAt),
-			TotalDuration:    int32(item.TotalDuration),
-			AvgDuration:      item.AvgDuration,
 			TotalMttr:        int32(item.TotalMTTR),
 			AvgMttr:          item.AvgMTTR,
+			TotalMtta:        int32(item.TotalMTTA),
+			AvgMtta:          item.AvgMTTA,
+			AvgFixTime:       item.AvgFixTime,
 			Labels:           item.Labels,
 			Annotations:      item.Annotations,
 			Source:           item.Source,
@@ -985,12 +999,16 @@ func (s *StatisticsServiceGorm) GetAlertHistory(
 			pbStat.AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
 		}
 
-		if stat.DurationSeconds != nil {
-			pbStat.DurationSeconds = int32(*stat.DurationSeconds)
-		}
-
 		if stat.MTTRSeconds != nil {
 			pbStat.MttrSeconds = int32(*stat.MTTRSeconds)
+		}
+
+		if stat.MTTASeconds != nil {
+			pbStat.MttaSeconds = int32(*stat.MTTASeconds)
+		}
+
+		if stat.FixTimeSeconds != nil {
+			pbStat.FixTimeSeconds = int32(*stat.FixTimeSeconds)
 		}
 
 		// Convert metadata JSONB to bytes
@@ -1114,11 +1132,14 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		if stat.AcknowledgedAt != nil {
 			pbAlerts[i].AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
 		}
-		if stat.DurationSeconds != nil {
-			pbAlerts[i].DurationSeconds = int32(*stat.DurationSeconds)
-		}
 		if stat.MTTRSeconds != nil {
 			pbAlerts[i].MttrSeconds = int32(*stat.MTTRSeconds)
+		}
+		if stat.MTTASeconds != nil {
+			pbAlerts[i].MttaSeconds = int32(*stat.MTTASeconds)
+		}
+		if stat.FixTimeSeconds != nil {
+			pbAlerts[i].FixTimeSeconds = int32(*stat.FixTimeSeconds)
 		}
 		if stat.Metadata != nil {
 			pbAlerts[i].Metadata = stat.Metadata

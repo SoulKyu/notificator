@@ -2273,12 +2273,16 @@ func HandleGetAlertHistory(c *gin.Context) {
 			item["acknowledged_at"] = stat.AcknowledgedAt.AsTime().Format(time.RFC3339)
 		}
 
-		if stat.DurationSeconds != 0 {
-			item["duration_seconds"] = stat.DurationSeconds
-		}
-
 		if stat.MttrSeconds != 0 {
 			item["mttr_seconds"] = stat.MttrSeconds
+		}
+
+		if stat.MttaSeconds != 0 {
+			item["mtta_seconds"] = stat.MttaSeconds
+		}
+
+		if stat.FixTimeSeconds != 0 {
+			item["fix_time_seconds"] = stat.FixTimeSeconds
 		}
 
 		historyItems = append(historyItems, item)

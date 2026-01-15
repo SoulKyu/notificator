@@ -24,6 +24,11 @@ func (gdb *GormDB) RunCustomMigrations() error {
 		return fmt.Errorf("failed to migrate user column preferences: %w", err)
 	}
 
+	// Backfill fix_time_seconds for existing resolved & acknowledged alerts
+	if err := gdb.backfillFixTimeSeconds(); err != nil {
+		return fmt.Errorf("failed to backfill fix_time_seconds: %w", err)
+	}
+
 	log.Println("✅ Custom migrations completed")
 	return nil
 }
@@ -254,5 +259,90 @@ func (gdb *GormDB) migrateUserColumnPreferences() error {
 	}
 
 	log.Println("✅ Created user_column_preferences table")
+	return nil
+}
+
+// backfillFixTimeSeconds calculates fix_time_seconds for existing resolved & acknowledged alerts
+func (gdb *GormDB) backfillFixTimeSeconds() error {
+	log.Println("🔄 Backfilling fix_time_seconds for existing alerts...")
+
+	// Detect database type
+	dbName := gdb.db.Dialector.Name()
+
+	// Check if alert_statistics table exists
+	var tableExists int
+	var err error
+
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM sqlite_master
+			WHERE type='table' AND name='alert_statistics'
+		`).Scan(&tableExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM information_schema.tables
+			WHERE table_name='alert_statistics'
+		`).Scan(&tableExists).Error
+	}
+
+	if err != nil || tableExists == 0 {
+		log.Println("ℹ️  alert_statistics table doesn't exist yet, skipping fix_time_seconds backfill")
+		return nil
+	}
+
+	// Check if fix_time_seconds column exists
+	var columnExists int
+
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM pragma_table_info('alert_statistics')
+			WHERE name = 'fix_time_seconds'
+		`).Scan(&columnExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM information_schema.columns
+			WHERE table_name='alert_statistics' AND column_name='fix_time_seconds'
+		`).Scan(&columnExists).Error
+	}
+
+	if err != nil || columnExists == 0 {
+		log.Println("ℹ️  fix_time_seconds column doesn't exist yet, skipping backfill")
+		return nil
+	}
+
+	// Calculate fix_time_seconds for alerts that have both resolved_at and acknowledged_at
+	var updateQuery string
+	if dbName == "sqlite" {
+		updateQuery = `
+			UPDATE alert_statistics
+			SET fix_time_seconds = CAST((strftime('%s', resolved_at) - strftime('%s', acknowledged_at)) AS INTEGER)
+			WHERE resolved_at IS NOT NULL
+			  AND acknowledged_at IS NOT NULL
+			  AND fix_time_seconds IS NULL
+		`
+	} else {
+		// PostgreSQL
+		updateQuery = `
+			UPDATE alert_statistics
+			SET fix_time_seconds = EXTRACT(EPOCH FROM (resolved_at - acknowledged_at))::integer
+			WHERE resolved_at IS NOT NULL
+			  AND acknowledged_at IS NOT NULL
+			  AND fix_time_seconds IS NULL
+		`
+	}
+
+	result := gdb.db.Exec(updateQuery)
+	if result.Error != nil {
+		return fmt.Errorf("failed to backfill fix_time_seconds: %w", result.Error)
+	}
+
+	if result.RowsAffected > 0 {
+		log.Printf("✅ Backfilled fix_time_seconds for %d alert records", result.RowsAffected)
+	} else {
+		log.Println("ℹ️  No alerts need fix_time_seconds backfill")
+	}
+
 	return nil
 }

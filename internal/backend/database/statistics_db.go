@@ -99,14 +99,23 @@ func (gdb *GormDB) UpdateAlertStatistic(stat *models.AlertStatistic) error {
 // UpdateAllUnresolvedByFingerprint updates all unresolved statistics for a fingerprint
 // This handles the case where duplicate statistics exist (legacy data)
 // Returns the number of records updated
-func (gdb *GormDB) UpdateAllUnresolvedByFingerprint(fingerprint string, resolvedAt time.Time, durationSeconds int, metadata []byte) (int64, error) {
+// mttrSeconds: Mean Time To Resolve (resolved - fired)
+// fixTimeSeconds: Fix Time (resolved - acknowledged), can be nil if not acknowledged
+func (gdb *GormDB) UpdateAllUnresolvedByFingerprint(fingerprint string, resolvedAt time.Time, mttrSeconds int, fixTimeSeconds *int, metadata []byte) (int64, error) {
+	updates := map[string]interface{}{
+		"resolved_at":  resolvedAt,
+		"mttr_seconds": mttrSeconds,
+		"metadata":     metadata,
+	}
+
+	// Only update fix_time_seconds if provided (alert was acknowledged before resolution)
+	if fixTimeSeconds != nil {
+		updates["fix_time_seconds"] = *fixTimeSeconds
+	}
+
 	result := gdb.db.Model(&models.AlertStatistic{}).
 		Where("fingerprint = ? AND resolved_at IS NULL", fingerprint).
-		Updates(map[string]interface{}{
-			"resolved_at":      resolvedAt,
-			"duration_seconds": durationSeconds,
-			"metadata":         metadata,
-		})
+		Updates(updates)
 
 	if result.Error != nil {
 		return 0, fmt.Errorf("failed to update unresolved statistics: %w", result.Error)

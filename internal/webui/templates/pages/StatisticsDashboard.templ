@@ -459,8 +459,16 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						</div>
 					</div>
 
-					<!-- Average Duration Card -->
-					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+					<!-- Average MTTR Card (Mean Time To Resolve) -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 relative">
+						<div class="absolute top-2 right-2 group">
+							<div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center cursor-help text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600">?</div>
+							<div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+								<span class="font-semibold">Mean Time To Resolve</span><br/>
+								<span class="text-gray-300">ResolvedAt - FiredAt</span><br/>
+								<span class="text-gray-400 text-[10px]">Total time from alert firing to resolution</span>
+							</div>
+						</div>
 						<div class="flex items-center">
 							<div class="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900/30 rounded-md p-3">
 								<svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -469,17 +477,25 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</div>
 							<div class="ml-5 w-0 flex-1">
 								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-									Avg Duration
+									Avg MTTR
 								</dt>
 								<dd class="flex items-baseline">
-									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgDuration())"></div>
+									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgMTTR())"></div>
 								</dd>
 							</div>
 						</div>
 					</div>
 
-					<!-- Average MTTR Card -->
-					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
+					<!-- Average MTTA Card (Mean Time To Acknowledge) -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 relative">
+						<div class="absolute top-2 right-2 group">
+							<div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center cursor-help text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600">?</div>
+							<div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+								<span class="font-semibold">Mean Time To Acknowledge</span><br/>
+								<span class="text-gray-300">AcknowledgedAt - FiredAt</span><br/>
+								<span class="text-gray-400 text-[10px]">Time from alert firing to acknowledgment</span>
+							</div>
+						</div>
 						<div class="flex items-center">
 							<div class="flex-shrink-0 bg-green-100 dark:bg-green-900/30 rounded-md p-3">
 								<svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -488,10 +504,37 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</div>
 							<div class="ml-5 w-0 flex-1">
 								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-									Avg MTTR
+									Avg MTTA
 								</dt>
 								<dd class="flex items-baseline">
-									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-html="formatMTTR(getOverallAvgMTTR())"></div>
+									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatTimeOrNA(getOverallAvgMTTA())"></div>
+								</dd>
+							</div>
+						</div>
+					</div>
+
+					<!-- Average Fix Time Card -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 relative">
+						<div class="absolute top-2 right-2 group">
+							<div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center cursor-help text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600">?</div>
+							<div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+								<span class="font-semibold">Fix Time</span><br/>
+								<span class="text-gray-300">ResolvedAt - AcknowledgedAt</span><br/>
+								<span class="text-gray-400 text-[10px]">Time spent fixing after acknowledgment</span>
+							</div>
+						</div>
+						<div class="flex items-center">
+							<div class="flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/30 rounded-md p-3">
+								<svg class="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+								</svg>
+							</div>
+							<div class="ml-5 w-0 flex-1">
+								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+									Avg Fix Time
+								</dt>
+								<dd class="flex items-baseline">
+									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatTimeOrNA(getOverallAvgFixTime())"></div>
 								</dd>
 							</div>
 						</div>
@@ -609,20 +652,20 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								</div>
 								<div class="text-xs text-gray-400 dark:text-gray-500" x-text="'vs ' + formatNumber(comparisonData?.previous_total || 0) + ' previously'"></div>
 							</div>
-							<!-- Avg Duration Comparison -->
-							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
-								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg Duration</div>
-								<div class="flex items-baseline space-x-2">
-									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgDuration())"></span>
-									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_duration, true)" x-text="getDeltaText(comparisonData?.delta_duration)"></span>
-								</div>
-							</div>
 							<!-- Avg MTTR Comparison -->
 							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
 								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg MTTR</div>
 								<div class="flex items-baseline space-x-2">
 									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgMTTR())"></span>
 									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_mttr, true)" x-text="getDeltaText(comparisonData?.delta_mttr)"></span>
+								</div>
+							</div>
+							<!-- Avg MTTA Comparison -->
+							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
+								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg MTTA</div>
+								<div class="flex items-baseline space-x-2">
+									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatTimeOrNA(getOverallAvgMTTA())"></span>
+									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_mtta, true)" x-text="getDeltaText(comparisonData?.delta_mtta)"></span>
 								</div>
 							</div>
 							<!-- Critical Alerts Comparison -->
@@ -665,21 +708,27 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 												Percentage
 											</th>
 											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('avg_duration')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-													<span>Avg Duration</span>
-													<span x-html="getSortIcon('avg_duration')"></span>
-												</button>
-											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('total_duration')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-													<span>Total Duration</span>
-													<span x-html="getSortIcon('total_duration')"></span>
-												</button>
-											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
 												<button @click="sortBy('avg_mttr')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
 													<span>Avg MTTR</span>
 													<span x-html="getSortIcon('avg_mttr')"></span>
+												</button>
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('total_mttr')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span>Total MTTR</span>
+													<span x-html="getSortIcon('total_mttr')"></span>
+												</button>
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('avg_mtta')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span>Avg MTTA</span>
+													<span x-html="getSortIcon('avg_mtta')"></span>
+												</button>
+											</th>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+												<button @click="sortBy('avg_fix_time')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+													<span>Avg Fix Time</span>
+													<span x-html="getSortIcon('avg_fix_time')"></span>
 												</button>
 											</th>
 										</tr>
@@ -712,9 +761,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
 													<span x-text="getPercentage(stat.count) + '%'"></span>
 												</td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.avg_duration_seconds)"></td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.total_duration_seconds)"></td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-html="formatMTTR(stat.avg_mttr_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.avg_mttr_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.total_mttr_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatTimeOrNA(stat.avg_mtta_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatTimeOrNA(stat.avg_fix_time_seconds)"></td>
 											</tr>
 										</template>
 									</tbody>
@@ -834,8 +884,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Severity</th>
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Fired At</th>
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Resolved At</th>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Duration</th>
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MTTR</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MTTA</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Fix Time</th>
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Labels</th>
 								</tr>
 							</thead>
@@ -856,8 +907,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 										</td>
 										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDateTime(alert.fired_at)"></td>
 										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.resolved_at ? formatDateTime(alert.resolved_at) : '—'"></td>
-										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(alert.duration_seconds)"></td>
-										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.mttr_seconds ? formatDuration(alert.mttr_seconds) : '—'"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(alert.mttr_seconds)"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.mtta_seconds ? formatDuration(alert.mtta_seconds) : '—'"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.fix_time_seconds ? formatDuration(alert.fix_time_seconds) : '—'"></td>
 										<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
 											<div class="flex flex-wrap gap-1 max-w-xs">
 												<template x-for="(value, key) in getAlertLabels(alert)" :key="key">
@@ -1554,19 +1606,27 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					return titles[this.appliedGroupBy] || 'Statistics';
 				},
 
-				getOverallAvgDuration() {
-					if (!this.statsData?.statistics) return 0;
-					const stats = Object.values(this.statsData.statistics);
-					if (stats.length === 0) return 0;
-					const total = stats.reduce((sum, s) => sum + (s.avg_duration_seconds || 0), 0);
-					return total / stats.length;
-				},
-
 				getOverallAvgMTTR() {
 					if (!this.statsData?.statistics) return 0;
 					const stats = Object.values(this.statsData.statistics);
 					if (stats.length === 0) return 0;
 					const total = stats.reduce((sum, s) => sum + (s.avg_mttr_seconds || 0), 0);
+					return total / stats.length;
+				},
+
+				getOverallAvgMTTA() {
+					if (!this.statsData?.statistics) return 0;
+					const stats = Object.values(this.statsData.statistics);
+					if (stats.length === 0) return 0;
+					const total = stats.reduce((sum, s) => sum + (s.avg_mtta_seconds || 0), 0);
+					return total / stats.length;
+				},
+
+				getOverallAvgFixTime() {
+					if (!this.statsData?.statistics) return 0;
+					const stats = Object.values(this.statsData.statistics);
+					if (stats.length === 0) return 0;
+					const total = stats.reduce((sum, s) => sum + (s.avg_fix_time_seconds || 0), 0);
 					return total / stats.length;
 				},
 
@@ -1621,17 +1681,21 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								valueA = statA.count || 0;
 								valueB = statB.count || 0;
 								break;
-							case 'avg_duration':
-								valueA = statA.avg_duration_seconds || 0;
-								valueB = statB.avg_duration_seconds || 0;
-								break;
-							case 'total_duration':
-								valueA = statA.total_duration_seconds || 0;
-								valueB = statB.total_duration_seconds || 0;
-								break;
 							case 'avg_mttr':
 								valueA = statA.avg_mttr_seconds || 0;
 								valueB = statB.avg_mttr_seconds || 0;
+								break;
+							case 'total_mttr':
+								valueA = statA.total_mttr_seconds || 0;
+								valueB = statB.total_mttr_seconds || 0;
+								break;
+							case 'avg_mtta':
+								valueA = statA.avg_mtta_seconds || 0;
+								valueB = statB.avg_mtta_seconds || 0;
+								break;
+							case 'avg_fix_time':
+								valueA = statA.avg_fix_time_seconds || 0;
+								valueB = statB.avg_fix_time_seconds || 0;
 								break;
 							default:
 								valueA = statA.count || 0;
@@ -1676,6 +1740,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				},
 
 				formatMTTR(seconds) {
+					if (!seconds || seconds === 0) return 'N/A';
+					return this.formatDuration(seconds);
+				},
+
+				formatTimeOrNA(seconds) {
 					if (!seconds || seconds === 0) return 'N/A';
 					return this.formatDuration(seconds);
 				},
@@ -2271,11 +2340,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							const currentTotal = this.statsData?.total_alerts || 0;
 							const prevTotal = prevData?.total_alerts || 0;
 
-							const currentAvgDuration = this.getOverallAvgDuration();
-							const prevAvgDuration = this.calculateAvgFromStats(prevData?.statistics);
-
 							const currentMTTR = this.getOverallAvgMTTR();
 							const prevMTTR = this.calculateMTTRFromStats(prevData?.statistics);
+
+							const currentMTTA = this.getOverallAvgMTTA();
+							const prevMTTA = this.calculateMTTAFromStats(prevData?.statistics);
 
 							const currentCritical = this.getCriticalCount();
 							const prevCritical = prevData?.statistics?.critical?.count || 0;
@@ -2283,8 +2352,8 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							this.comparisonData = {
 								previous_total: prevTotal,
 								delta_alerts: prevTotal > 0 ? ((currentTotal - prevTotal) / prevTotal * 100).toFixed(1) : 0,
-								delta_duration: prevAvgDuration > 0 ? ((currentAvgDuration - prevAvgDuration) / prevAvgDuration * 100).toFixed(1) : 0,
 								delta_mttr: prevMTTR > 0 ? ((currentMTTR - prevMTTR) / prevMTTR * 100).toFixed(1) : 0,
+								delta_mtta: prevMTTA > 0 ? ((currentMTTA - prevMTTA) / prevMTTA * 100).toFixed(1) : 0,
 								delta_critical: prevCritical > 0 ? ((currentCritical - prevCritical) / prevCritical * 100).toFixed(1) : 0
 							};
 						}
@@ -2293,18 +2362,18 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					}
 				},
 
-				calculateAvgFromStats(stats) {
-					if (!stats) return 0;
-					const values = Object.values(stats);
-					if (values.length === 0) return 0;
-					return values.reduce((sum, s) => sum + (s.avg_duration_seconds || 0), 0) / values.length;
-				},
-
 				calculateMTTRFromStats(stats) {
 					if (!stats) return 0;
 					const values = Object.values(stats);
 					if (values.length === 0) return 0;
 					return values.reduce((sum, s) => sum + (s.avg_mttr_seconds || 0), 0) / values.length;
+				},
+
+				calculateMTTAFromStats(stats) {
+					if (!stats) return 0;
+					const values = Object.values(stats);
+					if (values.length === 0) return 0;
+					return values.reduce((sum, s) => sum + (s.avg_mtta_seconds || 0), 0) / values.length;
 				},
 
 				getCriticalCount() {
@@ -2729,9 +2798,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						});
 					} else {
 						// Export grouped statistics
-						csv = 'Category,Count,Avg Duration (s),Total Duration (s),Avg MTTR (s)\n';
+						csv = 'Category,Count,Avg MTTR (s),Total MTTR (s),Avg MTTA (s),Avg Fix Time (s)\n';
 						Object.entries(this.statsData.statistics || {}).forEach(([key, stat]) => {
-							csv += `"${key}",${stat.count},${stat.avg_duration_seconds},${stat.total_duration_seconds},${stat.avg_mttr_seconds}\n`;
+							csv += `"${key}",${stat.count},${stat.avg_mttr_seconds},${stat.total_mttr_seconds},${stat.avg_mtta_seconds},${stat.avg_fix_time_seconds}\n`;
 						});
 					}
 

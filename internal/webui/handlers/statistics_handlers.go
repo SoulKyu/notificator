@@ -213,15 +213,16 @@ func GetAlertsByName(c *gin.Context) {
 		}
 
 		result[i] = gin.H{
-			"id":               alert.Id,
-			"fingerprint":      alert.Fingerprint,
-			"alert_name":       alert.AlertName,
-			"severity":         alert.Severity,
-			"fired_at":         alert.FiredAt.AsTime(),
-			"resolved_at":      nil,
-			"duration_seconds": alert.DurationSeconds,
-			"mttr_seconds":     alert.MttrSeconds,
-			"metadata":         metadata,
+			"id":                alert.Id,
+			"fingerprint":       alert.Fingerprint,
+			"alert_name":        alert.AlertName,
+			"severity":          alert.Severity,
+			"fired_at":          alert.FiredAt.AsTime(),
+			"resolved_at":       nil,
+			"mttr_seconds":      alert.MttrSeconds,
+			"mtta_seconds":      alert.MttaSeconds,
+			"fix_time_seconds":  alert.FixTimeSeconds,
+			"metadata":          metadata,
 		}
 		if alert.ResolvedAt != nil {
 			result[i]["resolved_at"] = alert.ResolvedAt.AsTime()
@@ -582,10 +583,11 @@ func convertStatisticsMap(pbStats map[string]*alertpb.AggregatedStatistics) map[
 	result := make(map[string]gin.H)
 	for key, stats := range pbStats {
 		result[key] = gin.H{
-			"count":                  stats.Count,
-			"avg_duration_seconds":   stats.AvgDurationSeconds,
-			"total_duration_seconds": stats.TotalDurationSeconds,
-			"avg_mttr_seconds":       stats.AvgMttrSeconds,
+			"count":                 stats.Count,
+			"avg_mttr_seconds":      stats.AvgMttrSeconds,
+			"total_mttr_seconds":    stats.TotalMttrSeconds,
+			"avg_mtta_seconds":      stats.AvgMttaSeconds,
+			"avg_fix_time_seconds":  stats.AvgFixTimeSeconds,
 		}
 	}
 	return result
@@ -854,9 +856,9 @@ func GetResolvedAlertDetails(c *gin.Context) {
 		alert.EndsAt = latestStat.ResolvedAt.AsTime()
 	}
 
-	// Calculate duration
-	if latestStat.DurationSeconds > 0 {
-		alert.Duration = int64(latestStat.DurationSeconds)
+	// Calculate duration (using MTTR - Mean Time To Resolve)
+	if latestStat.MttrSeconds > 0 {
+		alert.Duration = int64(latestStat.MttrSeconds)
 	}
 
 	// Build alert details response
@@ -928,11 +930,14 @@ func GetResolvedAlertDetails(c *gin.Context) {
 		if stat.AcknowledgedAt != nil {
 			occ["acknowledged_at"] = stat.AcknowledgedAt.AsTime()
 		}
-		if stat.DurationSeconds > 0 {
-			occ["duration_seconds"] = stat.DurationSeconds
-		}
 		if stat.MttrSeconds > 0 {
 			occ["mttr_seconds"] = stat.MttrSeconds
+		}
+		if stat.MttaSeconds > 0 {
+			occ["mtta_seconds"] = stat.MttaSeconds
+		}
+		if stat.FixTimeSeconds > 0 {
+			occ["fix_time_seconds"] = stat.FixTimeSeconds
 		}
 
 		occurrences[i] = occ

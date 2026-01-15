@@ -58,9 +58,17 @@ func (scs *StatisticsCaptureService) CaptureAlertFired(alert *webuimodels.Dashbo
 
 // UpdateAlertResolved updates statistics when an alert resolves
 func (scs *StatisticsCaptureService) UpdateAlertResolved(alert *webuimodels.DashboardAlert) error {
-	// Calculate duration in seconds
-	duration := alert.ResolvedAt.Sub(alert.StartsAt)
-	durationSec := int(duration.Seconds())
+	// Calculate MTTR (Mean Time To Resolve) = resolved - fired
+	mttr := alert.ResolvedAt.Sub(alert.StartsAt)
+	mttrSec := int(mttr.Seconds())
+
+	// Calculate Fix Time = resolved - acknowledged (only if acknowledged)
+	var fixTimeSec *int
+	if !alert.AcknowledgedAt.IsZero() {
+		fixTime := alert.ResolvedAt.Sub(alert.AcknowledgedAt)
+		ft := int(fixTime.Seconds())
+		fixTimeSec = &ft
+	}
 
 	// Extract and build metadata
 	metadata, err := scs.extractMetadata(alert)
@@ -82,7 +90,8 @@ func (scs *StatisticsCaptureService) UpdateAlertResolved(alert *webuimodels.Dash
 	updatedCount, err := scs.db.UpdateAllUnresolvedByFingerprint(
 		alert.Fingerprint,
 		alert.ResolvedAt,
-		durationSec,
+		mttrSec,
+		fixTimeSec,
 		metadataJSON,
 	)
 
@@ -96,7 +105,11 @@ func (scs *StatisticsCaptureService) UpdateAlertResolved(alert *webuimodels.Dash
 		return nil
 	}
 
-	log.Printf("📊 Updated resolution for alert: %s (duration: %ds, updated %d record(s))", alert.AlertName, durationSec, updatedCount)
+	if fixTimeSec != nil {
+		log.Printf("📊 Updated resolution for alert: %s (MTTR: %ds, Fix Time: %ds, updated %d record(s))", alert.AlertName, mttrSec, *fixTimeSec, updatedCount)
+	} else {
+		log.Printf("📊 Updated resolution for alert: %s (MTTR: %ds, not acknowledged, updated %d record(s))", alert.AlertName, mttrSec, updatedCount)
+	}
 	return nil
 }
 
@@ -113,18 +126,18 @@ func (scs *StatisticsCaptureService) UpdateAlertAcknowledged(alert *webuimodels.
 	// Update acknowledgment data
 	stat.AcknowledgedAt = models.TimePtr(alert.AcknowledgedAt)
 
-	// Calculate MTTR (Mean Time To Resolve) in seconds
-	// MTTR = time from alert firing to acknowledgment
-	mttr := alert.AcknowledgedAt.Sub(alert.StartsAt)
-	mttrSec := int(mttr.Seconds())
-	stat.MTTRSeconds = models.IntPtr(mttrSec)
+	// Calculate MTTA (Mean Time To Acknowledge) in seconds
+	// MTTA = time from alert firing to acknowledgment
+	mtta := alert.AcknowledgedAt.Sub(alert.StartsAt)
+	mttaSec := int(mtta.Seconds())
+	stat.MTTASeconds = models.IntPtr(mttaSec)
 
 	// Update in database
 	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
 		return fmt.Errorf("failed to update alert statistic: %w", err)
 	}
 
-	log.Printf("📊 Updated acknowledgment for alert: %s (MTTR: %ds)", alert.AlertName, mttrSec)
+	log.Printf("📊 Updated acknowledgment for alert: %s (MTTA: %ds)", alert.AlertName, mttaSec)
 	return nil
 }
 
@@ -143,8 +156,16 @@ func (scs *StatisticsCaptureService) UpdateAlertResolvedMinimal(fingerprint stri
 	}
 
 	stat.ResolvedAt = models.TimePtr(resolvedAt)
-	duration := resolvedAt.Sub(stat.FiredAt)
-	stat.DurationSeconds = models.IntPtr(int(duration.Seconds()))
+
+	// Calculate MTTR (Mean Time To Resolve) = resolved - fired
+	mttr := resolvedAt.Sub(stat.FiredAt)
+	stat.MTTRSeconds = models.IntPtr(int(mttr.Seconds()))
+
+	// Calculate Fix Time = resolved - acknowledged (only if acknowledged)
+	if stat.AcknowledgedAt != nil {
+		fixTime := resolvedAt.Sub(*stat.AcknowledgedAt)
+		stat.FixTimeSeconds = models.IntPtr(int(fixTime.Seconds()))
+	}
 
 	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
 		return fmt.Errorf("failed to update alert statistic: %w", err)
@@ -168,8 +189,10 @@ func (scs *StatisticsCaptureService) UpdateAlertAcknowledgedMinimal(fingerprint 
 	}
 
 	stat.AcknowledgedAt = models.TimePtr(acknowledgedAt)
-	mttr := acknowledgedAt.Sub(stat.FiredAt)
-	stat.MTTRSeconds = models.IntPtr(int(mttr.Seconds()))
+
+	// Calculate MTTA (Mean Time To Acknowledge) = acknowledged - fired
+	mtta := acknowledgedAt.Sub(stat.FiredAt)
+	stat.MTTASeconds = models.IntPtr(int(mtta.Seconds()))
 
 	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
 		return fmt.Errorf("failed to update alert statistic: %w", err)

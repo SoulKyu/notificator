@@ -675,9 +675,10 @@ message TimeRange {
 
 message AggregatedStatistics {
   int32 count = 1;
-  double avg_duration_seconds = 2;
-  int32 total_duration_seconds = 3;
-  double avg_mttr_seconds = 4;
+  double avg_mttr_seconds = 2;        // Mean Time To Resolve (resolved - fired)
+  int32 total_mttr_seconds = 3;
+  double avg_mtta_seconds = 4;        // Mean Time To Acknowledge (acknowledged - fired)
+  double avg_fix_time_seconds = 5;    // Fix Time (resolved - acknowledged)
 }
 
 message BreakdownItem {
@@ -795,10 +796,11 @@ message AlertStatistic {
   google.protobuf.Timestamp fired_at = 6;
   google.protobuf.Timestamp resolved_at = 7;
   google.protobuf.Timestamp acknowledged_at = 8;
-  int32 duration_seconds = 9;
-  int32 mttr_seconds = 10;
+  int32 mttr_seconds = 9;       // Mean Time To Resolve (resolved - fired)
+  int32 mtta_seconds = 10;      // Mean Time To Acknowledge (acknowledged - fired)
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp updated_at = 12;
+  int32 fix_time_seconds = 13;  // Fix Time (resolved - acknowledged)
 }
 
 // ==================== Statistics Summary Messages ====================
@@ -872,18 +874,19 @@ message ResolvedAlertItem {
   string fingerprint = 1;
   string alert_name = 2;
   string severity = 3;
-  int32 occurrence_count = 4;              // How many times resolved in time range
-  google.protobuf.Timestamp first_fired_at = 5;    // Earliest fired_at
-  google.protobuf.Timestamp last_resolved_at = 6;  // Most recent resolved_at
-  int32 total_duration = 7;                // Sum of all durations
-  double avg_duration = 8;                 // Average duration
-  int32 total_mttr = 9;                    // Sum of all MTTR
-  double avg_mttr = 10;                    // Average MTTR
+  int32 occurrence_count = 4;                      // How many times resolved in time range
+  google.protobuf.Timestamp first_fired_at = 5;   // Earliest fired_at
+  google.protobuf.Timestamp last_resolved_at = 6; // Most recent resolved_at
+  int32 total_mttr = 7;                           // Sum of MTTR (resolved - fired)
+  double avg_mttr = 8;                            // Average MTTR
+  int32 total_mtta = 9;                           // Sum of MTTA (acknowledged - fired)
+  double avg_mtta = 10;                           // Average MTTA
   map<string, string> labels = 11;
   map<string, string> annotations = 12;
   string source = 13;
   string instance = 14;
   string team = 15;
+  double avg_fix_time = 16;                       // Average Fix Time (resolved - acknowledged)
 }
 
 message QueryRecentlyResolvedResponse {

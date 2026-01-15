@@ -30,8 +30,9 @@ type AlertStatistic struct {
 	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
 
 	// Computed metrics (in seconds)
-	DurationSeconds *int `gorm:"index" json:"duration_seconds,omitempty"` // resolved_at - fired_at
-	MTTRSeconds     *int `gorm:"index" json:"mttr_seconds,omitempty"`     // acknowledged_at - fired_at (Mean Time To Resolve)
+	MTTRSeconds    *int `gorm:"index" json:"mttr_seconds,omitempty"`     // resolved_at - fired_at (Mean Time To Resolve)
+	MTTASeconds    *int `gorm:"index" json:"mtta_seconds,omitempty"`     // acknowledged_at - fired_at (Mean Time To Acknowledge)
+	FixTimeSeconds *int `gorm:"index" json:"fix_time_seconds,omitempty"` // resolved_at - acknowledged_at (Fix Time after acknowledgment)
 
 	// Housekeeping
 	CreatedAt time.Time `json:"created_at"`
@@ -168,7 +169,8 @@ type RuleConfig struct {
 // Used in query responses
 type AggregatedStatistics struct {
 	Count              int     `json:"count"`
-	AvgDurationSeconds float64 `json:"avg_duration_seconds"`
-	TotalDurationSeconds int   `json:"total_duration_seconds"`
-	AvgMTTRSeconds     float64 `json:"avg_mttr_seconds"`
+	AvgMTTRSeconds     float64 `json:"avg_mttr_seconds"`      // Mean Time To Resolve (resolved - fired)
+	TotalMTTRSeconds   int     `json:"total_mttr_seconds"`
+	AvgMTTASeconds     float64 `json:"avg_mtta_seconds"`      // Mean Time To Acknowledge (ack - fired)
+	AvgFixTimeSeconds  float64 `json:"avg_fix_time_seconds"`  // Fix Time (resolved - ack)
 }

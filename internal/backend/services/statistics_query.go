@@ -299,18 +299,20 @@ func parseTimeToMinutes(timeStr string) int {
 // aggregateOverall computes overall statistics without grouping
 func (sqs *StatisticsQueryService) aggregateOverall(query *gorm.DB) (map[string]*models.AggregatedStatistics, error) {
 	var result struct {
-		Count              int64
-		AvgDurationSeconds float64
-		TotalDuration      int64
-		AvgMTTRSeconds     float64
+		Count             int64
+		AvgMTTRSeconds    float64
+		TotalMTTR         int64
+		AvgMTTASeconds    float64
+		AvgFixTimeSeconds float64
 	}
 
 	err := query.
 		Select(`
 			COUNT(*) as count,
-			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration_seconds,
-			COALESCE(SUM(duration_seconds), 0) as total_duration,
-			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds
+			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds,
+			COALESCE(SUM(mttr_seconds), 0) as total_mttr,
+			COALESCE(AVG(NULLIF(mtta_seconds, 0)), 0) as avg_mtta_seconds,
+			COALESCE(AVG(NULLIF(fix_time_seconds, 0)), 0) as avg_fix_time_seconds
 		`).
 		Scan(&result).Error
 
@@ -320,10 +322,11 @@ func (sqs *StatisticsQueryService) aggregateOverall(query *gorm.DB) (map[string]
 
 	stats := map[string]*models.AggregatedStatistics{
 		"overall": {
-			Count:              int(result.Count),
-			AvgDurationSeconds: result.AvgDurationSeconds,
-			TotalDurationSeconds: int(result.TotalDuration),
-			AvgMTTRSeconds:     result.AvgMTTRSeconds,
+			Count:             int(result.Count),
+			AvgMTTRSeconds:    result.AvgMTTRSeconds,
+			TotalMTTRSeconds:  int(result.TotalMTTR),
+			AvgMTTASeconds:    result.AvgMTTASeconds,
+			AvgFixTimeSeconds: result.AvgFixTimeSeconds,
 		},
 	}
 
@@ -333,11 +336,12 @@ func (sqs *StatisticsQueryService) aggregateOverall(query *gorm.DB) (map[string]
 // aggregateBySeverity groups statistics by severity level
 func (sqs *StatisticsQueryService) aggregateBySeverity(query *gorm.DB) (map[string]*models.AggregatedStatistics, error) {
 	type SeverityResult struct {
-		Severity           string
-		Count              int64
-		AvgDurationSeconds float64
-		TotalDuration      int64
-		AvgMTTRSeconds     float64
+		Severity          string
+		Count             int64
+		AvgMTTRSeconds    float64
+		TotalMTTR         int64
+		AvgMTTASeconds    float64
+		AvgFixTimeSeconds float64
 	}
 
 	var results []SeverityResult
@@ -346,9 +350,10 @@ func (sqs *StatisticsQueryService) aggregateBySeverity(query *gorm.DB) (map[stri
 		Select(`
 			severity,
 			COUNT(*) as count,
-			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration_seconds,
-			COALESCE(SUM(duration_seconds), 0) as total_duration,
-			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds
+			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds,
+			COALESCE(SUM(mttr_seconds), 0) as total_mttr,
+			COALESCE(AVG(NULLIF(mtta_seconds, 0)), 0) as avg_mtta_seconds,
+			COALESCE(AVG(NULLIF(fix_time_seconds, 0)), 0) as avg_fix_time_seconds
 		`).
 		Group("severity").
 		Scan(&results).Error
@@ -361,10 +366,11 @@ func (sqs *StatisticsQueryService) aggregateBySeverity(query *gorm.DB) (map[stri
 	stats := make(map[string]*models.AggregatedStatistics)
 	for _, r := range results {
 		stats[r.Severity] = &models.AggregatedStatistics{
-			Count:              int(r.Count),
-			AvgDurationSeconds: r.AvgDurationSeconds,
-			TotalDurationSeconds: int(r.TotalDuration),
-			AvgMTTRSeconds:     r.AvgMTTRSeconds,
+			Count:             int(r.Count),
+			AvgMTTRSeconds:    r.AvgMTTRSeconds,
+			TotalMTTRSeconds:  int(r.TotalMTTR),
+			AvgMTTASeconds:    r.AvgMTTASeconds,
+			AvgFixTimeSeconds: r.AvgFixTimeSeconds,
 		}
 	}
 
@@ -374,11 +380,12 @@ func (sqs *StatisticsQueryService) aggregateBySeverity(query *gorm.DB) (map[stri
 // aggregateByTeam groups statistics by team label
 func (sqs *StatisticsQueryService) aggregateByTeam(query *gorm.DB) (map[string]*models.AggregatedStatistics, error) {
 	type TeamResult struct {
-		Team               string
-		Count              int64
-		AvgDurationSeconds float64
-		TotalDuration      int64
-		AvgMTTRSeconds     float64
+		Team              string
+		Count             int64
+		AvgMTTRSeconds    float64
+		TotalMTTR         int64
+		AvgMTTASeconds    float64
+		AvgFixTimeSeconds float64
 	}
 
 	var results []TeamResult
@@ -388,9 +395,10 @@ func (sqs *StatisticsQueryService) aggregateByTeam(query *gorm.DB) (map[string]*
 		Select(`
 			COALESCE(metadata->'labels'->>'team', 'unknown') as team,
 			COUNT(*) as count,
-			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration_seconds,
-			COALESCE(SUM(duration_seconds), 0) as total_duration,
-			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds
+			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds,
+			COALESCE(SUM(mttr_seconds), 0) as total_mttr,
+			COALESCE(AVG(NULLIF(mtta_seconds, 0)), 0) as avg_mtta_seconds,
+			COALESCE(AVG(NULLIF(fix_time_seconds, 0)), 0) as avg_fix_time_seconds
 		`).
 		Group("team").
 		Scan(&results).Error
@@ -403,10 +411,11 @@ func (sqs *StatisticsQueryService) aggregateByTeam(query *gorm.DB) (map[string]*
 	stats := make(map[string]*models.AggregatedStatistics)
 	for _, r := range results {
 		stats[r.Team] = &models.AggregatedStatistics{
-			Count:              int(r.Count),
-			AvgDurationSeconds: r.AvgDurationSeconds,
-			TotalDurationSeconds: int(r.TotalDuration),
-			AvgMTTRSeconds:     r.AvgMTTRSeconds,
+			Count:             int(r.Count),
+			AvgMTTRSeconds:    r.AvgMTTRSeconds,
+			TotalMTTRSeconds:  int(r.TotalMTTR),
+			AvgMTTASeconds:    r.AvgMTTASeconds,
+			AvgFixTimeSeconds: r.AvgFixTimeSeconds,
 		}
 	}
 
@@ -416,11 +425,12 @@ func (sqs *StatisticsQueryService) aggregateByTeam(query *gorm.DB) (map[string]*
 // aggregateByAlertName groups statistics by alert name
 func (sqs *StatisticsQueryService) aggregateByAlertName(query *gorm.DB, limit int) (map[string]*models.AggregatedStatistics, error) {
 	type AlertNameResult struct {
-		AlertName          string
-		Count              int64
-		AvgDurationSeconds float64
-		TotalDuration      int64
-		AvgMTTRSeconds     float64
+		AlertName         string
+		Count             int64
+		AvgMTTRSeconds    float64
+		TotalMTTR         int64
+		AvgMTTASeconds    float64
+		AvgFixTimeSeconds float64
 	}
 
 	var results []AlertNameResult
@@ -429,9 +439,10 @@ func (sqs *StatisticsQueryService) aggregateByAlertName(query *gorm.DB, limit in
 		Select(`
 			alert_name,
 			COUNT(*) as count,
-			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration_seconds,
-			COALESCE(SUM(duration_seconds), 0) as total_duration,
-			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds
+			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds,
+			COALESCE(SUM(mttr_seconds), 0) as total_mttr,
+			COALESCE(AVG(NULLIF(mtta_seconds, 0)), 0) as avg_mtta_seconds,
+			COALESCE(AVG(NULLIF(fix_time_seconds, 0)), 0) as avg_fix_time_seconds
 		`).
 		Group("alert_name").
 		Order("count DESC")
@@ -450,10 +461,11 @@ func (sqs *StatisticsQueryService) aggregateByAlertName(query *gorm.DB, limit in
 	stats := make(map[string]*models.AggregatedStatistics)
 	for _, r := range results {
 		stats[r.AlertName] = &models.AggregatedStatistics{
-			Count:              int(r.Count),
-			AvgDurationSeconds: r.AvgDurationSeconds,
-			TotalDurationSeconds: int(r.TotalDuration),
-			AvgMTTRSeconds:     r.AvgMTTRSeconds,
+			Count:             int(r.Count),
+			AvgMTTRSeconds:    r.AvgMTTRSeconds,
+			TotalMTTRSeconds:  int(r.TotalMTTR),
+			AvgMTTASeconds:    r.AvgMTTASeconds,
+			AvgFixTimeSeconds: r.AvgFixTimeSeconds,
 		}
 	}
 
@@ -493,9 +505,10 @@ func (sqs *StatisticsQueryService) aggregateByPeriod(query *gorm.DB, periodType 
 			%s as period,
 			%s,
 			COUNT(*) as count,
-			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration_seconds,
-			COALESCE(SUM(duration_seconds), 0) as total_duration,
-			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds
+			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr_seconds,
+			COALESCE(SUM(mttr_seconds), 0) as total_mttr,
+			COALESCE(AVG(NULLIF(mtta_seconds, 0)), 0) as avg_mtta_seconds,
+			COALESCE(AVG(NULLIF(fix_time_seconds, 0)), 0) as avg_fix_time_seconds
 		`, dateTrunc, selectColumn)).
 		Group(fmt.Sprintf("period, %s", groupByColumn)).
 		Order("period ASC").
@@ -549,22 +562,24 @@ func (sqs *StatisticsQueryService) getDateTruncSQL(periodType string) string {
 
 // PeriodSeverityResult represents a query result for period-severity aggregation
 type PeriodSeverityResult struct {
-	Period             time.Time
-	Severity           string
-	Count              int64
-	AvgDurationSeconds float64
-	TotalDuration      int64
-	AvgMTTRSeconds     float64
+	Period            time.Time
+	Severity          string
+	Count             int64
+	AvgMTTRSeconds    float64
+	TotalMTTR         int64
+	AvgMTTASeconds    float64
+	AvgFixTimeSeconds float64
 }
 
 // PeriodGroupResult represents a query result for period-based aggregation with dynamic grouping
 type PeriodGroupResult struct {
-	Period             time.Time
-	GroupKey           string  // Can be severity, team, or alert_name based on secondaryGroupBy
-	Count              int64
-	AvgDurationSeconds float64
-	TotalDuration      int64
-	AvgMTTRSeconds     float64
+	Period            time.Time
+	GroupKey          string // Can be severity, team, or alert_name based on secondaryGroupBy
+	Count             int64
+	AvgMTTRSeconds    float64
+	TotalMTTR         int64
+	AvgMTTASeconds    float64
+	AvgFixTimeSeconds float64
 }
 
 // groupResultsByPeriod converts flat query results into hierarchical breakdown items
@@ -588,10 +603,11 @@ func (sqs *StatisticsQueryService) groupResultsByPeriod(results []PeriodSeverity
 
 		// Add severity statistics
 		item.Statistics[r.Severity] = &models.AggregatedStatistics{
-			Count:                int(r.Count),
-			AvgDurationSeconds:   r.AvgDurationSeconds,
-			TotalDurationSeconds: int(r.TotalDuration),
-			AvgMTTRSeconds:       r.AvgMTTRSeconds,
+			Count:             int(r.Count),
+			AvgMTTRSeconds:    r.AvgMTTRSeconds,
+			TotalMTTRSeconds:  int(r.TotalMTTR),
+			AvgMTTASeconds:    r.AvgMTTASeconds,
+			AvgFixTimeSeconds: r.AvgFixTimeSeconds,
 		}
 		item.TotalCount += int(r.Count)
 	}
@@ -635,10 +651,11 @@ func (sqs *StatisticsQueryService) groupResultsByPeriodGeneric(results []PeriodG
 
 		// Add statistics for this group key (severity, team, or alert_name)
 		item.Statistics[r.GroupKey] = &models.AggregatedStatistics{
-			Count:                int(r.Count),
-			AvgDurationSeconds:   r.AvgDurationSeconds,
-			TotalDurationSeconds: int(r.TotalDuration),
-			AvgMTTRSeconds:       r.AvgMTTRSeconds,
+			Count:             int(r.Count),
+			AvgMTTRSeconds:    r.AvgMTTRSeconds,
+			TotalMTTRSeconds:  int(r.TotalMTTR),
+			AvgMTTASeconds:    r.AvgMTTASeconds,
+			AvgFixTimeSeconds: r.AvgFixTimeSeconds,
 		}
 		item.TotalCount += int(r.Count)
 	}
@@ -886,10 +903,11 @@ type ResolvedAlertItem struct {
 	OccurrenceCount    int                    // How many times this alert resolved in time range
 	FirstFiredAt       time.Time              // Earliest fired_at
 	LastResolvedAt     time.Time              // Most recent resolved_at
-	TotalDuration      int                    // Sum of all durations
-	AvgDuration        float64                // Average duration
-	TotalMTTR          int                    // Sum of all MTTR
+	TotalMTTR          int                    // Sum of MTTR (resolved - fired)
 	AvgMTTR            float64                // Average MTTR
+	TotalMTTA          int                    // Sum of MTTA (acknowledged - fired)
+	AvgMTTA            float64                // Average MTTA
+	AvgFixTime         float64                // Average Fix Time (resolved - acknowledged)
 	Metadata           map[string]interface{} // Parsed JSONB
 	Source             string
 	Instance           string
@@ -1135,11 +1153,12 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 		OccurrenceCount  int
 		FirstFiredAt     time.Time
 		LastResolvedAt   time.Time
-		TotalDuration    int64
-		AvgDuration      float64
-		TotalMTTR        int64
-		AvgMTTR          float64
-		Metadata         string // Latest metadata (JSONB as string)
+		TotalMTTR        int64   // Sum of MTTR (resolved - fired)
+		AvgMTTR          float64 // Average MTTR
+		TotalMTTA        int64   // Sum of MTTA (acknowledged - fired)
+		AvgMTTA          float64 // Average MTTA
+		AvgFixTime       float64 // Average Fix Time (resolved - acknowledged)
+		Metadata         string  // Latest metadata (JSONB as string)
 	}
 
 	// Aggregate query - note: source and instance are in metadata JSONB, not separate columns
@@ -1152,10 +1171,11 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 			COUNT(*) as occurrence_count,
 			MIN(fired_at) as first_fired_at,
 			MAX(resolved_at) as last_resolved_at,
-			COALESCE(SUM(duration_seconds), 0) as total_duration,
-			COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) as avg_duration,
 			COALESCE(SUM(mttr_seconds), 0) as total_mttr,
 			COALESCE(AVG(NULLIF(mttr_seconds, 0)), 0) as avg_mttr,
+			COALESCE(SUM(mtta_seconds), 0) as total_mtta,
+			COALESCE(AVG(NULLIF(mtta_seconds, 0)), 0) as avg_mtta,
+			COALESCE(AVG(NULLIF(fix_time_seconds, 0)), 0) as avg_fix_time,
 			(array_agg(metadata ORDER BY resolved_at DESC))[1] as metadata
 		`).
 		Group("fingerprint, alert_name, severity")
@@ -1248,10 +1268,11 @@ func (sqs *StatisticsQueryService) convertAggregatedToResolvedAlertItem(result i
 		OccurrenceCount  int
 		FirstFiredAt     time.Time
 		LastResolvedAt   time.Time
-		TotalDuration    int64
-		AvgDuration      float64
-		TotalMTTR        int64
-		AvgMTTR          float64
+		TotalMTTR        int64   // Sum of MTTR (resolved - fired)
+		AvgMTTR          float64 // Average MTTR
+		TotalMTTA        int64   // Sum of MTTA (acknowledged - fired)
+		AvgMTTA          float64 // Average MTTA
+		AvgFixTime       float64 // Average Fix Time (resolved - acknowledged)
 		Metadata         string
 	}
 
@@ -1264,17 +1285,18 @@ func (sqs *StatisticsQueryService) convertAggregatedToResolvedAlertItem(result i
 		// Use reflection to convert
 		resultValue := reflect.ValueOf(result)
 		aggResult = AggregatedResult{
-			Fingerprint:      resultValue.FieldByName("Fingerprint").String(),
-			AlertName:        resultValue.FieldByName("AlertName").String(),
-			Severity:         resultValue.FieldByName("Severity").String(),
-			OccurrenceCount:  int(resultValue.FieldByName("OccurrenceCount").Int()),
-			FirstFiredAt:     resultValue.FieldByName("FirstFiredAt").Interface().(time.Time),
-			LastResolvedAt:   resultValue.FieldByName("LastResolvedAt").Interface().(time.Time),
-			TotalDuration:    resultValue.FieldByName("TotalDuration").Int(),
-			AvgDuration:      resultValue.FieldByName("AvgDuration").Float(),
-			TotalMTTR:        resultValue.FieldByName("TotalMTTR").Int(),
-			AvgMTTR:          resultValue.FieldByName("AvgMTTR").Float(),
-			Metadata:         resultValue.FieldByName("Metadata").String(),
+			Fingerprint:     resultValue.FieldByName("Fingerprint").String(),
+			AlertName:       resultValue.FieldByName("AlertName").String(),
+			Severity:        resultValue.FieldByName("Severity").String(),
+			OccurrenceCount: int(resultValue.FieldByName("OccurrenceCount").Int()),
+			FirstFiredAt:    resultValue.FieldByName("FirstFiredAt").Interface().(time.Time),
+			LastResolvedAt:  resultValue.FieldByName("LastResolvedAt").Interface().(time.Time),
+			TotalMTTR:       resultValue.FieldByName("TotalMTTR").Int(),
+			AvgMTTR:         resultValue.FieldByName("AvgMTTR").Float(),
+			TotalMTTA:       resultValue.FieldByName("TotalMTTA").Int(),
+			AvgMTTA:         resultValue.FieldByName("AvgMTTA").Float(),
+			AvgFixTime:      resultValue.FieldByName("AvgFixTime").Float(),
+			Metadata:        resultValue.FieldByName("Metadata").String(),
 		}
 	}
 
@@ -1291,10 +1313,11 @@ func (sqs *StatisticsQueryService) convertAggregatedToResolvedAlertItem(result i
 		OccurrenceCount: aggResult.OccurrenceCount,
 		FirstFiredAt:    aggResult.FirstFiredAt,
 		LastResolvedAt:  aggResult.LastResolvedAt,
-		TotalDuration:   int(aggResult.TotalDuration),
-		AvgDuration:     aggResult.AvgDuration,
 		TotalMTTR:       int(aggResult.TotalMTTR),
 		AvgMTTR:         aggResult.AvgMTTR,
+		TotalMTTA:       int(aggResult.TotalMTTA),
+		AvgMTTA:         aggResult.AvgMTTA,
+		AvgFixTime:      aggResult.AvgFixTime,
 		Metadata:        metadata,
 		// Source and Instance will be extracted from metadata below
 	}

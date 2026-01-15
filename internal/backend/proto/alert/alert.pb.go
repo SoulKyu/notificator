@@ -5441,13 +5441,14 @@ func (x *TimeRange) GetEnd() *timestamppb.Timestamp {
 }
 
 type AggregatedStatistics struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	Count                int32                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
-	AvgDurationSeconds   float64                `protobuf:"fixed64,2,opt,name=avg_duration_seconds,json=avgDurationSeconds,proto3" json:"avg_duration_seconds,omitempty"`
-	TotalDurationSeconds int32                  `protobuf:"varint,3,opt,name=total_duration_seconds,json=totalDurationSeconds,proto3" json:"total_duration_seconds,omitempty"`
-	AvgMttrSeconds       float64                `protobuf:"fixed64,4,opt,name=avg_mttr_seconds,json=avgMttrSeconds,proto3" json:"avg_mttr_seconds,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Count             int32                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
+	AvgMttrSeconds    float64                `protobuf:"fixed64,2,opt,name=avg_mttr_seconds,json=avgMttrSeconds,proto3" json:"avg_mttr_seconds,omitempty"` // Mean Time To Resolve (resolved - fired)
+	TotalMttrSeconds  int32                  `protobuf:"varint,3,opt,name=total_mttr_seconds,json=totalMttrSeconds,proto3" json:"total_mttr_seconds,omitempty"`
+	AvgMttaSeconds    float64                `protobuf:"fixed64,4,opt,name=avg_mtta_seconds,json=avgMttaSeconds,proto3" json:"avg_mtta_seconds,omitempty"`            // Mean Time To Acknowledge (acknowledged - fired)
+	AvgFixTimeSeconds float64                `protobuf:"fixed64,5,opt,name=avg_fix_time_seconds,json=avgFixTimeSeconds,proto3" json:"avg_fix_time_seconds,omitempty"` // Fix Time (resolved - acknowledged)
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *AggregatedStatistics) Reset() {
@@ -5487,23 +5488,30 @@ func (x *AggregatedStatistics) GetCount() int32 {
 	return 0
 }
 
-func (x *AggregatedStatistics) GetAvgDurationSeconds() float64 {
-	if x != nil {
-		return x.AvgDurationSeconds
-	}
-	return 0
-}
-
-func (x *AggregatedStatistics) GetTotalDurationSeconds() int32 {
-	if x != nil {
-		return x.TotalDurationSeconds
-	}
-	return 0
-}
-
 func (x *AggregatedStatistics) GetAvgMttrSeconds() float64 {
 	if x != nil {
 		return x.AvgMttrSeconds
+	}
+	return 0
+}
+
+func (x *AggregatedStatistics) GetTotalMttrSeconds() int32 {
+	if x != nil {
+		return x.TotalMttrSeconds
+	}
+	return 0
+}
+
+func (x *AggregatedStatistics) GetAvgMttaSeconds() float64 {
+	if x != nil {
+		return x.AvgMttaSeconds
+	}
+	return 0
+}
+
+func (x *AggregatedStatistics) GetAvgFixTimeSeconds() float64 {
+	if x != nil {
+		return x.AvgFixTimeSeconds
 	}
 	return 0
 }
@@ -6533,21 +6541,22 @@ func (x *RuleCriterion) GetPattern() string {
 }
 
 type AlertStatistic struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Fingerprint     string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	AlertName       string                 `protobuf:"bytes,3,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
-	Severity        string                 `protobuf:"bytes,4,opt,name=severity,proto3" json:"severity,omitempty"`
-	Metadata        []byte                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"` // JSON serialized metadata
-	FiredAt         *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=fired_at,json=firedAt,proto3" json:"fired_at,omitempty"`
-	ResolvedAt      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
-	AcknowledgedAt  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=acknowledged_at,json=acknowledgedAt,proto3" json:"acknowledged_at,omitempty"`
-	DurationSeconds int32                  `protobuf:"varint,9,opt,name=duration_seconds,json=durationSeconds,proto3" json:"duration_seconds,omitempty"`
-	MttrSeconds     int32                  `protobuf:"varint,10,opt,name=mttr_seconds,json=mttrSeconds,proto3" json:"mttr_seconds,omitempty"`
-	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Fingerprint    string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AlertName      string                 `protobuf:"bytes,3,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
+	Severity       string                 `protobuf:"bytes,4,opt,name=severity,proto3" json:"severity,omitempty"`
+	Metadata       []byte                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"` // JSON serialized metadata
+	FiredAt        *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=fired_at,json=firedAt,proto3" json:"fired_at,omitempty"`
+	ResolvedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	AcknowledgedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=acknowledged_at,json=acknowledgedAt,proto3" json:"acknowledged_at,omitempty"`
+	MttrSeconds    int32                  `protobuf:"varint,9,opt,name=mttr_seconds,json=mttrSeconds,proto3" json:"mttr_seconds,omitempty"`  // Mean Time To Resolve (resolved - fired)
+	MttaSeconds    int32                  `protobuf:"varint,10,opt,name=mtta_seconds,json=mttaSeconds,proto3" json:"mtta_seconds,omitempty"` // Mean Time To Acknowledge (acknowledged - fired)
+	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	FixTimeSeconds int32                  `protobuf:"varint,13,opt,name=fix_time_seconds,json=fixTimeSeconds,proto3" json:"fix_time_seconds,omitempty"` // Fix Time (resolved - acknowledged)
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AlertStatistic) Reset() {
@@ -6636,16 +6645,16 @@ func (x *AlertStatistic) GetAcknowledgedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *AlertStatistic) GetDurationSeconds() int32 {
+func (x *AlertStatistic) GetMttrSeconds() int32 {
 	if x != nil {
-		return x.DurationSeconds
+		return x.MttrSeconds
 	}
 	return 0
 }
 
-func (x *AlertStatistic) GetMttrSeconds() int32 {
+func (x *AlertStatistic) GetMttaSeconds() int32 {
 	if x != nil {
-		return x.MttrSeconds
+		return x.MttaSeconds
 	}
 	return 0
 }
@@ -6662,6 +6671,13 @@ func (x *AlertStatistic) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *AlertStatistic) GetFixTimeSeconds() int32 {
+	if x != nil {
+		return x.FixTimeSeconds
+	}
+	return 0
 }
 
 type GetStatisticsSummaryRequest struct {
@@ -7260,15 +7276,16 @@ type ResolvedAlertItem struct {
 	OccurrenceCount int32                  `protobuf:"varint,4,opt,name=occurrence_count,json=occurrenceCount,proto3" json:"occurrence_count,omitempty"` // How many times resolved in time range
 	FirstFiredAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=first_fired_at,json=firstFiredAt,proto3" json:"first_fired_at,omitempty"`         // Earliest fired_at
 	LastResolvedAt  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_resolved_at,json=lastResolvedAt,proto3" json:"last_resolved_at,omitempty"`   // Most recent resolved_at
-	TotalDuration   int32                  `protobuf:"varint,7,opt,name=total_duration,json=totalDuration,proto3" json:"total_duration,omitempty"`       // Sum of all durations
-	AvgDuration     float64                `protobuf:"fixed64,8,opt,name=avg_duration,json=avgDuration,proto3" json:"avg_duration,omitempty"`            // Average duration
-	TotalMttr       int32                  `protobuf:"varint,9,opt,name=total_mttr,json=totalMttr,proto3" json:"total_mttr,omitempty"`                   // Sum of all MTTR
-	AvgMttr         float64                `protobuf:"fixed64,10,opt,name=avg_mttr,json=avgMttr,proto3" json:"avg_mttr,omitempty"`                       // Average MTTR
+	TotalMttr       int32                  `protobuf:"varint,7,opt,name=total_mttr,json=totalMttr,proto3" json:"total_mttr,omitempty"`                   // Sum of MTTR (resolved - fired)
+	AvgMttr         float64                `protobuf:"fixed64,8,opt,name=avg_mttr,json=avgMttr,proto3" json:"avg_mttr,omitempty"`                        // Average MTTR
+	TotalMtta       int32                  `protobuf:"varint,9,opt,name=total_mtta,json=totalMtta,proto3" json:"total_mtta,omitempty"`                   // Sum of MTTA (acknowledged - fired)
+	AvgMtta         float64                `protobuf:"fixed64,10,opt,name=avg_mtta,json=avgMtta,proto3" json:"avg_mtta,omitempty"`                       // Average MTTA
 	Labels          map[string]string      `protobuf:"bytes,11,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Annotations     map[string]string      `protobuf:"bytes,12,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Source          string                 `protobuf:"bytes,13,opt,name=source,proto3" json:"source,omitempty"`
 	Instance        string                 `protobuf:"bytes,14,opt,name=instance,proto3" json:"instance,omitempty"`
 	Team            string                 `protobuf:"bytes,15,opt,name=team,proto3" json:"team,omitempty"`
+	AvgFixTime      float64                `protobuf:"fixed64,16,opt,name=avg_fix_time,json=avgFixTime,proto3" json:"avg_fix_time,omitempty"` // Average Fix Time (resolved - acknowledged)
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -7345,20 +7362,6 @@ func (x *ResolvedAlertItem) GetLastResolvedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ResolvedAlertItem) GetTotalDuration() int32 {
-	if x != nil {
-		return x.TotalDuration
-	}
-	return 0
-}
-
-func (x *ResolvedAlertItem) GetAvgDuration() float64 {
-	if x != nil {
-		return x.AvgDuration
-	}
-	return 0
-}
-
 func (x *ResolvedAlertItem) GetTotalMttr() int32 {
 	if x != nil {
 		return x.TotalMttr
@@ -7369,6 +7372,20 @@ func (x *ResolvedAlertItem) GetTotalMttr() int32 {
 func (x *ResolvedAlertItem) GetAvgMttr() float64 {
 	if x != nil {
 		return x.AvgMttr
+	}
+	return 0
+}
+
+func (x *ResolvedAlertItem) GetTotalMtta() int32 {
+	if x != nil {
+		return x.TotalMtta
+	}
+	return 0
+}
+
+func (x *ResolvedAlertItem) GetAvgMtta() float64 {
+	if x != nil {
+		return x.AvgMtta
 	}
 	return 0
 }
@@ -7406,6 +7423,13 @@ func (x *ResolvedAlertItem) GetTeam() string {
 		return x.Team
 	}
 	return ""
+}
+
+func (x *ResolvedAlertItem) GetAvgFixTime() float64 {
+	if x != nil {
+		return x.AvgFixTime
+	}
+	return 0
 }
 
 type QueryRecentlyResolvedResponse struct {
@@ -9536,12 +9560,13 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\v2'.notificator.alert.AggregatedStatisticsR\x05value:\x028\x01\"k\n" +
 	"\tTimeRange\x120\n" +
 	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12,\n" +
-	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\"\xbe\x01\n" +
+	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\"\xdf\x01\n" +
 	"\x14AggregatedStatistics\x12\x14\n" +
-	"\x05count\x18\x01 \x01(\x05R\x05count\x120\n" +
-	"\x14avg_duration_seconds\x18\x02 \x01(\x01R\x12avgDurationSeconds\x124\n" +
-	"\x16total_duration_seconds\x18\x03 \x01(\x05R\x14totalDurationSeconds\x12(\n" +
-	"\x10avg_mttr_seconds\x18\x04 \x01(\x01R\x0eavgMttrSeconds\"\xf4\x02\n" +
+	"\x05count\x18\x01 \x01(\x05R\x05count\x12(\n" +
+	"\x10avg_mttr_seconds\x18\x02 \x01(\x01R\x0eavgMttrSeconds\x12,\n" +
+	"\x12total_mttr_seconds\x18\x03 \x01(\x05R\x10totalMttrSeconds\x12(\n" +
+	"\x10avg_mtta_seconds\x18\x04 \x01(\x01R\x0eavgMttaSeconds\x12/\n" +
+	"\x14avg_fix_time_seconds\x18\x05 \x01(\x01R\x11avgFixTimeSeconds\"\xf4\x02\n" +
 	"\rBreakdownItem\x12\x16\n" +
 	"\x06period\x18\x01 \x01(\tR\x06period\x129\n" +
 	"\n" +
@@ -9636,7 +9661,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x05value\x18\x03 \x01(\tR\x05value\x12\x16\n" +
 	"\x06values\x18\x04 \x03(\tR\x06values\x12\x10\n" +
 	"\x03key\x18\x05 \x01(\tR\x03key\x12\x18\n" +
-	"\apattern\x18\x06 \x01(\tR\apattern\"\x96\x04\n" +
+	"\apattern\x18\x06 \x01(\tR\apattern\"\xb8\x04\n" +
 	"\x0eAlertStatistic\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
 	"\vfingerprint\x18\x02 \x01(\tR\vfingerprint\x12\x1d\n" +
@@ -9647,14 +9672,15 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\bfired_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\afiredAt\x12;\n" +
 	"\vresolved_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"resolvedAt\x12C\n" +
-	"\x0facknowledged_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0eacknowledgedAt\x12)\n" +
-	"\x10duration_seconds\x18\t \x01(\x05R\x0fdurationSeconds\x12!\n" +
-	"\fmttr_seconds\x18\n" +
-	" \x01(\x05R\vmttrSeconds\x129\n" +
+	"\x0facknowledged_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0eacknowledgedAt\x12!\n" +
+	"\fmttr_seconds\x18\t \x01(\x05R\vmttrSeconds\x12!\n" +
+	"\fmtta_seconds\x18\n" +
+	" \x01(\x05R\vmttaSeconds\x129\n" +
 	"\n" +
 	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"<\n" +
+	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12(\n" +
+	"\x10fix_time_seconds\x18\r \x01(\x05R\x0efixTimeSeconds\"<\n" +
 	"\x1bGetStatisticsSummaryRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"\xc9\x03\n" +
@@ -9707,7 +9733,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x10include_silenced\x18\t \x01(\bR\x0fincludeSilenced\x12!\n" +
 	"\fsearch_query\x18\n" +
 	" \x01(\tR\vsearchQuery\x12\x17\n" +
-	"\auser_id\x18\v \x01(\tR\x06userIdJ\x04\b\f\x10\r\"\x8d\x06\n" +
+	"\auser_id\x18\v \x01(\tR\x06userIdJ\x04\b\f\x10\r\"\x9f\x06\n" +
 	"\x11ResolvedAlertItem\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12\x1d\n" +
 	"\n" +
@@ -9715,18 +9741,21 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\bseverity\x18\x03 \x01(\tR\bseverity\x12)\n" +
 	"\x10occurrence_count\x18\x04 \x01(\x05R\x0foccurrenceCount\x12@\n" +
 	"\x0efirst_fired_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ffirstFiredAt\x12D\n" +
-	"\x10last_resolved_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastResolvedAt\x12%\n" +
-	"\x0etotal_duration\x18\a \x01(\x05R\rtotalDuration\x12!\n" +
-	"\favg_duration\x18\b \x01(\x01R\vavgDuration\x12\x1d\n" +
+	"\x10last_resolved_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastResolvedAt\x12\x1d\n" +
 	"\n" +
-	"total_mttr\x18\t \x01(\x05R\ttotalMttr\x12\x19\n" +
-	"\bavg_mttr\x18\n" +
-	" \x01(\x01R\aavgMttr\x12H\n" +
+	"total_mttr\x18\a \x01(\x05R\ttotalMttr\x12\x19\n" +
+	"\bavg_mttr\x18\b \x01(\x01R\aavgMttr\x12\x1d\n" +
+	"\n" +
+	"total_mtta\x18\t \x01(\x05R\ttotalMtta\x12\x19\n" +
+	"\bavg_mtta\x18\n" +
+	" \x01(\x01R\aavgMtta\x12H\n" +
 	"\x06labels\x18\v \x03(\v20.notificator.alert.ResolvedAlertItem.LabelsEntryR\x06labels\x12W\n" +
 	"\vannotations\x18\f \x03(\v25.notificator.alert.ResolvedAlertItem.AnnotationsEntryR\vannotations\x12\x16\n" +
 	"\x06source\x18\r \x01(\tR\x06source\x12\x1a\n" +
 	"\binstance\x18\x0e \x01(\tR\binstance\x12\x12\n" +
-	"\x04team\x18\x0f \x01(\tR\x04team\x1a9\n" +
+	"\x04team\x18\x0f \x01(\tR\x04team\x12 \n" +
+	"\favg_fix_time\x18\x10 \x01(\x01R\n" +
+	"avgFixTime\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
