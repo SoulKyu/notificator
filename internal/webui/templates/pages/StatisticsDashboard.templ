@@ -594,6 +594,12 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 										Both
 									</button>
 								</div>
+								<!-- Fullscreen button -->
+								<button @click="openFullscreenChart('alertsTime')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+									</svg>
+								</button>
 							</div>
 						</div>
 						<div class="h-72">
@@ -609,7 +615,14 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<div class="flex items-center space-x-2">
 									<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="getGroupByLabel() + ' Distribution'"></h3>
 								</div>
-								<span class="text-xs text-gray-500 dark:text-gray-400">Click to filter</span>
+								<div class="flex items-center space-x-2">
+									<span class="text-xs text-gray-500 dark:text-gray-400">Click to filter</span>
+									<button @click="openFullscreenChart('distribution')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+										</svg>
+									</button>
+								</div>
 							</div>
 							<div class="h-64 flex items-center justify-center">
 								<div class="w-full max-w-xs">
@@ -624,11 +637,42 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<div class="flex items-center space-x-2">
 									<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="'Top 10 ' + (appliedGroupBy ? getGroupByLabel() : 'Alerts')"></h3>
 								</div>
-								<span class="text-xs text-gray-500 dark:text-gray-400">Click to filter</span>
+								<div class="flex items-center space-x-2">
+									<span class="text-xs text-gray-500 dark:text-gray-400">Click to filter</span>
+									<button @click="openFullscreenChart('topItems')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+										</svg>
+									</button>
+								</div>
 							</div>
 							<div class="h-64">
 								<canvas id="topItemsChart" x-ref="topItemsChart"></canvas>
 							</div>
+						</div>
+					</div>
+
+					<!-- Resolution Times Chart - Full Width -->
+					<div x-show="appliedGroupBy && Object.keys(statsData?.statistics || {}).length > 0" class="rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 border-l-4 transition-colors" :class="getGroupByStyle('border') + ' ' + getGroupByStyle('bg')">
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center space-x-2">
+								<h3 class="text-lg font-medium text-gray-900 dark:text-white">
+									Resolution Times by <span x-text="getGroupByLabel()"></span>
+								</h3>
+							</div>
+							<div class="flex items-center space-x-2">
+								<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">MTTR</span>
+								<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">MTTA</span>
+								<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">Fix Time</span>
+								<button @click="openFullscreenChart('timeMetrics')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<div class="h-80">
+							<canvas id="timeMetricsChart"></canvas>
 						</div>
 					</div>
 				</div>
@@ -1284,7 +1328,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 						<!-- Sample Alerts -->
 						<div x-show="ruleTestResults?.sample_alerts?.length > 0" class="space-y-2 max-h-64 overflow-y-auto">
-							<template x-for="alert in ruleTestResults.sample_alerts" :key="alert.id">
+							<template x-for="alert in (ruleTestResults?.sample_alerts || [])" :key="alert.id">
 								<div class="p-2 bg-gray-50 dark:bg-dark-bg-tertiary rounded border border-gray-200 dark:border-dark-border-subtle">
 									<p class="text-sm font-medium text-gray-900 dark:text-white" x-text="alert.alert_name"></p>
 									<div class="mt-1 flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
@@ -1317,6 +1361,63 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 		<!-- Individual Alert Details Modal (using shared component) -->
 		@components.AlertModalReadonly("showAlertModal", "individualAlertLoading", "individualAlertData", "individualAlertOccurrences", "closeAlertModal()", "z-[60]")
+
+		<!-- Fullscreen Chart Modal -->
+		<div
+			x-show="fullscreenChart"
+			x-cloak
+			class="fixed inset-0 z-50 overflow-hidden"
+			@keydown.escape.window="closeFullscreenChart()"
+		>
+			<!-- Backdrop with blur -->
+			<div
+				x-show="fullscreenChart"
+				x-transition:enter="transition ease-out duration-200"
+				x-transition:enter-start="opacity-0"
+				x-transition:enter-end="opacity-100"
+				x-transition:leave="transition ease-in duration-150"
+				x-transition:leave-start="opacity-100"
+				x-transition:leave-end="opacity-0"
+				class="absolute inset-0 bg-gray-900/80 backdrop-blur-sm"
+				@click="closeFullscreenChart()"
+			></div>
+
+			<!-- Modal Content -->
+			<div
+				x-show="fullscreenChart"
+				x-transition:enter="transition ease-out duration-200"
+				x-transition:enter-start="opacity-0 scale-95"
+				x-transition:enter-end="opacity-100 scale-100"
+				x-transition:leave="transition ease-in duration-150"
+				x-transition:leave-start="opacity-100 scale-100"
+				x-transition:leave-end="opacity-0 scale-95"
+				class="relative h-full w-full flex flex-col"
+			>
+				<!-- Header -->
+				<div class="flex items-center justify-between px-6 py-4 bg-white dark:bg-dark-bg-secondary border-b border-gray-200 dark:border-dark-border-subtle shadow-lg">
+					<div class="flex items-center space-x-4">
+						<h3 class="text-xl font-semibold text-gray-900 dark:text-white" x-text="getFullscreenChartTitle()"></h3>
+						<!-- Legend badges for time metrics chart -->
+						<template x-if="fullscreenChart === 'timeMetrics'">
+							<div class="flex items-center space-x-2">
+								<span class="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">MTTR</span>
+								<span class="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">MTTA</span>
+								<span class="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">Fix Time</span>
+							</div>
+						</template>
+					</div>
+					<button @click="closeFullscreenChart()" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary" title="Close (Esc)">
+						<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+				<!-- Chart Container -->
+				<div class="flex-1 p-8 bg-white dark:bg-dark-bg-secondary">
+					<canvas id="fullscreenChartCanvas" class="w-full h-full"></canvas>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<script>
@@ -1332,6 +1433,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				alertsTimeChart: null,
 				distributionChart: null,
 				topItemsChart: null,
+				timeMetricsChart: null,
 
 				// Chart state
 				timeSeriesView: 'fired',
@@ -1351,6 +1453,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				// Comparison mode
 				comparisonMode: false,
 				comparisonData: null,
+
+				// Fullscreen chart modal
+				fullscreenChart: null,
+				fullscreenChartInstance: null,
 
 				// Alert details modal (by alert name)
 				showAlertDetailsModal: false,
@@ -2023,6 +2129,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					this.updateTimeSeriesChart();
 					this.updateDistributionChart();
 					this.updateTopItemsChart();
+					this.updateTimeMetricsChart();
 				},
 
 				updateDistributionChart() {
@@ -2155,6 +2262,105 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 										// Open alert details modal
 										this.openAlertDetailsModal(itemName);
 									}
+								}
+							}
+						}
+					});
+				},
+
+				updateTimeMetricsChart() {
+					const canvas = document.getElementById('timeMetricsChart');
+					if (!canvas) return;
+
+					if (this.timeMetricsChart) {
+						this.timeMetricsChart.destroy();
+						this.timeMetricsChart = null;
+					}
+
+					// Only show when groupBy is set and not period
+					if (!this.appliedGroupBy || this.appliedGroupBy === 'period' || !this.statsData?.statistics) {
+						return;
+					}
+
+					const stats = this.statsData.statistics;
+					const entries = Object.entries(stats)
+						.sort((a, b) => (b[1].count || 0) - (a[1].count || 0))
+						.slice(0, 10);
+
+					if (entries.length === 0) return;
+
+					const labels = entries.map(([k]) => k.length > 20 ? k.substring(0, 17) + '...' : k);
+					const fullLabels = entries.map(([k]) => k);
+
+					const mttrData = entries.map(([, v]) => v.avg_mttr_seconds || 0);
+					const mttaData = entries.map(([, v]) => v.avg_mtta_seconds || 0);
+					const fixTimeData = entries.map(([, v]) => v.avg_fix_time_seconds || 0);
+
+					const isDark = document.documentElement.classList.contains('dark');
+					const self = this;
+
+					this.timeMetricsChart = new Chart(canvas, {
+						type: 'bar',
+						data: {
+							labels: labels,
+							datasets: [
+								{
+									label: 'MTTR',
+									data: mttrData,
+									backgroundColor: 'rgba(234, 179, 8, 0.8)',
+									borderColor: '#eab308',
+									borderWidth: 1
+								},
+								{
+									label: 'MTTA',
+									data: mttaData,
+									backgroundColor: 'rgba(34, 197, 94, 0.8)',
+									borderColor: '#22c55e',
+									borderWidth: 1
+								},
+								{
+									label: 'Fix Time',
+									data: fixTimeData,
+									backgroundColor: 'rgba(99, 102, 241, 0.8)',
+									borderColor: '#6366f1',
+									borderWidth: 1
+								}
+							]
+						},
+						options: {
+							indexAxis: 'y',
+							responsive: true,
+							maintainAspectRatio: false,
+							animation: false,
+							plugins: {
+								legend: {
+									position: 'top',
+									labels: { color: isDark ? '#d1d5db' : '#374151' }
+								},
+								tooltip: {
+									callbacks: {
+										title: function(items) {
+											return fullLabels[items[0].dataIndex];
+										},
+										label: function(ctx) {
+											return ctx.dataset.label + ': ' + self.formatDuration(ctx.raw);
+										}
+									}
+								}
+							},
+							scales: {
+								x: {
+									title: {
+										display: true,
+										text: 'Time (seconds)',
+										color: isDark ? '#9ca3af' : '#6b7280'
+									},
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
+									grid: { color: isDark ? '#374151' : '#e5e7eb' }
+								},
+								y: {
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
+									grid: { color: isDark ? '#374151' : '#e5e7eb' }
 								}
 							}
 						}
@@ -2446,6 +2652,243 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					this.showAlertDetailsModal = false;
 					this.alertDetailsData = null;
 					this.selectedAlertName = '';
+				},
+
+				// Fullscreen chart methods
+				getFullscreenChartTitle() {
+					const titles = {
+						'alertsTime': 'Alerts Over Time' + (this.appliedGroupBy ? ' by ' + this.getGroupByLabel() : ''),
+						'distribution': this.getGroupByLabel() + ' Distribution',
+						'topItems': 'Top 10 ' + (this.appliedGroupBy ? this.getGroupByLabel() : 'Alerts'),
+						'timeMetrics': 'Resolution Times by ' + this.getGroupByLabel()
+					};
+					return titles[this.fullscreenChart] || 'Chart';
+				},
+
+				openFullscreenChart(chartType) {
+					this.fullscreenChart = chartType;
+					// Wait for DOM to update, then render the chart
+					this.$nextTick(() => {
+						setTimeout(() => this.renderFullscreenChart(), 50);
+					});
+				},
+
+				closeFullscreenChart() {
+					if (this.fullscreenChartInstance) {
+						this.fullscreenChartInstance.destroy();
+						this.fullscreenChartInstance = null;
+					}
+					this.fullscreenChart = null;
+				},
+
+				renderFullscreenChart() {
+					const canvas = document.getElementById('fullscreenChartCanvas');
+					if (!canvas) return;
+
+					if (this.fullscreenChartInstance) {
+						this.fullscreenChartInstance.destroy();
+					}
+
+					const isDark = document.documentElement.classList.contains('dark');
+					const self = this;
+
+					switch (this.fullscreenChart) {
+						case 'alertsTime':
+							this.renderFullscreenTimeSeriesChart(canvas, isDark);
+							break;
+						case 'distribution':
+							this.renderFullscreenDistributionChart(canvas, isDark);
+							break;
+						case 'topItems':
+							this.renderFullscreenTopItemsChart(canvas, isDark);
+							break;
+						case 'timeMetrics':
+							this.renderFullscreenTimeMetricsChart(canvas, isDark);
+							break;
+					}
+				},
+
+				renderFullscreenTimeSeriesChart(canvas, isDark) {
+					const timeData = this.timeSeriesData || [];
+					const labels = timeData.map(item => this.formatPeriodLabel(item.period));
+					let datasets = [];
+
+					if (this.appliedGroupBy && Object.keys(this.chartVisibility).length > 0) {
+						const keys = Object.keys(this.chartVisibility).filter(k => this.chartVisibility[k]);
+						keys.forEach((key, index) => {
+							const color = this.getColorForKey(key, Object.keys(this.chartVisibility).indexOf(key));
+							datasets.push({
+								label: key,
+								data: timeData.map(item => (item.statistics || {})[key]?.count || 0),
+								borderColor: color.bg,
+								backgroundColor: color.bg + '20',
+								fill: false,
+								tension: 0.3,
+								borderWidth: 2
+							});
+						});
+					} else {
+						if (this.timeSeriesView === 'fired' || this.timeSeriesView === 'both') {
+							datasets.push({
+								label: 'Alerts Fired',
+								data: timeData.map(item => item.total_count),
+								borderColor: '#3b82f6',
+								backgroundColor: 'rgba(59, 130, 246, 0.1)',
+								fill: true,
+								tension: 0.3,
+								borderWidth: 2
+							});
+						}
+						if (this.timeSeriesView === 'resolved' || this.timeSeriesView === 'both') {
+							datasets.push({
+								label: 'Alerts Resolved',
+								data: timeData.map(item => item.resolved_count || 0),
+								borderColor: '#22c55e',
+								backgroundColor: 'rgba(34, 197, 94, 0.1)',
+								fill: true,
+								tension: 0.3,
+								borderWidth: 2
+							});
+						}
+					}
+
+					this.fullscreenChartInstance = new Chart(canvas, {
+						type: 'line',
+						data: { labels, datasets },
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: { position: 'top', labels: { color: isDark ? '#d1d5db' : '#374151' } }
+							},
+							scales: {
+								x: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } },
+								y: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' }, beginAtZero: true }
+							}
+						}
+					});
+				},
+
+				renderFullscreenDistributionChart(canvas, isDark) {
+					const stats = this.statsData?.statistics || {};
+					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0));
+					const labels = entries.map(([k]) => k);
+					const data = entries.map(([, v]) => v.count || 0);
+					const colors = entries.map(([k], i) => this.getColorForKey(k, i));
+
+					this.fullscreenChartInstance = new Chart(canvas, {
+						type: 'doughnut',
+						data: {
+							labels,
+							datasets: [{
+								data,
+								backgroundColor: colors.map(c => c.bg),
+								borderColor: isDark ? '#1f2937' : '#ffffff',
+								borderWidth: 2
+							}]
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: { position: 'right', labels: { color: isDark ? '#d1d5db' : '#374151' } }
+							}
+						}
+					});
+				},
+
+				renderFullscreenTopItemsChart(canvas, isDark) {
+					const stats = this.topItemsData || this.statsData?.statistics || {};
+					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0)).slice(0, 15);
+					const labels = entries.map(([k]) => k);
+					const data = entries.map(([, v]) => v.count || 0);
+					const colors = entries.map(([k], i) => this.getColorForKey(k, i));
+
+					this.fullscreenChartInstance = new Chart(canvas, {
+						type: 'bar',
+						data: {
+							labels,
+							datasets: [{
+								label: 'Count',
+								data,
+								backgroundColor: colors.map(c => c.bg + 'cc'),
+								borderColor: colors.map(c => c.border),
+								borderWidth: 1
+							}]
+						},
+						options: {
+							indexAxis: 'y',
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: { display: false }
+							},
+							scales: {
+								x: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } },
+								y: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } }
+							}
+						}
+					});
+				},
+
+				renderFullscreenTimeMetricsChart(canvas, isDark) {
+					const stats = this.statsData?.statistics || {};
+					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0)).slice(0, 15);
+					const labels = entries.map(([k]) => k);
+					const self = this;
+
+					this.fullscreenChartInstance = new Chart(canvas, {
+						type: 'bar',
+						data: {
+							labels,
+							datasets: [
+								{
+									label: 'MTTR',
+									data: entries.map(([, v]) => v.avg_mttr_seconds || 0),
+									backgroundColor: 'rgba(234, 179, 8, 0.8)',
+									borderColor: '#eab308',
+									borderWidth: 1
+								},
+								{
+									label: 'MTTA',
+									data: entries.map(([, v]) => v.avg_mtta_seconds || 0),
+									backgroundColor: 'rgba(34, 197, 94, 0.8)',
+									borderColor: '#22c55e',
+									borderWidth: 1
+								},
+								{
+									label: 'Fix Time',
+									data: entries.map(([, v]) => v.avg_fix_time_seconds || 0),
+									backgroundColor: 'rgba(99, 102, 241, 0.8)',
+									borderColor: '#6366f1',
+									borderWidth: 1
+								}
+							]
+						},
+						options: {
+							indexAxis: 'y',
+							responsive: true,
+							maintainAspectRatio: false,
+							plugins: {
+								legend: { position: 'top', labels: { color: isDark ? '#d1d5db' : '#374151' } },
+								tooltip: {
+									callbacks: {
+										label: function(ctx) {
+											return ctx.dataset.label + ': ' + self.formatDuration(ctx.raw);
+										}
+									}
+								}
+							},
+							scales: {
+								x: {
+									title: { display: true, text: 'Time (seconds)', color: isDark ? '#9ca3af' : '#6b7280' },
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
+									grid: { color: isDark ? '#374151' : '#e5e7eb' }
+								},
+								y: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } }
+							}
+						}
+					});
 				},
 
 				// Open individual alert details modal
