@@ -215,7 +215,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	{
 		// Protected alert routes
 		alerts := api.Group("/alerts")
-		alerts.Use(authMiddleware.OptionalAuth()) // Optional auth for now
+		alerts.Use(authMiddleware.RequireAuth())
 		{
 			alerts.GET("", handlers.GetAlerts)
 			// Note: Individual alert endpoint removed - use dashboard API instead
@@ -223,7 +223,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 
 		// New dashboard API routes
 		dashboard := api.Group("/dashboard")
-		dashboard.Use(authMiddleware.OptionalAuth()) // Optional auth for now
+		dashboard.Use(authMiddleware.RequireAuth())
 		{
 			dashboard.GET("/data", handlers.GetDashboardData)
 			dashboard.GET("/incremental", handlers.GetDashboardIncremental)

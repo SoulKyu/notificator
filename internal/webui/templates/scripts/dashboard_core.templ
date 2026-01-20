@@ -164,6 +164,32 @@ templ DashboardCore() {
 					return false;
 				},
 
+				// Install global fetch interceptor to handle auth errors consistently
+				installFetchInterceptor() {
+					const originalFetch = window.fetch;
+					const dashboard = this;
+
+					window.fetch = async function(...args) {
+						try {
+							const response = await originalFetch.apply(this, args);
+
+							// Check for auth errors on any API call
+							if (response.status === 401) {
+								console.log('Session expired, redirecting to login');
+								dashboard.stopAutoRefresh();
+								window.location.href = '/login';
+								// Return a never-resolving promise to prevent further processing
+								return new Promise(() => {});
+							}
+
+							return response;
+						} catch (error) {
+							// Network errors - let them propagate
+							throw error;
+						}
+					};
+				},
+
 				// Validate session with backend
 				async validateSession() {
 					try {
@@ -186,6 +212,9 @@ templ DashboardCore() {
 				},
 
 				async init() {
+					// Install global fetch interceptor for auth errors
+					this.installFetchInterceptor();
+
 					Object.assign(this, window.dashboardDataMixin || {});
 					Object.assign(this, window.dashboardActionsMixin || {});
 					Object.assign(this, window.dashboardUtilitiesMixin || {});

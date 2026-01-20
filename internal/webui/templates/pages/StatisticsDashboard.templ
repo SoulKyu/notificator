@@ -21,7 +21,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 	<!-- Statistics Views Mixin -->
 	@scripts.StatisticsViews()
 	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary py-8" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="init(); initViews()">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
 			<!-- Header -->
 			<div class="mb-8">
 				<nav class="flex" aria-label="Breadcrumb">

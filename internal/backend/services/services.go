@@ -122,7 +122,7 @@ func (s *AuthServiceGorm) Login(ctx context.Context, req *authpb.LoginRequest) (
 		}, nil
 	}
 
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 	if err := s.db.CreateSession(user.ID, sessionID, expiresAt); err != nil {
 		log.Printf("Error creating session: %v", err)
 		return &authpb.LoginResponse{
@@ -1443,7 +1443,7 @@ func (s *AuthServiceGorm) OAuthCallback(ctx context.Context, req *authpb.OAuthCa
 	}
 
 	// Create session
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 	if err := s.db.CreateSession(user.ID, sessionID, expiresAt); err != nil {
 		log.Printf("Error creating session for OAuth user: %v", err)
 		return &authpb.LoginResponse{
