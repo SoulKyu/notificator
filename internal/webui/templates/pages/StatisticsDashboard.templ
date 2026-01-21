@@ -21,7 +21,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 	<!-- Statistics Views Mixin -->
 	@scripts.StatisticsViews()
 	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary py-8" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="init(); initViews()">
-		<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="w-full px-4 sm:px-6 lg:px-8">
 			<!-- Header -->
 			<div class="mb-8">
 				<nav class="flex" aria-label="Breadcrumb">
@@ -305,7 +305,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
 							</svg>
 						</button>
-						<div x-show="showSeverityDropdown" x-transition class="absolute z-20 mt-1 w-full bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+						<div x-show="showSeverityDropdown" x-transition class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
 							<div class="p-2 space-y-1">
 								<label class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
 									<input type="checkbox" value="critical" x-model="filters.severities" class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"/>
@@ -352,7 +352,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
 							</svg>
 						</button>
-						<div x-show="showTeamDropdown" x-transition class="absolute z-20 mt-1 w-full bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+						<div x-show="showTeamDropdown" x-transition class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
 							<div x-show="availableTeams.length === 0" class="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
 								Loading teams...
 							</div>
@@ -2096,6 +2096,100 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					return 'month';
 				},
 
+				// Generate complete date range for chart display
+				generateCompleteDateRange(startDate, endDate, periodType) {
+					const periods = [];
+					const start = new Date(startDate);
+					const end = new Date(endDate);
+
+					// Adjust start date based on period type
+					let current = new Date(start);
+
+					if (periodType === 'hour') {
+						current.setMinutes(0, 0, 0);
+					} else if (periodType === 'day') {
+						current.setHours(0, 0, 0, 0);
+					} else if (periodType === 'week') {
+						// Start from beginning of the week (Monday)
+						const day = current.getDay();
+						const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+						current.setDate(diff);
+						current.setHours(0, 0, 0, 0);
+					} else if (periodType === 'month') {
+						current.setDate(1);
+						current.setHours(0, 0, 0, 0);
+					}
+
+					while (current <= end) {
+						periods.push(this.formatPeriodKey(new Date(current), periodType));
+
+						// Increment based on period type
+						if (periodType === 'hour') {
+							current.setHours(current.getHours() + 1);
+						} else if (periodType === 'day') {
+							current.setDate(current.getDate() + 1);
+						} else if (periodType === 'week') {
+							current.setDate(current.getDate() + 7);
+						} else if (periodType === 'month') {
+							current.setMonth(current.getMonth() + 1);
+						}
+					}
+
+					return periods;
+				},
+
+				// Format date to match backend period format
+				formatPeriodKey(date, periodType) {
+					const year = date.getFullYear();
+					const month = String(date.getMonth() + 1).padStart(2, '0');
+					const day = String(date.getDate()).padStart(2, '0');
+					const hour = String(date.getHours()).padStart(2, '0');
+
+					if (periodType === 'hour') {
+						return `${year}-${month}-${day}T${hour}:00`;
+					} else if (periodType === 'day') {
+						return `${year}-${month}-${day}`;
+					} else if (periodType === 'week') {
+						// Week format: YYYY-Www
+						const startOfYear = new Date(year, 0, 1);
+						const days = Math.floor((date - startOfYear) / (24 * 60 * 60 * 1000));
+						const weekNum = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+						return `${year}-W${String(weekNum).padStart(2, '0')}`;
+					} else if (periodType === 'month') {
+						return `${year}-${month}`;
+					}
+					return `${year}-${month}-${day}`;
+				},
+
+				// Fill missing periods with zero values
+				fillMissingPeriods(timeData, startDate, endDate, periodType) {
+					if (!startDate || !endDate) {
+						return timeData || [];
+					}
+
+					const completePeriods = this.generateCompleteDateRange(startDate, endDate, periodType);
+					const dataMap = new Map();
+
+					// Create lookup map from existing data
+					(timeData || []).forEach(item => {
+						dataMap.set(item.period, item);
+					});
+
+					// Build complete dataset with zeros for missing periods
+					return completePeriods.map(period => {
+						if (dataMap.has(period)) {
+							return dataMap.get(period);
+						}
+						// Return empty entry for missing period
+						return {
+							period: period,
+							total_count: 0,
+							resolved_count: 0,
+							statistics: {}
+						};
+					});
+				},
+
 				// Initialize visibility toggles based on current data
 				initChartVisibility() {
 					if (!this.appliedGroupBy) {
@@ -2379,8 +2473,14 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						this.alertsTimeChart = null;
 					}
 
-					const timeData = this.timeSeriesData || [];
-					const labels = timeData.map(item => this.formatPeriodLabel(item.period));
+					const periodType = this.determinePeriodType();
+					const filledData = this.fillMissingPeriods(
+						this.timeSeriesData,
+						this.filters.startDate,
+						this.filters.endDate,
+						periodType
+					);
+					const labels = filledData.map(item => this.formatPeriodLabel(item.period));
 					const isDark = document.documentElement.classList.contains('dark');
 
 					let datasets = [];
@@ -2393,7 +2493,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							const color = this.getColorForKey(key, Object.keys(this.chartVisibility).indexOf(key));
 							datasets.push({
 								label: key,
-								data: timeData.map(item => {
+								data: filledData.map(item => {
 									const stats = item.statistics || {};
 									return stats[key]?.count || 0;
 								}),
@@ -2411,7 +2511,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						if (this.timeSeriesView === 'fired' || this.timeSeriesView === 'both') {
 							datasets.push({
 								label: 'Alerts Fired',
-								data: timeData.map(item => item.total_count),
+								data: filledData.map(item => item.total_count),
 								borderColor: '#3b82f6',
 								backgroundColor: 'rgba(59, 130, 246, 0.1)',
 								fill: true,
@@ -2423,7 +2523,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						if (this.timeSeriesView === 'resolved' || this.timeSeriesView === 'both') {
 							datasets.push({
 								label: 'Alerts Resolved',
-								data: timeData.map(item => {
+								data: filledData.map(item => {
 									const stats = item.statistics || {};
 									return Object.values(stats).reduce((sum, s) => sum + (s.count || 0), 0);
 								}),
@@ -2709,8 +2809,14 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				},
 
 				renderFullscreenTimeSeriesChart(canvas, isDark) {
-					const timeData = this.timeSeriesData || [];
-					const labels = timeData.map(item => this.formatPeriodLabel(item.period));
+					const periodType = this.determinePeriodType();
+					const filledData = this.fillMissingPeriods(
+						this.timeSeriesData,
+						this.filters.startDate,
+						this.filters.endDate,
+						periodType
+					);
+					const labels = filledData.map(item => this.formatPeriodLabel(item.period));
 					let datasets = [];
 
 					if (this.appliedGroupBy && Object.keys(this.chartVisibility).length > 0) {
@@ -2719,7 +2825,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							const color = this.getColorForKey(key, Object.keys(this.chartVisibility).indexOf(key));
 							datasets.push({
 								label: key,
-								data: timeData.map(item => (item.statistics || {})[key]?.count || 0),
+								data: filledData.map(item => (item.statistics || {})[key]?.count || 0),
 								borderColor: color.bg,
 								backgroundColor: color.bg + '20',
 								fill: false,
@@ -2731,7 +2837,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						if (this.timeSeriesView === 'fired' || this.timeSeriesView === 'both') {
 							datasets.push({
 								label: 'Alerts Fired',
-								data: timeData.map(item => item.total_count),
+								data: filledData.map(item => item.total_count),
 								borderColor: '#3b82f6',
 								backgroundColor: 'rgba(59, 130, 246, 0.1)',
 								fill: true,
@@ -2742,7 +2848,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						if (this.timeSeriesView === 'resolved' || this.timeSeriesView === 'both') {
 							datasets.push({
 								label: 'Alerts Resolved',
-								data: timeData.map(item => item.resolved_count || 0),
+								data: filledData.map(item => item.resolved_count || 0),
 								borderColor: '#22c55e',
 								backgroundColor: 'rgba(34, 197, 94, 0.1)',
 								fill: true,
