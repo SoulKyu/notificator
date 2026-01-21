@@ -554,7 +554,7 @@ templ DashboardActions() {
 			
 			parseComplexDurationToSeconds(duration) {
 				if (!duration) return 0;
-				
+
 				let totalSeconds = 0;
 				const units = {
 					'ns': 0.000000001,
@@ -563,10 +563,12 @@ templ DashboardActions() {
 					'ms': 0.001,
 					's': 1,
 					'm': 60,
-					'h': 3600
+					'h': 3600,
+					'd': 86400,
+					'y': 31536000  // 365 days
 				};
-				
-				const regex = /(\d+(?:\.\d+)?)(ns|µs|us|ms|s|m|h)/g;
+
+				const regex = /(\d+(?:\.\d+)?)(ns|µs|us|ms|s|m|h|d|y)/g;
 				let match;
 				
 				while ((match = regex.exec(duration)) !== null) {
@@ -594,27 +596,21 @@ templ DashboardActions() {
 					return false;
 				}
 				
-				const validFormat = /^(\d+(?:\.\d+)?)(ns|µs|us|ms|s|m|h)(\d+(?:\.\d+)?(ns|µs|us|ms|s|m|h))*$/;
+				const validFormat = /^(\d+(?:\.\d+)?)(ns|µs|us|ms|s|m|h|d|y)(\d+(?:\.\d+)?(ns|µs|us|ms|s|m|h|d|y))*$/;
 				if (!validFormat.test(duration)) {
-					this.customDurationError = 'Invalid format. Use combinations like 1h30m, 2h15m30s';
+					this.customDurationError = 'Invalid format. Use combinations like 1h30m, 2d, 1y';
 					return false;
 				}
-				
+
 				const totalSeconds = this.parseComplexDurationToSeconds(duration);
-				
+
 				if (totalSeconds <= 0) {
 					this.customDurationError = 'Duration must be positive';
 					return false;
 				}
-				
+
 				if (totalSeconds < 1) {
 					this.customDurationError = 'Duration must be at least 1 second';
-					return false;
-				}
-				
-				const maxSeconds = 30 * 24 * 3600;
-				if (totalSeconds > maxSeconds) {
-					this.customDurationError = 'Duration cannot exceed 30 days';
 					return false;
 				}
 				

@@ -28,23 +28,51 @@ var (
 	userSettings = make(map[string]*webuimodels.DashboardSettings)
 )
 
+// parseExtendedDuration parses duration strings with extended units (d, y)
+// in addition to Go's standard units (ns, µs, ms, s, m, h)
+func parseExtendedDuration(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty duration string")
+	}
+
+	// Handle extended units first: years and days
+	// Convert them to hours which Go can parse
+	original := s
+
+	// Replace years (approximate: 365 days)
+	s = regexp.MustCompile(`(\d+)y`).ReplaceAllStringFunc(s, func(match string) string {
+		var years int
+		fmt.Sscanf(match, "%dy", &years)
+		return fmt.Sprintf("%dh", years*365*24)
+	})
+
+	// Replace days
+	s = regexp.MustCompile(`(\d+)d`).ReplaceAllStringFunc(s, func(match string) string {
+		var days int
+		fmt.Sscanf(match, "%dd", &days)
+		return fmt.Sprintf("%dh", days*24)
+	})
+
+	duration, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration format '%s': %v", original, err)
+	}
+
+	return duration, nil
+}
+
 func validateCustomDuration(durationStr string) (time.Duration, error) {
 	if durationStr == "" {
 		return 0, fmt.Errorf("duration cannot be empty")
 	}
 
-	duration, err := time.ParseDuration(durationStr)
+	duration, err := parseExtendedDuration(durationStr)
 	if err != nil {
-		return 0, fmt.Errorf("invalid duration format: %v", err)
+		return 0, err
 	}
 
 	if duration <= 0 {
 		return 0, fmt.Errorf("duration must be positive")
-	}
-
-	maxDuration := 30 * 24 * time.Hour
-	if duration > maxDuration {
-		return 0, fmt.Errorf("duration cannot exceed 30 days")
 	}
 
 	minDuration := 1 * time.Second
