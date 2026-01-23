@@ -20,187 +20,192 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 	<!-- Statistics Views Mixin -->
 	@scripts.StatisticsViews()
-	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary py-8" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="init(); initViews()">
-		<div class="w-full px-4 sm:px-6 lg:px-8">
-			<!-- Header -->
-			<div class="mb-8">
-				<nav class="flex" aria-label="Breadcrumb">
-					<ol class="flex items-center space-x-4">
-						<li>
-							<a href="/dashboard" class="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400">
-								<svg class="flex-shrink-0 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-									<path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-								</svg>
-								<span class="sr-only">Dashboard</span>
-							</a>
-						</li>
-						<li>
-							<div class="flex items-center">
-								<svg class="flex-shrink-0 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-								</svg>
-								<span class="ml-4 text-sm font-medium text-gray-500 dark:text-gray-400">Statistics</span>
-							</div>
-						</li>
-					</ol>
-				</nav>
-				<div class="mt-4 flex items-center justify-between">
-					<div>
-						<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Alert Statistics</h1>
-						<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-							View and analyze alert metrics over time
-						</p>
+	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="init(); initViews()">
+		<!-- Sticky Header Bar -->
+		<header class="sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50">
+			<div class="px-6 py-4">
+				<div class="flex items-center justify-between">
+					<!-- Left: Navigation & Title -->
+					<div class="flex items-center gap-4">
+						<a href="/dashboard" class="p-2 -ml-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition-colors" title="Back to Dashboard">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+							</svg>
+						</a>
+						<div>
+							<h1 class="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">Statistics</h1>
+							<p class="text-sm text-slate-500 dark:text-slate-400" x-show="hasData">
+								<span x-text="formatNumber(statsData?.total_alerts || 0)"></span> alerts
+								<span class="text-slate-300 dark:text-slate-600 mx-1">&bull;</span>
+								<span x-text="formatTimeRangeDisplay()"></span>
+							</p>
+						</div>
 					</div>
-					<div class="flex items-center space-x-3">
-						<!-- Saved Views Dropdown -->
+
+					<!-- Right: Actions -->
+					<div class="flex items-center gap-2">
+						<!-- Saved Views -->
 						<div class="relative" x-data="{ viewsOpen: false }">
-							<button @click="viewsOpen = !viewsOpen" type="button" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<button @click="viewsOpen = !viewsOpen" type="button"
+								class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
 								</svg>
-								<span x-text="getActiveViewName() || 'Saved Views'"></span>
-								<svg class="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<span x-text="getActiveViewName() || 'Views'" class="hidden sm:inline"></span>
+								<svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 								</svg>
 							</button>
-							<!-- Dropdown menu -->
-							<div x-show="viewsOpen" @click.outside="viewsOpen = false" x-transition class="absolute right-0 mt-2 w-64 bg-white dark:bg-dark-bg-secondary rounded-md shadow-lg border border-gray-200 dark:border-dark-border-subtle z-50">
-								<div class="py-1">
-									<!-- Save current view -->
-									<button @click="openSaveViewModal(); viewsOpen = false" class="w-full text-left px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary flex items-center">
-										<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<!-- Dropdown -->
+							<div x-show="viewsOpen" @click.outside="viewsOpen = false" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+								class="absolute right-0 mt-2 w-56 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+								<div class="p-1">
+									<button @click="openSaveViewModal(); viewsOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
+										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
 										</svg>
 										Save Current View
 									</button>
-									<div class="border-t border-gray-200 dark:border-gray-700 my-1" x-show="views.length > 0"></div>
-									<!-- Saved views list -->
+								</div>
+								<div class="border-t border-slate-100 dark:border-slate-700" x-show="views.length > 0"></div>
+								<div class="p-1 max-h-64 overflow-y-auto" x-show="views.length > 0">
 									<template x-for="view in views" :key="view.id">
 										<div class="group relative">
-											<button @click="applyView(view); viewsOpen = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary flex items-center justify-between" :class="{ 'bg-blue-50 dark:bg-blue-900/20': isViewActive(view) }">
-												<span class="flex items-center">
-													<svg x-show="view.isDefault" class="mr-2 h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+											<button @click="applyView(view); viewsOpen = false"
+												class="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg"
+												:class="{ 'bg-blue-50 dark:bg-blue-900/20': isViewActive(view) }">
+												<span class="flex items-center gap-2">
+													<svg x-show="view.isDefault" class="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
 														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
 													</svg>
 													<span x-text="view.name"></span>
 												</span>
-												<svg x-show="isViewActive(view)" class="h-4 w-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+												<svg x-show="isViewActive(view)" class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
 													<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
 												</svg>
 											</button>
-											<!-- View actions (shown on hover) -->
-											<div class="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center space-x-1">
-												<button @click.stop="openSaveViewModal(view); viewsOpen = false" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" title="Edit">
-													<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-													</svg>
+											<div class="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
+												<button @click.stop="openSaveViewModal(view); viewsOpen = false" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded" title="Edit">
+													<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
 												</button>
-												<button @click.stop="setDefaultView(view.id)" class="p-1 text-gray-400 hover:text-yellow-500" :title="view.isDefault ? 'Remove default' : 'Set as default'">
-													<svg class="h-3 w-3" :class="view.isDefault ? 'text-yellow-500' : ''" fill="currentColor" viewBox="0 0 20 20">
-														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-													</svg>
+												<button @click.stop="setDefaultView(view.id)" class="p-1 text-slate-400 hover:text-amber-500 rounded" :title="view.isDefault ? 'Remove default' : 'Set as default'">
+													<svg class="w-3 h-3" :class="view.isDefault ? 'text-amber-500' : ''" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
 												</button>
-												<button @click.stop="deleteView(view.id)" class="p-1 text-gray-400 hover:text-red-500" title="Delete">
-													<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-													</svg>
+												<button @click.stop="deleteView(view.id)" class="p-1 text-slate-400 hover:text-red-500 rounded" title="Delete">
+													<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
 												</button>
 											</div>
 										</div>
 									</template>
-									<!-- Empty state -->
-									<div x-show="views.length === 0" class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-										No saved views yet
-									</div>
+								</div>
+								<div x-show="views.length === 0" class="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+									No saved views yet
 								</div>
 							</div>
 						</div>
 
-						<!-- Comparison Mode Toggle -->
-						<div class="flex items-center">
-							<label class="relative inline-flex items-center cursor-pointer">
-								<input type="checkbox" x-model="comparisonMode" class="sr-only peer" @change="if(comparisonMode && hasData) loadComparisonData()"/>
-								<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-								<span class="ms-2 text-sm font-medium text-gray-700 dark:text-gray-300">Compare</span>
-							</label>
-						</div>
-						<button @click="openRulesModal()" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+						<div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+
+						<!-- Compare Toggle -->
+						<button @click="comparisonMode = !comparisonMode; if(comparisonMode && hasData) loadComparisonData()"
+							:class="comparisonMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
 							</svg>
-							Manage Rules
+							<span class="hidden sm:inline">Compare</span>
 						</button>
-						<button @click="exportData" :disabled="loading || !hasData" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+
+						<!-- Rules -->
+						<button @click="openRulesModal()"
+							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
 							</svg>
-							Export CSV
+							<span class="hidden sm:inline">Rules</span>
+						</button>
+
+						<!-- Export -->
+						<button @click="exportData" :disabled="loading || !hasData"
+							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+							</svg>
+							<span class="hidden sm:inline">Export</span>
 						</button>
 					</div>
 				</div>
 			</div>
+		</header>
 
-			<!-- Filters Panel -->
-			<div class="mb-6 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
-				<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+		<!-- Main Content -->
+		<div class="px-6 py-6">
+
+			<!-- Query Bar - Compact & Scannable -->
+			<div class="mb-6 bg-white dark:bg-dark-bg-secondary rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700/50">
+				<!-- Primary Filters Row -->
+				<div class="px-5 py-4 flex flex-wrap items-center gap-3 relative">
 					<!-- Time Range Picker -->
-					<div class="xl:col-span-2 relative">
-						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-							Time Range
-						</label>
-						<!-- Compact Trigger Button -->
+					<div class="relative">
 						<button
 							@click="openTimeRangePicker()"
 							type="button"
-							class="w-full flex items-center px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+							class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors"
 						>
-							<!-- Clock Icon -->
-							<svg class="w-5 h-5 text-gray-500 dark:text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							<svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
 							</svg>
-							<!-- Dropdown Arrow -->
-							<svg class="w-4 h-4 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<span x-text="formatTimeRangeDisplay()"></span>
+							<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
-							<!-- Display Text -->
-							<span class="flex-1 text-left text-sm text-gray-700 dark:text-gray-200" x-text="formatTimeRangeDisplay()"></span>
 						</button>
 						<!-- Dropdown Panel -->
 						<div
 							x-show="timeRangePickerOpen"
-							x-transition:enter="transition ease-out duration-100"
-							x-transition:enter-start="transform opacity-0 scale-95"
-							x-transition:enter-end="transform opacity-100 scale-100"
-							x-transition:leave="transition ease-in duration-75"
-							x-transition:leave-start="transform opacity-100 scale-100"
-							x-transition:leave-end="transform opacity-0 scale-95"
+							x-transition:enter="transition ease-out duration-150"
+							x-transition:enter-start="opacity-0 scale-95"
+							x-transition:enter-end="opacity-100 scale-100"
+							x-transition:leave="transition ease-in duration-100"
+							x-transition:leave-start="opacity-100 scale-100"
+							x-transition:leave-end="opacity-0 scale-95"
 							@click.outside="closeTimeRangePicker(false)"
 							@keydown.escape.window="closeTimeRangePicker(false)"
 							@keydown.enter.prevent="closeTimeRangePicker(true)"
-							class="absolute z-50 mt-2 w-full min-w-[400px] bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl border border-gray-200 dark:border-gray-700"
+							class="absolute left-0 z-50 mt-2 w-[540px] bg-white dark:bg-dark-bg-secondary rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
 						>
+							<!-- Quick Presets -->
+							<div class="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+								<div class="flex flex-wrap gap-2">
+									<button @click="setQuickRange('1h')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">1 hour</button>
+									<button @click="setQuickRange('24h')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">24 hours</button>
+									<button @click="setQuickRange('7d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">7 days</button>
+									<button @click="setQuickRange('30d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">30 days</button>
+									<button @click="setQuickRange('90d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">90 days</button>
+								</div>
+							</div>
 							<!-- Tab Headers -->
-							<div class="flex border-b border-gray-200 dark:border-gray-700">
+							<div class="flex px-5 pt-4 gap-2">
 								<button
 									@click="timeRangePickerTab = 'relative'; filters.timeRangeMode = 'relative'"
-									:class="timeRangePickerTab === 'relative' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-									class="flex-1 px-4 py-3 text-sm font-medium focus:outline-none"
+									:class="timeRangePickerTab === 'relative' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+									class="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
 									type="button"
 								>
 									Relative
 								</button>
 								<button
 									@click="timeRangePickerTab = 'absolute'; filters.timeRangeMode = 'absolute'"
-									:class="timeRangePickerTab === 'absolute' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-									class="flex-1 px-4 py-3 text-sm font-medium focus:outline-none"
+									:class="timeRangePickerTab === 'absolute' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+									class="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
 									type="button"
 								>
 									Absolute
 								</button>
 								<button
 									@click="timeRangePickerTab = 'timeofday'"
-									:class="timeRangePickerTab === 'timeofday' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-									class="flex-1 px-4 py-3 text-sm font-medium focus:outline-none"
+									:class="timeRangePickerTab === 'timeofday' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+									class="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
 									type="button"
 								>
 									Time of Day
@@ -208,35 +213,35 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</div>
 
 							<!-- Tab Content Area -->
-							<div class="p-4">
+							<div class="p-5 min-h-[140px]">
 								<!-- Relative Tab -->
 								<div x-show="timeRangePickerTab === 'relative'">
-									<div class="grid grid-cols-2 gap-6">
+									<div class="grid grid-cols-2 gap-8">
 										<!-- From Section -->
-										<div>
-											<div class="flex items-center justify-between mb-2">
-												<span class="text-sm font-medium text-gray-700 dark:text-gray-300">From:</span>
+										<div class="min-h-[70px]">
+											<div class="flex items-center justify-between mb-3">
+												<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">From</span>
 												<label class="flex items-center cursor-pointer">
 													<input
 														type="checkbox"
 														x-model="filters.relativeFrom.allTime"
-														class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+														class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
 													/>
-													<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">All Time</span>
+													<span class="ml-2 text-sm text-slate-600 dark:text-slate-400">All Time</span>
 												</label>
 											</div>
-											<div class="flex items-center gap-2" x-show="!filters.relativeFrom.allTime">
+											<div class="flex items-center gap-3" x-show="!filters.relativeFrom.allTime">
 												<input
 													type="number"
 													x-model.number="filters.relativeFrom.value"
 													@keydown.up.prevent="incrementValue('from', 1)"
 													@keydown.down.prevent="incrementValue('from', -1)"
 													min="0"
-													class="w-20 text-center px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="w-24 text-center px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 												<select
 													x-model="filters.relativeFrom.unit"
-													class="flex-1 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="flex-1 px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												>
 													<option value="minutes">Minutes</option>
 													<option value="hours">Hours</option>
@@ -245,38 +250,38 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 													<option value="months">Months</option>
 													<option value="years">Years</option>
 												</select>
-												<span class="text-sm text-gray-600 dark:text-gray-400">ago</span>
+												<span class="text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">ago</span>
 											</div>
-											<div x-show="filters.relativeFrom.allTime" class="py-2 text-sm text-gray-500 dark:text-gray-400 italic">
-												From the beginning
+											<div x-show="filters.relativeFrom.allTime" class="flex items-center h-[42px] px-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm text-slate-500 dark:text-slate-400">
+												From the beginning of time
 											</div>
 										</div>
 
 										<!-- Until Section -->
-										<div>
-											<div class="flex items-center justify-between mb-2">
-												<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Until:</span>
+										<div class="min-h-[70px]">
+											<div class="flex items-center justify-between mb-3">
+												<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Until</span>
 												<label class="flex items-center cursor-pointer">
 													<input
 														type="checkbox"
 														x-model="filters.relativeUntil.now"
-														class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+														class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
 													/>
-													<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Now</span>
+													<span class="ml-2 text-sm text-slate-600 dark:text-slate-400">Now</span>
 												</label>
 											</div>
-											<div class="flex items-center gap-2" x-show="!filters.relativeUntil.now">
+											<div class="flex items-center gap-3" x-show="!filters.relativeUntil.now">
 												<input
 													type="number"
 													x-model.number="filters.relativeUntil.value"
 													@keydown.up.prevent="incrementValue('until', 1)"
 													@keydown.down.prevent="incrementValue('until', -1)"
 													min="0"
-													class="w-20 text-center px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="w-24 text-center px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 												<select
 													x-model="filters.relativeUntil.unit"
-													class="flex-1 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="flex-1 px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												>
 													<option value="minutes">Minutes</option>
 													<option value="hours">Hours</option>
@@ -285,10 +290,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 													<option value="months">Months</option>
 													<option value="years">Years</option>
 												</select>
-												<span class="text-sm text-gray-600 dark:text-gray-400">ago</span>
+												<span class="text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">ago</span>
 											</div>
-											<div x-show="filters.relativeUntil.now" class="py-2 text-sm text-gray-500 dark:text-gray-400 italic">
-												Current time
+											<div x-show="filters.relativeUntil.now" class="flex items-center h-[42px] px-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm text-slate-500 dark:text-slate-400">
+												Current time (now)
 											</div>
 										</div>
 									</div>
@@ -296,51 +301,51 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 								<!-- Absolute Tab -->
 								<div x-show="timeRangePickerTab === 'absolute'">
-									<div class="grid grid-cols-2 gap-6">
+									<div class="grid grid-cols-2 gap-8">
 										<!-- From Section -->
 										<div>
-											<span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From:</span>
-											<div class="space-y-2">
+											<span class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">From</span>
+											<div class="space-y-3">
 												<input
 													type="date"
 													x-model="filters.startDate"
-													class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="w-full px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 												<input
 													type="time"
 													x-model="filters.absoluteFromTime"
-													class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="w-full px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 											</div>
 										</div>
 
 										<!-- Until Section -->
 										<div>
-											<div class="flex items-center justify-between mb-2">
-												<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Until:</span>
+											<div class="flex items-center justify-between mb-3">
+												<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Until</span>
 												<label class="flex items-center cursor-pointer">
 													<input
 														type="checkbox"
 														x-model="filters.relativeUntil.now"
-														class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+														class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
 													/>
-													<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Now</span>
+													<span class="ml-2 text-sm text-slate-600 dark:text-slate-400">Now</span>
 												</label>
 											</div>
-											<div class="space-y-2" x-show="!filters.relativeUntil.now">
+											<div class="space-y-3" x-show="!filters.relativeUntil.now">
 												<input
 													type="date"
 													x-model="filters.endDate"
-													class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="w-full px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 												<input
 													type="time"
 													x-model="filters.absoluteUntilTime"
-													class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="w-full px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 											</div>
-											<div x-show="filters.relativeUntil.now" class="py-2 text-sm text-gray-500 dark:text-gray-400 italic">
-												Current time
+											<div x-show="filters.relativeUntil.now" class="flex items-center h-[42px] px-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm text-slate-500 dark:text-slate-400">
+												Current time (now)
 											</div>
 										</div>
 									</div>
@@ -349,54 +354,54 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<!-- Time of Day Tab -->
 								<div x-show="timeRangePickerTab === 'timeofday'">
 									<!-- Enable Checkbox -->
-									<label class="flex items-center cursor-pointer mb-4">
+									<label class="flex items-center cursor-pointer mb-5">
 										<input
 											type="checkbox"
 											x-model="filters.filterByTimeOfDay"
-											class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+											class="h-5 w-5 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
 										/>
-										<span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Filter by time of day</span>
+										<span class="ml-3 text-sm font-medium text-slate-700 dark:text-slate-300">Filter by time of day</span>
 									</label>
 
 									<div x-show="filters.filterByTimeOfDay" x-collapse>
 										<!-- Time Inputs -->
-										<div class="flex items-center gap-4 mb-4">
+										<div class="flex items-center gap-6 mb-5">
 											<div>
-												<label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
+												<label class="block text-sm text-slate-500 dark:text-slate-400 mb-2">From</label>
 												<input
 													type="time"
 													x-model="filters.timeOfDayStart"
-													class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="px-4 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 											</div>
 											<div>
-												<label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
+												<label class="block text-sm text-slate-500 dark:text-slate-400 mb-2">To</label>
 												<input
 													type="time"
 													x-model="filters.timeOfDayEnd"
-													class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+													class="px-4 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 											</div>
 										</div>
 
 										<!-- Quick Presets -->
-										<div class="mb-4">
-											<span class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Quick presets:</span>
-											<div class="flex flex-wrap gap-2">
-												<button @click="setTimePreset('night')" type="button" class="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/40">
-													<span class="mr-1.5">🌙</span> Night (22h-06h)
+										<div class="mb-5">
+											<span class="block text-sm text-slate-500 dark:text-slate-400 mb-3">Quick presets</span>
+											<div class="flex flex-wrap gap-3">
+												<button @click="setTimePreset('night')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40">
+													Night (22h-06h)
 												</button>
-												<button @click="setTimePreset('business')" type="button" class="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md hover:bg-green-200 dark:hover:bg-green-800/40">
-													<span class="mr-1.5">💼</span> Business (09h-18h)
+												<button @click="setTimePreset('business')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-800/40">
+													Business (09h-18h)
 												</button>
-												<button @click="setTimePreset('morning')" type="button" class="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-800/40">
-													<span class="mr-1.5">🌅</span> Morning (06h-12h)
+												<button @click="setTimePreset('morning')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/40">
+													Morning (06h-12h)
 												</button>
-												<button @click="setTimePreset('evening')" type="button" class="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-md hover:bg-orange-200 dark:hover:bg-orange-800/40">
-													<span class="mr-1.5">🌆</span> Evening (18h-22h)
+												<button @click="setTimePreset('evening')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-800/40">
+													Evening (18h-22h)
 												</button>
-												<button @click="applyOnCallFilter()" type="button" class="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md hover:bg-purple-200 dark:hover:bg-purple-800/40">
-													<span class="mr-1.5">🌑</span> On-Call
+												<button @click="applyOnCallFilter()" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800/40">
+													On-Call Hours
 												</button>
 											</div>
 										</div>
@@ -406,27 +411,27 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 											<input
 												type="checkbox"
 												x-model="filters.includeWeekends"
-												class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+												class="h-5 w-5 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
 											/>
-											<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Include weekends (Sat/Sun)</span>
+											<span class="ml-3 text-sm text-slate-600 dark:text-slate-400">Include weekends (Sat/Sun)</span>
 										</label>
 									</div>
 								</div>
 							</div>
 
 							<!-- Footer with Cancel/Apply -->
-							<div class="flex justify-end gap-2 px-4 py-3 bg-gray-50 dark:bg-dark-bg-tertiary border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
+							<div class="flex justify-end gap-3 px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
 								<button
 									@click="closeTimeRangePicker(false)"
 									type="button"
-									class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+									class="px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
 								>
 									Cancel
 								</button>
 								<button
 									@click="closeTimeRangePicker(true)"
 									type="button"
-									class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+									class="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
 								>
 									Apply
 								</button>
@@ -486,562 +491,517 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						</div>
 					</div>
 
-					<!-- Group By Selector -->
-					<div class="p-3 rounded-lg border-l-4 transition-colors" :class="getGroupByStyle('border') + ' ' + getGroupByStyle('bg')">
-						<label class="block text-sm font-medium mb-2 transition-colors" :class="getGroupByStyle('label')">
-							Group By
-						</label>
-						<select
-							x-model="filters.groupBy"
-							class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 dark:bg-dark-bg-tertiary dark:text-white text-sm transition-shadow"
-							:class="getGroupByStyle('ring')"
-						>
-							<option value="">Overall</option>
-							<option value="severity">Severity</option>
-							<option value="team">Team</option>
-							<option value="alert_name">Alert Name</option>
-							<option value="period">Time Period</option>
-						</select>
-					</div>
-
-					<!-- Period Type (shown when groupBy is "period") -->
-					<div x-show="filters.groupBy === 'period'">
-						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-							Period Type
-						</label>
-						<select
-							x-model="filters.periodType"
-							class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
-						>
-							<option value="hour">Hourly</option>
-							<option value="day">Daily</option>
-							<option value="week">Weekly</option>
-							<option value="month">Monthly</option>
-						</select>
-					</div>
-				</div>
-
-				<!-- Severity and Team Filters Row -->
-				<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-					<!-- Severity Multi-Select -->
-					<div class="relative" @click.outside="showSeverityDropdown = false">
-						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-							Severity Filter
-						</label>
-						<button
-							@click="showSeverityDropdown = !showSeverityDropdown"
-							type="button"
-							class="w-full px-3 py-2 text-left border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500"
-						>
-							<span x-text="filters.severities.length === 0 ? 'All Severities' : filters.severities.join(', ')" class="truncate text-gray-700 dark:text-gray-300"></span>
-							<svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-								<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+					<!-- Group By -->
+					<div class="relative" x-data="{ groupOpen: false }">
+						<button @click="groupOpen = !groupOpen" type="button"
+							class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors">
+							<svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+							</svg>
+							<span x-text="filters.groupBy ? 'By ' + getFilterGroupByLabel() : 'Overall'"></span>
+							<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
 						</button>
-						<div x-show="showSeverityDropdown" x-transition class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
-							<div class="p-2 space-y-1">
-								<label class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-									<input type="checkbox" value="critical" x-model="filters.severities" class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"/>
-									<span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex items-center">
-										<span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-										Critical
-									</span>
-								</label>
-								<label class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-									<input type="checkbox" value="warning" x-model="filters.severities" class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"/>
-									<span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex items-center">
-										<span class="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
-										Warning
-									</span>
-								</label>
-								<label class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-									<input type="checkbox" value="info" x-model="filters.severities" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"/>
-									<span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex items-center">
-										<span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-										Info
-									</span>
-								</label>
-							</div>
-							<div class="border-t border-gray-200 dark:border-gray-600 p-2">
-								<button @click="filters.severities = []; showSeverityDropdown = false" class="w-full text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-									Clear Selection
+						<div x-show="groupOpen" @click.outside="groupOpen = false" x-transition
+							class="absolute left-0 mt-2 w-48 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div class="p-1">
+								<button @click="filters.groupBy = ''; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': !filters.groupBy}">Overall</button>
+								<button @click="filters.groupBy = 'severity'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'severity'}">
+									<span class="w-2 h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-500"></span>Severity
+								</button>
+								<button @click="filters.groupBy = 'team'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'team'}">
+									<span class="w-2 h-2 rounded-full bg-blue-500"></span>Team
+								</button>
+								<button @click="filters.groupBy = 'alert_name'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'alert_name'}">
+									<span class="w-2 h-2 rounded-full bg-emerald-500"></span>Alert Name
+								</button>
+								<button @click="filters.groupBy = 'period'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'period'}">
+									<span class="w-2 h-2 rounded-full bg-purple-500"></span>Time Period
 								</button>
 							</div>
 						</div>
 					</div>
 
-					<!-- Team Multi-Select -->
-					<div class="relative" @click.outside="showTeamDropdown = false">
-						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-							Team Filter
-						</label>
-						<button
-							@click="showTeamDropdown = !showTeamDropdown; if(showTeamDropdown && availableTeams.length === 0) loadAvailableTeams()"
-							type="button"
-							class="w-full px-3 py-2 text-left border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500"
-						>
-							<span x-text="filters.teams.length === 0 ? 'All Teams' : filters.teams.join(', ')" class="truncate text-gray-700 dark:text-gray-300"></span>
-							<svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-								<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+					<!-- Period Type (when period grouping) -->
+					<div x-show="filters.groupBy === 'period'" x-transition class="relative" x-data="{ periodOpen: false }">
+						<button @click="periodOpen = !periodOpen" type="button"
+							class="inline-flex items-center gap-2 px-4 py-2.5 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-800/40 rounded-xl text-sm font-medium text-purple-700 dark:text-purple-300 transition-colors">
+							<span x-text="filters.periodType === 'hour' ? 'Hourly' : filters.periodType === 'day' ? 'Daily' : filters.periodType === 'week' ? 'Weekly' : 'Monthly'"></span>
+							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
 						</button>
-						<div x-show="showTeamDropdown" x-transition class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-bg-secondary border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
-							<div x-show="availableTeams.length === 0" class="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
-								Loading teams...
+						<div x-show="periodOpen" @click.outside="periodOpen = false" x-transition
+							class="absolute left-0 mt-2 w-36 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div class="p-1">
+								<button @click="filters.periodType = 'hour'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Hourly</button>
+								<button @click="filters.periodType = 'day'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Daily</button>
+								<button @click="filters.periodType = 'week'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Weekly</button>
+								<button @click="filters.periodType = 'month'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Monthly</button>
 							</div>
-							<div x-show="availableTeams.length > 0" class="p-2 space-y-1">
+						</div>
+					</div>
+
+					<!-- Severity Filter -->
+					<div class="relative" @click.outside="showSeverityDropdown = false">
+						<button @click="showSeverityDropdown = !showSeverityDropdown" type="button"
+							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+							:class="filters.severities.length > 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'">
+							<span class="flex items-center gap-1">
+								<span class="w-2 h-2 rounded-full" :class="filters.severities.length > 0 ? 'bg-red-500' : 'bg-slate-400'"></span>
+								<span x-text="filters.severities.length === 0 ? 'All Severities' : filters.severities.length + ' selected'"></span>
+							</span>
+							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+							</svg>
+						</button>
+						<div x-show="showSeverityDropdown" x-transition class="absolute left-0 mt-2 w-48 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div class="p-2 space-y-1">
+								<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+									<input type="checkbox" value="critical" x-model="filters.severities" class="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500"/>
+									<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+										<span class="w-3 h-3 bg-red-500 rounded-full"></span>Critical
+									</span>
+								</label>
+								<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+									<input type="checkbox" value="warning" x-model="filters.severities" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"/>
+									<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+										<span class="w-3 h-3 bg-amber-500 rounded-full"></span>Warning
+									</span>
+								</label>
+								<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+									<input type="checkbox" value="info" x-model="filters.severities" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
+									<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+										<span class="w-3 h-3 bg-blue-500 rounded-full"></span>Info
+									</span>
+								</label>
+							</div>
+							<div x-show="filters.severities.length > 0" class="border-t border-slate-100 dark:border-slate-700 p-2">
+								<button @click="filters.severities = []; showSeverityDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-center">Clear</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Team Filter -->
+					<div class="relative" @click.outside="showTeamDropdown = false">
+						<button @click="showTeamDropdown = !showTeamDropdown; if(showTeamDropdown && availableTeams.length === 0) loadAvailableTeams()" type="button"
+							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+							:class="filters.teams.length > 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'">
+							<span class="flex items-center gap-1">
+								<svg class="w-4 h-4 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+								</svg>
+								<span x-text="filters.teams.length === 0 ? 'All Teams' : filters.teams.length + ' teams'"></span>
+							</span>
+							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+							</svg>
+						</button>
+						<div x-show="showTeamDropdown" x-transition class="absolute left-0 mt-2 w-56 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div x-show="availableTeams.length === 0" class="p-4 text-center text-sm text-slate-500">Loading teams...</div>
+							<div x-show="availableTeams.length > 0" class="max-h-60 overflow-y-auto p-2 space-y-1">
 								<template x-for="team in availableTeams" :key="team">
-									<label class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-										<input type="checkbox" :value="team" x-model="filters.teams" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"/>
-										<span class="ml-2 text-sm text-gray-700 dark:text-gray-300" x-text="team"></span>
+									<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+										<input type="checkbox" :value="team" x-model="filters.teams" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
+										<span class="text-sm text-slate-700 dark:text-slate-200" x-text="team"></span>
 									</label>
 								</template>
 							</div>
-							<div x-show="availableTeams.length > 0" class="border-t border-gray-200 dark:border-gray-600 p-2">
-								<button @click="filters.teams = []; showTeamDropdown = false" class="w-full text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-									Clear Selection
-								</button>
+							<div x-show="filters.teams.length > 0" class="border-t border-slate-100 dark:border-slate-700 p-2">
+								<button @click="filters.teams = []; showTeamDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-center">Clear</button>
 							</div>
 						</div>
 					</div>
-				</div>
 
-				<!-- Additional Options Row -->
-				<div class="mt-4 flex items-center justify-between">
-					<div class="flex items-center space-x-4">
-						<!-- Apply On-Call Rules Toggle -->
-						<label class="flex items-center cursor-pointer">
-							<input
-								type="checkbox"
-								x-model="filters.applyRules"
-								class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-							/>
-							<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
-								Apply On-Call Rules
-								<span class="text-xs text-gray-500 dark:text-gray-400">(filter by your configured rules)</span>
-							</span>
-						</label>
+					<!-- Divider -->
+					<div class="w-px h-6 bg-slate-200 dark:bg-slate-700 hidden lg:block"></div>
 
-						<!-- Limit (for alert_name grouping) -->
-						<div x-show="filters.groupBy === 'alert_name'" class="flex items-center space-x-2">
-							<label class="text-sm text-gray-700 dark:text-gray-300">Top</label>
-							<input
-								type="number"
-								x-model.number="filters.limit"
-								min="5"
-								max="50"
-								step="5"
-								class="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"
-							/>
-							<span class="text-sm text-gray-700 dark:text-gray-300">alerts</span>
-						</div>
+					<!-- On-Call Rules Toggle -->
+					<button @click="filters.applyRules = !filters.applyRules" type="button"
+						class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+						:class="filters.applyRules ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'">
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" :class="filters.applyRules ? 'text-emerald-600' : 'text-slate-400'">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+						</svg>
+						<span>On-Call Rules</span>
+					</button>
+
+					<!-- Top N (for alert_name) -->
+					<div x-show="filters.groupBy === 'alert_name'" x-transition class="flex items-center gap-2">
+						<span class="text-sm text-slate-500">Top</span>
+						<input type="number" x-model.number="filters.limit" min="5" max="50" step="5"
+							class="w-16 px-2 py-1.5 text-sm text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500"/>
 					</div>
 
-					<!-- Query Button -->
-					<button
-						@click="queryStatistics"
-						:disabled="loading"
-						class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-					>
-						<svg x-show="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+					<!-- Spacer -->
+					<div class="flex-1"></div>
+
+					<!-- Run Query Button -->
+					<button @click="queryStatistics" :disabled="loading"
+						class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+						<svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						<span x-text="loading ? 'Loading...' : 'Run Query'"></span>
+						<svg x-show="!loading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+						</svg>
+						<span x-text="loading ? 'Loading...' : 'Query'"></span>
 					</button>
+				</div>
+
+				<!-- Time of Day Filter (visible when enabled) -->
+				<div x-show="filters.filterByTimeOfDay" x-collapse class="px-5 py-3 border-t border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
+					<div class="flex flex-wrap items-center gap-3">
+						<span class="text-sm text-slate-600 dark:text-slate-400">Time filter:</span>
+						<span class="px-3 py-1 bg-white dark:bg-slate-800 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200">
+							<span x-text="filters.timeOfDayStart"></span> - <span x-text="filters.timeOfDayEnd"></span>
+						</span>
+						<div class="flex gap-1">
+							<button @click="setTimePreset('night')" type="button" class="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200">Night</button>
+							<button @click="setTimePreset('business')" type="button" class="px-2 py-1 text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200">Business</button>
+							<button @click="setTimePreset('morning')" type="button" class="px-2 py-1 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200">Morning</button>
+						</div>
+						<label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+							<input type="checkbox" x-model="filters.includeWeekends" class="w-4 h-4 text-blue-600 rounded border-slate-300"/>
+							Include weekends
+						</label>
+					</div>
 				</div>
 			</div>
 
 			<!-- Loading State -->
-			<div x-show="loading && !hasData" class="text-center py-12">
-				<div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-				<p class="mt-4 text-gray-500 dark:text-gray-400">Loading statistics...</p>
+			<div x-show="loading && !hasData" class="flex flex-col items-center justify-center py-20 relative z-10">
+				<div class="relative">
+					<div class="w-16 h-16 border-4 border-slate-200 dark:border-slate-700 rounded-full"></div>
+					<div class="absolute top-0 left-0 w-16 h-16 border-4 border-blue-500 rounded-full animate-spin border-t-transparent"></div>
+				</div>
+				<p class="mt-6 text-slate-500 dark:text-slate-400 font-medium">Loading statistics...</p>
 			</div>
 
 			<!-- Empty State -->
-			<div x-show="!loading && !hasData" class="text-center py-12 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle">
-				<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-				</svg>
-				<h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No Data</h3>
-				<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Select a time range and click "Run Query" to view statistics.
+			<div x-show="!loading && !hasData" class="flex flex-col items-center justify-center py-20 bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 relative z-10">
+				<div class="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-6">
+					<svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+					</svg>
+				</div>
+				<h3 class="text-lg font-semibold text-slate-900 dark:text-white">No statistics yet</h3>
+				<p class="mt-2 text-sm text-slate-500 dark:text-slate-400 text-center max-w-sm">
+					Configure your time range and filters above, then click Query to analyze your alert data.
 				</p>
 			</div>
 
 			<!-- Statistics Content -->
-			<div x-show="!loading && hasData">
-				<!-- Summary Cards -->
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-					<!-- Total Alerts Card -->
-					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
-						<div class="flex items-center">
-							<div class="flex-shrink-0 bg-blue-100 dark:bg-blue-900/30 rounded-md p-3">
-								<svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+			<div x-show="!loading && hasData" class="relative z-10">
+				<!-- Key Metrics Grid - Clean, Data-Forward Design -->
+				<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+					<!-- Total Alerts -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50">
+						<div class="flex items-center justify-between mb-3">
+							<span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Alerts</span>
+							<div class="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
+								<svg class="w-4 h-4 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
 								</svg>
 							</div>
-							<div class="ml-5 w-0 flex-1">
-								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-									Total Alerts
-								</dt>
-								<dd class="flex items-baseline">
-									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatNumber(statsData?.total_alerts || 0)"></div>
-								</dd>
+						</div>
+						<div class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight" x-text="formatNumber(statsData?.total_alerts || 0)"></div>
+					</div>
+
+					<!-- MTTR -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 group relative">
+						<div class="flex items-center justify-between mb-3">
+							<span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Avg MTTR</span>
+							<div class="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+								<svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+								</svg>
 							</div>
+						</div>
+						<div class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight" x-text="formatDuration(getOverallAvgMTTR())"></div>
+						<!-- Tooltip -->
+						<div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-10">
+							<strong>Mean Time To Resolve</strong><br/>Time from alert firing to resolution
+							<div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 dark:border-t-slate-700"></div>
 						</div>
 					</div>
 
-					<!-- Average MTTR Card (Mean Time To Resolve) -->
-					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 relative">
-						<div class="absolute top-2 right-2 group">
-							<div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center cursor-help text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600">?</div>
-							<div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-								<span class="font-semibold">Mean Time To Resolve</span><br/>
-								<span class="text-gray-300">ResolvedAt - FiredAt</span><br/>
-								<span class="text-gray-400 text-[10px]">Total time from alert firing to resolution</span>
-							</div>
-						</div>
-						<div class="flex items-center">
-							<div class="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900/30 rounded-md p-3">
-								<svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+					<!-- MTTA -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 group relative">
+						<div class="flex items-center justify-between mb-3">
+							<span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Avg MTTA</span>
+							<div class="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+								<svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 								</svg>
 							</div>
-							<div class="ml-5 w-0 flex-1">
-								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-									Avg MTTR
-								</dt>
-								<dd class="flex items-baseline">
-									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgMTTR())"></div>
-								</dd>
-							</div>
+						</div>
+						<div class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight" x-text="formatTimeOrNA(getOverallAvgMTTA())"></div>
+						<!-- Tooltip -->
+						<div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-10">
+							<strong>Mean Time To Acknowledge</strong><br/>Time from firing to acknowledgment
+							<div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 dark:border-t-slate-700"></div>
 						</div>
 					</div>
 
-					<!-- Average MTTA Card (Mean Time To Acknowledge) -->
-					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 relative">
-						<div class="absolute top-2 right-2 group">
-							<div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center cursor-help text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600">?</div>
-							<div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-								<span class="font-semibold">Mean Time To Acknowledge</span><br/>
-								<span class="text-gray-300">AcknowledgedAt - FiredAt</span><br/>
-								<span class="text-gray-400 text-[10px]">Time from alert firing to acknowledgment</span>
-							</div>
-						</div>
-						<div class="flex items-center">
-							<div class="flex-shrink-0 bg-green-100 dark:bg-green-900/30 rounded-md p-3">
-								<svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+					<!-- Fix Time -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 group relative">
+						<div class="flex items-center justify-between mb-3">
+							<span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Avg Fix Time</span>
+							<div class="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+								<svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/>
 								</svg>
 							</div>
-							<div class="ml-5 w-0 flex-1">
-								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-									Avg MTTA
-								</dt>
-								<dd class="flex items-baseline">
-									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatTimeOrNA(getOverallAvgMTTA())"></div>
-								</dd>
-							</div>
+						</div>
+						<div class="text-3xl font-bold text-slate-900 dark:text-white tracking-tight" x-text="formatTimeOrNA(getOverallAvgFixTime())"></div>
+						<!-- Tooltip -->
+						<div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-10">
+							<strong>Fix Time</strong><br/>Time from acknowledgment to resolution
+							<div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 dark:border-t-slate-700"></div>
 						</div>
 					</div>
 
-					<!-- Average Fix Time Card -->
-					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 relative">
-						<div class="absolute top-2 right-2 group">
-							<div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center cursor-help text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600">?</div>
-							<div class="absolute right-0 top-6 w-48 p-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-								<span class="font-semibold">Fix Time</span><br/>
-								<span class="text-gray-300">ResolvedAt - AcknowledgedAt</span><br/>
-								<span class="text-gray-400 text-[10px]">Time spent fixing after acknowledgment</span>
-							</div>
-						</div>
-						<div class="flex items-center">
-							<div class="flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/30 rounded-md p-3">
-								<svg class="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+					<!-- Time Range -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50">
+						<div class="flex items-center justify-between mb-3">
+							<span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Period</span>
+							<div class="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+								<svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
 								</svg>
 							</div>
-							<div class="ml-5 w-0 flex-1">
-								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-									Avg Fix Time
-								</dt>
-								<dd class="flex items-baseline">
-									<div class="text-2xl font-semibold text-gray-900 dark:text-white" x-text="formatTimeOrNA(getOverallAvgFixTime())"></div>
-								</dd>
-							</div>
 						</div>
-					</div>
-
-					<!-- Time Range Card -->
-					<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6">
-						<div class="flex items-center">
-							<div class="flex-shrink-0 bg-purple-100 dark:bg-purple-900/30 rounded-md p-3">
-								<svg class="h-6 w-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-								</svg>
-							</div>
-							<div class="ml-5 w-0 flex-1">
-								<dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-									Time Range
-								</dt>
-								<dd class="text-sm text-gray-900 dark:text-white">
-									<div x-text="formatDate(statsData?.time_range?.start)"></div>
-									<div class="text-xs text-gray-500" x-text="'to ' + formatDate(statsData?.time_range?.end)"></div>
-								</dd>
-							</div>
-						</div>
+						<div class="text-sm font-semibold text-slate-900 dark:text-white" x-text="formatDate(statsData?.time_range?.start)"></div>
+						<div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">to <span x-text="formatDate(statsData?.time_range?.end)"></span></div>
 					</div>
 				</div>
 
 				<!-- Charts Section (hidden for period grouping - shows only Statistics by Time Period table instead) -->
 				<div class="space-y-6 mb-6" x-show="appliedGroupBy !== 'period'">
-					<!-- Alerts Over Time Chart - Always visible, spans full width when groupBy is set -->
-					<div class="rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 border-l-4 transition-colors" :class="getGroupByStyle('border') + ' ' + getGroupByStyle('bg')">
-						<div class="flex items-center justify-between mb-4">
-							<div class="flex items-center space-x-2">
-								<h3 class="text-lg font-medium text-gray-900 dark:text-white">Alerts Over Time</h3>
-								<span x-show="appliedGroupBy" class="text-xs px-2 py-0.5 rounded-full" :class="getGroupByStyle('label') + ' bg-white/50 dark:bg-black/20'" x-text="'by ' + getGroupByLabel()"></span>
+					<!-- Alerts Over Time Chart -->
+					<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+						<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<h3 class="text-base font-semibold text-slate-900 dark:text-white">Alerts Over Time</h3>
+								<span x-show="appliedGroupBy" class="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" x-text="'by ' + getGroupByLabel()"></span>
 							</div>
-							<div class="flex items-center space-x-4">
-								<!-- Line visibility toggles (shown when groupBy is set) -->
-								<div x-show="appliedGroupBy && Object.keys(chartVisibility).length > 0" class="flex flex-wrap gap-2">
+							<div class="flex items-center gap-3">
+								<!-- Line visibility toggles -->
+								<div x-show="appliedGroupBy && Object.keys(chartVisibility).length > 0" class="flex flex-wrap gap-1">
 									<template x-for="(visible, key) in chartVisibility" :key="key">
-										<button
-											@click="toggleChartVisibility(key)"
-											class="px-2 py-1 text-xs rounded-full border transition-all"
-											:class="visible ? getVisibilityButtonClass(key, true) : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 border-gray-200 dark:border-gray-700 opacity-50'"
-											x-text="key"
-										></button>
+										<button @click="toggleChartVisibility(key)"
+											class="px-2.5 py-1 text-xs font-medium rounded-lg transition-all"
+											:class="visible ? getVisibilityButtonClass(key, true) : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'"
+											x-text="key"></button>
 									</template>
 								</div>
-								<!-- View type toggle -->
-								<div class="flex space-x-1 border-l pl-4 dark:border-gray-700" x-show="!appliedGroupBy">
-									<button @click="timeSeriesView = 'fired'" :class="timeSeriesView === 'fired' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'" class="px-2 py-1 text-xs rounded">
-										Fired
-									</button>
-									<button @click="timeSeriesView = 'resolved'" :class="timeSeriesView === 'resolved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'" class="px-2 py-1 text-xs rounded">
-										Resolved
-									</button>
-									<button @click="timeSeriesView = 'both'" :class="timeSeriesView === 'both' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'" class="px-2 py-1 text-xs rounded">
-										Both
-									</button>
+								<!-- View toggle -->
+								<div class="flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg" x-show="!appliedGroupBy">
+									<button @click="timeSeriesView = 'fired'" :class="timeSeriesView === 'fired' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'" class="px-3 py-1 text-xs font-medium rounded-md transition-all">Fired</button>
+									<button @click="timeSeriesView = 'resolved'" :class="timeSeriesView === 'resolved' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'" class="px-3 py-1 text-xs font-medium rounded-md transition-all">Resolved</button>
+									<button @click="timeSeriesView = 'both'" :class="timeSeriesView === 'both' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'" class="px-3 py-1 text-xs font-medium rounded-md transition-all">Both</button>
 								</div>
-								<!-- Fullscreen button -->
-								<button @click="openFullscreenChart('alertsTime')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+								<button @click="openFullscreenChart('alertsTime')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
 									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 									</svg>
 								</button>
 							</div>
 						</div>
-						<div class="h-72">
+						<div class="h-72 px-6 pb-6">
 							<canvas id="alertsTimeChart" x-ref="alertsTimeChart"></canvas>
 						</div>
 					</div>
 
-					<!-- Secondary Charts Row - Distribution + Top Items -->
-					<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-						<!-- Distribution Chart (Donut) - shown when groupBy is set -->
-						<div x-show="appliedGroupBy" class="rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 border-l-4 transition-colors" :class="getGroupByStyle('border') + ' ' + getGroupByStyle('bg')">
-							<div class="flex items-center justify-between mb-4">
-								<div class="flex items-center space-x-2">
-									<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="getGroupByLabel() + ' Distribution'"></h3>
-								</div>
-								<div class="flex items-center space-x-2">
-									<span class="text-xs text-gray-500 dark:text-gray-400">Click to filter</span>
-									<button @click="openFullscreenChart('distribution')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+					<!-- Secondary Charts Row -->
+					<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+						<!-- Distribution Chart -->
+						<div x-show="appliedGroupBy" class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+							<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+								<h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="getGroupByLabel() + ' Distribution'"></h3>
+								<div class="flex items-center gap-2">
+									<span class="text-xs text-slate-500">Click to filter</span>
+									<button @click="openFullscreenChart('distribution')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
 										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 										</svg>
 									</button>
 								</div>
 							</div>
-							<div class="h-64 flex items-center justify-center">
+							<div class="h-64 p-6 flex items-center justify-center">
 								<div class="w-full max-w-xs">
 									<canvas id="distributionChart" x-ref="distributionChart"></canvas>
 								</div>
 							</div>
 						</div>
 
-						<!-- Top Items Chart (Bar) -->
-						<div class="rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 border-l-4 transition-colors" :class="getGroupByStyle('border') + ' ' + getGroupByStyle('bg')">
-							<div class="flex items-center justify-between mb-4">
-								<div class="flex items-center space-x-2">
-									<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="'Top 10 ' + (appliedGroupBy ? getGroupByLabel() : 'Alerts')"></h3>
-								</div>
-								<div class="flex items-center space-x-2">
-									<span class="text-xs text-gray-500 dark:text-gray-400">Click to filter</span>
-									<button @click="openFullscreenChart('topItems')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+						<!-- Top Items Chart -->
+						<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+							<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+								<h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="'Top 10 ' + (appliedGroupBy ? getGroupByLabel() : 'Alerts')"></h3>
+								<div class="flex items-center gap-2">
+									<span class="text-xs text-slate-500">Click to filter</span>
+									<button @click="openFullscreenChart('topItems')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
 										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 										</svg>
 									</button>
 								</div>
 							</div>
-							<div class="h-64">
+							<div class="h-64 p-6">
 								<canvas id="topItemsChart" x-ref="topItemsChart"></canvas>
 							</div>
 						</div>
 					</div>
 
-					<!-- Resolution Times Chart - Full Width -->
-					<div x-show="appliedGroupBy && Object.keys(statsData?.statistics || {}).length > 0" class="rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle p-6 border-l-4 transition-colors" :class="getGroupByStyle('border') + ' ' + getGroupByStyle('bg')">
-						<div class="flex items-center justify-between mb-4">
-							<div class="flex items-center space-x-2">
-								<h3 class="text-lg font-medium text-gray-900 dark:text-white">
-									Resolution Times by <span x-text="getGroupByLabel()"></span>
-								</h3>
+					<!-- Resolution Times Chart -->
+					<div x-show="appliedGroupBy && Object.keys(statsData?.statistics || {}).length > 0" class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+						<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<h3 class="text-base font-semibold text-slate-900 dark:text-white">Resolution Times by <span x-text="getGroupByLabel()"></span></h3>
 							</div>
-							<div class="flex items-center space-x-2">
-								<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">MTTR</span>
-								<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">MTTA</span>
-								<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">Fix Time</span>
-								<button @click="openFullscreenChart('timeMetrics')" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Fullscreen">
+							<div class="flex items-center gap-2">
+								<span class="px-2 py-1 text-xs font-medium rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">MTTR</span>
+								<span class="px-2 py-1 text-xs font-medium rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">MTTA</span>
+								<span class="px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">Fix</span>
+								<button @click="openFullscreenChart('timeMetrics')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
 									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 									</svg>
 								</button>
 							</div>
 						</div>
-						<div class="h-80">
+						<div class="h-80 p-6">
 							<canvas id="timeMetricsChart"></canvas>
 						</div>
 					</div>
 				</div>
 
-				<!-- Comparison Panel (shown when comparison mode is active) -->
+				<!-- Comparison Panel -->
 				<div x-show="comparisonMode && comparisonData" x-collapse class="mb-6">
-					<div class="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg shadow-sm border border-indigo-200 dark:border-indigo-800 p-6">
-						<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center">
-							<svg class="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-900/20 dark:via-purple-900/20 dark:to-pink-900/20 rounded-2xl border border-indigo-200/50 dark:border-indigo-800/50 p-6">
+						<h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+							<svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
 							</svg>
 							Period Comparison
 						</h3>
-						<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-							<!-- Total Alerts Comparison -->
-							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
-								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Alerts</div>
-								<div class="flex items-baseline space-x-2">
-									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatNumber(statsData?.total_alerts || 0)"></span>
-									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_alerts)" x-text="getDeltaText(comparisonData?.delta_alerts)"></span>
+						<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+							<div class="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4">
+								<div class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Alerts</div>
+								<div class="flex items-baseline gap-2">
+									<span class="text-2xl font-bold text-slate-900 dark:text-white" x-text="formatNumber(statsData?.total_alerts || 0)"></span>
+									<span class="text-sm font-medium" :class="getDeltaClass(comparisonData?.delta_alerts)" x-text="getDeltaText(comparisonData?.delta_alerts)"></span>
 								</div>
-								<div class="text-xs text-gray-400 dark:text-gray-500" x-text="'vs ' + formatNumber(comparisonData?.previous_total || 0) + ' previously'"></div>
+								<div class="text-xs text-slate-400 mt-1" x-text="'vs ' + formatNumber(comparisonData?.previous_total || 0)"></div>
 							</div>
-							<!-- Avg MTTR Comparison -->
-							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
-								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg MTTR</div>
-								<div class="flex items-baseline space-x-2">
-									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatDuration(getOverallAvgMTTR())"></span>
-									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_mttr, true)" x-text="getDeltaText(comparisonData?.delta_mttr)"></span>
+							<div class="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4">
+								<div class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Avg MTTR</div>
+								<div class="flex items-baseline gap-2">
+									<span class="text-2xl font-bold text-slate-900 dark:text-white" x-text="formatDuration(getOverallAvgMTTR())"></span>
+									<span class="text-sm font-medium" :class="getDeltaClass(comparisonData?.delta_mttr, true)" x-text="getDeltaText(comparisonData?.delta_mttr)"></span>
 								</div>
 							</div>
-							<!-- Avg MTTA Comparison -->
-							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
-								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg MTTA</div>
-								<div class="flex items-baseline space-x-2">
-									<span class="text-xl font-bold text-gray-900 dark:text-white" x-text="formatTimeOrNA(getOverallAvgMTTA())"></span>
-									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_mtta, true)" x-text="getDeltaText(comparisonData?.delta_mtta)"></span>
+							<div class="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4">
+								<div class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Avg MTTA</div>
+								<div class="flex items-baseline gap-2">
+									<span class="text-2xl font-bold text-slate-900 dark:text-white" x-text="formatTimeOrNA(getOverallAvgMTTA())"></span>
+									<span class="text-sm font-medium" :class="getDeltaClass(comparisonData?.delta_mtta, true)" x-text="getDeltaText(comparisonData?.delta_mtta)"></span>
 								</div>
 							</div>
-							<!-- Critical Alerts Comparison -->
-							<div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-4">
-								<div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Critical Alerts</div>
-								<div class="flex items-baseline space-x-2">
-									<span class="text-xl font-bold text-red-600 dark:text-red-400" x-text="formatNumber(getCriticalCount())"></span>
-									<span class="text-sm" :class="getDeltaClass(comparisonData?.delta_critical)" x-text="getDeltaText(comparisonData?.delta_critical)"></span>
+							<div class="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4">
+								<div class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Critical</div>
+								<div class="flex items-baseline gap-2">
+									<span class="text-2xl font-bold text-red-600 dark:text-red-400" x-text="formatNumber(getCriticalCount())"></span>
+									<span class="text-sm font-medium" :class="getDeltaClass(comparisonData?.delta_critical)" x-text="getDeltaText(comparisonData?.delta_critical)"></span>
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
 
-				<!-- Breakdown Tables/Charts -->
+				<!-- Data Tables -->
 				<div class="space-y-6">
-					<!-- Statistics by Group (when groupBy is set and not using period grouping) -->
+					<!-- Statistics by Group Table -->
 					<div x-show="appliedGroupBy && appliedGroupBy !== 'period' && Object.keys(statsData?.statistics || {}).length > 0">
-						<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle overflow-hidden">
-							<div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle">
-								<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="getGroupByTitle()"></h3>
+						<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+							<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50">
+								<h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="getGroupByTitle()"></h3>
 							</div>
 							<div class="overflow-x-auto">
-								<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-									<thead class="bg-gray-50 dark:bg-dark-bg-tertiary">
-										<tr>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('name')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+								<table class="min-w-full">
+									<thead>
+										<tr class="bg-slate-50 dark:bg-slate-800/50">
+											<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+												<button @click="sortBy('name')" class="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
 													<span x-text="appliedGroupBy || 'Category'"></span>
 													<span x-html="getSortIcon('name')"></span>
 												</button>
 											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('count')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+											<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+												<button @click="sortBy('count')" class="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
 													<span>Count</span>
 													<span x-html="getSortIcon('count')"></span>
 												</button>
 											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												Percentage
+											<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+												%
 											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('avg_mttr')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-													<span>Avg MTTR</span>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+												<button @click="sortBy('avg_mttr')" class="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+													<span>MTTR</span>
 													<span x-html="getSortIcon('avg_mttr')"></span>
 												</button>
 											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('total_mttr')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+											<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+												<button @click="sortBy('total_mttr')" class="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
 													<span>Total MTTR</span>
 													<span x-html="getSortIcon('total_mttr')"></span>
 												</button>
 											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('avg_mtta')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-													<span>Avg MTTA</span>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+												<button @click="sortBy('avg_mtta')" class="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+													<span>MTTA</span>
 													<span x-html="getSortIcon('avg_mtta')"></span>
 												</button>
 											</th>
-											<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-												<button @click="sortBy('avg_fix_time')" class="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-													<span>Avg Fix Time</span>
+											<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+												<button @click="sortBy('avg_fix_time')" class="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+													<span>Fix</span>
 													<span x-html="getSortIcon('avg_fix_time')"></span>
 												</button>
 											</th>
 										</tr>
 									</thead>
-									<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-gray-700">
+									<tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
 										<template x-for="[key, stat] in getSortedStatistics()" :key="key">
-											<tr
-												class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary transition-colors"
+											<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
 												:class="appliedGroupBy === 'alert_name' ? 'cursor-pointer' : ''"
-												@click="appliedGroupBy === 'alert_name' && openAlertDetailsModal(key)"
-											>
-												<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-													<div class="flex items-center">
-														<span x-text="key" :class="getSeverityClass(key)"></span>
-														<svg x-show="appliedGroupBy === 'alert_name'" class="ml-2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												@click="appliedGroupBy === 'alert_name' && openAlertDetailsModal(key)">
+												<td class="px-6 py-4 whitespace-nowrap">
+													<div class="flex items-center gap-2">
+														<span class="text-sm font-medium text-slate-900 dark:text-white" x-text="key" :class="getSeverityClass(key)"></span>
+														<svg x-show="appliedGroupBy === 'alert_name'" class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
 														</svg>
 													</div>
 												</td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-													<div class="flex items-center space-x-2">
-														<span x-text="formatNumber(stat.count)"></span>
-														<div class="flex-1 min-w-[100px]">
-															<div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-																<div class="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-300" :style="`width: ${(stat.count / getMaxCount() * 100)}%`"></div>
-															</div>
+												<td class="px-6 py-4 whitespace-nowrap">
+													<div class="flex items-center gap-3">
+														<span class="text-sm font-semibold text-slate-900 dark:text-white tabular-nums" x-text="formatNumber(stat.count)"></span>
+														<div class="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+															<div class="h-full bg-blue-500 rounded-full transition-all duration-300" :style="`width: ${(stat.count / getMaxCount() * 100)}%`"></div>
 														</div>
 													</div>
 												</td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-													<span x-text="getPercentage(stat.count) + '%'"></span>
-												</td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.avg_mttr_seconds)"></td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(stat.total_mttr_seconds)"></td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatTimeOrNA(stat.avg_mtta_seconds)"></td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatTimeOrNA(stat.avg_fix_time_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="getPercentage(stat.count) + '%'"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 font-medium" x-text="formatDuration(stat.avg_mttr_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="formatDuration(stat.total_mttr_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="formatTimeOrNA(stat.avg_mtta_seconds)"></td>
+												<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="formatTimeOrNA(stat.avg_fix_time_seconds)"></td>
 											</tr>
 										</template>
 									</tbody>
@@ -1050,33 +1010,29 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						</div>
 					</div>
 
-					<!-- Period Breakdown (when groupBy is "period") -->
+					<!-- Period Breakdown -->
 					<div x-show="appliedGroupBy === 'period' && (statsData?.breakdown || []).length > 0">
-						<div class="bg-white dark:bg-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-dark-border-subtle overflow-hidden">
-							<div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle">
-								<h3 class="text-lg font-medium text-gray-900 dark:text-white">Statistics by Time Period</h3>
+						<div class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+							<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50">
+								<h3 class="text-base font-semibold text-slate-900 dark:text-white">Statistics by Time Period</h3>
 							</div>
-
-							<!-- Simple Chart Visualization -->
 							<div class="p-6">
-								<div class="space-y-4">
+								<div class="space-y-3">
 									<template x-for="(item, index) in (statsData?.breakdown || [])" :key="index">
-										<div class="border-l-4 pl-4 py-2" :class="'border-blue-500'">
+										<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border-l-4 border-blue-500">
 											<div class="flex items-center justify-between mb-2">
 												<div>
-													<div class="text-sm font-medium text-gray-900 dark:text-white" x-text="item.period"></div>
-													<div class="text-xs text-gray-500 dark:text-gray-400" x-text="formatDate(item.start_time) + ' - ' + formatDate(item.end_time)"></div>
+													<div class="text-sm font-semibold text-slate-900 dark:text-white" x-text="item.period"></div>
+													<div class="text-xs text-slate-500 dark:text-slate-400" x-text="formatDate(item.start_time) + ' - ' + formatDate(item.end_time)"></div>
 												</div>
 												<div class="text-right">
-													<div class="text-lg font-semibold text-gray-900 dark:text-white" x-text="formatNumber(item.total_count)"></div>
-													<div class="text-xs text-gray-500 dark:text-gray-400">alerts</div>
+													<div class="text-xl font-bold text-slate-900 dark:text-white" x-text="formatNumber(item.total_count)"></div>
+													<div class="text-xs text-slate-500">alerts</div>
 												</div>
 											</div>
-
-											<!-- Severity breakdown for this period -->
-											<div x-show="item.statistics && Object.keys(item.statistics).length > 0" class="mt-2 flex flex-wrap gap-2">
+											<div x-show="item.statistics && Object.keys(item.statistics).length > 0" class="mt-3 flex flex-wrap gap-2">
 												<template x-for="(stat, severity) in item.statistics" :key="severity">
-													<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium" :class="getSeverityBadgeClass(severity)">
+													<span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium" :class="getSeverityBadgeClass(severity)">
 														<span x-text="severity + ': ' + stat.count"></span>
 													</span>
 												</template>
@@ -1771,6 +1727,66 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				getGroupByLabel() {
 					const labels = { 'severity': 'Severity', 'team': 'Team', 'alert_name': 'Alert Name', 'period': 'Time Period' };
 					return labels[this.appliedGroupBy] || 'Overall';
+				},
+
+				// For the filter button - uses current selection, not applied value
+				getFilterGroupByLabel() {
+					const labels = { 'severity': 'Severity', 'team': 'Team', 'alert_name': 'Alert Name', 'period': 'Time Period' };
+					return labels[this.filters.groupBy] || 'Overall';
+				},
+
+				// Quick time range presets for the new UI
+				setQuickRange(preset) {
+					const now = new Date();
+					this.filters.timeRangeMode = 'relative';
+					this.filters.relativeUntil = { value: 0, unit: 'minutes', now: true };
+
+					switch(preset) {
+						case '1h':
+							this.filters.relativeFrom = { value: 1, unit: 'hours', allTime: false };
+							break;
+						case '24h':
+							this.filters.relativeFrom = { value: 24, unit: 'hours', allTime: false };
+							break;
+						case '7d':
+							this.filters.relativeFrom = { value: 7, unit: 'days', allTime: false };
+							break;
+						case '30d':
+							this.filters.relativeFrom = { value: 30, unit: 'days', allTime: false };
+							break;
+						case '90d':
+							this.filters.relativeFrom = { value: 90, unit: 'days', allTime: false };
+							break;
+					}
+					// Apply the time range and close picker
+					this.applyTimeRangeFromRelative();
+					this.closeTimeRangePicker(true);
+				},
+
+				// Time of day presets
+				setTimePreset(preset) {
+					switch(preset) {
+						case 'night':
+							this.filters.timeOfDayStart = '22:00';
+							this.filters.timeOfDayEnd = '06:00';
+							break;
+						case 'business':
+							this.filters.timeOfDayStart = '09:00';
+							this.filters.timeOfDayEnd = '17:00';
+							break;
+						case 'morning':
+							this.filters.timeOfDayStart = '06:00';
+							this.filters.timeOfDayEnd = '12:00';
+							break;
+					}
+				},
+
+				// Format number with K/M suffix for large numbers
+				formatNumber(num) {
+					if (num === null || num === undefined) return '0';
+					if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+					if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+					return num.toLocaleString();
 				},
 
 				init() {
