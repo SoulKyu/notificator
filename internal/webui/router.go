@@ -291,7 +291,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			notifications.POST("/preferences", handlers.SaveNotificationPreferences)
 		}
 
-		// Statistics and On-Call Rules routes
+		// Statistics routes
 		statistics := api.Group("/statistics")
 		statistics.Use(authMiddleware.RequireAuth())
 		{
@@ -301,14 +301,6 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			statistics.POST("/recently-resolved", handlers.QueryRecentlyResolved)
 			statistics.GET("/alert/:fingerprint", handlers.GetResolvedAlertDetails)
 			statistics.POST("/alerts-by-name", handlers.GetAlertsByName)
-
-			// On-call rules CRUD
-			statistics.GET("/rules", handlers.GetOnCallRules)
-			statistics.GET("/rules/:id", handlers.GetOnCallRule)
-			statistics.POST("/rules", handlers.SaveOnCallRule)
-			statistics.PUT("/rules/:id", handlers.UpdateOnCallRule)
-			statistics.DELETE("/rules/:id", handlers.DeleteOnCallRule)
-			statistics.POST("/rules/test", handlers.TestOnCallRule)
 
 			// Statistics views (saved filter configurations)
 			statistics.GET("/views", handlers.GetStatisticsViews)
@@ -344,7 +336,6 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		protectedPages.GET("/dashboard/alert/:id", handlers.DashboardPage) // Show dashboard with modal
 		protectedPages.GET("/profile", handlers.ProfilePage)
 		protectedPages.GET("/statistics", handlers.StatisticsDashboardPage)
-		protectedPages.GET("/statistics/rules", handlers.OnCallRulesPage)
 	}
 
 	return r

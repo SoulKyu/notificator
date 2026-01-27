@@ -15,15 +15,13 @@ import (
 
 // StatisticsQueryService handles querying and aggregating alert statistics
 type StatisticsQueryService struct {
-	db         *database.GormDB
-	ruleEngine *RuleEngine
+	db *database.GormDB
 }
 
 // NewStatisticsQueryService creates a new statistics query service
 func NewStatisticsQueryService(db *database.GormDB) *StatisticsQueryService {
 	return &StatisticsQueryService{
-		db:         db,
-		ruleEngine: NewRuleEngine(db),
+		db: db,
 	}
 }
 
@@ -32,7 +30,6 @@ type QueryRequest struct {
 	UserID             string
 	StartDate          time.Time
 	EndDate            time.Time
-	ApplyRules         bool
 	GroupBy            string // "severity", "team", "period", "alert_name"
 	SecondaryGroupBy   string // For period grouping: "severity", "team", "alert_name" (breakdown within each period)
 	PeriodType         string // "hour", "day", "week", "month"
@@ -88,15 +85,6 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 		if !req.IncludeWeekends {
 			baseQuery = sqs.applyWeekendFilter(baseQuery)
 		}
-	}
-
-	// Apply user's on-call rules if requested
-	if req.ApplyRules && req.UserID != "" {
-		filteredQuery, err := sqs.ruleEngine.ApplyRulesToQuery(req.UserID, baseQuery)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply rules: %w", err)
-		}
-		baseQuery = filteredQuery
 	}
 
 	// Apply severity filter if specified (multi-select, OR logic)
@@ -679,14 +667,20 @@ func (sqs *StatisticsQueryService) groupResultsByPeriodGeneric(results []PeriodG
 }
 
 // formatPeriodLabel formats period time as readable label
+// IMPORTANT: These formats must match the frontend's formatPeriodKey() function
+// in StatisticsDashboard.templ to ensure proper data mapping in fillMissingPeriods()
 func (sqs *StatisticsQueryService) formatPeriodLabel(t time.Time, periodType string) string {
 	switch periodType {
 	case "hour":
-		return t.Format("2006-01-02 15:00")
+		// Frontend expects: "YYYY-MM-DDTHH:00" (with T separator)
+		return t.Format("2006-01-02T15:00")
 	case "day":
 		return t.Format("2006-01-02")
 	case "week":
-		return fmt.Sprintf("Week of %s", t.Format("2006-01-02"))
+		// Frontend expects ISO 8601 week format: "YYYY-Www" (e.g., "2024-W05")
+		// Calculate ISO week number
+		year, week := t.ISOWeek()
+		return fmt.Sprintf("%d-W%02d", year, week)
 	case "month":
 		return t.Format("2006-01")
 	default:
@@ -777,7 +771,7 @@ func (sqs *StatisticsQueryService) generateHourlyPeriods(start, end time.Time) [
 		}
 
 		periods = append(periods, Period{
-			Label: current.Format("2006-01-02 15:00"),
+			Label: current.Format("2006-01-02T15:00"), // Use T separator to match frontend
 			Start: current,
 			End:   periodEnd,
 		})
@@ -804,8 +798,10 @@ func (sqs *StatisticsQueryService) generateWeeklyPeriods(start, end time.Time) [
 			periodEnd = end
 		}
 
+		// Use ISO 8601 week format to match frontend
+		year, week := current.ISOWeek()
 		periods = append(periods, Period{
-			Label: fmt.Sprintf("Week of %s", current.Format("2006-01-02")),
+			Label: fmt.Sprintf("%d-W%02d", year, week),
 			Start: current,
 			End:   periodEnd,
 		})

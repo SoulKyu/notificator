@@ -52,49 +52,6 @@ func (AlertStatistic) TableName() string {
 	return "alert_statistics"
 }
 
-// OnCallRule represents a user-defined rule for classifying alerts as "on-call"
-// Users create multi-criteria rules (labels, severity, alert names) to define
-// which alerts are important to them during on-call periods
-type OnCallRule struct {
-	ID       string `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	UserID   string `gorm:"not null;size:32;index" json:"user_id"`
-	RuleName string `gorm:"not null;size:255" json:"rule_name"`
-
-	// Rule definition stored as JSONB
-	// Structure: {
-	//   "criteria": [
-	//     {"type": "severity", "operator": "in", "values": ["critical", "warning"]},
-	//     {"type": "label", "key": "team", "operator": "equals", "value": "platform"},
-	//     {"type": "alert_name", "operator": "regex", "pattern": "^PagerDuty.*"}
-	//   ],
-	//   "logic": "AND"
-	// }
-	RuleConfig JSONB `gorm:"type:jsonb;not null" json:"rule_config"`
-
-	// Active/inactive toggle
-	IsActive bool `gorm:"default:true;index" json:"is_active"`
-
-	// Housekeeping
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-
-	// Relationship
-	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
-}
-
-// BeforeCreate hook to generate ID
-func (ocr *OnCallRule) BeforeCreate(tx *gorm.DB) error {
-	if ocr.ID == "" {
-		ocr.ID = GenerateID()
-	}
-	return nil
-}
-
-// TableName specifies the table name for GORM
-func (OnCallRule) TableName() string {
-	return "on_call_rules"
-}
-
 // StatisticsAggregate stores pre-computed statistics for common queries
 // This is optional and used for performance optimization
 // Daily/weekly/monthly rollups are computed in the background
@@ -145,24 +102,6 @@ func (sa *StatisticsAggregate) BeforeCreate(tx *gorm.DB) error {
 // TableName specifies the table name for GORM
 func (StatisticsAggregate) TableName() string {
 	return "statistics_aggregates"
-}
-
-// RuleCriterion represents a single criterion in an on-call rule
-// Used for parsing and validating rule configurations
-type RuleCriterion struct {
-	Type     string   `json:"type"`               // "severity", "label", "alert_name"
-	Operator string   `json:"operator"`           // "equals", "in", "regex", "contains", etc.
-	Key      string   `json:"key,omitempty"`      // For label criteria: label key
-	Value    string   `json:"value,omitempty"`    // For single-value operators
-	Values   []string `json:"values,omitempty"`   // For multi-value operators (e.g., "in")
-	Pattern  string   `json:"pattern,omitempty"`  // For regex/pattern matching
-}
-
-// RuleConfig represents the complete configuration of an on-call rule
-// Used for parsing rule_config JSONB field
-type RuleConfig struct {
-	Criteria []RuleCriterion `json:"criteria"` // List of criteria
-	Logic    string          `json:"logic"`    // "AND" or "OR"
 }
 
 // AggregatedStatistics represents statistics for a specific grouping

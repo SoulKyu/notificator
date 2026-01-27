@@ -682,7 +682,7 @@ message AggregatedStatistics {
 }
 
 message BreakdownItem {
-  string period = 1;                                  // e.g., "2025-10-22" or "Week of 2025-10-20"
+  string period = 1;                                  // e.g., "2025-10-22", "2025-W05", "2025-10-22T14:00"
   google.protobuf.Timestamp start_time = 2;
   google.protobuf.Timestamp end_time = 3;
   int32 total_count = 4;

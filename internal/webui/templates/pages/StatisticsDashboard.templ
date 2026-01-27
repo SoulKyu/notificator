@@ -44,68 +44,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 					<!-- Right: Actions -->
 					<div class="flex items-center gap-2">
-						<!-- Saved Views -->
-						<div class="relative" x-data="{ viewsOpen: false }">
-							<button @click="viewsOpen = !viewsOpen" type="button"
-								class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
-								</svg>
-								<span x-text="getActiveViewName() || 'Views'" class="hidden sm:inline"></span>
-								<svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-								</svg>
-							</button>
-							<!-- Dropdown -->
-							<div x-show="viewsOpen" @click.outside="viewsOpen = false" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-								class="absolute right-0 mt-2 w-56 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-								<div class="p-1">
-									<button @click="openSaveViewModal(); viewsOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
-										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-										</svg>
-										Save Current View
-									</button>
-								</div>
-								<div class="border-t border-slate-100 dark:border-slate-700" x-show="views.length > 0"></div>
-								<div class="p-1 max-h-64 overflow-y-auto" x-show="views.length > 0">
-									<template x-for="view in views" :key="view.id">
-										<div class="group relative">
-											<button @click="applyView(view); viewsOpen = false"
-												class="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg"
-												:class="{ 'bg-blue-50 dark:bg-blue-900/20': isViewActive(view) }">
-												<span class="flex items-center gap-2">
-													<svg x-show="view.isDefault" class="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-													</svg>
-													<span x-text="view.name"></span>
-												</span>
-												<svg x-show="isViewActive(view)" class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-													<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-												</svg>
-											</button>
-											<div class="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
-												<button @click.stop="openSaveViewModal(view); viewsOpen = false" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded" title="Edit">
-													<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-												</button>
-												<button @click.stop="setDefaultView(view.id)" class="p-1 text-slate-400 hover:text-amber-500 rounded" :title="view.isDefault ? 'Remove default' : 'Set as default'">
-													<svg class="w-3 h-3" :class="view.isDefault ? 'text-amber-500' : ''" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-												</button>
-												<button @click.stop="deleteView(view.id)" class="p-1 text-slate-400 hover:text-red-500 rounded" title="Delete">
-													<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-												</button>
-											</div>
-										</div>
-									</template>
-								</div>
-								<div x-show="views.length === 0" class="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-									No saved views yet
-								</div>
-							</div>
-						</div>
-
-						<div class="w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
-
 						<!-- Compare Toggle -->
 						<button @click="comparisonMode = !comparisonMode; if(comparisonMode && hasData) loadComparisonData()"
 							:class="comparisonMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
@@ -114,15 +52,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
 							</svg>
 							<span class="hidden sm:inline">Compare</span>
-						</button>
-
-						<!-- Rules -->
-						<button @click="openRulesModal()"
-							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
-							</svg>
-							<span class="hidden sm:inline">Rules</span>
 						</button>
 
 						<!-- Export -->
@@ -143,16 +72,18 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 			<!-- Query Bar - Compact & Scannable -->
 			<div class="mb-6 bg-white dark:bg-dark-bg-secondary rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700/50">
-				<!-- Primary Filters Row -->
-				<div class="px-5 py-4 flex flex-wrap items-center gap-3 relative">
+			<!-- Primary Filters Row -->
+			<div class="px-5 py-4 flex flex-wrap items-center gap-3 relative">
+				<!-- Time Filters Group -->
+				<div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30">
 					<!-- Time Range Picker -->
 					<div class="relative">
 						<button
 							@click="openTimeRangePicker()"
 							type="button"
-							class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors"
+							class="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors border border-blue-200 dark:border-blue-700/50"
 						>
-							<svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
 							</svg>
 							<span x-text="formatTimeRangeDisplay()"></span>
@@ -201,14 +132,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									type="button"
 								>
 									Absolute
-								</button>
-								<button
-									@click="timeRangePickerTab = 'timeofday'"
-									:class="timeRangePickerTab === 'timeofday' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
-									class="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
-									type="button"
-								>
-									Time of Day
 								</button>
 							</div>
 
@@ -350,73 +273,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 										</div>
 									</div>
 								</div>
-
-								<!-- Time of Day Tab -->
-								<div x-show="timeRangePickerTab === 'timeofday'">
-									<!-- Enable Checkbox -->
-									<label class="flex items-center cursor-pointer mb-5">
-										<input
-											type="checkbox"
-											x-model="filters.filterByTimeOfDay"
-											class="h-5 w-5 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-										/>
-										<span class="ml-3 text-sm font-medium text-slate-700 dark:text-slate-300">Filter by time of day</span>
-									</label>
-
-									<div x-show="filters.filterByTimeOfDay" x-collapse>
-										<!-- Time Inputs -->
-										<div class="flex items-center gap-6 mb-5">
-											<div>
-												<label class="block text-sm text-slate-500 dark:text-slate-400 mb-2">From</label>
-												<input
-													type="time"
-													x-model="filters.timeOfDayStart"
-													class="px-4 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-												/>
-											</div>
-											<div>
-												<label class="block text-sm text-slate-500 dark:text-slate-400 mb-2">To</label>
-												<input
-													type="time"
-													x-model="filters.timeOfDayEnd"
-													class="px-4 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-												/>
-											</div>
-										</div>
-
-										<!-- Quick Presets -->
-										<div class="mb-5">
-											<span class="block text-sm text-slate-500 dark:text-slate-400 mb-3">Quick presets</span>
-											<div class="flex flex-wrap gap-3">
-												<button @click="setTimePreset('night')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40">
-													Night (22h-06h)
-												</button>
-												<button @click="setTimePreset('business')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-800/40">
-													Business (09h-18h)
-												</button>
-												<button @click="setTimePreset('morning')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/40">
-													Morning (06h-12h)
-												</button>
-												<button @click="setTimePreset('evening')" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-800/40">
-													Evening (18h-22h)
-												</button>
-												<button @click="applyOnCallFilter()" type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800/40">
-													On-Call Hours
-												</button>
-											</div>
-										</div>
-
-										<!-- Weekend Checkbox -->
-										<label class="flex items-center cursor-pointer">
-											<input
-												type="checkbox"
-												x-model="filters.includeWeekends"
-												class="h-5 w-5 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-											/>
-											<span class="ml-3 text-sm text-slate-600 dark:text-slate-400">Include weekends (Sat/Sun)</span>
-										</label>
-									</div>
-								</div>
 							</div>
 
 							<!-- Footer with Cancel/Apply -->
@@ -437,120 +293,104 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								</button>
 							</div>
 						</div>
-
-						<!-- Time of Day Filter (Always Visible) -->
-						<div class="mt-2">
-							<div class="flex items-center gap-2">
-								<label class="flex items-center cursor-pointer">
-									<input
-										type="checkbox"
-										x-model="filters.filterByTimeOfDay"
-										class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-									/>
-									<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Filter by time of day</span>
-								</label>
-								<template x-if="filters.filterByTimeOfDay">
-									<span class="text-sm text-gray-600 dark:text-gray-400">
-										(<span x-text="filters.timeOfDayStart"></span> - <span x-text="filters.timeOfDayEnd"></span>)
-									</span>
-								</template>
-								<template x-if="filters.filterByTimeOfDay">
-									<button
-										@click="timeRangePickerOpen = true; timeRangePickerTab = 'timeofday'"
-										type="button"
-										class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-									>
-										Edit
-									</button>
-								</template>
-							</div>
-							<!-- Quick presets when enabled -->
-							<div x-show="filters.filterByTimeOfDay" x-cloak class="mt-2 flex flex-wrap items-center gap-2">
-								<button @click="setTimePreset('night')" type="button" class="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200">
-									🌙 Night
-								</button>
-								<button @click="setTimePreset('business')" type="button" class="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200">
-									💼 Business
-								</button>
-								<button @click="setTimePreset('morning')" type="button" class="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded hover:bg-yellow-200">
-									🌅 Morning
-								</button>
-								<button @click="setTimePreset('evening')" type="button" class="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded hover:bg-orange-200">
-									🌆 Evening
-								</button>
-								<span class="text-gray-300 dark:text-gray-600">|</span>
-								<label class="flex items-center cursor-pointer">
-									<input
-										type="checkbox"
-										x-model="filters.includeWeekends"
-										class="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-									/>
-									<span class="ml-1 text-xs text-gray-600 dark:text-gray-400">Weekends</span>
-								</label>
-							</div>
-						</div>
 					</div>
 
-					<!-- Group By -->
-					<div class="relative" x-data="{ groupOpen: false }">
-						<button @click="groupOpen = !groupOpen" type="button"
-							class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors">
-							<svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+					<!-- Time of Day Filter -->
+					<div class="relative" x-data="{ timeOfDayOpen: false }" @click.outside="timeOfDayOpen = false">
+						<button @click="timeOfDayOpen = !timeOfDayOpen" type="button"
+							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors border border-blue-200 dark:border-blue-700/50"
+							:class="filters.filterByTimeOfDay ? 'bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/60' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'">
+							<!-- Clock icon -->
+							<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
 							</svg>
-							<span x-text="filters.groupBy ? 'By ' + getFilterGroupByLabel() : 'Overall'"></span>
-							<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-							</svg>
-						</button>
-						<div x-show="groupOpen" @click.outside="groupOpen = false" x-transition
-							class="absolute left-0 mt-2 w-48 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-							<div class="p-1">
-								<button @click="filters.groupBy = ''; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': !filters.groupBy}">Overall</button>
-								<button @click="filters.groupBy = 'severity'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'severity'}">
-									<span class="w-2 h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-500"></span>Severity
-								</button>
-								<button @click="filters.groupBy = 'team'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'team'}">
-									<span class="w-2 h-2 rounded-full bg-blue-500"></span>Team
-								</button>
-								<button @click="filters.groupBy = 'alert_name'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'alert_name'}">
-									<span class="w-2 h-2 rounded-full bg-emerald-500"></span>Alert Name
-								</button>
-								<button @click="filters.groupBy = 'period'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'period'}">
-									<span class="w-2 h-2 rounded-full bg-purple-500"></span>Time Period
-								</button>
-							</div>
-						</div>
-					</div>
-
-					<!-- Period Type (when period grouping) -->
-					<div x-show="filters.groupBy === 'period'" x-transition class="relative" x-data="{ periodOpen: false }">
-						<button @click="periodOpen = !periodOpen" type="button"
-							class="inline-flex items-center gap-2 px-4 py-2.5 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-800/40 rounded-xl text-sm font-medium text-purple-700 dark:text-purple-300 transition-colors">
-							<span x-text="filters.periodType === 'hour' ? 'Hourly' : filters.periodType === 'day' ? 'Daily' : filters.periodType === 'week' ? 'Weekly' : 'Monthly'"></span>
+							<span x-text="filters.filterByTimeOfDay ? filters.timeOfDayStart + ' - ' + filters.timeOfDayEnd : 'Time of Day'"></span>
 							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
 						</button>
-						<div x-show="periodOpen" @click.outside="periodOpen = false" x-transition
-							class="absolute left-0 mt-2 w-36 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-							<div class="p-1">
-								<button @click="filters.periodType = 'hour'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Hourly</button>
-								<button @click="filters.periodType = 'day'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Daily</button>
-								<button @click="filters.periodType = 'week'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Weekly</button>
-								<button @click="filters.periodType = 'month'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Monthly</button>
+						<!-- Dropdown with time of day settings -->
+						<div x-show="timeOfDayOpen" x-transition class="absolute left-0 mt-2 w-72 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div class="p-4 space-y-4">
+								<!-- Enable checkbox -->
+								<label class="flex items-center cursor-pointer">
+									<input type="checkbox" x-model="filters.filterByTimeOfDay" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"/>
+									<span class="ml-2 text-sm font-medium text-slate-700 dark:text-slate-300">Enable time of day filter</span>
+								</label>
+
+								<!-- Time inputs (shown when enabled) -->
+								<div x-show="filters.filterByTimeOfDay" class="space-y-3">
+									<div class="grid grid-cols-2 gap-3">
+										<div>
+											<label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">From</label>
+											<input type="time" x-model="filters.timeOfDayStart" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+										</div>
+										<div>
+											<label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">To</label>
+											<input type="time" x-model="filters.timeOfDayEnd" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+										</div>
+									</div>
+
+									<!-- Quick presets -->
+									<div>
+										<span class="block text-xs text-slate-500 dark:text-slate-400 mb-2">Quick presets</span>
+										<div class="flex flex-wrap gap-1.5">
+											<button @click="setTimePreset('night')" type="button" class="px-2.5 py-1 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200">Night</button>
+											<button @click="setTimePreset('business')" type="button" class="px-2.5 py-1 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200">Business</button>
+											<button @click="setTimePreset('morning')" type="button" class="px-2.5 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200">Morning</button>
+											<button @click="setTimePreset('evening')" type="button" class="px-2.5 py-1 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200">Evening</button>
+										</div>
+									</div>
+
+									<!-- Weekends checkbox -->
+									<label class="flex items-center cursor-pointer">
+										<input type="checkbox" x-model="filters.includeWeekends" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"/>
+										<span class="ml-2 text-sm text-slate-600 dark:text-slate-400">Include weekends</span>
+									</label>
+								</div>
+							</div>
+
+							<!-- Clear button when active -->
+							<div x-show="filters.filterByTimeOfDay" class="border-t border-slate-100 dark:border-slate-700 p-2">
+								<button @click="filters.filterByTimeOfDay = false; timeOfDayOpen = false" class="w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-center">Clear filter</button>
 							</div>
 						</div>
 					</div>
+				</div>
 
+				<!-- Divider -->
+				<div class="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
+
+				<!-- Data Filters Group -->
+				<div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/30">
 					<!-- Severity Filter -->
 					<div class="relative" @click.outside="showSeverityDropdown = false">
 						<button @click="showSeverityDropdown = !showSeverityDropdown" type="button"
-							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-							:class="filters.severities.length > 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'">
-							<span class="flex items-center gap-1">
-								<span class="w-2 h-2 rounded-full" :class="filters.severities.length > 0 ? 'bg-red-500' : 'bg-slate-400'"></span>
-								<span x-text="filters.severities.length === 0 ? 'All Severities' : filters.severities.length + ' selected'"></span>
+							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors max-w-xs border border-amber-200 dark:border-amber-700/50"
+							:class="filters.severities.length > 0 ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/60' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'">
+							<!-- When no filter -->
+							<span x-show="filters.severities.length === 0" class="flex items-center gap-1">
+								<span class="w-2 h-2 rounded-full bg-amber-400"></span>
+								<span>All Severities</span>
+							</span>
+							<!-- When filtered - show chips -->
+							<span x-show="filters.severities.length > 0" class="flex items-center gap-1.5">
+								<template x-for="sev in filters.severities" :key="sev">
+									<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
+										:class="{
+											'bg-red-200 dark:bg-red-800/50 text-red-800 dark:text-red-200': sev === 'critical',
+											'bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200': sev === 'warning',
+											'bg-blue-200 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200': sev === 'info'
+										}">
+										<span class="w-1.5 h-1.5 rounded-full"
+											:class="{
+												'bg-red-500': sev === 'critical',
+												'bg-amber-500': sev === 'warning',
+												'bg-blue-500': sev === 'info'
+											}"></span>
+										<span x-text="sev.charAt(0).toUpperCase() + sev.slice(1)"></span>
+									</span>
+								</template>
 							</span>
 							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -586,13 +426,21 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					<!-- Team Filter -->
 					<div class="relative" @click.outside="showTeamDropdown = false">
 						<button @click="showTeamDropdown = !showTeamDropdown; if(showTeamDropdown && availableTeams.length === 0) loadAvailableTeams()" type="button"
-							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-							:class="filters.teams.length > 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'">
-							<span class="flex items-center gap-1">
-								<svg class="w-4 h-4 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors max-w-xs border border-amber-200 dark:border-amber-700/50"
+							:class="filters.teams.length > 0 ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/60' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'">
+							<!-- When no filter -->
+							<span x-show="filters.teams.length === 0" class="flex items-center gap-1">
+								<svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
 								</svg>
-								<span x-text="filters.teams.length === 0 ? 'All Teams' : filters.teams.length + ' teams'"></span>
+								<span>All Teams</span>
+							</span>
+							<!-- When filtered - show team names -->
+							<span x-show="filters.teams.length > 0" class="flex items-center gap-1.5">
+								<template x-for="(team, idx) in filters.teams.slice(0, 2)" :key="team">
+									<span class="inline-flex items-center px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 rounded text-xs font-medium" x-text="team"></span>
+								</template>
+								<span x-show="filters.teams.length > 2" class="text-xs text-amber-600 dark:text-amber-400" x-text="'+' + (filters.teams.length - 2) + ' more'"></span>
 							</span>
 							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -603,7 +451,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<div x-show="availableTeams.length > 0" class="max-h-60 overflow-y-auto p-2 space-y-1">
 								<template x-for="team in availableTeams" :key="team">
 									<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-										<input type="checkbox" :value="team" x-model="filters.teams" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
+										<input type="checkbox" :value="team" x-model="filters.teams" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"/>
 										<span class="text-sm text-slate-700 dark:text-slate-200" x-text="team"></span>
 									</label>
 								</template>
@@ -613,63 +461,156 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</div>
 						</div>
 					</div>
+				</div>
 
-					<!-- Divider -->
-					<div class="w-px h-6 bg-slate-200 dark:bg-slate-700 hidden lg:block"></div>
+				<!-- Divider -->
+				<div class="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
 
-					<!-- On-Call Rules Toggle -->
-					<button @click="filters.applyRules = !filters.applyRules" type="button"
-						class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-						:class="filters.applyRules ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'">
-						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" :class="filters.applyRules ? 'text-emerald-600' : 'text-slate-400'">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-						</svg>
-						<span>On-Call Rules</span>
-					</button>
+				<!-- Analysis Group -->
+				<div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
+					<!-- Group By -->
+					<div class="relative" x-data="{ groupOpen: false }">
+						<button @click="groupOpen = !groupOpen" type="button"
+							class="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors border border-emerald-200 dark:border-emerald-700/50">
+							<svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+							</svg>
+							<span x-text="filters.groupBy ? 'By ' + getFilterGroupByLabel() : 'Overall'"></span>
+							<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+							</svg>
+						</button>
+						<div x-show="groupOpen" @click.outside="groupOpen = false" x-transition
+							class="absolute left-0 mt-2 w-48 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div class="p-1">
+								<button @click="filters.groupBy = ''; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': !filters.groupBy}">Overall</button>
+								<button @click="filters.groupBy = 'severity'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'severity'}">
+									<span class="w-2 h-2 rounded-full bg-gradient-to-r from-red-500 to-yellow-500"></span>Severity
+								</button>
+								<button @click="filters.groupBy = 'team'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'team'}">
+									<span class="w-2 h-2 rounded-full bg-blue-500"></span>Team
+								</button>
+								<button @click="filters.groupBy = 'alert_name'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'alert_name'}">
+									<span class="w-2 h-2 rounded-full bg-emerald-500"></span>Alert Name
+								</button>
+								<button @click="filters.groupBy = 'period'; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': filters.groupBy === 'period'}">
+									<span class="w-2 h-2 rounded-full bg-purple-500"></span>Time Period
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Period Type (when period grouping) -->
+					<div x-show="filters.groupBy === 'period'" x-transition class="relative" x-data="{ periodOpen: false }">
+						<button @click="periodOpen = !periodOpen" type="button"
+							class="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-100 dark:bg-emerald-800/40 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 rounded-xl text-sm font-medium text-emerald-700 dark:text-emerald-300 transition-colors border border-emerald-200 dark:border-emerald-700/50">
+							<span x-text="filters.periodType === 'hour' ? 'Hourly' : filters.periodType === 'day' ? 'Daily' : filters.periodType === 'week' ? 'Weekly' : 'Monthly'"></span>
+							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+							</svg>
+						</button>
+						<div x-show="periodOpen" @click.outside="periodOpen = false" x-transition
+							class="absolute left-0 mt-2 w-36 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div class="p-1">
+								<button @click="filters.periodType = 'hour'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Hourly</button>
+								<button @click="filters.periodType = 'day'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Daily</button>
+								<button @click="filters.periodType = 'week'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Weekly</button>
+								<button @click="filters.periodType = 'month'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Monthly</button>
+							</div>
+						</div>
+					</div>
 
 					<!-- Top N (for alert_name) -->
 					<div x-show="filters.groupBy === 'alert_name'" x-transition class="flex items-center gap-2">
-						<span class="text-sm text-slate-500">Top</span>
+						<span class="text-sm text-emerald-600 dark:text-emerald-400">Top</span>
 						<input type="number" x-model.number="filters.limit" min="5" max="50" step="5"
-							class="w-16 px-2 py-1.5 text-sm text-center bg-slate-100 dark:bg-slate-800 border-0 rounded-lg text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500"/>
+							class="w-16 px-2 py-1.5 text-sm text-center bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-700/50 rounded-lg text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500"/>
 					</div>
-
-					<!-- Spacer -->
-					<div class="flex-1"></div>
-
-					<!-- Run Query Button -->
-					<button @click="queryStatistics" :disabled="loading"
-						class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-						<svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						<svg x-show="!loading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-						</svg>
-						<span x-text="loading ? 'Loading...' : 'Query'"></span>
-					</button>
 				</div>
 
-				<!-- Time of Day Filter (visible when enabled) -->
-				<div x-show="filters.filterByTimeOfDay" x-collapse class="px-5 py-3 border-t border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
-					<div class="flex flex-wrap items-center gap-3">
-						<span class="text-sm text-slate-600 dark:text-slate-400">Time filter:</span>
-						<span class="px-3 py-1 bg-white dark:bg-slate-800 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200">
-							<span x-text="filters.timeOfDayStart"></span> - <span x-text="filters.timeOfDayEnd"></span>
-						</span>
-						<div class="flex gap-1">
-							<button @click="setTimePreset('night')" type="button" class="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200">Night</button>
-							<button @click="setTimePreset('business')" type="button" class="px-2 py-1 text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200">Business</button>
-							<button @click="setTimePreset('morning')" type="button" class="px-2 py-1 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200">Morning</button>
+				<!-- Spacer -->
+				<div class="flex-1"></div>
+
+				<!-- Views Group - Next to Query -->
+				<div class="flex items-center gap-2 px-3 py-1.5 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-100 dark:border-violet-800/30">
+					<div class="relative" x-data="{ viewsOpen: false }">
+						<button @click="viewsOpen = !viewsOpen" type="button"
+							class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+							:class="getActiveViewName() ? 'bg-violet-100 dark:bg-violet-800/50 text-violet-700 dark:text-violet-300' : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-violet-100 dark:hover:bg-violet-800/30'">
+							<svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+							</svg>
+							<span x-text="getActiveViewName() || 'Views'"></span>
+							<svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+							</svg>
+						</button>
+						<!-- Dropdown -->
+						<div x-show="viewsOpen" @click.outside="viewsOpen = false"
+							x-transition:enter="transition ease-out duration-100"
+							x-transition:enter-start="opacity-0 scale-95"
+							x-transition:enter-end="opacity-100 scale-100"
+							class="absolute right-0 mt-2 w-64 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div class="p-2">
+								<button @click="openSaveViewModal(); viewsOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg font-medium">
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+									</svg>
+									Save Current View
+								</button>
+							</div>
+							<div class="border-t border-slate-100 dark:border-slate-700" x-show="views.length > 0"></div>
+							<div class="p-1 max-h-64 overflow-y-auto" x-show="views.length > 0">
+								<template x-for="view in views" :key="view.id">
+									<div class="group relative">
+										<button @click="applyView(view); viewsOpen = false"
+											class="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg"
+											:class="{ 'bg-violet-50 dark:bg-violet-900/20': isViewActive(view) }">
+											<span class="flex items-center gap-2">
+												<svg x-show="view.isDefault" class="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+													<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+												</svg>
+												<span x-text="view.name"></span>
+											</span>
+											<svg x-show="isViewActive(view)" class="w-4 h-4 text-violet-600" fill="currentColor" viewBox="0 0 20 20">
+												<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+											</svg>
+										</button>
+										<div class="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
+											<button @click.stop="openSaveViewModal(view); viewsOpen = false" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded" title="Edit">
+												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+											</button>
+											<button @click.stop="setDefaultView(view.id)" class="p-1 text-slate-400 hover:text-amber-500 rounded" :title="view.isDefault ? 'Remove default' : 'Set as default'">
+												<svg class="w-3 h-3" :class="view.isDefault ? 'text-amber-500' : ''" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+											</button>
+											<button @click.stop="deleteView(view.id)" class="p-1 text-slate-400 hover:text-red-500 rounded" title="Delete">
+												<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+											</button>
+										</div>
+									</div>
+								</template>
+							</div>
+							<div x-show="views.length === 0" class="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+								No saved views yet
+							</div>
 						</div>
-						<label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
-							<input type="checkbox" x-model="filters.includeWeekends" class="w-4 h-4 text-blue-600 rounded border-slate-300"/>
-							Include weekends
-						</label>
 					</div>
 				</div>
+
+				<!-- Run Query Button -->
+				<button @click="queryStatistics" :disabled="loading"
+					class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+					<svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<svg x-show="!loading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+					</svg>
+					<span x-text="loading ? 'Loading...' : 'Query'"></span>
+				</button>
 			</div>
+		</div>
 
 			<!-- Loading State -->
 			<div x-show="loading && !hasData" class="flex flex-col items-center justify-center py-20 relative z-10">
@@ -819,21 +760,193 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					<!-- Secondary Charts Row -->
 					<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 						<!-- Distribution Chart -->
-						<div x-show="appliedGroupBy" class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
-							<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-								<h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="getGroupByLabel() + ' Distribution'"></h3>
-								<div class="flex items-center gap-2">
-									<span class="text-xs text-slate-500">Click to filter</span>
-									<button @click="openFullscreenChart('distribution')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
-										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
-										</svg>
-									</button>
+						<div x-show="appliedGroupBy" class="bg-white dark:bg-dark-bg-secondary rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden flex flex-col">
+							<!-- Header -->
+							<div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700/50">
+								<div class="flex items-center justify-between">
+									<!-- Title and count badge -->
+									<div class="flex items-center gap-3">
+										<h3 class="text-sm font-semibold text-slate-900 dark:text-white" x-text="getGroupByLabel() + ' Distribution'"></h3>
+										<span x-show="distributionAllItems.length > 0"
+											class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+											x-text="distributionAllItems.length + ' items'"></span>
+									</div>
+									<!-- Actions -->
+									<div class="flex items-center gap-1.5">
+										<!-- View toggle - segmented control -->
+										<div x-show="distributionAllItems.length > 0" class="flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg">
+											<button @click="showDistributionList = false"
+												class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all"
+												:class="!showDistributionList ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'"
+												title="Chart view">
+												<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+												</svg>
+												<span class="hidden sm:inline">Chart</span>
+											</button>
+											<button @click="showDistributionList = true"
+												class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all"
+												:class="showDistributionList ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'"
+												title="List view">
+												<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+												</svg>
+												<span class="hidden sm:inline">List</span>
+											</button>
+										</div>
+										<!-- Fullscreen button -->
+										<button @click="openFullscreenChart('distribution')" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+											</svg>
+										</button>
+									</div>
 								</div>
 							</div>
-							<div class="h-64 p-6 flex items-center justify-center">
-								<div class="w-full max-w-xs">
+
+							<!-- Chart view -->
+							<div x-show="!showDistributionList" class="h-64 p-4 flex items-center justify-center relative">
+								<!-- Empty state -->
+								<div x-show="distributionAllItems.length === 0" class="text-center py-8">
+									<svg class="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+									</svg>
+									<p class="text-sm text-slate-500 dark:text-slate-400">No distribution data</p>
+								</div>
+								<!-- Chart canvas -->
+								<div x-show="distributionAllItems.length > 0" class="w-full max-w-[200px]">
 									<canvas id="distributionChart" x-ref="distributionChart"></canvas>
+								</div>
+								<!-- Click hint overlay (shows briefly on first load) -->
+								<div x-show="distributionAllItems.length > 0" class="absolute bottom-3 left-0 right-0 text-center pointer-events-none">
+									<span class="inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-slate-800/80 rounded-full backdrop-blur-sm">
+										<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+										</svg>
+										Click segments to filter
+									</span>
+								</div>
+							</div>
+
+							<!-- List view (scrollable) -->
+							<div x-show="showDistributionList" class="flex-1 overflow-hidden">
+								<!-- List header hint -->
+								<div class="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/30 flex items-center justify-between">
+									<span class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+										<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+										</svg>
+										Click items to toggle visibility in charts
+									</span>
+									<span x-show="Object.values(chartVisibility).some(v => v === false)"
+										class="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+										<span x-text="Object.values(chartVisibility).filter(v => v === false).length"></span> hidden
+									</span>
+								</div>
+								<div class="h-56 overflow-y-auto">
+									<!-- Top N items section -->
+									<div class="px-3 py-2">
+										<template x-for="(item, index) in distributionAllItems.slice(0, distributionTopN)" :key="item.label">
+											<div
+												@click="toggleChartVisibility(item.label)"
+												class="flex items-center gap-3 py-2 px-2.5 rounded-lg cursor-pointer transition-all group"
+												:class="chartVisibility[item.label] === false
+													? 'bg-slate-50 dark:bg-slate-800/30 opacity-60'
+													: 'hover:bg-slate-50 dark:hover:bg-slate-800/50'"
+											>
+												<!-- Color indicator with checkbox-like visual -->
+												<div class="relative flex-shrink-0">
+													<div class="w-3.5 h-3.5 rounded"
+														:style="'background-color: ' + getDistributionItemColor(item.label, index)"
+														:class="chartVisibility[item.label] === false ? 'opacity-40' : ''"></div>
+													<!-- Strikethrough when hidden -->
+													<div x-show="chartVisibility[item.label] === false"
+														class="absolute inset-0 flex items-center justify-center">
+														<div class="w-full h-0.5 bg-slate-400 dark:bg-slate-500 rotate-45"></div>
+													</div>
+												</div>
+												<!-- Label -->
+												<span class="flex-1 text-sm truncate"
+													:class="chartVisibility[item.label] === false
+														? 'text-slate-400 dark:text-slate-500 line-through'
+														: 'text-slate-700 dark:text-slate-300'"
+													x-text="item.label.charAt(0).toUpperCase() + item.label.slice(1)"></span>
+												<!-- Count and percentage bar -->
+												<div class="flex items-center gap-2 flex-shrink-0">
+													<!-- Mini bar chart -->
+													<div class="w-16 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden hidden sm:block">
+														<div class="h-full rounded-full transition-all"
+															:style="'width: ' + (distributionAllItems[0]?.count > 0 ? (item.count / distributionAllItems[0].count * 100) : 0) + '%; background-color: ' + getDistributionItemColor(item.label, index)"
+															:class="chartVisibility[item.label] === false ? 'opacity-40' : ''"></div>
+													</div>
+													<span class="text-sm font-medium tabular-nums w-14 text-right"
+														:class="chartVisibility[item.label] === false
+															? 'text-slate-400 dark:text-slate-500'
+															: 'text-slate-900 dark:text-white'"
+														x-text="item.count.toLocaleString()"></span>
+													<span class="text-xs tabular-nums w-11 text-right"
+														:class="chartVisibility[item.label] === false
+															? 'text-slate-300 dark:text-slate-600'
+															: 'text-slate-500 dark:text-slate-400'"
+														x-text="(distributionTotal > 0 ? (item.count / distributionTotal * 100).toFixed(1) : '0.0') + '%'"></span>
+												</div>
+											</div>
+										</template>
+									</div>
+
+									<!-- "Others" section separator -->
+									<template x-if="distributionAllItems.length > distributionTopN">
+										<div>
+											<div class="mx-3 my-2 flex items-center gap-2">
+												<div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+												<span class="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+													Others (<span x-text="distributionAllItems.length - distributionTopN"></span> more)
+												</span>
+												<div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+											</div>
+											<div class="px-3 pb-2">
+												<template x-for="(item, index) in distributionAllItems.slice(distributionTopN)" :key="item.label">
+													<div
+														@click="toggleChartVisibility(item.label)"
+														class="flex items-center gap-3 py-1.5 px-2.5 rounded-lg cursor-pointer transition-all group"
+														:class="chartVisibility[item.label] === false
+															? 'bg-slate-50 dark:bg-slate-800/30 opacity-60'
+															: 'hover:bg-slate-50 dark:hover:bg-slate-800/50'"
+													>
+														<!-- Gray color indicator for "others" -->
+														<div class="relative flex-shrink-0">
+															<div class="w-2.5 h-2.5 rounded bg-slate-300 dark:bg-slate-600"
+																:class="chartVisibility[item.label] === false ? 'opacity-40' : ''"></div>
+															<div x-show="chartVisibility[item.label] === false"
+																class="absolute inset-0 flex items-center justify-center">
+																<div class="w-full h-0.5 bg-slate-400 dark:bg-slate-500 rotate-45"></div>
+															</div>
+														</div>
+														<!-- Label (smaller for "others") -->
+														<span class="flex-1 text-xs truncate"
+															:class="chartVisibility[item.label] === false
+																? 'text-slate-400 dark:text-slate-500 line-through'
+																: 'text-slate-600 dark:text-slate-400'"
+															x-text="item.label.charAt(0).toUpperCase() + item.label.slice(1)"></span>
+														<!-- Count only for "others" (more compact) -->
+														<div class="flex items-center gap-2 flex-shrink-0">
+															<span class="text-xs font-medium tabular-nums"
+																:class="chartVisibility[item.label] === false
+																	? 'text-slate-400 dark:text-slate-500'
+																	: 'text-slate-700 dark:text-slate-300'"
+																x-text="item.count.toLocaleString()"></span>
+															<span class="text-xs tabular-nums w-10 text-right"
+																:class="chartVisibility[item.label] === false
+																	? 'text-slate-300 dark:text-slate-600'
+																	: 'text-slate-400 dark:text-slate-500'"
+																x-text="(distributionTotal > 0 ? (item.count / distributionTotal * 100).toFixed(1) : '0.0') + '%'"></span>
+														</div>
+													</div>
+												</template>
+											</div>
+										</div>
+									</template>
 								</div>
 							</div>
 						</div>
@@ -1213,341 +1326,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 			</div>
 		</div>
 
-		<!-- Rules Management Modal -->
-		<div x-show="showRulesModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak @keydown.escape.window="if(!showRuleFormModal && !showRuleTestModal) closeRulesModal()">
-			<div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-				<!-- Background overlay -->
-				<div x-show="showRulesModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" @click="if(!showRuleFormModal && !showRuleTestModal) closeRulesModal()"></div>
-				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-				<!-- Modal panel -->
-				<div x-show="showRulesModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" class="relative z-10 inline-block w-full max-w-4xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6" @click.stop>
-					<!-- Header -->
-					<div class="flex items-center justify-between mb-6">
-						<div>
-							<h3 class="text-lg font-medium text-gray-900 dark:text-white">On-Call Rules</h3>
-							<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Define criteria to classify which alerts count as on-call alerts</p>
-						</div>
-						<div class="flex items-center space-x-3">
-							<button @click="openRuleFormModal()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-								</svg>
-								Create Rule
-							</button>
-							<button @click="closeRulesModal()" class="text-gray-400 hover:text-gray-500">
-								<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-								</svg>
-							</button>
-						</div>
-					</div>
-
-					<!-- Loading State -->
-					<div x-show="rulesLoading" class="text-center py-12">
-						<svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading rules...</p>
-					</div>
-
-					<!-- Rules List -->
-					<div x-show="!rulesLoading" class="max-h-[60vh] overflow-y-auto">
-						<!-- Empty State -->
-						<div x-show="rules.length === 0" class="text-center py-12">
-							<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-							</svg>
-							<h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No rules defined</h3>
-							<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating your first on-call rule</p>
-						</div>
-
-						<!-- Rules Grid -->
-						<div x-show="rules.length > 0" class="space-y-4">
-							<template x-for="rule in rules" :key="rule.id">
-								<div class="p-4 border border-gray-200 dark:border-dark-border-subtle rounded-lg bg-gray-50 dark:bg-dark-bg-tertiary">
-									<div class="flex items-start justify-between">
-										<div class="flex-1 min-w-0">
-											<div class="flex items-center space-x-3">
-												<h4 class="text-sm font-medium text-gray-900 dark:text-white truncate" x-text="rule.rule_name"></h4>
-												<span x-show="rule.is_active" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</span>
-												<span x-show="!rule.is_active" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">Inactive</span>
-											</div>
-											<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-												<span x-text="rule.rule_config.criteria.length"></span> criteria with <span class="uppercase" x-text="rule.rule_config.logic"></span> logic
-											</p>
-											<!-- Criteria Preview -->
-											<div class="mt-2 flex flex-wrap gap-1">
-												<template x-for="(criterion, idx) in rule.rule_config.criteria.slice(0, 3)" :key="idx">
-													<span class="inline-flex items-center text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 rounded">
-														<span x-text="criterion.type"></span>
-														<span class="mx-1 text-blue-500">:</span>
-														<span x-text="getRuleCriterionValue(criterion)"></span>
-													</span>
-												</template>
-												<span x-show="rule.rule_config.criteria.length > 3" class="text-xs text-gray-500 dark:text-gray-400">+<span x-text="rule.rule_config.criteria.length - 3"></span> more</span>
-											</div>
-										</div>
-										<!-- Actions -->
-										<div class="ml-4 flex items-center space-x-1">
-											<button @click="testRule(rule)" class="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Test rule">
-												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-												</svg>
-											</button>
-											<button @click="editRule(rule)" class="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Edit rule">
-												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-												</svg>
-											</button>
-											<button @click="toggleRuleActive(rule)" class="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400" :title="rule.is_active ? 'Deactivate' : 'Activate'">
-												<svg x-show="rule.is_active" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-												</svg>
-												<svg x-show="!rule.is_active" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-												</svg>
-											</button>
-											<button @click="deleteRule(rule)" class="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="Delete rule">
-												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-												</svg>
-											</button>
-										</div>
-									</div>
-								</div>
-							</template>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- Rule Form Modal (nested) -->
-		<div x-show="showRuleFormModal" class="fixed inset-0 z-[60] overflow-y-auto" x-cloak @keydown.escape.window="closeRuleFormModal()">
-			<div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-				<div x-show="showRuleFormModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"></div>
-				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-				<div x-show="showRuleFormModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" class="relative z-10 inline-block w-full max-w-3xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6" @click.stop>
-					<div class="flex items-center justify-between mb-6">
-						<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="editingRule ? 'Edit Rule' : 'Create New Rule'"></h3>
-						<button @click="closeRuleFormModal()" class="text-gray-400 hover:text-gray-500">
-							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-							</svg>
-						</button>
-					</div>
-
-					<form @submit.prevent="saveRule()" class="space-y-5">
-						<!-- Rule Name -->
-						<div>
-							<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rule Name <span class="text-red-500">*</span></label>
-							<input x-model="ruleFormData.rule_name" type="text" required placeholder="e.g., Platform Team Critical Alerts" class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-subtle rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white text-sm"/>
-						</div>
-
-						<!-- Active Status -->
-						<div class="flex items-center">
-							<input x-model="ruleFormData.is_active" type="checkbox" id="rule-is-active" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"/>
-							<label for="rule-is-active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Rule is active</label>
-						</div>
-
-						<!-- Logic Operator -->
-						<div>
-							<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Match Logic <span class="text-red-500">*</span></label>
-							<select x-model="ruleFormData.rule_config.logic" class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-subtle rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white text-sm">
-								<option value="AND">AND - All criteria must match</option>
-								<option value="OR">OR - At least one criterion must match</option>
-							</select>
-						</div>
-
-						<!-- Criteria Builder -->
-						<div>
-							<div class="flex items-center justify-between mb-2">
-								<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Criteria <span class="text-red-500">*</span></label>
-								<button @click.prevent="addRuleCriterion()" type="button" class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-dark-border-subtle text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-primary hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary">
-									<svg class="mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-									</svg>
-									Add
-								</button>
-							</div>
-
-							<div class="space-y-2 max-h-60 overflow-y-auto">
-								<template x-for="(criterion, index) in ruleFormData.rule_config.criteria" :key="index">
-									<div class="p-3 border border-gray-200 dark:border-dark-border-subtle rounded bg-gray-50 dark:bg-dark-bg-tertiary">
-										<div class="grid grid-cols-12 gap-2 items-start">
-											<!-- Type -->
-											<div class="col-span-3">
-												<select x-model="criterion.type" @change="onRuleCriterionTypeChange(index)" class="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-subtle rounded text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white">
-													<option value="severity">Severity</option>
-													<option value="label">Label</option>
-													<option value="alert_name">Alert Name</option>
-												</select>
-											</div>
-											<!-- Operator -->
-											<div class="col-span-3">
-												<select x-model="criterion.operator" class="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-subtle rounded text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white">
-													<template x-if="criterion.type === 'severity'">
-														<optgroup label="Severity">
-															<option value="equals">Equals</option>
-															<option value="in">In (multiple)</option>
-															<option value="not_equals">Not Equals</option>
-														</optgroup>
-													</template>
-													<template x-if="criterion.type === 'label'">
-														<optgroup label="Label">
-															<option value="equals">Equals</option>
-															<option value="not_equals">Not Equals</option>
-															<option value="contains">Contains</option>
-															<option value="regex">Regex</option>
-														</optgroup>
-													</template>
-													<template x-if="criterion.type === 'alert_name'">
-														<optgroup label="Alert Name">
-															<option value="equals">Equals</option>
-															<option value="contains">Contains</option>
-															<option value="starts_with">Starts With</option>
-															<option value="ends_with">Ends With</option>
-															<option value="regex">Regex</option>
-														</optgroup>
-													</template>
-												</select>
-											</div>
-											<!-- Values -->
-											<div class="col-span-5">
-												<!-- Label Key -->
-												<template x-if="criterion.type === 'label'">
-													<input x-model="criterion.key" type="text" placeholder="Label key (e.g., team)" class="w-full mb-1 px-2 py-1.5 border border-gray-300 dark:border-dark-border-subtle rounded text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white"/>
-												</template>
-												<!-- Severity multi-select -->
-												<template x-if="criterion.type === 'severity' && criterion.operator === 'in'">
-													<div class="flex flex-wrap gap-2">
-														<label class="flex items-center text-xs"><input type="checkbox" x-model="criterion.values" value="critical" class="mr-1"/> Critical</label>
-														<label class="flex items-center text-xs"><input type="checkbox" x-model="criterion.values" value="warning" class="mr-1"/> Warning</label>
-														<label class="flex items-center text-xs"><input type="checkbox" x-model="criterion.values" value="info" class="mr-1"/> Info</label>
-													</div>
-												</template>
-												<!-- Severity single -->
-												<template x-if="criterion.type === 'severity' && criterion.operator !== 'in'">
-													<select x-model="criterion.value" class="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-subtle rounded text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white">
-														<option value="">Select...</option>
-														<option value="critical">Critical</option>
-														<option value="warning">Warning</option>
-														<option value="info">Info</option>
-													</select>
-												</template>
-												<!-- Label/Alert name text input -->
-												<template x-if="criterion.type === 'label'">
-													<input x-model="criterion.value" type="text" placeholder="Label value" class="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-subtle rounded text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white"/>
-												</template>
-												<template x-if="criterion.type === 'alert_name'">
-													<input x-model="criterion.pattern" type="text" placeholder="Alert name pattern" class="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border-subtle rounded text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-primary dark:text-white"/>
-												</template>
-											</div>
-											<!-- Remove -->
-											<div class="col-span-1 flex justify-end">
-												<button @click.prevent="removeRuleCriterion(index)" type="button" class="p-1 text-gray-400 hover:text-red-600">
-													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-													</svg>
-												</button>
-											</div>
-										</div>
-									</div>
-								</template>
-								<div x-show="ruleFormData.rule_config.criteria.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400 text-xs">
-									No criteria added. Click "Add" to get started.
-								</div>
-							</div>
-						</div>
-
-						<!-- Actions -->
-						<div class="flex justify-between pt-4 border-t border-gray-200 dark:border-dark-border-subtle">
-							<button @click.prevent="testCurrentRule()" type="button" :disabled="ruleFormData.rule_config.criteria.length === 0" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-primary border border-gray-300 dark:border-dark-border-subtle rounded-md hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary disabled:opacity-50">
-								Test Rule
-							</button>
-							<div class="flex space-x-3">
-								<button type="button" @click="closeRuleFormModal()" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-primary border border-gray-300 dark:border-dark-border-subtle rounded-md hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary">
-									Cancel
-								</button>
-								<button type="submit" :disabled="ruleFormData.rule_config.criteria.length === 0" class="px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50">
-									<span x-text="editingRule ? 'Update' : 'Create'"></span>
-								</button>
-							</div>
-						</div>
-					</form>
-				</div>
-			</div>
-		</div>
-
-		<!-- Rule Test Results Modal (nested) -->
-		<div x-show="showRuleTestModal" class="fixed inset-0 z-[70] overflow-y-auto" x-cloak @keydown.escape.window="closeRuleTestModal()">
-			<div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-				<div x-show="showRuleTestModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"></div>
-				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-				<div x-show="showRuleTestModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" class="relative z-10 inline-block w-full max-w-2xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6" @click.stop>
-					<div class="flex items-center justify-between mb-4">
-						<h3 class="text-lg font-medium text-gray-900 dark:text-white">Rule Test Results</h3>
-						<button @click="closeRuleTestModal()" class="text-gray-400 hover:text-gray-500">
-							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-							</svg>
-						</button>
-					</div>
-
-					<div x-show="ruleTestLoading" x-cloak class="text-center py-8">
-						<svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Testing rule...</p>
-					</div>
-
-					<div x-show="!ruleTestLoading && ruleTestResults" x-cloak>
-						<!-- Summary -->
-						<div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-							<p class="text-sm font-medium text-blue-900 dark:text-blue-300">
-								<span class="font-bold" x-text="ruleTestResults?.total_matches || 0"></span> alerts match this rule
-							</p>
-							<p class="mt-1 text-xs text-blue-700 dark:text-blue-400">
-								Showing sample of <span x-text="ruleTestResults?.sample_alerts?.length || 0"></span> alerts
-							</p>
-						</div>
-
-						<!-- Sample Alerts -->
-						<div x-show="ruleTestResults?.sample_alerts?.length > 0" class="space-y-2 max-h-64 overflow-y-auto">
-							<template x-for="alert in (ruleTestResults?.sample_alerts || [])" :key="alert.id">
-								<div class="p-2 bg-gray-50 dark:bg-dark-bg-tertiary rounded border border-gray-200 dark:border-dark-border-subtle">
-									<p class="text-sm font-medium text-gray-900 dark:text-white" x-text="alert.alert_name"></p>
-									<div class="mt-1 flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
-										<span class="px-1.5 py-0.5 rounded font-medium"
-											:class="{
-												'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': alert.severity === 'critical',
-												'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': alert.severity === 'warning',
-												'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': alert.severity === 'info'
-											}"
-											x-text="alert.severity">
-										</span>
-										<span x-text="new Date(alert.fired_at).toLocaleString()"></span>
-									</div>
-								</div>
-							</template>
-						</div>
-						<div x-show="ruleTestResults?.sample_alerts?.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
-							No alerts match this rule
-						</div>
-					</div>
-
-					<div class="mt-4 flex justify-end">
-						<button @click="closeRuleTestModal()" class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-primary border border-gray-300 dark:border-dark-border-subtle rounded-md hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary">
-							Close
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-
 		<!-- Individual Alert Details Modal (using shared component) -->
 		@components.AlertModalReadonly("showAlertModal", "individualAlertLoading", "individualAlertData", "individualAlertOccurrences", "closeAlertModal()", "z-[60]")
 
@@ -1659,30 +1437,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				individualAlertLoading: false,
 				individualAlertOccurrences: [],
 
-				// Rules management modal
-				showRulesModal: false,
-				rulesLoading: false,
-				rules: [],
-				showRuleFormModal: false,
-				editingRule: null,
-				showRuleTestModal: false,
-				ruleTestLoading: false,
-				ruleTestResults: null,
-				ruleFormData: {
-					rule_name: '',
-					is_active: true,
-					rule_config: {
-						criteria: [],
-						logic: 'AND'
-					}
-				},
-
 				filters: {
 					startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
 					endDate: new Date().toISOString().split('T')[0], // Today
 					groupBy: 'severity',
 					periodType: 'day',
-					applyRules: false,
 					limit: 20,
 					filterByTimeOfDay: false,
 					timeOfDayStart: '22:00',
@@ -1706,7 +1465,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				// Time range picker state
 				timeRangePickerOpen: false,
-				timeRangePickerTab: 'relative', // 'relative' | 'absolute' | 'timeofday'
+				timeRangePickerTab: 'relative', // 'relative' | 'absolute'
 				// Temporary state while editing (applied on "Apply")
 				tempFilters: null,
 
@@ -1763,24 +1522,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					this.closeTimeRangePicker(true);
 				},
 
-				// Time of day presets
-				setTimePreset(preset) {
-					switch(preset) {
-						case 'night':
-							this.filters.timeOfDayStart = '22:00';
-							this.filters.timeOfDayEnd = '06:00';
-							break;
-						case 'business':
-							this.filters.timeOfDayStart = '09:00';
-							this.filters.timeOfDayEnd = '17:00';
-							break;
-						case 'morning':
-							this.filters.timeOfDayStart = '06:00';
-							this.filters.timeOfDayEnd = '12:00';
-							break;
-					}
-				},
-
 				// Format number with K/M suffix for large numbers
 				formatNumber(num) {
 					if (num === null || num === undefined) return '0';
@@ -1807,7 +1548,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						const payload = {
 							start_date: this.filters.startDate + 'T00:00:00Z',
 							end_date: this.filters.endDate + 'T23:59:59Z',
-							apply_rules: this.filters.applyRules,
 							group_by: this.filters.groupBy,
 							period_type: this.filters.periodType,
 							limit: this.filters.groupBy === 'alert_name' ? this.filters.limit : 0,
@@ -2072,14 +1812,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					return { weekdayStart: '18:00', weekdayEnd: '08:00', includeWeekends: true };
 				},
 
-				applyOnCallFilter() {
-					const schedule = this.getOnCallSchedule();
-					this.filters.filterByTimeOfDay = true;
-					this.filters.timeOfDayStart = schedule.weekdayStart;
-					this.filters.timeOfDayEnd = schedule.weekdayEnd;
-					// Note: Weekend inclusion would require backend support for day-of-week filtering
-				},
-
 				getOnCallDescription() {
 					const schedule = this.getOnCallSchedule();
 					let desc = `${schedule.weekdayStart} - ${schedule.weekdayEnd} weekdays`;
@@ -2217,6 +1949,13 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					return new Intl.NumberFormat().format(num || 0);
 				},
 
+				// Truncate label with ellipsis for chart display
+				truncateLabel(text, maxLength) {
+					if (!text) return '';
+					if (text.length <= maxLength) return text;
+					return text.substring(0, maxLength - 3) + '...';
+				},
+
 				formatDuration(seconds) {
 					if (!seconds || seconds === 0) return '0s';
 
@@ -2264,9 +2003,16 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				// Color palettes for different groupings
 				chartColors: {
 					severity: {
-						'critical': { bg: '#dc2626', border: '#b91c1c' },
-						'warning': { bg: '#f59e0b', border: '#d97706' },
-						'info': { bg: '#3b82f6', border: '#2563eb' }
+						// Standard severity levels
+						'critical': { bg: '#dc2626', border: '#b91c1c' },  // Red
+						'high': { bg: '#ea580c', border: '#c2410c' },     // Orange-red
+						'error': { bg: '#ef4444', border: '#dc2626' },    // Lighter red
+						'warning': { bg: '#f59e0b', border: '#d97706' },  // Amber
+						'medium': { bg: '#eab308', border: '#ca8a04' },   // Yellow
+						'low': { bg: '#22c55e', border: '#16a34a' },      // Green
+						'info': { bg: '#3b82f6', border: '#2563eb' },     // Blue
+						'debug': { bg: '#6b7280', border: '#4b5563' },    // Gray
+						'notice': { bg: '#8b5cf6', border: '#7c3aed' }    // Purple
 					},
 					team: [
 						{ bg: '#8b5cf6', border: '#7c3aed' },
@@ -2351,7 +2097,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						const payload = {
 							start_date: this.filters.startDate + 'T00:00:00Z',
 							end_date: this.filters.endDate + 'T23:59:59Z',
-							apply_rules: this.filters.applyRules,
 							group_by: 'period',
 							secondary_group_by: this.filters.groupBy || 'severity', // Break down by severity/team/alert_name within each period
 							period_type: this.determinePeriodType(),
@@ -2385,7 +2130,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						const payload = {
 							start_date: this.filters.startDate + 'T00:00:00Z',
 							end_date: this.filters.endDate + 'T23:59:59Z',
-							apply_rules: this.filters.applyRules,
 							group_by: groupBy,
 							limit: 10,
 							filter_by_time_of_day: this.filters.filterByTimeOfDay,
@@ -2422,7 +2166,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						const payload = {
 							start_date: this.filters.startDate + 'T00:00:00Z',
 							end_date: this.filters.endDate + 'T23:59:59Z',
-							apply_rules: this.filters.applyRules,
 							group_by: this.filters.groupBy,
 							filter_by_time_of_day: this.filters.filterByTimeOfDay,
 							time_of_day_start: this.filters.timeOfDayStart,
@@ -2537,11 +2280,21 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					} else if (periodType === 'day') {
 						return `${year}-${month}-${day}`;
 					} else if (periodType === 'week') {
-						// Week format: YYYY-Www
-						const startOfYear = new Date(year, 0, 1);
-						const days = Math.floor((date - startOfYear) / (24 * 60 * 60 * 1000));
-						const weekNum = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-						return `${year}-W${String(weekNum).padStart(2, '0')}`;
+						// Week format: YYYY-Www (ISO 8601)
+						// ISO 8601: Week 1 is the week containing January 4th
+						// (or equivalently, the week containing the first Thursday of the year)
+						const target = new Date(date.valueOf());
+						// Set to nearest Thursday: current date + 4 - current day number
+						// Make Sunday day 7 instead of 0
+						const dayNum = target.getDay() || 7;
+						target.setDate(target.getDate() + 4 - dayNum);
+						// Get first day of year
+						const yearStart = new Date(target.getFullYear(), 0, 1);
+						// Calculate full weeks to nearest Thursday
+						const weekNum = Math.ceil((((target - yearStart) / 86400000) + 1) / 7);
+						// The year for ISO week may differ from calendar year
+						const isoYear = target.getFullYear();
+						return `${isoYear}-W${String(weekNum).padStart(2, '0')}`;
 					} else if (periodType === 'month') {
 						return `${year}-${month}`;
 					}
@@ -2613,6 +2366,15 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					this.updateTimeMetricsChart();
 				},
 
+				// Maximum items to show in doughnut chart before aggregating to "Others"
+				distributionTopN: 10,
+				// Store all distribution items for the list view
+				distributionAllItems: [],
+				// Cached total count for percentage calculations (computed in updateDistributionChart)
+				distributionTotal: 0,
+				// Show/hide the full distribution list
+				showDistributionList: false,
+
 				updateDistributionChart() {
 					const canvas = document.getElementById('distributionChart');
 					if (!canvas) return;
@@ -2629,19 +2391,75 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					if (!this.appliedGroupBy || !this.distributionData) return;
 
 					const data = this.distributionData;
-					const labels = Object.keys(data);
-					const counts = labels.map(l => data[l]?.count || 0);
-					const backgroundColors = labels.map((l, i) => this.getColorForKey(l, i).bg);
+					const allLabels = Object.keys(data);
+
+					// Handle empty data case
+					if (allLabels.length === 0) {
+						this.distributionAllItems = [];
+						this.distributionTotal = 0;
+						return;
+					}
+
+					// Sort all items by count (descending)
+					const sortedItems = allLabels
+						.map(label => ({
+							label: label,
+							count: data[label]?.count || 0
+						}))
+						.sort((a, b) => b.count - a.count);
+
+					// Store all items for the list view
+					this.distributionAllItems = sortedItems;
+
+					const totalCount = sortedItems.reduce((sum, item) => sum + item.count, 0);
+					// Cache total for percentage display in list view
+					this.distributionTotal = totalCount;
+					if (totalCount === 0) return;
 
 					const isDark = document.documentElement.classList.contains('dark');
+
+					// Prepare chart data with Top N + Others aggregation
+					let chartLabels = [];
+					let chartCounts = [];
+					let chartColors = [];
+					let originalLabels = []; // For click handling
+
+					const topN = this.distributionTopN;
+
+					if (sortedItems.length <= topN) {
+						// No aggregation needed - show all items
+						chartLabels = sortedItems.map(item => item.label.charAt(0).toUpperCase() + item.label.slice(1));
+						chartCounts = sortedItems.map(item => item.count);
+						chartColors = sortedItems.map((item, i) => this.getColorForKey(item.label, i).bg);
+						originalLabels = sortedItems.map(item => item.label);
+					} else {
+						// Show top N items + aggregate the rest as "Others"
+						const topItems = sortedItems.slice(0, topN);
+						const otherItems = sortedItems.slice(topN);
+						const othersCount = otherItems.reduce((sum, item) => sum + item.count, 0);
+						const othersItemCount = otherItems.length;
+
+						chartLabels = topItems.map(item => item.label.charAt(0).toUpperCase() + item.label.slice(1));
+						chartLabels.push(`Others (${othersItemCount} items)`);
+
+						chartCounts = topItems.map(item => item.count);
+						chartCounts.push(othersCount);
+
+						chartColors = topItems.map((item, i) => this.getColorForKey(item.label, i).bg);
+						// Use gray color for "Others"
+						chartColors.push('#9ca3af');
+
+						originalLabels = topItems.map(item => item.label);
+						originalLabels.push('__others__'); // Special marker for Others
+					}
 
 					this.distributionChart = new Chart(canvas, {
 						type: 'doughnut',
 						data: {
-							labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+							labels: chartLabels,
 							datasets: [{
-								data: counts,
-								backgroundColor: backgroundColors,
+								data: chartCounts,
+								backgroundColor: chartColors,
 								borderColor: isDark ? '#1f2937' : '#ffffff',
 								borderWidth: 2
 							}]
@@ -2652,26 +2470,50 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							animation: false,
 							plugins: {
 								legend: {
-									position: 'bottom',
-									labels: {
-										color: isDark ? '#e5e7eb' : '#374151',
-										padding: 15
-									},
-									onClick: (e, legendItem, legend) => {
-										const key = labels[legendItem.index];
-										this.toggleChartVisibility(key);
+									display: false // Hide default legend, we'll show items in a list
+								},
+								tooltip: {
+									callbacks: {
+										label: (ctx) => {
+											const value = ctx.raw || 0;
+											const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+											const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+											if (originalLabels[ctx.dataIndex] === '__others__') {
+												const othersItemCount = sortedItems.length - topN;
+												return [`Others: ${value.toLocaleString()} (${percentage}%)`, `Aggregated from ${othersItemCount} items`];
+											}
+											return `${ctx.label}: ${value.toLocaleString()} (${percentage}%)`;
+										}
 									}
 								}
 							},
 							onClick: (event, elements) => {
 								if (elements.length > 0) {
 									const index = elements[0].index;
-									const key = labels[index];
-									this.toggleChartVisibility(key);
+									const key = originalLabels[index];
+									if (key === '__others__') {
+										// Show full list when clicking "Others"
+										this.showDistributionList = true;
+									} else {
+										this.toggleChartVisibility(key);
+									}
 								}
 							}
 						}
 					});
+				},
+
+				// Get color for distribution list item
+				getDistributionItemColor(label, index) {
+					if (index < this.distributionTopN) {
+						return this.getColorForKey(label, index).bg;
+					}
+					return '#9ca3af'; // Gray for items beyond top N
+				},
+
+				// Toggle distribution list visibility
+				toggleDistributionList() {
+					this.showDistributionList = !this.showDistributionList;
 				},
 
 				updateTopItemsChart() {
@@ -2691,7 +2533,12 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						.sort((a, b) => (b[1]?.count || 0) - (a[1]?.count || 0))
 						.slice(0, 10);
 
-					const labels = sortedItems.map(([name]) => name.length > 25 ? name.substring(0, 25) + '...' : name);
+					// Handle empty data case
+					if (sortedItems.length === 0) {
+						return;
+					}
+
+					const labels = sortedItems.map(([name]) => this.truncateLabel(name, 30));
 					const fullNames = sortedItems.map(([name]) => name);
 					const counts = sortedItems.map(([, stat]) => stat?.count || 0);
 					const backgroundColors = sortedItems.map(([name], i) => this.getColorForKey(name, i).bg);
@@ -2770,7 +2617,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 					if (entries.length === 0) return;
 
-					const labels = entries.map(([k]) => k.length > 20 ? k.substring(0, 17) + '...' : k);
+					const labels = entries.map(([k]) => this.truncateLabel(k, 25));
 					const fullLabels = entries.map(([k]) => k);
 
 					const mttrData = entries.map(([, v]) => v.avg_mttr_seconds || 0);
@@ -2867,6 +2714,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						this.filters.endDate,
 						periodType
 					);
+
+					// Handle empty data case
+					if (!filledData || filledData.length === 0) return;
+
 					const labels = filledData.map(item => this.formatPeriodLabel(item.period));
 					const isDark = document.documentElement.classList.contains('dark');
 
@@ -2893,6 +2744,27 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								pointHoverRadius: 5
 							});
 						});
+
+						// Add Total line - sum of all visible series
+						if (keys.length > 1) {
+							const totalData = filledData.map(item => {
+								const stats = item.statistics || {};
+								return keys.reduce((sum, key) => sum + (stats[key]?.count || 0), 0);
+							});
+							datasets.push({
+								label: 'Total',
+								data: totalData,
+								borderColor: isDark ? '#e5e7eb' : '#1f2937',
+								backgroundColor: 'transparent',
+								fill: false,
+								tension: 0.3,
+								borderWidth: 3,
+								pointRadius: 4,
+								pointHoverRadius: 6,
+								borderDash: [6, 3],
+								order: -1 // Render on top of other lines
+							});
+						}
 					} else {
 						// Single line mode (Overall)
 						if (this.timeSeriesView === 'fired' || this.timeSeriesView === 'both') {
@@ -2924,6 +2796,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						}
 					}
 
+					// Don't create chart if no datasets
+					if (datasets.length === 0) return;
+
 					this.alertsTimeChart = new Chart(canvas, {
 						type: 'line',
 						data: { labels, datasets },
@@ -2947,6 +2822,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									onClick: (e, legendItem, legend) => {
 										if (this.appliedGroupBy) {
 											const key = legendItem.text;
+											if (key === 'Total') return; // Ignore Total line clicks
 											this.toggleChartVisibility(key);
 										} else {
 											// Default Chart.js legend click behavior
@@ -2965,7 +2841,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									ticks: {
 										color: isDark ? '#9ca3af' : '#6b7280',
 										maxRotation: 45,
-										minRotation: 0
+										minRotation: 0,
+										maxTicksLimit: 15,
+										autoSkip: true,
+										autoSkipPadding: 10
 									}
 								},
 								y: {
@@ -2980,13 +2859,42 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				formatPeriodLabel(period) {
 					if (!period) return '';
+
+					// Handle ISO week format (e.g., "2024-W05")
+					const weekMatch = period.match(/^(\d{4})-W(\d{2})$/);
+					if (weekMatch) {
+						const year = parseInt(weekMatch[1], 10);
+						const week = parseInt(weekMatch[2], 10);
+						// Convert ISO week to a date (Monday of that week)
+						const jan4 = new Date(year, 0, 4);
+						const dayOfWeek = jan4.getDay() || 7;
+						const firstMonday = new Date(jan4);
+						firstMonday.setDate(jan4.getDate() - dayOfWeek + 1);
+						const weekStart = new Date(firstMonday);
+						weekStart.setDate(firstMonday.getDate() + (week - 1) * 7);
+						return 'Week ' + week + ' (' + weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ')';
+					}
+
+					// Handle month format (e.g., "2024-01")
+					const monthMatch = period.match(/^(\d{4})-(\d{2})$/);
+					if (monthMatch) {
+						const year = parseInt(monthMatch[1], 10);
+						const month = parseInt(monthMatch[2], 10) - 1; // JS months are 0-indexed
+						const date = new Date(year, month, 1);
+						return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+					}
+
+					// Handle hour format (e.g., "2024-01-15T10:00") and day format (e.g., "2024-01-15")
 					const date = new Date(period);
+					if (isNaN(date.getTime())) {
+						// Fallback: return the period as-is if parsing fails
+						return period;
+					}
+
 					const days = (new Date(this.filters.endDate) - new Date(this.filters.startDate)) / (1000 * 60 * 60 * 24);
 
 					if (days <= 1) {
 						return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-					} else if (days <= 14) {
-						return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 					} else {
 						return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 					}
@@ -3009,7 +2917,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						const payload = {
 							start_date: prevStart.toISOString(),
 							end_date: prevEnd.toISOString(),
-							apply_rules: this.filters.applyRules,
 							group_by: 'severity',
 							filter_by_time_of_day: this.filters.filterByTimeOfDay,
 							time_of_day_start: this.filters.timeOfDayStart,
@@ -3104,7 +3011,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							start_date: this.filters.startDate + 'T00:00:00Z',
 							end_date: this.filters.endDate + 'T23:59:59Z',
 							alert_name: alertName,
-							apply_rules: this.filters.applyRules,
 							filter_by_time_of_day: this.filters.filterByTimeOfDay,
 							time_of_day_start: this.filters.timeOfDayStart,
 							time_of_day_end: this.filters.timeOfDayEnd,
@@ -3203,6 +3109,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						this.filters.endDate,
 						periodType
 					);
+
+					// Handle empty data case
+					if (!filledData || filledData.length === 0) return;
+
 					const labels = filledData.map(item => this.formatPeriodLabel(item.period));
 					let datasets = [];
 
@@ -3220,6 +3130,27 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								borderWidth: 2
 							});
 						});
+
+						// Add Total line - sum of all visible series
+						if (keys.length > 1) {
+							const totalData = filledData.map(item => {
+								const stats = item.statistics || {};
+								return keys.reduce((sum, key) => sum + (stats[key]?.count || 0), 0);
+							});
+							datasets.push({
+								label: 'Total',
+								data: totalData,
+								borderColor: isDark ? '#e5e7eb' : '#1f2937',
+								backgroundColor: 'transparent',
+								fill: false,
+								tension: 0.3,
+								borderWidth: 3,
+								pointRadius: 4,
+								pointHoverRadius: 6,
+								borderDash: [6, 3],
+								order: -1 // Render on top of other lines
+							});
+						}
 					} else {
 						if (this.timeSeriesView === 'fired' || this.timeSeriesView === 'both') {
 							datasets.push({
@@ -3235,7 +3166,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						if (this.timeSeriesView === 'resolved' || this.timeSeriesView === 'both') {
 							datasets.push({
 								label: 'Alerts Resolved',
-								data: filledData.map(item => item.resolved_count || 0),
+								data: filledData.map(item => {
+									const stats = item.statistics || {};
+									return Object.values(stats).reduce((sum, s) => sum + (s.count || 0), 0);
+								}),
 								borderColor: '#22c55e',
 								backgroundColor: 'rgba(34, 197, 94, 0.1)',
 								fill: true,
@@ -3245,37 +3179,103 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						}
 					}
 
+					// Don't create chart if no datasets
+					if (datasets.length === 0) return;
+
 					this.fullscreenChartInstance = new Chart(canvas, {
 						type: 'line',
 						data: { labels, datasets },
 						options: {
 							responsive: true,
 							maintainAspectRatio: false,
+							interaction: {
+								intersect: false,
+								mode: 'index'
+							},
 							plugins: {
-								legend: { position: 'top', labels: { color: isDark ? '#d1d5db' : '#374151' } }
+								legend: {
+									position: 'top',
+									labels: {
+										color: isDark ? '#d1d5db' : '#374151',
+										usePointStyle: true,
+										padding: 15
+									}
+								},
+								tooltip: {
+									mode: 'index',
+									intersect: false
+								}
 							},
 							scales: {
-								x: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } },
-								y: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' }, beginAtZero: true }
+								x: {
+									ticks: {
+										color: isDark ? '#9ca3af' : '#6b7280',
+										maxTicksLimit: 20,
+										autoSkip: true,
+										maxRotation: 45
+									},
+									grid: { color: isDark ? '#374151' : '#e5e7eb' }
+								},
+								y: {
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
+									grid: { color: isDark ? '#374151' : '#e5e7eb' },
+									beginAtZero: true
+								}
 							}
 						}
 					});
 				},
 
 				renderFullscreenDistributionChart(canvas, isDark) {
-					const stats = this.statsData?.statistics || {};
-					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0));
-					const labels = entries.map(([k]) => k);
-					const data = entries.map(([, v]) => v.count || 0);
-					const colors = entries.map(([k], i) => this.getColorForKey(k, i));
+					// Use distributionData if available, fallback to statsData.statistics
+					const stats = this.distributionData || this.statsData?.statistics || {};
+					const entries = Object.entries(stats).sort((a, b) => ((b[1]?.count || b[1] || 0)) - ((a[1]?.count || a[1] || 0)));
+
+					if (entries.length === 0) return;
+
+					// For fullscreen, show more items (top 20) with "Others" aggregation
+					const fullscreenTopN = 20;
+					let chartLabels = [];
+					let chartData = [];
+					let chartColors = [];
+					let originalKeys = [];
+
+					if (entries.length <= fullscreenTopN) {
+						// No aggregation needed
+						chartLabels = entries.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+						chartData = entries.map(([, v]) => v?.count || v || 0);
+						chartColors = entries.map(([k], i) => this.getColorForKey(k, i).bg);
+						originalKeys = entries.map(([k]) => k);
+					} else {
+						// Show top N + aggregate the rest
+						const topItems = entries.slice(0, fullscreenTopN);
+						const otherItems = entries.slice(fullscreenTopN);
+						const othersCount = otherItems.reduce((sum, [, v]) => sum + (v?.count || v || 0), 0);
+						const othersItemCount = otherItems.length;
+
+						chartLabels = topItems.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+						chartLabels.push(`Others (${othersItemCount} items)`);
+
+						chartData = topItems.map(([, v]) => v?.count || v || 0);
+						chartData.push(othersCount);
+
+						chartColors = topItems.map(([k], i) => this.getColorForKey(k, i).bg);
+						chartColors.push('#9ca3af'); // Gray for Others
+
+						originalKeys = topItems.map(([k]) => k);
+						originalKeys.push('__others__');
+					}
+
+					const totalCount = chartData.reduce((a, b) => a + b, 0);
+					const self = this;
 
 					this.fullscreenChartInstance = new Chart(canvas, {
 						type: 'doughnut',
 						data: {
-							labels,
+							labels: chartLabels,
 							datasets: [{
-								data,
-								backgroundColor: colors.map(c => c.bg),
+								data: chartData,
+								backgroundColor: chartColors,
 								borderColor: isDark ? '#1f2937' : '#ffffff',
 								borderWidth: 2
 							}]
@@ -3284,7 +3284,47 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							responsive: true,
 							maintainAspectRatio: false,
 							plugins: {
-								legend: { position: 'right', labels: { color: isDark ? '#d1d5db' : '#374151' } }
+								legend: {
+									position: 'right',
+									labels: {
+										color: isDark ? '#d1d5db' : '#374151',
+										padding: 10,
+										font: { size: 11 },
+										// Custom label generation to handle many items
+										generateLabels: (chart) => {
+											const chartData = chart.data;
+											return chartData.labels.map((label, i) => ({
+												text: label.length > 25 ? label.substring(0, 25) + '...' : label,
+												fillStyle: chartData.datasets[0].backgroundColor[i],
+												hidden: false,
+												index: i
+											}));
+										}
+									}
+								},
+								tooltip: {
+									callbacks: {
+										label: (ctx) => {
+											const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+											const percentage = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+											const key = originalKeys[ctx.dataIndex];
+											if (key === '__others__') {
+												const othersItemCount = entries.length - fullscreenTopN;
+												return [`Others: ${ctx.raw.toLocaleString()} (${percentage}%)`, `Aggregated from ${othersItemCount} items`];
+											}
+											return `${ctx.label}: ${ctx.raw.toLocaleString()} (${percentage}%)`;
+										}
+									}
+								}
+							},
+							onClick: (event, elements) => {
+								if (elements.length > 0) {
+									const index = elements[0].index;
+									const key = originalKeys[index];
+									if (key !== '__others__') {
+										self.toggleChartVisibility(key);
+									}
+								}
 							}
 						}
 					});
@@ -3292,10 +3332,15 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				renderFullscreenTopItemsChart(canvas, isDark) {
 					const stats = this.topItemsData || this.statsData?.statistics || {};
-					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0)).slice(0, 15);
-					const labels = entries.map(([k]) => k);
+					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0)).slice(0, 20);
+
+					if (entries.length === 0) return;
+
+					const fullNames = entries.map(([k]) => k);
+					const labels = entries.map(([k]) => this.truncateLabel(k, 40));
 					const data = entries.map(([, v]) => v.count || 0);
 					const colors = entries.map(([k], i) => this.getColorForKey(k, i));
+					const self = this;
 
 					this.fullscreenChartInstance = new Chart(canvas, {
 						type: 'bar',
@@ -3306,7 +3351,8 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								data,
 								backgroundColor: colors.map(c => c.bg + 'cc'),
 								borderColor: colors.map(c => c.border),
-								borderWidth: 1
+								borderWidth: 1,
+								borderRadius: 4
 							}]
 						},
 						options: {
@@ -3314,11 +3360,33 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							responsive: true,
 							maintainAspectRatio: false,
 							plugins: {
-								legend: { display: false }
+								legend: { display: false },
+								tooltip: {
+									callbacks: {
+										title: (items) => fullNames[items[0].dataIndex],
+										label: (ctx) => 'Count: ' + ctx.raw.toLocaleString()
+									}
+								}
 							},
 							scales: {
-								x: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } },
-								y: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } }
+								x: {
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
+									grid: { color: isDark ? '#374151' : '#e5e7eb' }
+								},
+								y: {
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
+									grid: { display: false }
+								}
+							},
+							onClick: (event, elements) => {
+								if (elements.length > 0) {
+									const index = elements[0].index;
+									const itemName = fullNames[index];
+									if (self.appliedGroupBy === 'alert_name' || !self.appliedGroupBy) {
+										self.closeFullscreenChart();
+										self.openAlertDetailsModal(itemName);
+									}
+								}
 							}
 						}
 					});
@@ -3326,8 +3394,12 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				renderFullscreenTimeMetricsChart(canvas, isDark) {
 					const stats = this.statsData?.statistics || {};
-					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0)).slice(0, 15);
-					const labels = entries.map(([k]) => k);
+					const entries = Object.entries(stats).sort((a, b) => (b[1].count || 0) - (a[1].count || 0)).slice(0, 20);
+
+					if (entries.length === 0) return;
+
+					const fullLabels = entries.map(([k]) => k);
+					const labels = entries.map(([k]) => this.truncateLabel(k, 35));
 					const self = this;
 
 					this.fullscreenChartInstance = new Chart(canvas, {
@@ -3366,6 +3438,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								legend: { position: 'top', labels: { color: isDark ? '#d1d5db' : '#374151' } },
 								tooltip: {
 									callbacks: {
+										title: (items) => fullLabels[items[0].dataIndex],
 										label: function(ctx) {
 											return ctx.dataset.label + ': ' + self.formatDuration(ctx.raw);
 										}
@@ -3378,7 +3451,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
 									grid: { color: isDark ? '#374151' : '#e5e7eb' }
 								},
-								y: { ticks: { color: isDark ? '#9ca3af' : '#6b7280' }, grid: { color: isDark ? '#374151' : '#e5e7eb' } }
+								y: {
+									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
+									grid: { display: false }
+								}
 							}
 						}
 					});
@@ -3468,242 +3544,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						return {};
 					}
 				},
-
-				// ============ Rules Management Methods ============
-
-				async openRulesModal() {
-					this.showRulesModal = true;
-					await this.loadRules();
-				},
-
-				closeRulesModal() {
-					this.showRulesModal = false;
-				},
-
-				async loadRules() {
-					this.rulesLoading = true;
-					try {
-						const response = await fetch('/api/v1/statistics/rules', { credentials: 'include' });
-						const data = await response.json();
-						if (data.success) {
-							this.rules = data.data.rules || [];
-						} else {
-							console.error('Error loading rules:', data.message);
-						}
-					} catch (error) {
-						console.error('Error loading rules:', error);
-					} finally {
-						this.rulesLoading = false;
-					}
-				},
-
-				openRuleFormModal(rule = null) {
-					this.editingRule = rule;
-					if (rule) {
-						this.ruleFormData = JSON.parse(JSON.stringify(rule));
-					} else {
-						this.ruleFormData = {
-							rule_name: '',
-							is_active: true,
-							rule_config: {
-								criteria: [],
-								logic: 'AND'
-							}
-						};
-					}
-					this.showRuleFormModal = true;
-				},
-
-				closeRuleFormModal() {
-					this.showRuleFormModal = false;
-					this.editingRule = null;
-				},
-
-				editRule(rule) {
-					this.openRuleFormModal(rule);
-				},
-
-				async saveRule() {
-					try {
-						const url = this.editingRule
-							? `/api/v1/statistics/rules/${this.editingRule.id}`
-							: '/api/v1/statistics/rules';
-						const method = this.editingRule ? 'PUT' : 'POST';
-
-						const response = await fetch(url, {
-							method,
-							credentials: 'include',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify(this.ruleFormData)
-						});
-
-						const data = await response.json();
-						if (data.success) {
-							this.closeRuleFormModal();
-							await this.loadRules();
-						} else {
-							alert('Error: ' + data.message);
-						}
-					} catch (error) {
-						console.error('Error saving rule:', error);
-						alert('Failed to save rule');
-					}
-				},
-
-				async deleteRule(rule) {
-					if (!confirm(`Are you sure you want to delete "${rule.rule_name}"?`)) {
-						return;
-					}
-
-					try {
-						const response = await fetch(`/api/v1/statistics/rules/${rule.id}`, {
-							method: 'DELETE',
-							credentials: 'include'
-						});
-
-						const data = await response.json();
-						if (data.success) {
-							await this.loadRules();
-						} else {
-							alert('Error: ' + data.message);
-						}
-					} catch (error) {
-						console.error('Error deleting rule:', error);
-						alert('Failed to delete rule');
-					}
-				},
-
-				async toggleRuleActive(rule) {
-					const updatedRule = { ...rule, is_active: !rule.is_active };
-
-					try {
-						const response = await fetch(`/api/v1/statistics/rules/${rule.id}`, {
-							method: 'PUT',
-							credentials: 'include',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify(updatedRule)
-						});
-
-						const data = await response.json();
-						if (data.success) {
-							await this.loadRules();
-						} else {
-							alert('Error: ' + data.message);
-						}
-					} catch (error) {
-						console.error('Error toggling rule:', error);
-						alert('Failed to toggle rule');
-					}
-				},
-
-				async testRule(rule) {
-					this.ruleTestLoading = true;
-					this.ruleTestResults = null;
-					this.showRuleTestModal = true;
-
-					try {
-						const response = await fetch('/api/v1/statistics/rules/test', {
-							method: 'POST',
-							credentials: 'include',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({
-								rule_config: rule.rule_config,
-								sample_size: 10
-							})
-						});
-
-						const data = await response.json();
-						if (data.success) {
-							this.ruleTestResults = data.data;
-						} else {
-							alert('Error: ' + data.message);
-						}
-					} catch (error) {
-						console.error('Error testing rule:', error);
-						alert('Failed to test rule');
-					} finally {
-						this.ruleTestLoading = false;
-					}
-				},
-
-				async testCurrentRule() {
-					if (this.ruleFormData.rule_config.criteria.length === 0) {
-						alert('Please add at least one criterion');
-						return;
-					}
-
-					this.ruleTestLoading = true;
-					this.ruleTestResults = null;
-					this.showRuleTestModal = true;
-
-					try {
-						const response = await fetch('/api/v1/statistics/rules/test', {
-							method: 'POST',
-							credentials: 'include',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({
-								rule_config: this.ruleFormData.rule_config,
-								sample_size: 10
-							})
-						});
-
-						const data = await response.json();
-						if (data.success) {
-							this.ruleTestResults = data.data;
-						} else {
-							alert('Error: ' + data.message);
-						}
-					} catch (error) {
-						console.error('Error testing rule:', error);
-						alert('Failed to test rule');
-					} finally {
-						this.ruleTestLoading = false;
-					}
-				},
-
-				closeRuleTestModal() {
-					this.showRuleTestModal = false;
-					this.ruleTestResults = null;
-				},
-
-				addRuleCriterion() {
-					this.ruleFormData.rule_config.criteria.push({
-						type: 'severity',
-						operator: 'equals',
-						value: '',
-						values: [],
-						key: '',
-						pattern: ''
-					});
-				},
-
-				removeRuleCriterion(index) {
-					this.ruleFormData.rule_config.criteria.splice(index, 1);
-				},
-
-				onRuleCriterionTypeChange(index) {
-					const criterion = this.ruleFormData.rule_config.criteria[index];
-					criterion.operator = 'equals';
-					criterion.value = '';
-					criterion.values = [];
-					criterion.key = '';
-					criterion.pattern = '';
-				},
-
-				getRuleCriterionValue(criterion) {
-					if (criterion.type === 'severity' && criterion.operator === 'in') {
-						return criterion.values.join(', ');
-					}
-					if (criterion.type === 'label') {
-						return `${criterion.key}=${criterion.value}`;
-					}
-					if (criterion.type === 'alert_name') {
-						return criterion.pattern || criterion.value;
-					}
-					return criterion.value;
-				},
-
-				// ============ End Rules Management Methods ============
 
 				formatDateTime(dateStr) {
 					if (!dateStr) return '';

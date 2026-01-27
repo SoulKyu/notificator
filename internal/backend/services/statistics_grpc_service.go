@@ -19,7 +19,6 @@ type StatisticsServiceGorm struct {
 	alertpb.UnimplementedStatisticsServiceServer
 	db             *database.GormDB
 	queryService   *StatisticsQueryService
-	ruleEngine     *RuleEngine
 	captureService *StatisticsCaptureService
 	workerPool     *StatisticsWorkerPool
 }
@@ -29,7 +28,6 @@ func NewStatisticsServiceGorm(db *database.GormDB) *StatisticsServiceGorm {
 	return &StatisticsServiceGorm{
 		db:             db,
 		queryService:   NewStatisticsQueryService(db),
-		ruleEngine:     NewRuleEngine(db),
 		captureService: NewStatisticsCaptureService(db),
 		workerPool:     nil, // Will be set later via SetWorkerPool
 	}
@@ -78,7 +76,6 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 		UserID:            user.ID,
 		StartDate:         startDate,
 		EndDate:           endDate,
-		ApplyRules:        req.ApplyRules,
 		GroupBy:           req.GroupBy,
 		SecondaryGroupBy:  req.SecondaryGroupBy,
 		PeriodType:        req.PeriodType,
@@ -117,11 +114,11 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 	// Convert statistics map
 	for key, stats := range result.Statistics {
 		pbResponse.Statistics[key] = &alertpb.AggregatedStatistics{
-			Count:              int32(stats.Count),
-			AvgMttrSeconds:     stats.AvgMTTRSeconds,
-			TotalMttrSeconds:   int32(stats.TotalMTTRSeconds),
-			AvgMttaSeconds:     stats.AvgMTTASeconds,
-			AvgFixTimeSeconds:  stats.AvgFixTimeSeconds,
+			Count:             int32(stats.Count),
+			AvgMttrSeconds:    stats.AvgMTTRSeconds,
+			TotalMttrSeconds:  int32(stats.TotalMTTRSeconds),
+			AvgMttaSeconds:    stats.AvgMTTASeconds,
+			AvgFixTimeSeconds: stats.AvgFixTimeSeconds,
 		}
 	}
 
@@ -140,11 +137,11 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 			// Convert nested statistics
 			for key, stats := range item.Statistics {
 				pbBreakdownItem.Statistics[key] = &alertpb.AggregatedStatistics{
-					Count:              int32(stats.Count),
-					AvgMttrSeconds:     stats.AvgMTTRSeconds,
-					TotalMttrSeconds:   int32(stats.TotalMTTRSeconds),
-					AvgMttaSeconds:     stats.AvgMTTASeconds,
-					AvgFixTimeSeconds:  stats.AvgFixTimeSeconds,
+					Count:             int32(stats.Count),
+					AvgMttrSeconds:    stats.AvgMTTRSeconds,
+					TotalMttrSeconds:  int32(stats.TotalMTTRSeconds),
+					AvgMttaSeconds:    stats.AvgMTTASeconds,
+					AvgFixTimeSeconds: stats.AvgFixTimeSeconds,
 				}
 			}
 
@@ -153,426 +150,6 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 	}
 
 	return pbResponse, nil
-}
-
-// ==================== On-Call Rules Management ====================
-
-// SaveOnCallRule implements the SaveOnCallRule RPC method
-func (s *StatisticsServiceGorm) SaveOnCallRule(ctx context.Context, req *alertpb.SaveOnCallRuleRequest) (*alertpb.SaveOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleName == "" {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Rule name is required",
-		}, nil
-	}
-
-	if req.RuleConfig == nil {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Rule configuration is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Convert protobuf rule config to model
-	ruleConfig := protoToModelRuleConfig(req.RuleConfig)
-
-	// Validate rule
-	if err := s.ruleEngine.ValidateRule(ruleConfig); err != nil {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: fmt.Sprintf("Invalid rule configuration: %v", err),
-		}, nil
-	}
-
-	// Build rule config JSONB
-	ruleConfigJSON, err := database.BuildRuleConfigJSON(ruleConfig)
-	if err != nil {
-		log.Printf("Failed to build rule config JSON: %v", err)
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to process rule configuration",
-		}, nil
-	}
-
-	// Create rule model
-	rule := &models.OnCallRule{
-		UserID:     user.ID,
-		RuleName:   req.RuleName,
-		RuleConfig: ruleConfigJSON,
-		IsActive:   req.IsActive,
-	}
-
-	// Save to database
-	if err := s.db.SaveOnCallRule(rule); err != nil {
-		log.Printf("Failed to save on-call rule for user %s: %v", user.ID, err)
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to save rule",
-		}, nil
-	}
-
-	log.Printf("On-call rule '%s' saved for user %s", req.RuleName, user.ID)
-
-	// Convert to protobuf format
-	pbRule := modelToProtoRule(rule, ruleConfig)
-
-	return &alertpb.SaveOnCallRuleResponse{
-		Success: true,
-		Rule:    pbRule,
-		Message: "Rule saved successfully",
-	}, nil
-}
-
-// GetOnCallRules implements the GetOnCallRules RPC method
-func (s *StatisticsServiceGorm) GetOnCallRules(ctx context.Context, req *alertpb.GetOnCallRulesRequest) (*alertpb.GetOnCallRulesResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.GetOnCallRulesResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.GetOnCallRulesResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get rules from database
-	rules, err := s.db.GetOnCallRules(user.ID, req.ActiveOnly)
-	if err != nil {
-		log.Printf("Failed to get on-call rules for user %s: %v", user.ID, err)
-		return &alertpb.GetOnCallRulesResponse{
-			Success: false,
-			Message: "Failed to retrieve rules",
-		}, nil
-	}
-
-	// Convert to protobuf format
-	pbRules := make([]*alertpb.OnCallRule, len(rules))
-	for i, rule := range rules {
-		ruleConfig, err := database.ParseRuleConfig(rule.RuleConfig)
-		if err != nil {
-			log.Printf("Failed to parse rule config for rule %s: %v", rule.ID, err)
-			continue
-		}
-
-		pbRules[i] = modelToProtoRule(rule, ruleConfig)
-	}
-
-	return &alertpb.GetOnCallRulesResponse{
-		Success: true,
-		Rules:   pbRules,
-		Message: "Rules retrieved successfully",
-	}, nil
-}
-
-// GetOnCallRule implements the GetOnCallRule RPC method
-func (s *StatisticsServiceGorm) GetOnCallRule(ctx context.Context, req *alertpb.GetOnCallRuleRequest) (*alertpb.GetOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleId == "" {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Rule ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get rule from database
-	rule, err := s.db.GetOnCallRuleByID(req.RuleId)
-	if err != nil {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Rule not found",
-		}, nil
-	}
-
-	// Verify ownership
-	if rule.UserID != user.ID {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Not authorized to access this rule",
-		}, nil
-	}
-
-	// Parse rule config
-	ruleConfig, err := database.ParseRuleConfig(rule.RuleConfig)
-	if err != nil {
-		log.Printf("Failed to parse rule config: %v", err)
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to parse rule configuration",
-		}, nil
-	}
-
-	// Convert to protobuf format
-	pbRule := modelToProtoRule(rule, ruleConfig)
-
-	return &alertpb.GetOnCallRuleResponse{
-		Success: true,
-		Rule:    pbRule,
-		Message: "Rule retrieved successfully",
-	}, nil
-}
-
-// UpdateOnCallRule implements the UpdateOnCallRule RPC method
-func (s *StatisticsServiceGorm) UpdateOnCallRule(ctx context.Context, req *alertpb.UpdateOnCallRuleRequest) (*alertpb.UpdateOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleId == "" {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Rule ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get existing rule
-	rule, err := s.db.GetOnCallRuleByID(req.RuleId)
-	if err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Rule not found",
-		}, nil
-	}
-
-	// Verify ownership
-	if rule.UserID != user.ID {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Not authorized to update this rule",
-		}, nil
-	}
-
-	// Convert and validate new rule config
-	ruleConfig := protoToModelRuleConfig(req.RuleConfig)
-	if err := s.ruleEngine.ValidateRule(ruleConfig); err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: fmt.Sprintf("Invalid rule configuration: %v", err),
-		}, nil
-	}
-
-	// Build rule config JSONB
-	ruleConfigJSON, err := database.BuildRuleConfigJSON(ruleConfig)
-	if err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to process rule configuration",
-		}, nil
-	}
-
-	// Update rule fields
-	rule.RuleName = req.RuleName
-	rule.RuleConfig = ruleConfigJSON
-	rule.IsActive = req.IsActive
-
-	// Save to database
-	if err := s.db.UpdateOnCallRule(rule); err != nil {
-		log.Printf("Failed to update rule %s for user %s: %v", req.RuleId, user.ID, err)
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to update rule",
-		}, nil
-	}
-
-	log.Printf("On-call rule %s updated for user %s", req.RuleId, user.ID)
-
-	// Convert to protobuf format
-	pbRule := modelToProtoRule(rule, ruleConfig)
-
-	return &alertpb.UpdateOnCallRuleResponse{
-		Success: true,
-		Rule:    pbRule,
-		Message: "Rule updated successfully",
-	}, nil
-}
-
-// DeleteOnCallRule implements the DeleteOnCallRule RPC method
-func (s *StatisticsServiceGorm) DeleteOnCallRule(ctx context.Context, req *alertpb.DeleteOnCallRuleRequest) (*alertpb.DeleteOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleId == "" {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Rule ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get existing rule to verify ownership
-	rule, err := s.db.GetOnCallRuleByID(req.RuleId)
-	if err != nil {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Rule not found",
-		}, nil
-	}
-
-	// Verify ownership
-	if rule.UserID != user.ID {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Not authorized to delete this rule",
-		}, nil
-	}
-
-	// Delete from database
-	if err := s.db.DeleteOnCallRule(req.RuleId); err != nil {
-		log.Printf("Failed to delete rule %s for user %s: %v", req.RuleId, user.ID, err)
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to delete rule",
-		}, nil
-	}
-
-	log.Printf("On-call rule %s deleted for user %s", req.RuleId, user.ID)
-
-	return &alertpb.DeleteOnCallRuleResponse{
-		Success: true,
-		Message: "Rule deleted successfully",
-	}, nil
-}
-
-// TestOnCallRule implements the TestOnCallRule RPC method
-func (s *StatisticsServiceGorm) TestOnCallRule(ctx context.Context, req *alertpb.TestOnCallRuleRequest) (*alertpb.TestOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleConfig == nil {
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: "Rule configuration is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Convert protobuf rule config to model
-	ruleConfig := protoToModelRuleConfig(req.RuleConfig)
-
-	// Test rule
-	sampleSize := int(req.SampleSize)
-	if sampleSize <= 0 {
-		sampleSize = 10
-	}
-
-	matches, totalCount, err := s.ruleEngine.TestRule(user.ID, ruleConfig, sampleSize)
-	if err != nil {
-		log.Printf("Failed to test rule for user %s: %v", user.ID, err)
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: fmt.Sprintf("Failed to test rule: %v", err),
-		}, nil
-	}
-
-	// Convert sample alerts to protobuf format
-	pbSampleAlerts := make([]*alertpb.AlertStatistic, len(matches))
-	for i, stat := range matches {
-		pbSampleAlerts[i] = &alertpb.AlertStatistic{
-			Id:          stat.ID,
-			Fingerprint: stat.Fingerprint,
-			AlertName:   stat.AlertName,
-			Severity:    stat.Severity,
-			Metadata:    []byte(stat.Metadata),
-			FiredAt:     timestamppb.New(stat.FiredAt),
-			CreatedAt:   timestamppb.New(stat.CreatedAt),
-			UpdatedAt:   timestamppb.New(stat.UpdatedAt),
-		}
-
-		if stat.ResolvedAt != nil {
-			pbSampleAlerts[i].ResolvedAt = timestamppb.New(*stat.ResolvedAt)
-		}
-		if stat.AcknowledgedAt != nil {
-			pbSampleAlerts[i].AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
-		}
-		if stat.MTTRSeconds != nil {
-			pbSampleAlerts[i].MttrSeconds = int32(*stat.MTTRSeconds)
-		}
-		if stat.MTTASeconds != nil {
-			pbSampleAlerts[i].MttaSeconds = int32(*stat.MTTASeconds)
-		}
-		if stat.FixTimeSeconds != nil {
-			pbSampleAlerts[i].FixTimeSeconds = int32(*stat.FixTimeSeconds)
-		}
-	}
-
-	return &alertpb.TestOnCallRuleResponse{
-		Success:      true,
-		TotalMatches: totalCount,
-		SampleAlerts: pbSampleAlerts,
-		Message:      fmt.Sprintf("Rule matches %d alerts", totalCount),
-	}, nil
 }
 
 // ==================== Statistics Summary ====================
@@ -639,56 +216,6 @@ func (s *StatisticsServiceGorm) GetStatisticsSummary(ctx context.Context, req *a
 }
 
 // ==================== Helper Functions ====================
-
-// protoToModelRuleConfig converts protobuf RuleConfig to model RuleConfig
-func protoToModelRuleConfig(pbConfig *alertpb.RuleConfig) *models.RuleConfig {
-	criteria := make([]models.RuleCriterion, len(pbConfig.Criteria))
-	for i, pbCriterion := range pbConfig.Criteria {
-		criteria[i] = models.RuleCriterion{
-			Type:     pbCriterion.Type,
-			Operator: pbCriterion.Operator,
-			Value:    pbCriterion.Value,
-			Values:   pbCriterion.Values,
-			Key:      pbCriterion.Key,
-			Pattern:  pbCriterion.Pattern,
-		}
-	}
-
-	return &models.RuleConfig{
-		Criteria: criteria,
-		Logic:    pbConfig.Logic,
-	}
-}
-
-// modelToProtoRule converts model OnCallRule to protobuf OnCallRule
-func modelToProtoRule(rule *models.OnCallRule, config *models.RuleConfig) *alertpb.OnCallRule {
-	pbCriteria := make([]*alertpb.RuleCriterion, len(config.Criteria))
-	for i, criterion := range config.Criteria {
-		pbCriteria[i] = &alertpb.RuleCriterion{
-			Type:     criterion.Type,
-			Operator: criterion.Operator,
-			Value:    criterion.Value,
-			Values:   criterion.Values,
-			Key:      criterion.Key,
-			Pattern:  criterion.Pattern,
-		}
-	}
-
-	pbConfig := &alertpb.RuleConfig{
-		Criteria: pbCriteria,
-		Logic:    config.Logic,
-	}
-
-	return &alertpb.OnCallRule{
-		Id:         rule.ID,
-		UserId:     rule.UserID,
-		RuleName:   rule.RuleName,
-		RuleConfig: pbConfig,
-		IsActive:   rule.IsActive,
-		CreatedAt:  timestamppb.New(rule.CreatedAt),
-		UpdatedAt:  timestamppb.New(rule.UpdatedAt),
-	}
-}
 
 // Helper to marshal metadata to JSON
 func metadataToJSON(metadata map[string]interface{}) []byte {
@@ -922,22 +449,22 @@ func (s *StatisticsServiceGorm) QueryRecentlyResolved(ctx context.Context, req *
 	alerts := make([]*alertpb.ResolvedAlertItem, len(result.Alerts))
 	for i, item := range result.Alerts {
 		alerts[i] = &alertpb.ResolvedAlertItem{
-			Fingerprint:      item.Fingerprint,
-			AlertName:        item.AlertName,
-			Severity:         item.Severity,
-			OccurrenceCount:  int32(item.OccurrenceCount),
-			FirstFiredAt:     timestamppb.New(item.FirstFiredAt),
-			LastResolvedAt:   timestamppb.New(item.LastResolvedAt),
-			TotalMttr:        int32(item.TotalMTTR),
-			AvgMttr:          item.AvgMTTR,
-			TotalMtta:        int32(item.TotalMTTA),
-			AvgMtta:          item.AvgMTTA,
-			AvgFixTime:       item.AvgFixTime,
-			Labels:           item.Labels,
-			Annotations:      item.Annotations,
-			Source:           item.Source,
-			Instance:         item.Instance,
-			Team:             item.Team,
+			Fingerprint:     item.Fingerprint,
+			AlertName:       item.AlertName,
+			Severity:        item.Severity,
+			OccurrenceCount: int32(item.OccurrenceCount),
+			FirstFiredAt:    timestamppb.New(item.FirstFiredAt),
+			LastResolvedAt:  timestamppb.New(item.LastResolvedAt),
+			TotalMttr:       int32(item.TotalMTTR),
+			AvgMttr:         item.AvgMTTR,
+			TotalMtta:       int32(item.TotalMTTA),
+			AvgMtta:         item.AvgMTTA,
+			AvgFixTime:      item.AvgFixTime,
+			Labels:          item.Labels,
+			Annotations:     item.Annotations,
+			Source:          item.Source,
+			Instance:        item.Instance,
+			Team:            item.Team,
 		}
 	}
 
@@ -1063,7 +590,7 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 	startDate := req.StartDate.AsTime()
 	endDate := req.EndDate.AsTime()
 
-	// Build base query - alerts are global, rules are per-user
+	// Build base query
 	query := s.db.GetDB().Model(&models.AlertStatistic{}).
 		Where("alert_name = ?", req.AlertName).
 		Where("fired_at >= ? AND fired_at <= ?", startDate, endDate)
@@ -1074,15 +601,6 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		// Apply weekend filter if not including weekends
 		if !req.IncludeWeekends {
 			query = s.queryService.applyWeekendFilter(query)
-		}
-	}
-
-	// Apply on-call rules if requested
-	if req.ApplyRules {
-		query, err = s.ruleEngine.ApplyRulesToQuery(user.ID, query)
-		if err != nil {
-			log.Printf("Warning: Failed to apply rules for user %s: %v", user.ID, err)
-			// Continue without rules applied
 		}
 	}
 

@@ -143,7 +143,6 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.UserSentryConfig{},
 		// Alert statistics
 		&models.AlertStatistic{},
-		&models.OnCallRule{},
 		&models.StatisticsAggregate{},
 		// Statistics saved views
 		&models.StatisticsView{},
@@ -180,10 +179,6 @@ func (gdb *GormDB) createPostgreSQLIndexes() error {
 		// GIN index specifically for labels queries (more targeted)
 		`CREATE INDEX IF NOT EXISTS idx_alert_statistics_metadata_labels_gin
 		 ON alert_statistics USING GIN ((metadata->'labels'))`,
-
-		// GIN index on on_call_rules.rule_config for rule queries
-		`CREATE INDEX IF NOT EXISTS idx_on_call_rules_config_gin
-		 ON on_call_rules USING GIN (rule_config)`,
 
 		// GIN index on statistics_aggregates.aggregated_data
 		`CREATE INDEX IF NOT EXISTS idx_statistics_aggregates_data_gin
