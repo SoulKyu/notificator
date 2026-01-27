@@ -175,6 +175,9 @@ type DashboardCounters struct {
 	Resolved     int `json:"resolved"`
 	Acknowledged int `json:"acknowledged"`
 	WithComments int `json:"withComments"`
+	// SeverityCounters provides dynamic severity counts from actual alert data
+	// Keys are severity labels (e.g., "critical", "warning", "info", "page", etc.)
+	SeverityCounters map[string]int `json:"severityCounters"`
 }
 
 // DashboardAvailableFilters provides available filter options

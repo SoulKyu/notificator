@@ -16,7 +16,7 @@ templ NewDashboardContent() {
 		<header class="bg-white dark:bg-dark-bg-secondary shadow-sm border-b border-gray-200 dark:border-dark-border-subtle">
 			<div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
 				<div class="flex items-center justify-between h-16">
-					<!-- Logo & Title -->
+					<!-- Logo & Title with Integrated Stats -->
 					<div class="flex items-center space-x-4">
 						<div class="flex-shrink-0">
 							<div class="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
@@ -25,9 +25,70 @@ templ NewDashboardContent() {
 								</svg>
 							</div>
 						</div>
-						<div>
-							<h1 class="text-xl font-semibold text-gray-900 dark:text-white">Alert Dashboard</h1>
-							<p class="text-sm text-gray-500 dark:text-gray-400" x-text="getStatusText()"></p>
+						<div class="flex items-center space-x-4">
+							<div>
+								<h1 class="text-lg font-semibold text-gray-900 dark:text-white">Alert Dashboard</h1>
+								<p class="text-xs text-gray-500 dark:text-gray-400" x-text="getStatusText()"></p>
+							</div>
+
+							<!-- Divider -->
+							<div class="hidden lg:block h-8 w-px bg-gray-200 dark:bg-dark-border-subtle"></div>
+
+							<!-- Integrated Stats Badges -->
+							<div class="hidden lg:flex items-center space-x-2">
+								<!-- Empty state when no alerts -->
+								<span x-show="Object.keys(metadata.counters.severityCounters || {}).length === 0 && metadata.totalAlerts === 0"
+									  class="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+									<svg class="w-3.5 h-3.5 mr-1.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+									No active alerts
+								</span>
+
+								<!-- Dynamic Severity Badges -->
+								<template x-for="[severity, count] in Object.entries(metadata.counters.severityCounters || {}).sort((a, b) => getSeverityPriority(b[0]) - getSeverityPriority(a[0]))" :key="severity">
+									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium transition-colors"
+										  :class="getSeverityBadgeClasses(severity)">
+										<span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="getSeverityDotClasses(severity)"></span>
+										<span class="capitalize" x-text="severity"></span>
+										<span class="ml-1 font-semibold" x-text="count"></span>
+									</span>
+								</template>
+
+								<!-- Total Badge (only show when there are alerts) -->
+								<span x-show="metadata.totalAlerts > 0"
+									  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+									<span class="w-1.5 h-1.5 rounded-full mr-1.5 bg-gray-400"></span>
+									Total
+									<span class="ml-1 font-semibold" x-text="metadata.totalAlerts"></span>
+								</span>
+
+								<!-- Secondary Stats Dropdown -->
+								<div class="relative" x-data="{ statsOpen: false }">
+									<button @click="statsOpen = !statsOpen"
+											class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+										<svg class="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+										</svg>
+										More
+									</button>
+									<div x-show="statsOpen" x-cloak @click.away="statsOpen = false" x-transition
+										 class="absolute left-0 mt-2 w-48 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg border border-gray-200 dark:border-dark-border-subtle z-50 py-2">
+										<div class="px-3 py-2 flex items-center justify-between text-sm">
+											<span class="text-gray-600 dark:text-gray-400">Resolved</span>
+											<span class="font-medium text-green-600 dark:text-green-400" x-text="metadata.counters.resolved"></span>
+										</div>
+										<div class="px-3 py-2 flex items-center justify-between text-sm">
+											<span class="text-gray-600 dark:text-gray-400">Acknowledged</span>
+											<span class="font-medium text-purple-600 dark:text-purple-400" x-text="metadata.counters.acknowledged"></span>
+										</div>
+										<div class="px-3 py-2 flex items-center justify-between text-sm">
+											<span class="text-gray-600 dark:text-gray-400">With Comments</span>
+											<span class="font-medium text-indigo-600 dark:text-indigo-400" x-text="metadata.counters.withComments"></span>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
 					</div>
 
@@ -227,135 +288,6 @@ templ NewDashboardContent() {
 
 		<!-- Main Content -->
 		<main class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-			<!-- Stats Bar -->
-			<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-				<div class="bg-white dark:bg-dark-bg-secondary overflow-hidden shadow rounded-lg">
-					<div class="p-4">
-						<div class="flex items-center">
-							<div class="flex-shrink-0">
-								<div class="h-6 w-6 bg-red-100 dark:bg-red-900 rounded-md flex items-center justify-center">
-									<div class="h-2 w-2 bg-red-500 rounded-full"></div>
-								</div>
-							</div>
-							<div class="ml-3 w-0 flex-1">
-								<dl>
-									<dt class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">Critical</dt>
-									<dd class="text-lg font-semibold text-gray-900 dark:text-white" x-text="metadata.counters.critical">0</dd>
-								</dl>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="bg-white dark:bg-dark-bg-secondary overflow-hidden shadow rounded-lg">
-					<div class="p-4">
-						<div class="flex items-center">
-							<div class="flex-shrink-0">
-								<div class="h-6 w-6 bg-yellow-100 dark:bg-yellow-900 rounded-md flex items-center justify-center">
-									<div class="h-2 w-2 bg-yellow-500 rounded-full"></div>
-								</div>
-							</div>
-							<div class="ml-3 w-0 flex-1">
-								<dl>
-									<dt class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">Warning</dt>
-									<dd class="text-lg font-semibold text-gray-900 dark:text-white" x-text="metadata.counters.warning">0</dd>
-								</dl>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="bg-white dark:bg-dark-bg-secondary overflow-hidden shadow rounded-lg">
-					<div class="p-4">
-						<div class="flex items-center">
-							<div class="flex-shrink-0">
-								<div class="h-6 w-6 bg-blue-100 dark:bg-blue-900 rounded-md flex items-center justify-center">
-									<div class="h-2 w-2 bg-blue-500 rounded-full"></div>
-								</div>
-							</div>
-							<div class="ml-3 w-0 flex-1">
-								<dl>
-									<dt class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">Info</dt>
-									<dd class="text-lg font-semibold text-gray-900 dark:text-white" x-text="metadata.counters.info">0</dd>
-								</dl>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="bg-white dark:bg-dark-bg-secondary overflow-hidden shadow rounded-lg">
-					<div class="p-4">
-						<div class="flex items-center">
-							<div class="flex-shrink-0">
-								<div class="h-6 w-6 bg-green-100 dark:bg-green-900 rounded-md flex items-center justify-center">
-									<div class="h-2 w-2 bg-green-500 rounded-full"></div>
-								</div>
-							</div>
-							<div class="ml-3 w-0 flex-1">
-								<dl>
-									<dt class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">Resolved</dt>
-									<dd class="text-lg font-semibold text-gray-900 dark:text-white" x-text="metadata.counters.resolved">0</dd>
-								</dl>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="bg-white dark:bg-dark-bg-secondary overflow-hidden shadow rounded-lg">
-					<div class="p-4">
-						<div class="flex items-center">
-							<div class="flex-shrink-0">
-								<div class="h-6 w-6 bg-purple-100 dark:bg-purple-900 rounded-md flex items-center justify-center">
-									<div class="h-2 w-2 bg-purple-500 rounded-full"></div>
-								</div>
-							</div>
-							<div class="ml-3 w-0 flex-1">
-								<dl>
-									<dt class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">Acknowledged</dt>
-									<dd class="text-lg font-semibold text-gray-900 dark:text-white" x-text="metadata.counters.acknowledged">0</dd>
-								</dl>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="bg-white dark:bg-dark-bg-secondary overflow-hidden shadow rounded-lg">
-					<div class="p-4">
-						<div class="flex items-center">
-							<div class="flex-shrink-0">
-								<div class="h-6 w-6 bg-indigo-100 dark:bg-indigo-900 rounded-md flex items-center justify-center">
-									<div class="h-2 w-2 bg-indigo-500 rounded-full"></div>
-								</div>
-							</div>
-							<div class="ml-3 w-0 flex-1">
-								<dl>
-									<dt class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">With Comments</dt>
-									<dd class="text-lg font-semibold text-gray-900 dark:text-white" x-text="metadata.counters.withComments">0</dd>
-								</dl>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="bg-white dark:bg-dark-bg-secondary overflow-hidden shadow rounded-lg">
-					<div class="p-4">
-						<div class="flex items-center">
-							<div class="flex-shrink-0">
-								<div class="h-6 w-6 bg-gray-100 dark:bg-dark-bg-tertiary rounded-md flex items-center justify-center">
-									<div class="h-2 w-2 bg-gray-500 rounded-full"></div>
-								</div>
-							</div>
-							<div class="ml-3 w-0 flex-1">
-								<dl>
-									<dt class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">Total</dt>
-									<dd class="text-lg font-semibold text-gray-900 dark:text-white" x-text="metadata.totalAlerts">0</dd>
-								</dl>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-
 			<!-- Filters & Search -->
 			<div class="bg-white dark:bg-dark-bg-secondary shadow rounded-lg mb-6">
 				<div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle">

@@ -626,7 +626,9 @@ func convertToResponseAlerts(alerts []*webuimodels.DashboardAlert) []webuimodels
 }
 
 func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
-	counters := webuimodels.DashboardCounters{}
+	counters := webuimodels.DashboardCounters{
+		SeverityCounters: make(map[string]int),
+	}
 	availableFilters := webuimodels.DashboardAvailableFilters{
 		Alertmanagers: []string{},
 		Severities:    []string{},
@@ -644,7 +646,14 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 
 	// Count statistics from filtered alerts only
 	for _, alert := range filteredAlerts {
-		switch strings.ToLower(alert.Severity) {
+		// Track dynamic severity counters (includes all severity types)
+		severityLower := strings.ToLower(alert.Severity)
+		if severityLower != "" {
+			counters.SeverityCounters[severityLower]++
+		}
+
+		// Keep backward-compatible fixed counters
+		switch severityLower {
 		case "critical":
 			counters.Critical++
 		case "warning":

@@ -18,7 +18,8 @@ templ DashboardCore() {
 						firing: 0,
 						resolved: 0,
 						acknowledged: 0,
-						withComments: 0
+						withComments: 0,
+						severityCounters: {}
 					},
 					availableFilters: {
 						alertmanagers: [],
@@ -152,6 +153,65 @@ templ DashboardCore() {
 				statusMatches(status, value) {
 					const displayStatus = this.getDisplayStatus(status);
 					return displayStatus === value;
+				},
+
+				// Severity priority for sorting badges in header
+				getSeverityPriority(severity) {
+					const priorities = {
+						'critical': 100,
+						'page': 90,
+						'warning': 80,
+						'warn': 75,
+						'info': 50,
+						'information': 50,
+						'low': 30,
+						'none': 10
+					};
+					return priorities[severity?.toLowerCase()] || 40;
+				},
+
+				// Get CSS classes for severity badge background/text
+				// NOTE: Color values should match renderBadge() in dashboard_utilities.templ
+				// for consistency between header badges and table cells
+				getSeverityBadgeClasses(severity) {
+					const sev = severity?.toLowerCase();
+					switch (sev) {
+						case 'critical':
+						case 'page':
+							return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200';
+						case 'warning':
+						case 'warn':
+							return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200';
+						case 'info':
+						case 'information':
+							return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200';
+						case 'low':
+						case 'none':
+							return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+						default:
+							return 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200';
+					}
+				},
+
+				// Get CSS classes for severity dot indicator
+				getSeverityDotClasses(severity) {
+					const sev = severity?.toLowerCase();
+					switch (sev) {
+						case 'critical':
+						case 'page':
+							return 'bg-red-500';
+						case 'warning':
+						case 'warn':
+							return 'bg-yellow-500';
+						case 'info':
+						case 'information':
+							return 'bg-blue-500';
+						case 'low':
+						case 'none':
+							return 'bg-gray-400';
+						default:
+							return 'bg-purple-500';
+					}
 				},
 
 				// Check if response indicates authentication failure

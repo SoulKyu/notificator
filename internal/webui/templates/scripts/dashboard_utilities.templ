@@ -659,7 +659,7 @@ templ DashboardUtilities() {
 					case 'checkbox':
 						return this.renderCheckbox(alert);
 					case 'text':
-						return this.renderText(value);
+						return this.renderText(value, column.field_path);
 					case 'badge':
 						return this.renderBadge(value, column.field_path);
 					case 'duration':
@@ -671,7 +671,7 @@ templ DashboardUtilities() {
 					case 'actions':
 						return this.renderActions(alert);
 					default:
-						return this.renderText(value);
+						return this.renderText(value, column.field_path);
 				}
 			},
 
@@ -691,12 +691,20 @@ templ DashboardUtilities() {
 				return value !== null && value !== undefined ? value : '';
 			},
 
-			renderText(value) {
+			renderText(value, fieldPath = '') {
 				if (!value && value !== 0) return '<span class="text-gray-400 dark:text-gray-500">-</span>';
 				const escaped = this.escapeHtml(String(value));
-				return `<div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title="${escaped}">${escaped}</div>`;
+
+				// Alert name gets emphasized styling for visual hierarchy
+				if (fieldPath === 'alertName') {
+					return `<div class="text-sm font-semibold text-gray-900 dark:text-white truncate" title="${escaped}">${escaped}</div>`;
+				}
+
+				return `<div class="text-sm text-gray-700 dark:text-gray-200 truncate" title="${escaped}">${escaped}</div>`;
 			},
 
+			// NOTE: Color values should match getSeverityBadgeClasses() in dashboard_core.templ
+			// for consistency between table cells and header badges
 			renderBadge(value, fieldPath) {
 				if (!value && value !== 0) return '<span class="text-gray-400 dark:text-gray-500">-</span>';
 
@@ -783,7 +791,7 @@ templ DashboardUtilities() {
 				else if (minutes > 0) result = `${minutes}m ${secs}s`;
 				else result = `${secs}s`;
 
-				return `<span class="text-sm text-gray-900 dark:text-white">${result}</span>`;
+				return `<span class="text-sm font-mono text-gray-700 dark:text-gray-300 tabular-nums">${result}</span>`;
 			},
 
 			renderTimestamp(timestamp) {
@@ -792,9 +800,9 @@ templ DashboardUtilities() {
 				try {
 					const date = new Date(timestamp);
 					const formatted = date.toLocaleString();
-					return `<span class="text-sm text-gray-900 dark:text-white">${this.escapeHtml(formatted)}</span>`;
+					return `<span class="text-sm font-mono text-gray-700 dark:text-gray-300 tabular-nums">${this.escapeHtml(formatted)}</span>`;
 				} catch (e) {
-					return `<span class="text-sm text-gray-900 dark:text-white">${this.escapeHtml(String(timestamp))}</span>`;
+					return `<span class="text-sm font-mono text-gray-700 dark:text-gray-300">${this.escapeHtml(String(timestamp))}</span>`;
 				}
 			},
 
