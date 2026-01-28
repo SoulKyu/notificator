@@ -48,15 +48,34 @@ templ StatisticsViews() {
 				// Get current filter state as view data
 				getCurrentViewData() {
 					return {
-						date_range_type: 'relative',
+						// Time range mode
+						time_range_mode: this.filters.timeRangeMode,
+
+						// Relative time settings
+						relative_from: this.filters.relativeFrom ? { ...this.filters.relativeFrom } : null,
+						relative_until: this.filters.relativeUntil ? { ...this.filters.relativeUntil } : null,
+
+						// Absolute dates (computed)
 						start_date: this.filters.startDate,
 						end_date: this.filters.endDate,
+						absolute_from_time: this.filters.absoluteFromTime,
+						absolute_until_time: this.filters.absoluteUntilTime,
+
+						// Time of day filtering
 						filter_by_time_of_day: this.filters.filterByTimeOfDay,
 						time_of_day_start: this.filters.timeOfDayStart,
 						time_of_day_end: this.filters.timeOfDayEnd,
 						include_weekends: this.filters.includeWeekends !== false,
+
+						// Grouping
 						group_by: this.filters.groupBy,
 						period_type: this.filters.periodType,
+
+						// Filters
+						severities: this.filters.severities || [],
+						teams: this.filters.teams || [],
+
+						// Options
 						apply_rules: this.filters.applyRules,
 						limit: this.filters.limit
 					};
@@ -150,19 +169,58 @@ templ StatisticsViews() {
 
 					const data = view.view_data;
 
-					// Apply filter values
+					// Determine if this view has relative time data (new format)
+					const hasRelativeTimeData = data.time_range_mode === 'relative' && data.relative_from;
+
+					// Time range mode - default to 'absolute' for old views without this field
+					if (data.time_range_mode) {
+						this.filters.timeRangeMode = data.time_range_mode;
+						this.timeRangePickerTab = data.time_range_mode;
+					} else {
+						// Old view format - treat as absolute since it only has start/end dates
+						this.filters.timeRangeMode = 'absolute';
+						this.timeRangePickerTab = 'absolute';
+					}
+
+					// Relative time settings (only if view has them)
+					if (data.relative_from) {
+						this.filters.relativeFrom = { ...data.relative_from };
+					}
+					if (data.relative_until) {
+						this.filters.relativeUntil = { ...data.relative_until };
+					}
+
+					// Absolute dates - always apply these first
 					if (data.start_date) this.filters.startDate = data.start_date;
 					if (data.end_date) this.filters.endDate = data.end_date;
+					if (data.absolute_from_time) this.filters.absoluteFromTime = data.absolute_from_time;
+					if (data.absolute_until_time) this.filters.absoluteUntilTime = data.absolute_until_time;
+
+					// Time of day filtering
 					this.filters.filterByTimeOfDay = data.filter_by_time_of_day || false;
 					if (data.time_of_day_start) this.filters.timeOfDayStart = data.time_of_day_start;
 					if (data.time_of_day_end) this.filters.timeOfDayEnd = data.time_of_day_end;
 					this.filters.includeWeekends = data.include_weekends !== false;
+
+					// Grouping
 					if (data.group_by !== undefined) this.filters.groupBy = data.group_by;
 					if (data.period_type) this.filters.periodType = data.period_type;
+
+					// Filters
+					this.filters.severities = data.severities || [];
+					this.filters.teams = data.teams || [];
+
+					// Options
 					this.filters.applyRules = data.apply_rules || false;
 					if (data.limit) this.filters.limit = data.limit;
 
 					this.currentViewId = view.id;
+
+					// Recompute dates ONLY if this view was saved with relative time data
+					// This prevents overwriting absolute dates from old views
+					if (hasRelativeTimeData && typeof this.applyTimeRangeFromRelative === 'function') {
+						this.applyTimeRangeFromRelative();
+					}
 
 					// Optionally run query
 					if (runQuery) {

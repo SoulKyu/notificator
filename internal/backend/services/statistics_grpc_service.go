@@ -1001,20 +1001,58 @@ func protoToModelViewData(pbData *alertpb.StatisticsViewData) *models.Statistics
 	if pbData == nil {
 		return &models.StatisticsViewData{}
 	}
-	return &models.StatisticsViewData{
+	result := &models.StatisticsViewData{
+		// Time range mode
+		TimeRangeMode: pbData.TimeRangeMode,
+
+		// Absolute dates
 		DateRangeType:     pbData.DateRangeType,
 		StartDate:         pbData.StartDate,
 		EndDate:           pbData.EndDate,
+		AbsoluteFromTime:  pbData.AbsoluteFromTime,
+		AbsoluteUntilTime: pbData.AbsoluteUntilTime,
+
+		// Time of day filtering
 		FilterByTimeOfDay: pbData.FilterByTimeOfDay,
 		TimeOfDayStart:    pbData.TimeOfDayStart,
 		TimeOfDayEnd:      pbData.TimeOfDayEnd,
 		UseOnCallPeriod:   pbData.UseOnCallPeriod,
 		IncludeWeekends:   pbData.IncludeWeekends,
-		GroupBy:           pbData.GroupBy,
-		PeriodType:        pbData.PeriodType,
-		ApplyRules:        pbData.ApplyRules,
-		Limit:             int(pbData.Limit),
+
+		// Grouping
+		GroupBy:    pbData.GroupBy,
+		PeriodType: pbData.PeriodType,
+
+		// Filter arrays
+		Severities: pbData.Severities,
+		Teams:      pbData.Teams,
+
+		// Other
+		ApplyRules: pbData.ApplyRules,
+		Limit:      int(pbData.Limit),
 	}
+
+	// Handle RelativeFrom
+	if pbData.RelativeFrom != nil {
+		result.RelativeFrom = &models.RelativeTimeConfig{
+			Value:   int(pbData.RelativeFrom.Value),
+			Unit:    pbData.RelativeFrom.Unit,
+			AllTime: pbData.RelativeFrom.AllTime,
+			Now:     pbData.RelativeFrom.Now,
+		}
+	}
+
+	// Handle RelativeUntil
+	if pbData.RelativeUntil != nil {
+		result.RelativeUntil = &models.RelativeTimeConfig{
+			Value:   int(pbData.RelativeUntil.Value),
+			Unit:    pbData.RelativeUntil.Unit,
+			AllTime: pbData.RelativeUntil.AllTime,
+			Now:     pbData.RelativeUntil.Now,
+		}
+	}
+
+	return result
 }
 
 // modelToProtoViewData converts model StatisticsViewData to protobuf StatisticsViewData
@@ -1022,18 +1060,56 @@ func modelToProtoViewData(data *models.StatisticsViewData) *alertpb.StatisticsVi
 	if data == nil {
 		return &alertpb.StatisticsViewData{}
 	}
-	return &alertpb.StatisticsViewData{
+	result := &alertpb.StatisticsViewData{
+		// Time range mode
+		TimeRangeMode: data.TimeRangeMode,
+
+		// Absolute dates
 		DateRangeType:     data.DateRangeType,
 		StartDate:         data.StartDate,
 		EndDate:           data.EndDate,
+		AbsoluteFromTime:  data.AbsoluteFromTime,
+		AbsoluteUntilTime: data.AbsoluteUntilTime,
+
+		// Time of day filtering
 		FilterByTimeOfDay: data.FilterByTimeOfDay,
 		TimeOfDayStart:    data.TimeOfDayStart,
 		TimeOfDayEnd:      data.TimeOfDayEnd,
 		UseOnCallPeriod:   data.UseOnCallPeriod,
 		IncludeWeekends:   data.IncludeWeekends,
-		GroupBy:           data.GroupBy,
-		PeriodType:        data.PeriodType,
-		ApplyRules:        data.ApplyRules,
-		Limit:             int32(data.Limit),
+
+		// Grouping
+		GroupBy:    data.GroupBy,
+		PeriodType: data.PeriodType,
+
+		// Filter arrays
+		Severities: data.Severities,
+		Teams:      data.Teams,
+
+		// Other
+		ApplyRules: data.ApplyRules,
+		Limit:      int32(data.Limit),
 	}
+
+	// Handle RelativeFrom
+	if data.RelativeFrom != nil {
+		result.RelativeFrom = &alertpb.RelativeTimeConfig{
+			Value:   int32(data.RelativeFrom.Value),
+			Unit:    data.RelativeFrom.Unit,
+			AllTime: data.RelativeFrom.AllTime,
+			Now:     data.RelativeFrom.Now,
+		}
+	}
+
+	// Handle RelativeUntil
+	if data.RelativeUntil != nil {
+		result.RelativeUntil = &alertpb.RelativeTimeConfig{
+			Value:   int32(data.RelativeUntil.Value),
+			Unit:    data.RelativeUntil.Unit,
+			AllTime: data.RelativeUntil.AllTime,
+			Now:     data.RelativeUntil.Now,
+		}
+	}
+
+	return result
 }

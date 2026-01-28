@@ -1055,10 +1055,18 @@ message StatisticsView {
   google.protobuf.Timestamp updated_at = 9;
 }
 
+// RelativeTimeConfig represents relative time settings (e.g., "7 days ago")
+message RelativeTimeConfig {
+  int32 value = 1;                        // Numeric value (e.g., 7)
+  string unit = 2;                        // "minutes", "hours", "days", "weeks", "months"
+  bool all_time = 3;                      // If true, represents "all time" (no start limit)
+  bool now = 4;                           // If true, represents "now" (current time)
+}
+
 message StatisticsViewData {
-  string date_range_type = 1;             // "relative" or "absolute"
-  string start_date = 2;                  // Relative: "7d", "30d", "past_month" or absolute: "2024-01-01"
-  string end_date = 3;                    // For absolute date ranges
+  string date_range_type = 1;             // Legacy field (for backward compatibility)
+  string start_date = 2;                  // Computed start date: "YYYY-MM-DD"
+  string end_date = 3;                    // Computed end date: "YYYY-MM-DD"
   bool filter_by_time_of_day = 4;
   string time_of_day_start = 5;           // "HH:MM" format
   string time_of_day_end = 6;             // "HH:MM" format
@@ -1068,4 +1076,15 @@ message StatisticsViewData {
   string period_type = 10;                // "hour", "day", "week", "month"
   bool apply_rules = 11;
   int32 limit = 12;                       // For top N alerts when groupBy is "alert_name"
+
+  // New fields for enhanced time range support
+  string time_range_mode = 13;            // "relative" or "absolute"
+  RelativeTimeConfig relative_from = 14;  // Relative "from" settings
+  RelativeTimeConfig relative_until = 15; // Relative "until" settings
+  string absolute_from_time = 16;         // "HH:MM" format for absolute mode
+  string absolute_until_time = 17;        // "HH:MM" format for absolute mode
+
+  // Filter arrays
+  repeated string severities = 18;        // Filter by severity levels
+  repeated string teams = 19;             // Filter by team names
 }

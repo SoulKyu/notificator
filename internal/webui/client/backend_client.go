@@ -2097,7 +2097,8 @@ func protoToModelStatisticsViewData(pbData *alertpb.StatisticsViewData) models.S
 	if pbData == nil {
 		return models.StatisticsViewData{}
 	}
-	return models.StatisticsViewData{
+
+	result := models.StatisticsViewData{
 		DateRangeType:     pbData.DateRangeType,
 		StartDate:         pbData.StartDate,
 		EndDate:           pbData.EndDate,
@@ -2110,14 +2111,43 @@ func protoToModelStatisticsViewData(pbData *alertpb.StatisticsViewData) models.S
 		PeriodType:        pbData.PeriodType,
 		ApplyRules:        pbData.ApplyRules,
 		Limit:             int(pbData.Limit),
+		// New fields
+		TimeRangeMode:     pbData.TimeRangeMode,
+		AbsoluteFromTime:  pbData.AbsoluteFromTime,
+		AbsoluteUntilTime: pbData.AbsoluteUntilTime,
+		Severities:        pbData.Severities,
+		Teams:             pbData.Teams,
 	}
+
+	// Convert RelativeFrom
+	if pbData.RelativeFrom != nil {
+		result.RelativeFrom = &models.RelativeTimeConfig{
+			Value:   int(pbData.RelativeFrom.Value),
+			Unit:    pbData.RelativeFrom.Unit,
+			AllTime: pbData.RelativeFrom.AllTime,
+			Now:     pbData.RelativeFrom.Now,
+		}
+	}
+
+	// Convert RelativeUntil
+	if pbData.RelativeUntil != nil {
+		result.RelativeUntil = &models.RelativeTimeConfig{
+			Value:   int(pbData.RelativeUntil.Value),
+			Unit:    pbData.RelativeUntil.Unit,
+			AllTime: pbData.RelativeUntil.AllTime,
+			Now:     pbData.RelativeUntil.Now,
+		}
+	}
+
+	return result
 }
 
 func modelToProtoStatisticsViewData(data *models.StatisticsViewData) *alertpb.StatisticsViewData {
 	if data == nil {
 		return &alertpb.StatisticsViewData{}
 	}
-	return &alertpb.StatisticsViewData{
+
+	result := &alertpb.StatisticsViewData{
 		DateRangeType:     data.DateRangeType,
 		StartDate:         data.StartDate,
 		EndDate:           data.EndDate,
@@ -2130,5 +2160,33 @@ func modelToProtoStatisticsViewData(data *models.StatisticsViewData) *alertpb.St
 		PeriodType:        data.PeriodType,
 		ApplyRules:        data.ApplyRules,
 		Limit:             int32(data.Limit),
+		// New fields
+		TimeRangeMode:     data.TimeRangeMode,
+		AbsoluteFromTime:  data.AbsoluteFromTime,
+		AbsoluteUntilTime: data.AbsoluteUntilTime,
+		Severities:        data.Severities,
+		Teams:             data.Teams,
 	}
+
+	// Convert RelativeFrom
+	if data.RelativeFrom != nil {
+		result.RelativeFrom = &alertpb.RelativeTimeConfig{
+			Value:   int32(data.RelativeFrom.Value),
+			Unit:    data.RelativeFrom.Unit,
+			AllTime: data.RelativeFrom.AllTime,
+			Now:     data.RelativeFrom.Now,
+		}
+	}
+
+	// Convert RelativeUntil
+	if data.RelativeUntil != nil {
+		result.RelativeUntil = &alertpb.RelativeTimeConfig{
+			Value:   int32(data.RelativeUntil.Value),
+			Unit:    data.RelativeUntil.Unit,
+			AllTime: data.RelativeUntil.AllTime,
+			Now:     data.RelativeUntil.Now,
+		}
+	}
+
+	return result
 }

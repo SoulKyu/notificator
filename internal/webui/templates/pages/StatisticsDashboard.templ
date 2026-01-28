@@ -27,7 +27,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				<div class="flex items-center justify-between">
 					<!-- Left: Navigation & Title -->
 					<div class="flex items-center gap-4">
-						<a href="/dashboard" class="p-2 -ml-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition-colors" title="Back to Dashboard">
+						<a href="/dashboard" class="p-2 -ml-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900" title="Back to Dashboard">
 							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
 							</svg>
@@ -47,7 +47,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						<!-- Compare Toggle -->
 						<button @click="comparisonMode = !comparisonMode; if(comparisonMode && hasData) loadComparisonData()"
 							:class="comparisonMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
-							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors">
+							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
 							</svg>
@@ -108,11 +108,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<!-- Quick Presets -->
 							<div class="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
 								<div class="flex flex-wrap gap-2">
-									<button @click="setQuickRange('1h')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">1 hour</button>
-									<button @click="setQuickRange('24h')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">24 hours</button>
-									<button @click="setQuickRange('7d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">7 days</button>
-									<button @click="setQuickRange('30d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">30 days</button>
-									<button @click="setQuickRange('90d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors">90 days</button>
+									<button @click="setQuickRange('1h')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">1 hour</button>
+									<button @click="setQuickRange('24h')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">24 hours</button>
+									<button @click="setQuickRange('7d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">7 days</button>
+									<button @click="setQuickRange('30d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">30 days</button>
+									<button @click="setQuickRange('90d')" type="button" class="px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">90 days</button>
 								</div>
 							</div>
 							<!-- Tab Headers -->
@@ -352,7 +352,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 							<!-- Clear button when active -->
 							<div x-show="filters.filterByTimeOfDay" class="border-t border-slate-100 dark:border-slate-700 p-2">
-								<button @click="filters.filterByTimeOfDay = false; timeOfDayOpen = false" class="w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-center">Clear filter</button>
+								<button @click="filters.filterByTimeOfDay = false; timeOfDayOpen = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear filter</button>
 							</div>
 						</div>
 					</div>
@@ -418,7 +418,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								</label>
 							</div>
 							<div x-show="filters.severities.length > 0" class="border-t border-slate-100 dark:border-slate-700 p-2">
-								<button @click="filters.severities = []; showSeverityDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-center">Clear</button>
+								<button @click="filters.severities = []; showSeverityDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear</button>
 							</div>
 						</div>
 					</div>
@@ -447,7 +447,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</svg>
 						</button>
 						<div x-show="showTeamDropdown" x-transition class="absolute left-0 mt-2 w-56 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-							<div x-show="availableTeams.length === 0" class="p-4 text-center text-sm text-slate-500">Loading teams...</div>
+							<div x-show="availableTeams.length === 0" class="p-4 text-center text-sm text-slate-500 dark:text-slate-300">Loading teams...</div>
 							<div x-show="availableTeams.length > 0" class="max-h-60 overflow-y-auto p-2 space-y-1">
 								<template x-for="team in availableTeams" :key="team">
 									<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
@@ -457,7 +457,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								</template>
 							</div>
 							<div x-show="filters.teams.length > 0" class="border-t border-slate-100 dark:border-slate-700 p-2">
-								<button @click="filters.teams = []; showTeamDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-center">Clear</button>
+								<button @click="filters.teams = []; showTeamDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear</button>
 							</div>
 						</div>
 					</div>
@@ -599,7 +599,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				<!-- Run Query Button -->
 				<button @click="queryStatistics" :disabled="loading"
-					class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+					class="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">
 					<svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
 						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -745,7 +745,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									<button @click="timeSeriesView = 'resolved'" :class="timeSeriesView === 'resolved' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'" class="px-3 py-1 text-xs font-medium rounded-md transition-all">Resolved</button>
 									<button @click="timeSeriesView = 'both'" :class="timeSeriesView === 'both' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'" class="px-3 py-1 text-xs font-medium rounded-md transition-all">Both</button>
 								</div>
-								<button @click="openFullscreenChart('alertsTime')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
+								<button @click="openFullscreenChart('alertsTime')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" title="Fullscreen">
 									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 									</svg>
@@ -796,7 +796,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 											</button>
 										</div>
 										<!-- Fullscreen button -->
-										<button @click="openFullscreenChart('distribution')" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
+										<button @click="openFullscreenChart('distribution')" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" title="Fullscreen">
 											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 											</svg>
@@ -956,8 +956,8 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
 								<h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="'Top 10 ' + (appliedGroupBy ? getGroupByLabel() : 'Alerts')"></h3>
 								<div class="flex items-center gap-2">
-									<span class="text-xs text-slate-500">Click to filter</span>
-									<button @click="openFullscreenChart('topItems')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
+									<span class="text-xs text-slate-500 dark:text-slate-300">Click to filter</span>
+									<button @click="openFullscreenChart('topItems')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" title="Fullscreen">
 										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 										</svg>
@@ -980,7 +980,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<span class="px-2 py-1 text-xs font-medium rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">MTTR</span>
 								<span class="px-2 py-1 text-xs font-medium rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">MTTA</span>
 								<span class="px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">Fix</span>
-								<button @click="openFullscreenChart('timeMetrics')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Fullscreen">
+								<button @click="openFullscreenChart('timeMetrics')" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" title="Fullscreen">
 									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
 									</svg>
@@ -1140,7 +1140,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 												</div>
 												<div class="text-right">
 													<div class="text-xl font-bold text-slate-900 dark:text-white" x-text="formatNumber(item.total_count)"></div>
-													<div class="text-xs text-slate-500">alerts</div>
+													<div class="text-xs text-slate-500 dark:text-slate-300">alerts</div>
 												</div>
 											</div>
 											<div x-show="item.statistics && Object.keys(item.statistics).length > 0" class="mt-3 flex flex-wrap gap-2">
@@ -1178,7 +1178,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					x-transition:leave="ease-in duration-200"
 					x-transition:leave-start="opacity-100"
 					x-transition:leave-end="opacity-0"
-					class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
+					class="fixed inset-0 transition-opacity bg-slate-500 bg-opacity-75 dark:bg-slate-900 dark:bg-opacity-75"
 					aria-hidden="true"
 				></div>
 
@@ -1199,14 +1199,14 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					<!-- Header -->
 					<div class="flex items-center justify-between mb-6">
 						<div>
-							<h3 class="text-lg font-medium text-gray-900 dark:text-white">Alert Occurrences</h3>
-							<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+							<h3 class="text-lg font-medium text-slate-900 dark:text-white">Alert Occurrences</h3>
+							<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
 								<span x-text="selectedAlertName"></span>
 								<span class="mx-2">•</span>
 								<span x-text="alertDetailsData?.length || 0"></span> occurrences
 							</p>
 						</div>
-						<button @click="closeAlertDetailsModal()" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+						<button @click="closeAlertDetailsModal()" class="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300">
 							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
 							</svg>
@@ -1219,26 +1219,26 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading alert details...</p>
+						<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading alert details...</p>
 					</div>
 
 					<!-- Alert List -->
 					<div x-show="!alertDetailsLoading && alertDetailsData?.length > 0" class="max-h-[60vh] overflow-y-auto">
-						<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-							<thead class="bg-gray-50 dark:bg-dark-bg-tertiary sticky top-0">
+						<table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+							<thead class="bg-slate-50 dark:bg-dark-bg-tertiary sticky top-0">
 								<tr>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Severity</th>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Fired At</th>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Resolved At</th>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MTTR</th>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MTTA</th>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Fix Time</th>
-									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Labels</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Severity</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Fired At</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Resolved At</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">MTTR</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">MTTA</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Fix Time</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Labels</th>
 								</tr>
 							</thead>
-							<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-gray-700">
+							<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-slate-200 dark:divide-slate-700">
 								<template x-for="alert in alertDetailsData" :key="alert.id">
-									<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors"
+									<tr class="hover:bg-slate-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors"
 										@click.stop="openIndividualAlertDetails(alert)"
 										title="Click to view full alert details">
 										<td class="px-4 py-3 whitespace-nowrap">
@@ -1251,15 +1251,15 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 												x-text="alert.severity">
 											</span>
 										</td>
-										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDateTime(alert.fired_at)"></td>
-										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.resolved_at ? formatDateTime(alert.resolved_at) : '—'"></td>
-										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(alert.mttr_seconds)"></td>
-										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.mtta_seconds ? formatDuration(alert.mtta_seconds) : '—'"></td>
-										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="alert.fix_time_seconds ? formatDuration(alert.fix_time_seconds) : '—'"></td>
-										<td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="formatDateTime(alert.fired_at)"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="alert.resolved_at ? formatDateTime(alert.resolved_at) : '—'"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="formatDuration(alert.mttr_seconds)"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="alert.mtta_seconds ? formatDuration(alert.mtta_seconds) : '—'"></td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400" x-text="alert.fix_time_seconds ? formatDuration(alert.fix_time_seconds) : '—'"></td>
+										<td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
 											<div class="flex flex-wrap gap-1 max-w-xs">
 												<template x-for="(value, key) in getAlertLabels(alert)" :key="key">
-													<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+													<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
 														<span x-text="key + '=' + value"></span>
 													</span>
 												</template>
@@ -1273,17 +1273,17 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 					<!-- Empty State -->
 					<div x-show="!alertDetailsLoading && (!alertDetailsData || alertDetailsData.length === 0)" class="text-center py-12">
-						<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
 						</svg>
-						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No alert occurrences found</p>
+						<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">No alert occurrences found</p>
 					</div>
 
 					<!-- Footer -->
 					<div class="mt-6 flex justify-end">
 						<button
 							@click="closeAlertDetailsModal()"
-							class="px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+							class="px-4 py-2 border border-slate-300 dark:border-slate-600 shadow-sm text-sm font-medium rounded-md text-slate-700 dark:text-slate-200 bg-white dark:bg-dark-bg-tertiary hover:bg-slate-50 dark:hover:bg-dark-bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
 						>
 							Close
 						</button>
@@ -1296,26 +1296,26 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 		<div x-show="showSaveViewModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
 			<div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
 				<!-- Background overlay -->
-				<div x-show="showSaveViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" @click="closeSaveViewModal()"></div>
+				<div x-show="showSaveViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 transition-opacity bg-slate-500 bg-opacity-75 dark:bg-slate-900 dark:bg-opacity-75" @click="closeSaveViewModal()"></div>
 				<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 				<!-- Modal panel -->
 				<div x-show="showSaveViewModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" class="relative z-10 inline-block w-full max-w-md px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-dark-bg-secondary rounded-lg shadow-xl sm:my-8 sm:align-middle sm:p-6" @click.stop>
 					<div class="mb-4">
-						<h3 class="text-lg font-medium text-gray-900 dark:text-white" x-text="viewForm.isEditing ? 'Edit View' : 'Save Current View'"></h3>
-						<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Save your current filter configuration for quick access later.</p>
+						<h3 class="text-lg font-medium text-slate-900 dark:text-white" x-text="viewForm.isEditing ? 'Edit View' : 'Save Current View'"></h3>
+						<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Save your current filter configuration for quick access later.</p>
 					</div>
 					<div class="space-y-4">
 						<div>
-							<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-							<input type="text" x-model="viewForm.name" placeholder="e.g., Weekly Critical Alerts" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"/>
+							<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+							<input type="text" x-model="viewForm.name" placeholder="e.g., Weekly Critical Alerts" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (optional)</label>
-							<textarea x-model="viewForm.description" rows="2" placeholder="Brief description of this view..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"></textarea>
+							<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description (optional)</label>
+							<textarea x-model="viewForm.description" rows="2" placeholder="Brief description of this view..." class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white text-sm"></textarea>
 						</div>
 					</div>
 					<div class="mt-6 flex justify-end space-x-3">
-						<button @click="closeSaveViewModal()" type="button" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-dark-bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+						<button @click="closeSaveViewModal()" type="button" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-dark-bg-tertiary border border-slate-300 dark:border-slate-600 rounded-md shadow-sm hover:bg-slate-50 dark:hover:bg-dark-bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
 							Cancel
 						</button>
 						<button @click="saveView()" type="button" :disabled="!viewForm.name.trim()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -1345,7 +1345,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				x-transition:leave="transition ease-in duration-150"
 				x-transition:leave-start="opacity-100"
 				x-transition:leave-end="opacity-0"
-				class="absolute inset-0 bg-gray-900/80 backdrop-blur-sm"
+				class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
 				@click="closeFullscreenChart()"
 			></div>
 
@@ -1361,9 +1361,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				class="relative h-full w-full flex flex-col"
 			>
 				<!-- Header -->
-				<div class="flex items-center justify-between px-6 py-4 bg-white dark:bg-dark-bg-secondary border-b border-gray-200 dark:border-dark-border-subtle shadow-lg">
+				<div class="flex items-center justify-between px-6 py-4 bg-white dark:bg-dark-bg-secondary border-b border-slate-200 dark:border-dark-border-subtle shadow-lg">
 					<div class="flex items-center space-x-4">
-						<h3 class="text-xl font-semibold text-gray-900 dark:text-white" x-text="getFullscreenChartTitle()"></h3>
+						<h3 class="text-xl font-semibold text-slate-900 dark:text-white" x-text="getFullscreenChartTitle()"></h3>
 						<!-- Legend badges for time metrics chart -->
 						<template x-if="fullscreenChart === 'timeMetrics'">
 							<div class="flex items-center space-x-2">
@@ -1373,7 +1373,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</div>
 						</template>
 					</div>
-					<button @click="closeFullscreenChart()" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary" title="Close (Esc)">
+					<button @click="closeFullscreenChart()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-dark-bg-tertiary" title="Close (Esc)">
 						<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
 						</svg>
@@ -1475,7 +1475,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					'team': { border: 'border-l-blue-500', bg: 'bg-blue-50/50 dark:bg-blue-900/10', label: 'text-blue-700 dark:text-blue-400', ring: 'ring-blue-500' },
 					'alert_name': { border: 'border-l-green-500', bg: 'bg-green-50/50 dark:bg-green-900/10', label: 'text-green-700 dark:text-green-400', ring: 'ring-green-500' },
 					'period': { border: 'border-l-purple-500', bg: 'bg-purple-50/50 dark:bg-purple-900/10', label: 'text-purple-700 dark:text-purple-400', ring: 'ring-purple-500' },
-					'': { border: 'border-l-gray-300 dark:border-l-gray-600', bg: 'bg-white dark:bg-dark-bg-secondary', label: 'text-gray-700 dark:text-gray-300', ring: 'ring-gray-300' }
+					'': { border: 'border-l-gray-300 dark:border-l-gray-600', bg: 'bg-white dark:bg-dark-bg-secondary', label: 'text-slate-700 dark:text-slate-300', ring: 'ring-slate-300' }
 				},
 
 				getGroupByStyle(part) {
@@ -1520,6 +1520,68 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					// Apply the time range and close picker
 					this.applyTimeRangeFromRelative();
 					this.closeTimeRangePicker(true);
+				},
+
+				// Convert relative time settings to actual start/end dates
+				applyTimeRangeFromRelative() {
+					const now = new Date();
+
+					// Calculate "From" date
+					if (this.filters.relativeFrom.allTime) {
+						// All time - set to a very old date
+						this.filters.startDate = '2000-01-01';
+					} else {
+						const fromDate = new Date(now);
+						const value = this.filters.relativeFrom.value || 0;
+						const unit = this.filters.relativeFrom.unit || 'days';
+
+						switch(unit) {
+							case 'minutes':
+								fromDate.setMinutes(fromDate.getMinutes() - value);
+								break;
+							case 'hours':
+								fromDate.setHours(fromDate.getHours() - value);
+								break;
+							case 'days':
+								fromDate.setDate(fromDate.getDate() - value);
+								break;
+							case 'weeks':
+								fromDate.setDate(fromDate.getDate() - (value * 7));
+								break;
+							case 'months':
+								fromDate.setMonth(fromDate.getMonth() - value);
+								break;
+						}
+						this.filters.startDate = fromDate.toISOString().split('T')[0];
+					}
+
+					// Calculate "Until" date
+					if (this.filters.relativeUntil.now) {
+						this.filters.endDate = now.toISOString().split('T')[0];
+					} else {
+						const untilDate = new Date(now);
+						const value = this.filters.relativeUntil.value || 0;
+						const unit = this.filters.relativeUntil.unit || 'days';
+
+						switch(unit) {
+							case 'minutes':
+								untilDate.setMinutes(untilDate.getMinutes() - value);
+								break;
+							case 'hours':
+								untilDate.setHours(untilDate.getHours() - value);
+								break;
+							case 'days':
+								untilDate.setDate(untilDate.getDate() - value);
+								break;
+							case 'weeks':
+								untilDate.setDate(untilDate.getDate() - (value * 7));
+								break;
+							case 'months':
+								untilDate.setMonth(untilDate.getMonth() - value);
+								break;
+						}
+						this.filters.endDate = untilDate.toISOString().split('T')[0];
+					}
 				},
 
 				// Format number with K/M suffix for large numbers
@@ -1872,7 +1934,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						'warning': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
 						'info': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
 					};
-					return classes[severity.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+					return classes[severity.toLowerCase()] || 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300';
 				},
 
 				sortBy(column) {
@@ -1935,7 +1997,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				getSortIcon(column) {
 					if (this.sortColumn !== column) {
-						return '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>';
+						return '<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>';
 					}
 
 					if (this.sortDirection === 'asc') {
@@ -1943,10 +2005,6 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					}
 
 					return '<svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>';
-				},
-
-				formatNumber(num) {
-					return new Intl.NumberFormat().format(num || 0);
 				},
 
 				// Truncate label with ellipsis for chart display
@@ -2982,7 +3040,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				getDeltaClass(delta, inverted = false) {
 					const numDelta = parseFloat(delta);
-					if (isNaN(numDelta) || numDelta === 0) return 'text-gray-500';
+					if (isNaN(numDelta) || numDelta === 0) return 'text-slate-500';
 
 					// For inverted metrics (like duration/mttr), decrease is good
 					const isGood = inverted ? numDelta < 0 : numDelta < 0;
@@ -3500,20 +3558,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					this.individualAlertOccurrences = [];
 				},
 
-				// Format duration for display
-				formatDuration(seconds) {
-					if (!seconds || seconds <= 0) return '—';
-					const hours = Math.floor(seconds / 3600);
-					const minutes = Math.floor((seconds % 3600) / 60);
-					const secs = Math.floor(seconds % 60);
-					if (hours > 0) {
-						return `${hours}h ${minutes}m`;
-					} else if (minutes > 0) {
-						return `${minutes}m ${secs}s`;
-					}
-					return `${secs}s`;
-				},
-
+	
 				// Copy to clipboard
 				copyToClipboard(text) {
 					if (!text) return;

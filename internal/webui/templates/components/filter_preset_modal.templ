@@ -8,7 +8,7 @@ templ FilterPresetsModal() {
 			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity z-0" @click="showFilterPresetsModal = false"></div>
 
 			<!-- Modal panel -->
-			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] relative z-10 border border-gray-200/50 dark:border-dark-border-subtle/50">
+			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] relative z-10 border border-gray-200/50 dark:border-dark-border-subtle/50" @click.stop>
 				<!-- Header -->
 				<div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle bg-gradient-to-r from-gray-50 to-white dark:from-dark-bg-secondary dark:to-dark-bg-tertiary">
 					<h3 class="text-lg font-semibold text-gray-900 dark:text-white">

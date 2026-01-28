@@ -1030,6 +1030,10 @@ func (gdb *GormDB) UpdateStatisticsView(view *models.StatisticsView) error {
 
 // DeleteStatisticsView deletes a statistics view (with ownership check)
 func (gdb *GormDB) DeleteStatisticsView(id, userID string) error {
+	// First, remove any default references to this view (before FK constraint blocks delete)
+	gdb.db.Where("statistics_view_id = ?", id).Delete(&models.UserDefaultStatisticsView{})
+
+	// Then delete the view itself
 	result := gdb.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.StatisticsView{})
 	if result.Error != nil {
 		return result.Error
@@ -1037,8 +1041,6 @@ func (gdb *GormDB) DeleteStatisticsView(id, userID string) error {
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("statistics view not found or not authorized")
 	}
-	// Also remove any default references to this view
-	gdb.db.Where("statistics_view_id = ?", id).Delete(&models.UserDefaultStatisticsView{})
 	return nil
 }
 
