@@ -195,41 +195,40 @@
   }
 
   /* Enhanced notification interaction - alert highlighting */
+  /* Uses compositor-friendly opacity animation to avoid CLS */
   .highlight-alert {
-    @apply bg-primary-100 dark:bg-primary-900/20 border-2 border-primary-400 dark:border-primary-500;
-    transition: all 0.3s ease-in-out;
-    animation: pulseHighlight 2s ease-in-out;
+    @apply border-2 border-primary-400 dark:border-primary-500;
+    position: relative;
+    transition: border-color 0.3s ease-in-out;
+    /* Hint to browser for optimization */
+    will-change: opacity;
   }
 
+  .highlight-alert::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: rgb(147 197 253); /* blue-300 */
+    z-index: -1;
+    animation: pulseHighlight 2s ease-in-out;
+    /* Use compositor-friendly properties */
+    will-change: opacity;
+  }
+
+  .dark .highlight-alert::before {
+    background-color: rgba(59, 130, 246, 0.3); /* blue-500 with opacity */
+  }
+
+  /* Compositor-friendly animation using opacity instead of background-color */
   @keyframes pulseHighlight {
     0% {
-      background-color: rgb(147 197 253); /* blue-300 */
-      border-color: rgb(59 130 246); /* blue-500 */
+      opacity: 1;
     }
     50% {
-      background-color: rgb(219 234 254); /* blue-100 */
-      border-color: rgb(96 165 250); /* blue-400 */
+      opacity: 0.4;
     }
     100% {
-      background-color: rgb(147 197 253); /* blue-300 */
-      border-color: rgb(59 130 246); /* blue-500 */
-    }
-  }
-
-  @media (prefers-color-scheme: dark) {
-    @keyframes pulseHighlight {
-      0% {
-        background-color: rgba(59, 130, 246, 0.2); /* blue-500 with opacity */
-        border-color: rgb(59 130 246); /* blue-500 */
-      }
-      50% {
-        background-color: rgba(96, 165, 250, 0.3); /* blue-400 with opacity */
-        border-color: rgb(96 165 250); /* blue-400 */
-      }
-      100% {
-        background-color: rgba(59, 130, 246, 0.2); /* blue-500 with opacity */
-        border-color: rgb(59 130 246); /* blue-500 */
-      }
+      opacity: 1;
     }
   }
 

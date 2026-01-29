@@ -2,7 +2,7 @@ package components
 
 // Settings modal
 templ SettingsModal() {
-	<div x-show="showSettings" x-data="settingsModalData()" x-init="init()" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
+	<div x-show="showSettings" x-data="settingsModalData()" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
 			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity z-0" @click="showSettings = false"></div>
 
@@ -66,12 +66,14 @@ templ SettingsModal() {
 								<div>
 									<label class="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</label>
 									<div class="mt-2 space-x-4">
-										<label class="inline-flex items-center">
-											<input type="radio" x-model="settings.theme" value="light" class="form-radio text-blue-600">
+										<label for="settings-theme-light" class="inline-flex items-center">
+											<input type="radio" id="settings-theme-light" name="settings-theme"
+												   x-model="settings.theme" value="light" class="form-radio text-blue-600">
 											<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Light</span>
 										</label>
-										<label class="inline-flex items-center">
-											<input type="radio" x-model="settings.theme" value="dark" class="form-radio text-blue-600">
+										<label for="settings-theme-dark" class="inline-flex items-center">
+											<input type="radio" id="settings-theme-dark" name="settings-theme"
+												   x-model="settings.theme" value="dark" class="form-radio text-blue-600">
 											<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Dark</span>
 										</label>
 									</div>
@@ -80,11 +82,12 @@ templ SettingsModal() {
 
 								<!-- Resolved Alerts Display Limit -->
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label for="settings-resolved-limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 										Resolved Alerts Display Limit
 									</label>
 									<div class="mt-1">
-										<input type="number" x-model="settings.resolvedAlertsLimit" min="10" max="1000" 
+										<input type="number" id="settings-resolved-limit" name="settings-resolved-limit"
+											   x-model="settings.resolvedAlertsLimit" min="10" max="1000"
 											   class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
 									</div>
 									<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -94,11 +97,12 @@ templ SettingsModal() {
 								
 								<!-- Refresh Interval -->
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label for="settings-refresh-interval" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 										Refresh Interval (seconds)
 									</label>
 									<div class="mt-1">
-										<select x-model="settings.refreshInterval"
+										<select id="settings-refresh-interval" name="settings-refresh-interval"
+												x-model="settings.refreshInterval"
 												class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
 											<option value="5">5 seconds</option>
 											<option value="10">10 seconds</option>
@@ -119,16 +123,19 @@ templ SettingsModal() {
 									<div class="space-y-3">
 										<!-- Weekday Hours -->
 										<div class="flex items-center space-x-3">
-											<span class="text-sm text-gray-600 dark:text-gray-400 w-28">Weekday hours:</span>
-											<input type="time" x-model="settings.onCallSchedule.weekdayStart"
+											<label for="settings-oncall-start" class="text-sm text-gray-600 dark:text-gray-400 w-28">Weekday hours:</label>
+											<input type="time" id="settings-oncall-start" name="settings-oncall-start"
+												   x-model="settings.onCallSchedule.weekdayStart"
 												   class="px-2 py-1 text-sm border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white"/>
 											<span class="text-sm text-gray-500 dark:text-gray-400">to</span>
-											<input type="time" x-model="settings.onCallSchedule.weekdayEnd"
+											<input type="time" id="settings-oncall-end" name="settings-oncall-end"
+												   x-model="settings.onCallSchedule.weekdayEnd"
 												   class="px-2 py-1 text-sm border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white"/>
 										</div>
 										<!-- Weekend Toggle -->
-										<label class="flex items-center cursor-pointer">
-											<input type="checkbox" x-model="settings.onCallSchedule.includeWeekends"
+										<label for="settings-oncall-weekends" class="flex items-center cursor-pointer">
+											<input type="checkbox" id="settings-oncall-weekends" name="settings-oncall-weekends"
+												   x-model="settings.onCallSchedule.includeWeekends"
 												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"/>
 											<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Include full weekends as on-call</span>
 										</label>
@@ -1745,13 +1752,15 @@ templ SilenceModal() {
 									<!-- Duration Type Selection -->
 									<div class="mb-3">
 										<div class="flex items-center space-x-4">
-											<label class="flex items-center">
-												<input type="radio" x-model="silenceDurationType" value="preset" 
+											<label for="silence-duration-preset" class="flex items-center">
+												<input type="radio" id="silence-duration-preset" name="silence-duration-type"
+													   x-model="silenceDurationType" value="preset"
 													   class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-dark-border-DEFAULT">
 												<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Preset</span>
 											</label>
-											<label class="flex items-center">
-												<input type="radio" x-model="silenceDurationType" value="custom" 
+											<label for="silence-duration-custom" class="flex items-center">
+												<input type="radio" id="silence-duration-custom" name="silence-duration-type"
+													   x-model="silenceDurationType" value="custom"
 													   class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-dark-border-DEFAULT">
 												<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Custom</span>
 											</label>
@@ -1760,7 +1769,8 @@ templ SilenceModal() {
 									
 									<!-- Preset Duration Dropdown -->
 									<div x-show="silenceDurationType === 'preset'">
-										<select x-model="silenceDuration" 
+										<select id="silence-duration-select" name="silence-duration-select"
+												x-model="silenceDuration"
 												class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-dark-bg-tertiary dark:text-white">
 											<option value="1h">1 hour</option>
 											<option value="2h">2 hours</option>
@@ -1772,10 +1782,11 @@ templ SilenceModal() {
 											<option value="7d">7 days</option>
 										</select>
 									</div>
-									
+
 									<!-- Custom Duration Input -->
 									<div x-show="silenceDurationType === 'custom'">
-										<input type="text" x-model="customSilenceDuration"
+										<input type="text" id="silence-custom-duration" name="silence-custom-duration"
+											   x-model="customSilenceDuration"
 											   placeholder="e.g., 1h30m, 2d, 1y, 30d12h"
 											   class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-dark-bg-tertiary dark:text-white"
 											   @input="validateCustomDuration()">

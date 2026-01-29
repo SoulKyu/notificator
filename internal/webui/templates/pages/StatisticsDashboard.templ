@@ -20,7 +20,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 	<!-- Statistics Views Mixin -->
 	@scripts.StatisticsViews()
-	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="init(); initViews()">
+	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="initViews()">
 		<!-- Sticky Header Bar -->
 		<header class="sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50">
 			<div class="px-6 py-4">
@@ -94,6 +94,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						<!-- Dropdown Panel -->
 						<div
 							x-show="timeRangePickerOpen"
+							x-cloak
 							x-transition:enter="transition ease-out duration-150"
 							x-transition:enter-start="opacity-0 scale-95"
 							x-transition:enter-end="opacity-100 scale-100"
@@ -160,6 +161,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 													@keydown.up.prevent="incrementValue('from', 1)"
 													@keydown.down.prevent="incrementValue('from', -1)"
 													min="0"
+													:max="getMaxValueForUnit(filters.relativeFrom.unit)"
 													class="w-24 text-center px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 												<select
@@ -200,6 +202,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 													@keydown.up.prevent="incrementValue('until', 1)"
 													@keydown.down.prevent="incrementValue('until', -1)"
 													min="0"
+													:max="getMaxValueForUnit(filters.relativeUntil.unit)"
 													class="w-24 text-center px-3 py-2.5 text-base border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 												/>
 												<select
@@ -310,7 +313,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</svg>
 						</button>
 						<!-- Dropdown with time of day settings -->
-						<div x-show="timeOfDayOpen" x-transition class="absolute left-0 mt-2 w-72 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+						<div x-show="timeOfDayOpen" x-transition x-cloak class="absolute left-0 mt-2 w-72 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
 							<div class="p-4 space-y-4">
 								<!-- Enable checkbox -->
 								<label class="flex items-center cursor-pointer">
@@ -365,7 +368,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				<div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/30">
 					<!-- Severity Filter -->
 					<div class="relative" @click.outside="showSeverityDropdown = false">
-						<button @click="showSeverityDropdown = !showSeverityDropdown" type="button"
+						<button @click="showSeverityDropdown = !showSeverityDropdown; if(showSeverityDropdown && availableSeverities.length === 0) loadAvailableSeverities()" type="button"
 							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors max-w-xs border border-amber-200 dark:border-amber-700/50"
 							:class="filters.severities.length > 0 ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/60' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'">
 							<!-- When no filter -->
@@ -375,47 +378,31 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</span>
 							<!-- When filtered - show chips -->
 							<span x-show="filters.severities.length > 0" class="flex items-center gap-1.5">
-								<template x-for="sev in filters.severities" :key="sev">
+								<template x-for="sev in filters.severities.slice(0, 2)" :key="sev">
 									<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
-										:class="{
-											'bg-red-200 dark:bg-red-800/50 text-red-800 dark:text-red-200': sev === 'critical',
-											'bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200': sev === 'warning',
-											'bg-blue-200 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200': sev === 'info'
-										}">
-										<span class="w-1.5 h-1.5 rounded-full"
-											:class="{
-												'bg-red-500': sev === 'critical',
-												'bg-amber-500': sev === 'warning',
-												'bg-blue-500': sev === 'info'
-											}"></span>
+										:class="getSeverityChipClass(sev)">
+										<span class="w-1.5 h-1.5 rounded-full" :style="'background-color: ' + getSeverityColor(sev)"></span>
 										<span x-text="sev.charAt(0).toUpperCase() + sev.slice(1)"></span>
 									</span>
 								</template>
+								<span x-show="filters.severities.length > 2" class="text-xs text-amber-600 dark:text-amber-400" x-text="'+' + (filters.severities.length - 2) + ' more'"></span>
 							</span>
 							<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
 						</button>
-						<div x-show="showSeverityDropdown" x-transition class="absolute left-0 mt-2 w-48 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-							<div class="p-2 space-y-1">
-								<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-									<input type="checkbox" value="critical" x-model="filters.severities" class="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500"/>
-									<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-										<span class="w-3 h-3 bg-red-500 rounded-full"></span>Critical
-									</span>
-								</label>
-								<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-									<input type="checkbox" value="warning" x-model="filters.severities" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"/>
-									<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-										<span class="w-3 h-3 bg-amber-500 rounded-full"></span>Warning
-									</span>
-								</label>
-								<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-									<input type="checkbox" value="info" x-model="filters.severities" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"/>
-									<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-										<span class="w-3 h-3 bg-blue-500 rounded-full"></span>Info
-									</span>
-								</label>
+						<div x-show="showSeverityDropdown" x-transition x-cloak class="absolute left-0 mt-2 w-56 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+							<div x-show="availableSeverities.length === 0" class="p-4 text-center text-sm text-slate-500 dark:text-slate-300">Loading severities...</div>
+							<div x-show="availableSeverities.length > 0" class="max-h-60 overflow-y-auto p-2 space-y-1">
+								<template x-for="severity in availableSeverities" :key="severity">
+									<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+										<input type="checkbox" :id="'severity-filter-' + severity" :name="'severity-filter-' + severity" :value="severity" x-model="filters.severities" class="w-4 h-4 rounded border-slate-300 focus:ring-amber-500" :style="'color: ' + getSeverityColor(severity)"/>
+										<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+											<span class="w-3 h-3 rounded-full" :style="'background-color: ' + getSeverityColor(severity)"></span>
+											<span x-text="severity.charAt(0).toUpperCase() + severity.slice(1)"></span>
+										</span>
+									</label>
+								</template>
 							</div>
 							<div x-show="filters.severities.length > 0" class="border-t border-slate-100 dark:border-slate-700 p-2">
 								<button @click="filters.severities = []; showSeverityDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear</button>
@@ -446,12 +433,12 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
 						</button>
-						<div x-show="showTeamDropdown" x-transition class="absolute left-0 mt-2 w-56 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+						<div x-show="showTeamDropdown" x-transition x-cloak class="absolute left-0 mt-2 w-56 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
 							<div x-show="availableTeams.length === 0" class="p-4 text-center text-sm text-slate-500 dark:text-slate-300">Loading teams...</div>
 							<div x-show="availableTeams.length > 0" class="max-h-60 overflow-y-auto p-2 space-y-1">
 								<template x-for="team in availableTeams" :key="team">
 									<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-										<input type="checkbox" :value="team" x-model="filters.teams" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"/>
+										<input type="checkbox" :id="'team-filter-' + team" :name="'team-filter-' + team" :value="team" x-model="filters.teams" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"/>
 										<span class="text-sm text-slate-700 dark:text-slate-200" x-text="team"></span>
 									</label>
 								</template>
@@ -480,7 +467,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
 						</button>
-						<div x-show="groupOpen" @click.outside="groupOpen = false" x-transition
+						<div x-show="groupOpen" @click.outside="groupOpen = false" x-transition x-cloak
 							class="absolute left-0 mt-2 w-48 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
 							<div class="p-1">
 								<button @click="filters.groupBy = ''; groupOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" :class="{'bg-slate-100 dark:bg-slate-800': !filters.groupBy}">Overall</button>
@@ -509,7 +496,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
 							</svg>
 						</button>
-						<div x-show="periodOpen" @click.outside="periodOpen = false" x-transition
+						<div x-show="periodOpen" @click.outside="periodOpen = false" x-transition x-cloak
 							class="absolute left-0 mt-2 w-36 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
 							<div class="p-1">
 								<button @click="filters.periodType = 'hour'; periodOpen = false" class="w-full px-3 py-2 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">Hourly</button>
@@ -550,6 +537,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							x-transition:enter="transition ease-out duration-100"
 							x-transition:enter-start="opacity-0 scale-95"
 							x-transition:enter-end="opacity-100 scale-100"
+							x-cloak
 							class="absolute right-0 mt-2 w-64 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
 							<div class="p-2">
 								<button @click="openSaveViewModal(); viewsOpen = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg font-medium">
@@ -1025,7 +1013,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 									<span class="text-sm font-medium" :class="getDeltaClass(comparisonData?.delta_mtta, true)" x-text="getDeltaText(comparisonData?.delta_mtta)"></span>
 								</div>
 							</div>
-							<div class="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4">
+							<div x-show="appliedGroupBy === 'severity' || appliedGroupBy === 'overall'" class="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4">
 								<div class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Critical</div>
 								<div class="flex items-baseline gap-2">
 									<span class="text-2xl font-bold text-red-600 dark:text-red-400" x-text="formatNumber(getCriticalCount())"></span>
@@ -1458,8 +1446,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					absoluteUntilTime: '23:59'
 				},
 
-				// Available teams (loaded dynamically)
+				// Available options (loaded dynamically)
 				availableTeams: [],
+				availableSeverities: [],
 				showSeverityDropdown: false,
 				showTeamDropdown: false,
 
@@ -1525,6 +1514,16 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				// Convert relative time settings to actual start/end dates
 				applyTimeRangeFromRelative() {
 					const now = new Date();
+
+					// Validate and clamp values before applying
+					if (!this.filters.relativeFrom.allTime) {
+						const maxFrom = this.getMaxValueForUnit(this.filters.relativeFrom.unit);
+						this.filters.relativeFrom.value = Math.min(Math.max(0, this.filters.relativeFrom.value || 0), maxFrom);
+					}
+					if (!this.filters.relativeUntil.now) {
+						const maxUntil = this.getMaxValueForUnit(this.filters.relativeUntil.unit);
+						this.filters.relativeUntil.value = Math.min(Math.max(0, this.filters.relativeUntil.value || 0), maxUntil);
+					}
 
 					// Calculate "From" date
 					if (this.filters.relativeFrom.allTime) {
@@ -1780,6 +1779,16 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				applyRelativeToAbsolute() {
 					const now = new Date();
 
+					// Validate and clamp values before applying
+					if (!this.filters.relativeFrom.allTime) {
+						const maxFrom = this.getMaxValueForUnit(this.filters.relativeFrom.unit);
+						this.filters.relativeFrom.value = Math.min(Math.max(0, this.filters.relativeFrom.value || 0), maxFrom);
+					}
+					if (!this.filters.relativeUntil.now) {
+						const maxUntil = this.getMaxValueForUnit(this.filters.relativeUntil.unit);
+						this.filters.relativeUntil.value = Math.min(Math.max(0, this.filters.relativeUntil.value || 0), maxUntil);
+					}
+
 					// Calculate start date
 					if (this.filters.relativeFrom.allTime) {
 						// Set to a far past date
@@ -1850,7 +1859,21 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				incrementValue(field, delta) {
 					const target = field === 'from' ? this.filters.relativeFrom : this.filters.relativeUntil;
-					target.value = Math.max(0, target.value + delta);
+					const maxVal = this.getMaxValueForUnit(target.unit);
+					target.value = Math.min(Math.max(0, target.value + delta), maxVal);
+				},
+
+				// Get maximum allowed value based on time unit to prevent unreasonable date ranges
+				getMaxValueForUnit(unit) {
+					switch(unit) {
+						case 'minutes': return 10080;  // 7 days in minutes
+						case 'hours': return 8760;     // 1 year in hours
+						case 'days': return 365;       // 1 year in days
+						case 'weeks': return 104;      // 2 years in weeks
+						case 'months': return 60;      // 5 years in months
+						case 'years': return 10;       // 10 years max
+						default: return 365;
+					}
 				},
 
 				// On-Call Schedule helpers
@@ -2271,6 +2294,66 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					} catch (error) {
 						console.error('Failed to load available teams:', error);
 					}
+				},
+
+				async loadAvailableSeverities() {
+					try {
+						// Query severity grouping to get list of available severities
+						const payload = {
+							start_date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // Last 90 days
+							end_date: new Date().toISOString(),
+							group_by: 'severity'
+						};
+
+						const response = await fetch('/api/v1/statistics/query', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						});
+
+						if (response.ok) {
+							const data = await response.json();
+							const severities = Object.keys(data.data?.statistics || {});
+							this.availableSeverities = severities.filter(s => s !== 'unknown').sort();
+						}
+					} catch (error) {
+						console.error('Failed to load available severities:', error);
+					}
+				},
+
+				// Dynamic severity color mapping
+				getSeverityColor(severity) {
+					const colorMap = {
+						'critical': '#ef4444',      // red-500
+						'critical-daytime': '#f97316', // orange-500
+						'warning': '#f59e0b',       // amber-500
+						'info': '#3b82f6',          // blue-500
+						'low': '#22c55e',           // green-500
+						'debug': '#6b7280',         // gray-500
+					};
+					// Return mapped color or generate one based on string hash for unknown severities
+					if (colorMap[severity.toLowerCase()]) {
+						return colorMap[severity.toLowerCase()];
+					}
+					// Generate consistent color from string hash
+					let hash = 0;
+					for (let i = 0; i < severity.length; i++) {
+						hash = severity.charCodeAt(i) + ((hash << 5) - hash);
+					}
+					const hue = Math.abs(hash % 360);
+					return `hsl(${hue}, 70%, 50%)`;
+				},
+
+				getSeverityChipClass(severity) {
+					const classMap = {
+						'critical': 'bg-red-200 dark:bg-red-800/50 text-red-800 dark:text-red-200',
+						'critical-daytime': 'bg-orange-200 dark:bg-orange-800/50 text-orange-800 dark:text-orange-200',
+						'warning': 'bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200',
+						'info': 'bg-blue-200 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200',
+						'low': 'bg-green-200 dark:bg-green-800/50 text-green-800 dark:text-green-200',
+						'debug': 'bg-gray-200 dark:bg-gray-800/50 text-gray-800 dark:text-gray-200',
+					};
+					return classMap[severity.toLowerCase()] || 'bg-slate-200 dark:bg-slate-800/50 text-slate-800 dark:text-slate-200';
 				},
 
 				determinePeriodType() {
@@ -3630,11 +3713,35 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					const url = window.URL.createObjectURL(blob);
 					const a = document.createElement('a');
 					a.href = url;
-					a.download = `alert-statistics-${this.filters.startDate}-to-${this.filters.endDate}.csv`;
+					const filename = `alert-statistics-${this.filters.startDate}-to-${this.filters.endDate}.csv`;
+					a.download = filename;
 					document.body.appendChild(a);
 					a.click();
 					document.body.removeChild(a);
 					window.URL.revokeObjectURL(url);
+
+					// Show export success feedback
+					this.showExportSuccess(filename);
+				},
+
+				showExportSuccess(filename) {
+					// Create toast notification
+					const toast = document.createElement('div');
+					toast.className = 'fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-fade-in';
+					toast.innerHTML = `
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+						</svg>
+						<span>Exported: ${filename}</span>
+					`;
+					document.body.appendChild(toast);
+
+					// Remove after 3 seconds
+					setTimeout(() => {
+						toast.style.opacity = '0';
+						toast.style.transition = 'opacity 0.3s ease-out';
+						setTimeout(() => toast.remove(), 300);
+					}, 3000);
 				}
 			};
 		}

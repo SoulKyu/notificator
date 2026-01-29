@@ -18,10 +18,13 @@ templ FilterDropdown(filterType, title string) {
 			</div>
 			<div class="max-h-48 overflow-y-auto">
 				<template x-for="option in $parent.metadata.availableFilters[filterType]" x-key="option">
-					<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-						<input type="checkbox" 
-							   x-model="$parent.filters[filterType]" 
-							   :value="option" 
+					<label :for="'filter-' + filterType + '-' + option.replace(/[^a-zA-Z0-9]/g, '-')"
+						   class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+						<input type="checkbox"
+							   :id="'filter-' + filterType + '-' + option.replace(/[^a-zA-Z0-9]/g, '-')"
+							   :name="'filter-' + filterType + '-' + option.replace(/[^a-zA-Z0-9]/g, '-')"
+							   x-model="$parent.filters[filterType]"
+							   :value="option"
 							   @change="$parent.applyFilters()"
 							   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 						<span class="flex items-center">

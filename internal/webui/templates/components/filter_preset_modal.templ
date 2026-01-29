@@ -99,25 +99,28 @@ templ FilterPresetsModal() {
 							<!-- Save Tab -->
 							<div x-show="activeTab === 'save'" class="space-y-4">
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+									<label for="preset-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
 										Filter Name <span class="text-red-500">*</span>
 									</label>
-									<input type="text" x-model="newPreset.name"
+									<input type="text" id="preset-name" name="preset-name"
+										   x-model="newPreset.name"
 										   placeholder="e.g., Critical Production Alerts"
 										   class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white sm:text-sm">
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+									<label for="preset-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
 										Description (optional)
 									</label>
-									<textarea x-model="newPreset.description" rows="2"
+									<textarea id="preset-description" name="preset-description"
+											  x-model="newPreset.description" rows="2"
 											  placeholder="What is this filter for?"
 											  class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white sm:text-sm"></textarea>
 								</div>
 
 								<div class="flex items-center">
-									<input type="checkbox" x-model="newPreset.is_shared" id="share-preset"
+									<input type="checkbox" id="share-preset" name="share-preset"
+										   x-model="newPreset.is_shared"
 										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
 									<label for="share-preset" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
 										Share with team (visible to all users)
@@ -125,7 +128,8 @@ templ FilterPresetsModal() {
 								</div>
 
 								<div class="flex items-center">
-									<input type="checkbox" x-model="includeColumnConfig" id="include-columns"
+									<input type="checkbox" id="include-columns" name="include-columns"
+										   x-model="includeColumnConfig"
 										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
 									<label for="include-columns" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
 										Include current column configuration

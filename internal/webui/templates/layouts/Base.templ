@@ -8,11 +8,14 @@ templ Base(title string, content templ.Component) {
 		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 		<title>{ title }</title>
 		<link rel="icon" type="image/png" href="/static/notificator_background.png"/>
+		<!-- Preconnect to CDN for faster resource loading -->
+		<link rel="preconnect" href="https://unpkg.com" crossorigin/>
 		<!-- Critical: Hide x-cloak elements immediately before Alpine.js loads -->
 		<style>[x-cloak] { display: none !important; }</style>
 		<link href="/static/css/output.css?v=1" rel="stylesheet"/>
-		<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-		<script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
+		<!-- Use direct URLs to avoid 301/302 redirects and improve LCP -->
+		<script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+		<script src="https://unpkg.com/@alpinejs/collapse@3.15.5/dist/cdn.min.js" defer></script>
 		<script src="https://unpkg.com/alpinejs@3.14.6/dist/cdn.min.js" defer></script>
 	</head>
 	<body class="h-full bg-gray-50 dark:bg-dark-bg-primary">
@@ -38,7 +41,7 @@ templ Base(title string, content templ.Component) {
 		<!-- Spacer for impersonation banner (hidden by default) -->
 		<div id="impersonation-spacer" style="display: none;" class="h-10"></div>
 
-		<div class="min-h-full" x-data="darkModeHandler()" x-init="init()">
+		<div class="min-h-full" x-data="darkModeHandler()">
 			@content
 		</div>
 		

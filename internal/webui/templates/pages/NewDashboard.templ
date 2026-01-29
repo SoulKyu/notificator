@@ -11,7 +11,7 @@ templ NewDashboard() {
 }
 
 templ NewDashboardContent() {
-	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary" x-data="newDashboard()" x-init="init()">
+	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary" x-data="newDashboard()">
 		<!-- Header -->
 		<header class="bg-white dark:bg-dark-bg-secondary shadow-sm border-b border-gray-200 dark:border-dark-border-subtle">
 			<div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
@@ -187,6 +187,7 @@ templ NewDashboardContent() {
 								<div class="p-3 border-b border-gray-200 dark:border-dark-border-subtle">
 									<input
 										type="text"
+										id="impersonate-search" name="impersonate-search"
 										x-model="search"
 										@input="filterUsers()"
 										placeholder="Search users..."
@@ -301,6 +302,7 @@ templ NewDashboardContent() {
 									</svg>
 								</div>
 								<input x-model="searchQuery" @input.debounce.300ms="applyFilters()"
+									   id="dashboard-search" name="dashboard-search"
 									   type="text" placeholder="Search alerts, instances, summaries..."
 									   class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md leading-5 bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
 							</div>
@@ -335,6 +337,7 @@ templ NewDashboardContent() {
 											<!-- Search input for alertmanagers -->
 											<div class="relative">
 												<input type="text"
+													   id="filter-alertmanager-search" name="filter-alertmanager-search"
 													   x-model="searchTerm"
 													   placeholder="Search alertmanagers..."
 													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
@@ -345,8 +348,10 @@ templ NewDashboardContent() {
 										</div>
 										<div class="max-h-48 overflow-y-auto">
 											<template x-for="option in metadata.availableFilters.alertmanagers.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
-												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+												<label :for="'filter-alertmanager-' + option" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
 													<input type="checkbox"
+														   :id="'filter-alertmanager-' + option"
+														   :name="'filter-alertmanager-' + option"
 														   x-model="filters.alertmanagers"
 														   :value="option"
 														   @change="applyFilters()"
@@ -391,6 +396,7 @@ templ NewDashboardContent() {
 											<!-- Search input for severities -->
 											<div class="relative">
 												<input type="text"
+													   id="filter-severity-search" name="filter-severity-search"
 													   x-model="searchTerm"
 													   placeholder="Search severities..."
 													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
@@ -401,8 +407,10 @@ templ NewDashboardContent() {
 										</div>
 										<div class="max-h-48 overflow-y-auto">
 											<template x-for="option in metadata.availableFilters.severities.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
-												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+												<label :for="'filter-severity-' + option" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
 													<input type="checkbox"
+														   :id="'filter-severity-' + option"
+														   :name="'filter-severity-' + option"
 														   x-model="filters.severities"
 														   :value="option"
 														   @change="applyFilters()"
@@ -455,6 +463,7 @@ templ NewDashboardContent() {
 											<!-- Search input for statuses -->
 											<div class="relative">
 												<input type="text"
+													   id="filter-status-search" name="filter-status-search"
 													   x-model="searchTerm"
 													   placeholder="Search statuses..."
 													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
@@ -465,8 +474,10 @@ templ NewDashboardContent() {
 										</div>
 										<div class="max-h-48 overflow-y-auto">
 											<template x-for="option in metadata.availableFilters.statuses.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
-												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+												<label :for="'filter-status-' + option" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
 													<input type="checkbox"
+														   :id="'filter-status-' + option"
+														   :name="'filter-status-' + option"
 														   x-model="filters.statuses"
 														   :value="option"
 														   @change="applyFilters()"
@@ -522,6 +533,7 @@ templ NewDashboardContent() {
 											<!-- Search input for teams -->
 											<div class="relative">
 												<input type="text"
+													   id="filter-team-search" name="filter-team-search"
 													   x-model="searchTerm"
 													   placeholder="Search teams..."
 													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
@@ -532,8 +544,10 @@ templ NewDashboardContent() {
 										</div>
 										<div class="max-h-48 overflow-y-auto">
 											<template x-for="option in metadata.availableFilters.teams.filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" :key="option">
-												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+												<label :for="'filter-team-' + option" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
 													<input type="checkbox" x-model="filters.teams" :value="option" @change="applyFilters()"
+														   :id="'filter-team-' + option"
+														   :name="'filter-team-' + option"
 														   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 													<span x-text="option" class="truncate"></span>
 												</label>
@@ -573,8 +587,9 @@ templ NewDashboardContent() {
 											</div>
 											<!-- Search input for alert names -->
 											<div class="relative">
-												<input type="text" 
-													   x-model="searchTerm" 
+												<input type="text"
+													   id="filter-alertname-search" name="filter-alertname-search"
+													   x-model="searchTerm"
 													   placeholder="Search alert names..."
 													   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
 												<svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
@@ -584,10 +599,12 @@ templ NewDashboardContent() {
 										</div>
 										<div class="max-h-48 overflow-y-auto">
 											<template x-for="option in metadata.availableFilters.alertNames.filter(name => searchTerm === '' || name.toLowerCase().includes(searchTerm.toLowerCase()))" x-key="option">
-												<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-													<input type="checkbox" 
-														   x-model="filters.alertNames" 
-														   :value="option" 
+												<label :for="'filter-alertname-' + option" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+													<input type="checkbox"
+														   :id="'filter-alertname-' + option"
+														   :name="'filter-alertname-' + option"
+														   x-model="filters.alertNames"
+														   :value="option"
 														   @change="applyFilters()"
 														   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 													<span x-text="option" class="truncate"></span>
@@ -620,26 +637,30 @@ templ NewDashboardContent() {
 											<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Additional Filters</span>
 										</div>
 										
-										<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" x-model="acknowledgmentFilter" value="acknowledged" @change="applyFilters()"
+										<label for="filter-acknowledged" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+											<input type="checkbox" id="filter-acknowledged" name="filter-acknowledged"
+												   x-model="acknowledgmentFilter" value="acknowledged" @change="applyFilters()"
 												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 											<span>Only Acknowledged</span>
 										</label>
-										
-										<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" x-model="acknowledgmentFilter" value="not-acknowledged" @change="applyFilters()"
+
+										<label for="filter-not-acknowledged" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+											<input type="checkbox" id="filter-not-acknowledged" name="filter-not-acknowledged"
+												   x-model="acknowledgmentFilter" value="not-acknowledged" @change="applyFilters()"
 												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 											<span>Only Not Acknowledged</span>
 										</label>
-										
-										<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" x-model="commentsFilter" value="with-comments" @change="applyFilters()"
+
+										<label for="filter-with-comments" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+											<input type="checkbox" id="filter-with-comments" name="filter-with-comments"
+												   x-model="commentsFilter" value="with-comments" @change="applyFilters()"
 												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 											<span>With Comments</span>
 										</label>
-										
-										<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" x-model="commentsFilter" value="without-comments" @change="applyFilters()"
+
+										<label for="filter-without-comments" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+											<input type="checkbox" id="filter-without-comments" name="filter-without-comments"
+												   x-model="commentsFilter" value="without-comments" @change="applyFilters()"
 												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
 											<span>Without Comments</span>
 										</label>
