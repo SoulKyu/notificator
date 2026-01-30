@@ -92,8 +92,9 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	}
 
 	// Initialize alert cache for new dashboard
-	alertCache := services.NewAlertCache(amClient, backendClient, cfg.ResolvedAlerts.RetentionDays)
+	alertCache := services.NewAlertCache(amClient, backendClient, cfg.ResolvedAlerts.RetentionDays, cfg.Polling.SyncInterval)
 	handlers.SetAlertCache(alertCache)
+	log.Printf("Alert cache initialized with sync interval: %v", cfg.Polling.SyncInterval)
 	alertCache.Start()
 
 	// Initialize color service for dynamic alert coloring
@@ -228,6 +229,8 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.GET("/data", handlers.GetDashboardData)
 			dashboard.GET("/incremental", handlers.GetDashboardIncremental)
 			dashboard.POST("/incremental", handlers.PostDashboardIncremental)
+			dashboard.GET("/stream", handlers.SSEStream)       // SSE endpoint for real-time updates
+			dashboard.GET("/stream/status", handlers.SSEStatus) // SSE status endpoint
 			dashboard.POST("/bulk-action", handlers.BulkActionAlerts)
 			dashboard.GET("/settings", handlers.GetDashboardSettings)
 			dashboard.POST("/settings", handlers.SaveDashboardSettings)

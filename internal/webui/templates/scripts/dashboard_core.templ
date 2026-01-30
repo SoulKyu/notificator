@@ -113,6 +113,17 @@ templ DashboardCore() {
 
 				refreshInterval: null,
 				lastUpdateTime: null,
+
+				// SSE (Server-Sent Events) support
+				sseConnection: null,
+				useSSE: true,  // Feature flag for SSE
+
+				// Adaptive polling rate (fallback when SSE not available)
+				recentChanges: 0,      // Count of polls with changes
+				pollCount: 0,          // Total polls since last adjustment
+				baseInterval: 5000,    // 5 seconds base
+				currentInterval: 5000, // Current interval (adjusts)
+				maxInterval: 60000,    // 1 minute max
 				
 				alertColors: {},
 				alertColorsTimestamp: 0,
@@ -237,6 +248,7 @@ templ DashboardCore() {
 							if (response.status === 401) {
 								console.log('Session expired, redirecting to login');
 								dashboard.stopAutoRefresh();
+								dashboard.destroySSE();
 								window.location.href = '/login';
 								// Return a never-resolving promise to prevent further processing
 								return new Promise(() => {});
@@ -318,7 +330,12 @@ templ DashboardCore() {
 					// Load filters from URL (will override default preset if URL has filters)
 					this.loadFiltersFromURL();
 
-					this.startAutoRefresh();
+					// Try SSE first, fallback to polling if not supported
+					if (this.useSSE && typeof EventSource !== 'undefined') {
+						this.initSSE();
+					} else {
+						this.startAutoRefresh();
+					}
 
 					// Load data if default preset wasn't loaded or URL has filters
 					if (!defaultPresetLoaded) {
@@ -332,15 +349,23 @@ templ DashboardCore() {
 							// Validate session when page becomes visible
 							const sessionValid = await this.validateSession();
 							if (!sessionValid) {
-								// If session invalid, stop refresh and redirect
+								// If session invalid, stop refresh and destroy SSE
 								this.stopAutoRefresh();
+								this.destroySSE();
 								// validateSession() will handle redirect to login
 							} else {
-								// Do one incremental fetch to catch any missed updates
-								this.loadDashboardIncremental();
+								// If SSE is enabled but not connected, try to reconnect
+								if (this.useSSE && typeof EventSource !== 'undefined' && !this.sseConnection) {
+									this.initSSE();
+								} else if (!this.sseConnection) {
+									// Do one incremental fetch to catch any missed updates (polling mode)
+									this.loadDashboardIncremental();
+								}
+								// If SSE is connected, it will automatically receive updates
 							}
 						}
 						// Don't stop auto-refresh when hidden - let it continue fetching in background
+						// SSE connections will auto-reconnect on the browser's behalf
 					});
 					
 					document.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -428,17 +453,80 @@ templ DashboardCore() {
 					}
 				},
 
+				// SSE connection management
+				initSSE() {
+					if (!this.useSSE || this.sseConnection) return;
+
+					console.log('Initializing SSE connection...');
+					this.sseConnection = new EventSource('/api/v1/dashboard/stream');
+
+					this.sseConnection.addEventListener('update', (event) => {
+						try {
+							const update = JSON.parse(event.data);
+							this.applyIncrementalUpdate(update);
+						} catch (error) {
+							console.error('Error parsing SSE update:', error);
+						}
+					});
+
+					this.sseConnection.addEventListener('open', () => {
+						console.log('SSE connection established');
+					});
+
+					this.sseConnection.onerror = (error) => {
+						console.log('SSE error, falling back to polling:', error);
+						this.destroySSE();
+						this.startAutoRefresh();
+					};
+				},
+
+				destroySSE() {
+					if (this.sseConnection) {
+						console.log('Closing SSE connection');
+						this.sseConnection.close();
+						this.sseConnection = null;
+					}
+				},
+
 				startAutoRefresh() {
 					this.stopAutoRefresh();
 					this.refreshInterval = setInterval(() => {
 						this.loadDashboardIncremental();
-					}, this.settings.refreshInterval * 1000);
+					}, this.currentInterval);
 				},
 
 				stopAutoRefresh() {
 					if (this.refreshInterval) {
 						clearInterval(this.refreshInterval);
 						this.refreshInterval = null;
+					}
+				},
+
+				// Adaptive refresh - adjusts polling interval based on change rate
+				adaptiveRefresh() {
+					this.pollCount++;
+
+					// Adjust every 10 polls
+					if (this.pollCount >= 10) {
+						const changeRate = this.recentChanges / this.pollCount;
+
+						if (changeRate < 0.1) {
+							// Few changes - slow down
+							this.currentInterval = Math.min(this.currentInterval * 1.5, this.maxInterval);
+							console.log(`Adaptive polling: slowing down to ${this.currentInterval}ms (change rate: ${(changeRate * 100).toFixed(1)}%)`);
+						} else if (changeRate > 0.5) {
+							// Many changes - speed up
+							this.currentInterval = Math.max(this.currentInterval / 1.5, this.baseInterval);
+							console.log(`Adaptive polling: speeding up to ${this.currentInterval}ms (change rate: ${(changeRate * 100).toFixed(1)}%)`);
+						}
+
+						// Reset counters
+						this.recentChanges = 0;
+						this.pollCount = 0;
+
+						// Restart timer with new interval
+						this.stopAutoRefresh();
+						this.startAutoRefresh();
 					}
 				},
 				// Notification banner functions

@@ -120,7 +120,8 @@ type NotificationConfig struct {
 }
 
 type PollingConfig struct {
-	Interval time.Duration `json:"interval"`
+	Interval     time.Duration `json:"interval"`
+	SyncInterval time.Duration `json:"sync_interval"` // Backend sync interval for WebUI alert cache (default: 10s)
 }
 
 type WebUIConfig struct {
@@ -186,7 +187,8 @@ func DefaultConfig() *Config {
 			RespectFilters: true,
 		},
 		Polling: PollingConfig{
-			Interval: 30 * time.Second,
+			Interval:     30 * time.Second,
+			SyncInterval: 10 * time.Second, // Default sync interval for WebUI alert cache
 		},
 		Backend: BackendConfig{
 			Enabled:    false,
@@ -497,6 +499,9 @@ func setViperDefaults(cfg *Config) {
 	if !viper.IsSet("polling.interval") {
 		viper.SetDefault("polling.interval", cfg.Polling.Interval)
 	}
+	if !viper.IsSet("polling.sync_interval") {
+		viper.SetDefault("polling.sync_interval", cfg.Polling.SyncInterval)
+	}
 
 	// Resolved alerts defaults - only set if not already configured from config file or env vars
 	if !viper.IsSet("resolved_alerts.enabled") {
@@ -603,6 +608,9 @@ func setViperDefaults(cfg *Config) {
 
 	// Support DATABASE_URL for full connection string (POSTGRES_URL handled directly by GORM)
 	viper.BindEnv("database_url", "DATABASE_URL")
+
+	// Polling environment variable bindings
+	viper.BindEnv("polling.sync_interval", "NOTIFICATOR_POLLING_SYNC_INTERVAL")
 
 	// Resolved Alerts environment variable bindings
 	viper.BindEnv("resolved_alerts.enabled", "NOTIFICATOR_RESOLVED_ALERTS_ENABLED")

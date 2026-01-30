@@ -452,6 +452,37 @@ func (s *AlertServiceGorm) GetComments(ctx context.Context, req *alertpb.GetComm
 	}, nil
 }
 
+// GetCommentCountsBatch implements the GetCommentCountsBatch RPC method
+// This efficiently loads comment counts for multiple alerts in a single query,
+// solving the N+1 query problem when loading comment counts for the dashboard.
+func (s *AlertServiceGorm) GetCommentCountsBatch(ctx context.Context, req *alertpb.GetCommentCountsBatchRequest) (*alertpb.GetCommentCountsBatchResponse, error) {
+	// Handle empty request
+	if len(req.AlertKeys) == 0 {
+		return &alertpb.GetCommentCountsBatchResponse{
+			Counts: make(map[string]int32),
+		}, nil
+	}
+
+	// Get counts from database
+	counts, err := s.db.GetCommentCountsBatch(req.AlertKeys)
+	if err != nil {
+		log.Printf("Error getting comment counts batch: %v", err)
+		return &alertpb.GetCommentCountsBatchResponse{
+			Counts: make(map[string]int32),
+		}, nil
+	}
+
+	// Convert to protobuf format (int -> int32)
+	pbCounts := make(map[string]int32, len(counts))
+	for key, count := range counts {
+		pbCounts[key] = int32(count)
+	}
+
+	return &alertpb.GetCommentCountsBatchResponse{
+		Counts: pbCounts,
+	}, nil
+}
+
 // DeleteComment implements the DeleteComment RPC method
 func (s *AlertServiceGorm) DeleteComment(ctx context.Context, req *alertpb.DeleteCommentRequest) (*alertpb.DeleteCommentResponse, error) {
 	if req.SessionId == "" {

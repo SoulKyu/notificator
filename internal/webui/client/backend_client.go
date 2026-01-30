@@ -375,6 +375,40 @@ func (c *BackendClient) GetComments(alertKey string) ([]*alertpb.Comment, error)
 	return resp.Comments, nil
 }
 
+// GetCommentCountsBatch retrieves comment counts for multiple alerts in a single query.
+// This solves the N+1 query problem when loading comment counts for the dashboard.
+// Returns a map of fingerprint -> count.
+func (c *BackendClient) GetCommentCountsBatch(fingerprints []string) (map[string]int, error) {
+	// Handle empty input
+	if len(fingerprints) == 0 {
+		return make(map[string]int), nil
+	}
+
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &alertpb.GetCommentCountsBatchRequest{
+		AlertKeys: fingerprints,
+	}
+
+	resp, err := c.alertClient.GetCommentCountsBatch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert int32 to int
+	result := make(map[string]int, len(resp.Counts))
+	for key, count := range resp.Counts {
+		result[key] = int(count)
+	}
+
+	return result, nil
+}
+
 // AddComment adds a comment to an alert
 func (c *BackendClient) AddComment(sessionID, alertKey, content string) error {
 	if c.alertClient == nil {

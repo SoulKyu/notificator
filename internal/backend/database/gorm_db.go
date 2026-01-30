@@ -342,6 +342,40 @@ func (gdb *GormDB) GetComments(alertKey string) ([]models.CommentWithUser, error
 	return comments, err
 }
 
+// GetCommentCountsBatch retrieves comment counts for multiple alert keys in a single query.
+// This solves the N+1 query problem when loading comment counts for many alerts.
+// Returns a map of alert_key -> count.
+func (gdb *GormDB) GetCommentCountsBatch(alertKeys []string) (map[string]int, error) {
+	result := make(map[string]int)
+
+	if len(alertKeys) == 0 {
+		return result, nil
+	}
+
+	// Query: SELECT alert_key, COUNT(*) as count FROM comments WHERE alert_key IN (...) GROUP BY alert_key
+	type countResult struct {
+		AlertKey string `gorm:"column:alert_key"`
+		Count    int    `gorm:"column:count"`
+	}
+
+	var counts []countResult
+	err := gdb.db.Table("comments").
+		Select("alert_key, COUNT(*) as count").
+		Where("alert_key IN ?", alertKeys).
+		Group("alert_key").
+		Find(&counts).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comment counts batch: %w", err)
+	}
+
+	for _, c := range counts {
+		result[c.AlertKey] = c.Count
+	}
+
+	return result, nil
+}
+
 func (gdb *GormDB) DeleteComment(commentID, userID string) error {
 	result := gdb.db.Where("id = ? AND user_id = ?", commentID, userID).Delete(&models.Comment{})
 	if result.Error != nil {

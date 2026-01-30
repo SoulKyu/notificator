@@ -12,6 +12,7 @@ templ NotificationService() {
 				soundNotificationsEnabled: true
 			},
 			seenAlerts: new Set(),
+			seenAlertsInitialized: false, // Track if seenAlerts has been properly initialized from dashboard
 			notificationTimestamps: [], // Track recent notification times for rate limiting
 			notificationQueue: [], // Queue for notifications when rate limited
 
@@ -142,6 +143,7 @@ templ NotificationService() {
 			initializeSeenAlerts(alerts, userID) {
 				const fingerprints = alerts.map(a => a.fingerprint);
 				this.seenAlerts = new Set(fingerprints);
+				this.seenAlertsInitialized = true; // Mark as properly initialized
 
 				// Save to localStorage with timestamps
 				const storageKey = 'notificator_seen_alerts_' + userID;
@@ -149,7 +151,7 @@ templ NotificationService() {
 				const seenData = fingerprints.map(fp => ({ fingerprint: fp, timestamp: now }));
 				localStorage.setItem(storageKey, JSON.stringify(seenData));
 
-				console.log('Initialized', this.seenAlerts.size, 'seen alerts');
+				console.log('Initialized', this.seenAlerts.size, 'seen alerts (seenAlertsInitialized=true)');
 			},
 
 			// Mark alerts as seen
@@ -285,25 +287,137 @@ templ NotificationService() {
 				}
 			},
 
+			// Check if an alert matches the current filters
+			alertMatchesFilters(alert, filters) {
+				console.log('[NotificationService.alertMatchesFilters] Checking alert:', alert.alertName, 'fingerprint:', alert.fingerprint);
+				console.log('[NotificationService.alertMatchesFilters] Alert data:', JSON.stringify({
+					source: alert.source,
+					severity: alert.severity,
+					status: alert.status,
+					team: alert.team,
+					labels: alert.labels,
+					alertName: alert.alertName
+				}));
+				console.log('[NotificationService.alertMatchesFilters] Filters:', JSON.stringify(filters));
+
+				if (!filters) {
+					console.log('[NotificationService.alertMatchesFilters] No filters, returning true');
+					return true;
+				}
+
+				// Check alertmanager filter
+				if (filters.alertmanagers && filters.alertmanagers.length > 0) {
+					console.log('[NotificationService.alertMatchesFilters] Checking alertmanager:', alert.source, 'against', filters.alertmanagers);
+					if (!filters.alertmanagers.includes(alert.source)) {
+						console.log('[NotificationService.alertMatchesFilters] REJECTED: alertmanager mismatch');
+						return false;
+					}
+				}
+
+				// Check severity filter
+				if (filters.severities && filters.severities.length > 0) {
+					const alertSeverity = (alert.severity || '').toLowerCase();
+					console.log('[NotificationService.alertMatchesFilters] Checking severity:', alertSeverity, 'against', filters.severities);
+					const matchesSeverity = filters.severities.some(s => s.toLowerCase() === alertSeverity);
+					if (!matchesSeverity) {
+						console.log('[NotificationService.alertMatchesFilters] REJECTED: severity mismatch');
+						return false;
+					}
+				}
+
+				// Check status filter
+				if (filters.statuses && filters.statuses.length > 0) {
+					const alertStatus = (alert.status?.state || alert.status || '').toLowerCase();
+					console.log('[NotificationService.alertMatchesFilters] Checking status:', alertStatus, 'against', filters.statuses);
+					const matchesStatus = filters.statuses.some(s => s.toLowerCase() === alertStatus);
+					if (!matchesStatus) {
+						console.log('[NotificationService.alertMatchesFilters] REJECTED: status mismatch');
+						return false;
+					}
+				}
+
+				// Check team filter
+				if (filters.teams && filters.teams.length > 0) {
+					const alertTeam = alert.team || alert.labels?.team || '';
+					console.log('[NotificationService.alertMatchesFilters] Checking team:', alertTeam, 'against', filters.teams);
+					if (!filters.teams.includes(alertTeam)) {
+						console.log('[NotificationService.alertMatchesFilters] REJECTED: team mismatch');
+						return false;
+					}
+				}
+
+				// Check alertName filter
+				if (filters.alertNames && filters.alertNames.length > 0) {
+					console.log('[NotificationService.alertMatchesFilters] Checking alertName:', alert.alertName, 'against', filters.alertNames);
+					if (!filters.alertNames.includes(alert.alertName)) {
+						console.log('[NotificationService.alertMatchesFilters] REJECTED: alertName mismatch');
+						return false;
+					}
+				}
+
+				console.log('[NotificationService.alertMatchesFilters] PASSED all filters');
+				return true;
+			},
+
 			// Process new alerts and show notifications
 			processNewAlerts(allAlerts, currentFilters, userID) {
-				// Detect which alerts are new
-				const newAlerts = this.detectNewAlerts(allAlerts);
+				console.log('[NotificationService.processNewAlerts] Called with', allAlerts.length, 'total alerts');
+				console.log('[NotificationService.processNewAlerts] currentFilters:', JSON.stringify(currentFilters));
+				console.log('[NotificationService.processNewAlerts] userID:', userID);
+				console.log('[NotificationService.processNewAlerts] seenAlertsInitialized:', this.seenAlertsInitialized);
 
-				if (newAlerts.length === 0) {
+				// Skip notification processing if seenAlerts hasn't been properly initialized
+				// This prevents race conditions during page load where SSE updates arrive
+				// before the dashboard has initialized the seen alerts set
+				if (!this.seenAlertsInitialized) {
+					console.log('[NotificationService.processNewAlerts] Skipping - seenAlerts not yet initialized from dashboard');
+					// Still mark alerts as seen to prevent notifications after init
+					const fingerprints = allAlerts.map(a => a.fingerprint);
+					this.markAsSeen(fingerprints, userID);
 					return;
 				}
 
-				console.log('Processing', newAlerts.length, 'new alerts for notifications');
+				// Detect which alerts are new
+				const newAlerts = this.detectNewAlerts(allAlerts);
+				console.log('[NotificationService.processNewAlerts] New alerts detected:', newAlerts.length);
 
-				// Show notifications for new alerts with staggered delay to avoid browser spam
-				newAlerts.forEach((alert, index) => {
+				if (newAlerts.length === 0) {
+					console.log('[NotificationService.processNewAlerts] No new alerts, returning early');
+					return;
+				}
+
+				console.log('[NotificationService.processNewAlerts] New alert names:', newAlerts.map(a => a.alertName));
+
+				// Filter alerts based on user's current filters
+				console.log('[NotificationService.processNewAlerts] Starting filter process...');
+				const filteredNewAlerts = newAlerts.filter(alert => {
+					const matches = this.alertMatchesFilters(alert, currentFilters);
+					console.log('[NotificationService.processNewAlerts] Alert', alert.alertName, 'matches filters:', matches);
+					return matches;
+				});
+
+				console.log('[NotificationService.processNewAlerts] Filtered alerts count:', filteredNewAlerts.length);
+				console.log('[NotificationService.processNewAlerts] Filtered alert names:', filteredNewAlerts.map(a => a.alertName));
+
+				if (filteredNewAlerts.length === 0) {
+					console.log('[NotificationService.processNewAlerts] No alerts passed filter, marking all as seen');
+					// Still mark all as seen to avoid re-notifying when filter changes
+					const newFingerprints = newAlerts.map(a => a.fingerprint);
+					this.markAsSeen(newFingerprints, userID);
+					return;
+				}
+
+				console.log('[NotificationService.processNewAlerts] Processing', filteredNewAlerts.length, 'new alerts for notifications (filtered from', newAlerts.length, ')');
+
+				// Show notifications for filtered new alerts with staggered delay to avoid browser spam
+				filteredNewAlerts.forEach((alert, index) => {
+					console.log('[NotificationService.processNewAlerts] Scheduling notification for:', alert.alertName, 'in', index * 500, 'ms');
 					setTimeout(() => {
 						this.showNotification(alert);
 					}, index * 500); // 500ms stagger between each notification
 				});
 
-				// Mark new alerts as seen
+				// Mark ALL new alerts as seen (not just filtered) to avoid re-notifying when filter changes
 				const newFingerprints = newAlerts.map(a => a.fingerprint);
 				this.markAsSeen(newFingerprints, userID);
 			},

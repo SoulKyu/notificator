@@ -1053,8 +1053,13 @@ func PostDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
 	sessionID := middleware.GetSessionID(c)
 
-	// Parse last update timestamp from query parameter - for future use
-	_ = c.Query("lastUpdate")
+	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
+	var lastUpdate int64
+	if lastUpdateStr := c.Query("lastUpdate"); lastUpdateStr != "" {
+		if parsed, err := strconv.ParseInt(lastUpdateStr, 10, 64); err == nil {
+			lastUpdate = parsed
+		}
+	}
 
 	// Parse filters from query parameters
 	filters := parseDashboardFilters(c)
@@ -1086,15 +1091,20 @@ func PostDashboardIncremental(c *gin.Context) {
 	}
 
 	// Process incremental update
-	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID)
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, lastUpdate)
 }
 
 func GetDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
 	sessionID := middleware.GetSessionID(c)
 
-	// Parse last update timestamp from query parameter - for future use
-	_ = c.Query("lastUpdate")
+	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
+	var lastUpdate int64
+	if lastUpdateStr := c.Query("lastUpdate"); lastUpdateStr != "" {
+		if parsed, err := strconv.ParseInt(lastUpdateStr, 10, 64); err == nil {
+			lastUpdate = parsed
+		}
+	}
 
 	// Parse filters from query parameters
 	filters := parseDashboardFilters(c)
@@ -1128,10 +1138,10 @@ func GetDashboardIncremental(c *gin.Context) {
 	}
 
 	// Process incremental update
-	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID)
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, lastUpdate)
 }
 
-func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAlert, clientFingerprints map[string]bool, settings *webuimodels.DashboardSettings, userID string, sessionID string) {
+func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAlert, clientFingerprints map[string]bool, settings *webuimodels.DashboardSettings, userID string, sessionID string, lastUpdate int64) {
 	// Parse filters from query parameters for metadata
 	filters := parseDashboardFilters(c)
 
@@ -1147,13 +1157,16 @@ func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAl
 		currentFingerprints[alert.Fingerprint] = true
 
 		if !clientFingerprints[alert.Fingerprint] {
-			// Alert not in client's list = new alert
+			// Alert not in client's list = new alert (always include regardless of lastUpdate)
 			newAlerts = append(newAlerts, alert)
 		} else {
-			// Alert exists in client, check if it was updated since lastUpdate
-			// For simplicity, we'll include it as updated if it's recent
-			// In a real implementation, you'd track alert modification times
-			updatedAlerts = append(updatedAlerts, alert)
+			// Alert exists in client, only include if it was updated since lastUpdate
+			// Convert alert's UpdatedAt to milliseconds and compare with lastUpdate
+			alertUpdateMs := alert.UpdatedAt.UnixMilli()
+			if lastUpdate == 0 || alertUpdateMs > lastUpdate {
+				// Include alert if no lastUpdate provided (first sync) or if alert was updated after lastUpdate
+				updatedAlerts = append(updatedAlerts, alert)
+			}
 		}
 	}
 

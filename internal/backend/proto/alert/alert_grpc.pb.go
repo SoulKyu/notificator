@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	AlertService_AddComment_FullMethodName                   = "/notificator.alert.AlertService/AddComment"
 	AlertService_GetComments_FullMethodName                  = "/notificator.alert.AlertService/GetComments"
+	AlertService_GetCommentCountsBatch_FullMethodName        = "/notificator.alert.AlertService/GetCommentCountsBatch"
 	AlertService_DeleteComment_FullMethodName                = "/notificator.alert.AlertService/DeleteComment"
 	AlertService_AddAcknowledgment_FullMethodName            = "/notificator.alert.AlertService/AddAcknowledgment"
 	AlertService_GetAcknowledgments_FullMethodName           = "/notificator.alert.AlertService/GetAcknowledgments"
@@ -69,6 +70,7 @@ type AlertServiceClient interface {
 	// Comments
 	AddComment(ctx context.Context, in *AddCommentRequest, opts ...grpc.CallOption) (*AddCommentResponse, error)
 	GetComments(ctx context.Context, in *GetCommentsRequest, opts ...grpc.CallOption) (*GetCommentsResponse, error)
+	GetCommentCountsBatch(ctx context.Context, in *GetCommentCountsBatchRequest, opts ...grpc.CallOption) (*GetCommentCountsBatchResponse, error)
 	DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*DeleteCommentResponse, error)
 	// Acknowledgments
 	AddAcknowledgment(ctx context.Context, in *AddAcknowledgmentRequest, opts ...grpc.CallOption) (*AddAcknowledgmentResponse, error)
@@ -138,6 +140,16 @@ func (c *alertServiceClient) GetComments(ctx context.Context, in *GetCommentsReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetCommentsResponse)
 	err := c.cc.Invoke(ctx, AlertService_GetComments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) GetCommentCountsBatch(ctx context.Context, in *GetCommentCountsBatchRequest, opts ...grpc.CallOption) (*GetCommentCountsBatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCommentCountsBatchResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetCommentCountsBatch_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -521,6 +533,7 @@ type AlertServiceServer interface {
 	// Comments
 	AddComment(context.Context, *AddCommentRequest) (*AddCommentResponse, error)
 	GetComments(context.Context, *GetCommentsRequest) (*GetCommentsResponse, error)
+	GetCommentCountsBatch(context.Context, *GetCommentCountsBatchRequest) (*GetCommentCountsBatchResponse, error)
 	DeleteComment(context.Context, *DeleteCommentRequest) (*DeleteCommentResponse, error)
 	// Acknowledgments
 	AddAcknowledgment(context.Context, *AddAcknowledgmentRequest) (*AddAcknowledgmentResponse, error)
@@ -581,6 +594,9 @@ func (UnimplementedAlertServiceServer) AddComment(context.Context, *AddCommentRe
 }
 func (UnimplementedAlertServiceServer) GetComments(context.Context, *GetCommentsRequest) (*GetCommentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetComments not implemented")
+}
+func (UnimplementedAlertServiceServer) GetCommentCountsBatch(context.Context, *GetCommentCountsBatchRequest) (*GetCommentCountsBatchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCommentCountsBatch not implemented")
 }
 func (UnimplementedAlertServiceServer) DeleteComment(context.Context, *DeleteCommentRequest) (*DeleteCommentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteComment not implemented")
@@ -740,6 +756,24 @@ func _AlertService_GetComments_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AlertServiceServer).GetComments(ctx, req.(*GetCommentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_GetCommentCountsBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCommentCountsBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetCommentCountsBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetCommentCountsBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetCommentCountsBatch(ctx, req.(*GetCommentCountsBatchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1374,6 +1408,10 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetComments",
 			Handler:    _AlertService_GetComments_Handler,
+		},
+		{
+			MethodName: "GetCommentCountsBatch",
+			Handler:    _AlertService_GetCommentCountsBatch_Handler,
 		},
 		{
 			MethodName: "DeleteComment",

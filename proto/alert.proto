@@ -12,6 +12,7 @@ service AlertService {
   // Comments
   rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
   rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
+  rpc GetCommentCountsBatch(GetCommentCountsBatchRequest) returns (GetCommentCountsBatchResponse);
   rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
   
   // Acknowledgments
@@ -89,6 +90,15 @@ message GetCommentsRequest {
 message GetCommentsResponse {
   repeated Comment comments = 1;
   int32 count = 2;
+}
+
+// Batch comment counts request - solves N+1 query problem
+message GetCommentCountsBatchRequest {
+  repeated string alert_keys = 1;  // List of alert fingerprints to get counts for
+}
+
+message GetCommentCountsBatchResponse {
+  map<string, int32> counts = 1;  // alert_key -> comment count
 }
 
 message DeleteCommentRequest {
