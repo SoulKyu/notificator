@@ -46,6 +46,7 @@ func QueryStatistics(c *gin.Context) {
 		TimeOfDayStart     string    `json:"time_of_day_start"`      // "HH:MM" format
 		TimeOfDayEnd       string    `json:"time_of_day_end"`        // "HH:MM" format
 		IncludeWeekends    bool      `json:"include_weekends"`       // Include weekends in time-of-day filter
+		WeekendMode        string    `json:"weekend_mode"`           // "exclude", "same_hours", "full_weekends"
 		Severities         []string  `json:"severities"`             // Filter by severities (multi-select)
 		Teams              []string  `json:"teams"`                  // Filter by teams (multi-select)
 	}
@@ -69,6 +70,7 @@ func QueryStatistics(c *gin.Context) {
 		TimeOfDayStart:     request.TimeOfDayStart,
 		TimeOfDayEnd:       request.TimeOfDayEnd,
 		IncludeWeekends:    request.IncludeWeekends,
+		WeekendMode:        request.WeekendMode,
 		Severities:         request.Severities,
 		Teams:              request.Teams,
 	}

@@ -45,6 +45,7 @@ type StatisticsViewData struct {
 	TimeOfDayEnd      string `json:"time_of_day_end,omitempty"`
 	UseOnCallPeriod   bool   `json:"use_on_call_period"`  // Use global on-call config
 	IncludeWeekends   bool   `json:"include_weekends"`    // Include weekends in time-of-day filter
+	WeekendMode       string `json:"weekend_mode"`        // "exclude", "same_hours", "full_weekends"
 
 	// Grouping
 	GroupBy    string `json:"group_by,omitempty"`    // "", "severity", "team", "alert_name", "period"

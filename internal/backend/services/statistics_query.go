@@ -38,7 +38,8 @@ type QueryRequest struct {
 	FilterByTimeOfDay  bool     // Enable time-of-day filtering
 	TimeOfDayStart     string   // "HH:MM" format (e.g., "22:00")
 	TimeOfDayEnd       string   // "HH:MM" format (e.g., "06:00") - supports cross-midnight
-	IncludeWeekends    bool     // Include weekends in time-of-day filter (default: true means include)
+	IncludeWeekends    bool     // Include weekends in time-of-day filter (default: true means include) - DEPRECATED: use WeekendMode
+	WeekendMode        string   // "exclude", "same_hours", "full_weekends"
 	Severities         []string // Filter by severities (multi-select, OR logic)
 	Teams              []string // Filter by teams (multi-select, OR logic)
 }
@@ -80,10 +81,28 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 
 	// Apply time-of-day filter if enabled
 	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
-		baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
-		// Apply weekend filter if not including weekends
-		if !req.IncludeWeekends {
+		// Determine weekend mode (use WeekendMode if set, otherwise fall back to IncludeWeekends)
+		weekendMode := req.WeekendMode
+		if weekendMode == "" {
+			if req.IncludeWeekends {
+				weekendMode = "same_hours"
+			} else {
+				weekendMode = "exclude"
+			}
+		}
+
+		// Apply weekend mode logic
+		switch weekendMode {
+		case "exclude":
+			// Apply time filter to weekdays only, exclude weekends entirely
+			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
 			baseQuery = sqs.applyWeekendFilter(baseQuery)
+		case "full_weekends":
+			// Apply time filter only to weekdays, include all of weekends
+			baseQuery = sqs.applyTimeOfDayFilterWeekdaysOnly(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
+		default: // "same_hours"
+			// Apply same time filter to all days
+			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
 		}
 	}
 
@@ -247,6 +266,44 @@ func (sqs *StatisticsQueryService) applyWeekendFilter(query *gorm.DB) *gorm.DB {
 	}
 	// SQLite: strftime('%w', timestamp) returns 0 for Sunday, 6 for Saturday
 	return query.Where("CAST(strftime('%w', fired_at) AS INTEGER) NOT IN (0, 6)")
+}
+
+// applyTimeOfDayFilterWeekdaysOnly applies time filter only to weekdays, includes full weekends
+func (sqs *StatisticsQueryService) applyTimeOfDayFilterWeekdaysOnly(query *gorm.DB, startTime, endTime string) *gorm.DB {
+	startMinutes := parseTimeToMinutes(startTime)
+	endMinutes := parseTimeToMinutes(endTime)
+
+	if startMinutes < 0 || endMinutes < 0 {
+		return query
+	}
+
+	isPostgres := sqs.db.IsPostgreSQL()
+
+	if startMinutes <= endMinutes {
+		// Same-day range: weekends (any time) OR weekdays within time range
+		if isPostgres {
+			return query.Where(
+				"(EXTRACT(DOW FROM fired_at) IN (0, 6)) OR ((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) BETWEEN ? AND ?)",
+				startMinutes, endMinutes,
+			)
+		}
+		return query.Where(
+			"(CAST(strftime('%w', fired_at) AS INTEGER) IN (0, 6)) OR ((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) BETWEEN ? AND ?)",
+			startMinutes, endMinutes,
+		)
+	}
+
+	// Cross-midnight range: weekends (any time) OR weekdays within time range
+	if isPostgres {
+		return query.Where(
+			"(EXTRACT(DOW FROM fired_at) IN (0, 6)) OR ((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) >= ? OR (EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) <= ?)",
+			startMinutes, endMinutes,
+		)
+	}
+	return query.Where(
+		"(CAST(strftime('%w', fired_at) AS INTEGER) IN (0, 6)) OR ((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) >= ? OR (CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) <= ?)",
+		startMinutes, endMinutes,
+	)
 }
 
 // parseTimeToMinutes parses "HH:MM" format to minutes since midnight

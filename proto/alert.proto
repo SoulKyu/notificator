@@ -667,6 +667,7 @@ message QueryStatisticsRequest {
   string secondary_group_by = 13; // For period grouping: sub-group breakdown by "severity", "team", "alert_name"
   repeated string severities = 14; // Filter by severities (multi-select, OR logic)
   repeated string teams = 15;      // Filter by teams (multi-select, OR logic)
+  string weekend_mode = 16;        // "exclude", "same_hours", "full_weekends"
 }
 
 message QueryStatisticsResponse {
@@ -934,6 +935,7 @@ message GetAlertsByNameRequest {
   string time_of_day_end = 8;
   int32 limit = 9;
   bool include_weekends = 10;     // Include weekends in time-of-day filter (default: true)
+  string weekend_mode = 11;       // "exclude", "same_hours", "full_weekends"
 }
 
 message GetAlertsByNameResponse {
@@ -1097,4 +1099,5 @@ message StatisticsViewData {
   // Filter arrays
   repeated string severities = 18;        // Filter by severity levels
   repeated string teams = 19;             // Filter by team names
+  string weekend_mode = 20;               // "exclude", "same_hours", "full_weekends"
 }

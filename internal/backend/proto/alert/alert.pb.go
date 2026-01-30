@@ -5254,6 +5254,7 @@ type QueryStatisticsRequest struct {
 	SecondaryGroupBy  string                 `protobuf:"bytes,13,opt,name=secondary_group_by,json=secondaryGroupBy,proto3" json:"secondary_group_by,omitempty"`        // For period grouping: sub-group breakdown by "severity", "team", "alert_name"
 	Severities        []string               `protobuf:"bytes,14,rep,name=severities,proto3" json:"severities,omitempty"`                                              // Filter by severities (multi-select, OR logic)
 	Teams             []string               `protobuf:"bytes,15,rep,name=teams,proto3" json:"teams,omitempty"`                                                        // Filter by teams (multi-select, OR logic)
+	WeekendMode       string                 `protobuf:"bytes,16,opt,name=weekend_mode,json=weekendMode,proto3" json:"weekend_mode,omitempty"`                         // "exclude", "same_hours", "full_weekends"
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -5391,6 +5392,13 @@ func (x *QueryStatisticsRequest) GetTeams() []string {
 		return x.Teams
 	}
 	return nil
+}
+
+func (x *QueryStatisticsRequest) GetWeekendMode() string {
+	if x != nil {
+		return x.WeekendMode
+	}
+	return ""
 }
 
 type QueryStatisticsResponse struct {
@@ -7737,6 +7745,7 @@ type GetAlertsByNameRequest struct {
 	TimeOfDayEnd      string                 `protobuf:"bytes,8,opt,name=time_of_day_end,json=timeOfDayEnd,proto3" json:"time_of_day_end,omitempty"`
 	Limit             int32                  `protobuf:"varint,9,opt,name=limit,proto3" json:"limit,omitempty"`
 	IncludeWeekends   bool                   `protobuf:"varint,10,opt,name=include_weekends,json=includeWeekends,proto3" json:"include_weekends,omitempty"` // Include weekends in time-of-day filter (default: true)
+	WeekendMode       string                 `protobuf:"bytes,11,opt,name=weekend_mode,json=weekendMode,proto3" json:"weekend_mode,omitempty"`              // "exclude", "same_hours", "full_weekends"
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -7839,6 +7848,13 @@ func (x *GetAlertsByNameRequest) GetIncludeWeekends() bool {
 		return x.IncludeWeekends
 	}
 	return false
+}
+
+func (x *GetAlertsByNameRequest) GetWeekendMode() string {
+	if x != nil {
+		return x.WeekendMode
+	}
+	return ""
 }
 
 type GetAlertsByNameResponse struct {
@@ -9147,8 +9163,9 @@ type StatisticsViewData struct {
 	AbsoluteFromTime  string              `protobuf:"bytes,16,opt,name=absolute_from_time,json=absoluteFromTime,proto3" json:"absolute_from_time,omitempty"`    // "HH:MM" format for absolute mode
 	AbsoluteUntilTime string              `protobuf:"bytes,17,opt,name=absolute_until_time,json=absoluteUntilTime,proto3" json:"absolute_until_time,omitempty"` // "HH:MM" format for absolute mode
 	// Filter arrays
-	Severities    []string `protobuf:"bytes,18,rep,name=severities,proto3" json:"severities,omitempty"` // Filter by severity levels
-	Teams         []string `protobuf:"bytes,19,rep,name=teams,proto3" json:"teams,omitempty"`           // Filter by team names
+	Severities    []string `protobuf:"bytes,18,rep,name=severities,proto3" json:"severities,omitempty"`                      // Filter by severity levels
+	Teams         []string `protobuf:"bytes,19,rep,name=teams,proto3" json:"teams,omitempty"`                                // Filter by team names
+	WeekendMode   string   `protobuf:"bytes,20,opt,name=weekend_mode,json=weekendMode,proto3" json:"weekend_mode,omitempty"` // "exclude", "same_hours", "full_weekends"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9314,6 +9331,13 @@ func (x *StatisticsViewData) GetTeams() []string {
 		return x.Teams
 	}
 	return nil
+}
+
+func (x *StatisticsViewData) GetWeekendMode() string {
+	if x != nil {
+		return x.WeekendMode
+	}
+	return ""
 }
 
 var File_proto_alert_proto protoreflect.FileDescriptor
@@ -9745,7 +9769,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xc7\x04\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xea\x04\n" +
 	"\x16QueryStatisticsRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
@@ -9768,7 +9792,8 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
 	"severities\x18\x0e \x03(\tR\n" +
 	"severities\x12\x14\n" +
-	"\x05teams\x18\x0f \x03(\tR\x05teams\"\xb1\x03\n" +
+	"\x05teams\x18\x0f \x03(\tR\x05teams\x12!\n" +
+	"\fweekend_mode\x18\x10 \x01(\tR\vweekendMode\"\xb1\x03\n" +
 	"\x17QueryStatisticsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12;\n" +
 	"\n" +
@@ -10003,7 +10028,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x17GetAlertHistoryResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12;\n" +
-	"\ahistory\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\ahistory\"\xae\x03\n" +
+	"\ahistory\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\ahistory\"\xd1\x03\n" +
 	"\x16GetAlertsByNameRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
@@ -10019,7 +10044,8 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x0ftime_of_day_end\x18\b \x01(\tR\ftimeOfDayEnd\x12\x14\n" +
 	"\x05limit\x18\t \x01(\x05R\x05limit\x12)\n" +
 	"\x10include_weekends\x18\n" +
-	" \x01(\bR\x0fincludeWeekends\"\xa9\x01\n" +
+	" \x01(\bR\x0fincludeWeekends\x12!\n" +
+	"\fweekend_mode\x18\v \x01(\tR\vweekendMode\"\xa9\x01\n" +
 	"\x17GetAlertsByNameResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x129\n" +
@@ -10129,7 +10155,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x05value\x18\x01 \x01(\x05R\x05value\x12\x12\n" +
 	"\x04unit\x18\x02 \x01(\tR\x04unit\x12\x19\n" +
 	"\ball_time\x18\x03 \x01(\bR\aallTime\x12\x10\n" +
-	"\x03now\x18\x04 \x01(\bR\x03now\"\x9b\x06\n" +
+	"\x03now\x18\x04 \x01(\bR\x03now\"\xbe\x06\n" +
 	"\x12StatisticsViewData\x12&\n" +
 	"\x0fdate_range_type\x18\x01 \x01(\tR\rdateRangeType\x12\x1d\n" +
 	"\n" +
@@ -10155,7 +10181,8 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
 	"severities\x18\x12 \x03(\tR\n" +
 	"severities\x12\x14\n" +
-	"\x05teams\x18\x13 \x03(\tR\x05teams*~\n" +
+	"\x05teams\x18\x13 \x03(\tR\x05teams\x12!\n" +
+	"\fweekend_mode\x18\x14 \x01(\tR\vweekendMode*~\n" +
 	"\n" +
 	"UpdateType\x12\x12\n" +
 	"\x0eUNKNOWN_UPDATE\x10\x00\x12\x11\n" +

@@ -85,6 +85,7 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 		TimeOfDayStart:    req.TimeOfDayStart,
 		TimeOfDayEnd:      req.TimeOfDayEnd,
 		IncludeWeekends:   req.IncludeWeekends,
+		WeekendMode:       req.WeekendMode,
 		Severities:        req.Severities,
 		Teams:             req.Teams,
 	}
@@ -597,10 +598,28 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 
 	// Apply time of day filter if requested
 	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
-		query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
-		// Apply weekend filter if not including weekends
-		if !req.IncludeWeekends {
+		// Determine weekend mode (use WeekendMode if set, otherwise fall back to IncludeWeekends)
+		weekendMode := req.WeekendMode
+		if weekendMode == "" {
+			if req.IncludeWeekends {
+				weekendMode = "same_hours"
+			} else {
+				weekendMode = "exclude"
+			}
+		}
+
+		// Apply weekend mode logic
+		switch weekendMode {
+		case "exclude":
+			// Apply time filter to weekdays only, exclude weekends entirely
+			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
 			query = s.queryService.applyWeekendFilter(query)
+		case "full_weekends":
+			// Apply time filter only to weekdays, include all of weekends
+			query = s.queryService.applyTimeOfDayFilterWeekdaysOnly(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+		default: // "same_hours"
+			// Apply same time filter to all days
+			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
 		}
 	}
 
@@ -1018,6 +1037,7 @@ func protoToModelViewData(pbData *alertpb.StatisticsViewData) *models.Statistics
 		TimeOfDayEnd:      pbData.TimeOfDayEnd,
 		UseOnCallPeriod:   pbData.UseOnCallPeriod,
 		IncludeWeekends:   pbData.IncludeWeekends,
+		WeekendMode:       pbData.WeekendMode,
 
 		// Grouping
 		GroupBy:    pbData.GroupBy,
@@ -1077,6 +1097,7 @@ func modelToProtoViewData(data *models.StatisticsViewData) *alertpb.StatisticsVi
 		TimeOfDayEnd:      data.TimeOfDayEnd,
 		UseOnCallPeriod:   data.UseOnCallPeriod,
 		IncludeWeekends:   data.IncludeWeekends,
+		WeekendMode:       data.WeekendMode,
 
 		// Grouping
 		GroupBy:    data.GroupBy,
