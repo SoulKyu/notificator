@@ -230,12 +230,13 @@ templ AlertModalTimelineCard(dataVar string, useDateHelper bool) {
 				<div class="flex items-center justify-between">
 					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Ended:</span>
 					if useDateHelper {
-						<span class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
+						<span x-show={ dataVar + "?.endsAt && " + dataVar + "?.status?.state?.toLowerCase() !== 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
 							  x-text={ "formatAlertDate(" + dataVar + "?.endsAt)" }></span>
+						<span x-show={ "!" + dataVar + "?.endsAt || " + dataVar + "?.status?.state?.toLowerCase() === 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white">—</span>
 					} else {
-						<span x-show={ dataVar + "?.endsAt" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
+						<span x-show={ dataVar + "?.endsAt && " + dataVar + "?.status?.state?.toLowerCase() !== 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
 							  x-text={ dataVar + "?.endsAt ? new Date(" + dataVar + ".endsAt).toLocaleString() : '—'" }></span>
-						<span x-show={ "!" + dataVar + "?.endsAt" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white">—</span>
+						<span x-show={ "!" + dataVar + "?.endsAt || " + dataVar + "?.status?.state?.toLowerCase() === 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white">—</span>
 					}
 				</div>
 			</div>

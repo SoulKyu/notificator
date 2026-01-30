@@ -366,6 +366,12 @@ templ NotificationService() {
 				console.log('[NotificationService.processNewAlerts] userID:', userID);
 				console.log('[NotificationService.processNewAlerts] seenAlertsInitialized:', this.seenAlertsInitialized);
 
+				// Skip if userID is not available (user not logged in or profile not loaded)
+				if (!userID) {
+					console.log('[NotificationService.processNewAlerts] Skipping - userID not available');
+					return;
+				}
+
 				// Skip notification processing if seenAlerts hasn't been properly initialized
 				// This prevents race conditions during page load where SSE updates arrive
 				// before the dashboard has initialized the seen alerts set

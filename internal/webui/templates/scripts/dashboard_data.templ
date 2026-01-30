@@ -172,7 +172,14 @@ templ DashboardData() {
 				if (!force && Object.keys(this.alertColors).length > 0) {
 					return;
 				}
-				
+
+				// Prevent concurrent requests - if already loading, skip
+				if (this._loadingAlertColors) {
+					console.log('Skipping alert colors load - request already in progress');
+					return;
+				}
+				this._loadingAlertColors = true;
+
 				try {
 					console.log('Loading alert colors...');
 					
@@ -235,6 +242,8 @@ templ DashboardData() {
 					}
 				} catch (error) {
 					console.error('Error loading alert colors:', error);
+				} finally {
+					this._loadingAlertColors = false;
 				}
 			},
 
@@ -342,7 +351,13 @@ templ DashboardData() {
 					console.log(`Updated colors for ${Object.keys(update.colors).length} alerts from incremental update`);
 				} else if (this.sseConnection && (update.newAlerts?.length > 0 || update.updatedAlerts?.length > 0)) {
 					// SSE doesn't include colors (they're user-specific), so fetch them
-					this.loadAlertColors(true);
+					// Debounce to prevent multiple rapid calls
+					if (this._colorLoadTimeout) {
+						clearTimeout(this._colorLoadTimeout);
+					}
+					this._colorLoadTimeout = setTimeout(() => {
+						this.loadAlertColors(true);
+					}, 500);
 				}
 				
 				// Update timestamp

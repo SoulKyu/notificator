@@ -297,14 +297,23 @@ templ NewDashboardContent() {
 						<div class="flex-1 max-w-lg">
 							<div class="relative">
 								<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-									<svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<!-- Search icon (shown when not loading) -->
+									<svg x-show="!isSearching" class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
 										<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
 									</svg>
+									<!-- Loading spinner (shown when searching) -->
+									<svg x-show="isSearching" x-cloak class="h-5 w-5 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
 								</div>
-								<input x-model="searchQuery" @input.debounce.300ms="applyFilters()"
+								<input x-model="searchQuery"
+									   @input.debounce.300ms="isSearching = true; applyFilters().finally(() => { isSearching = false; })"
+									   @keydown.enter="isSearching = true; applyFilters().finally(() => { isSearching = false; })"
 									   id="dashboard-search" name="dashboard-search"
 									   type="text" placeholder="Search alerts, instances, summaries..."
-									   class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md leading-5 bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+									   class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md leading-5 bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+									   :class="{ 'ring-2 ring-blue-500': isSearching }">
 							</div>
 						</div>
 

@@ -278,11 +278,11 @@ templ DashboardUtilities() {
 					});
 					if (response.ok) {
 						const result = await response.json();
-						if (result.success && result.data) {
+						if (result.success && result.data && result.data.user) {
 							this.currentUser = {
-								id: result.data.id,
-								username: result.data.username,
-								email: result.data.email
+								id: result.data.user.id,
+								username: result.data.user.username,
+								email: result.data.user.email
 							};
 
 							// Initialize notification service with user ID
