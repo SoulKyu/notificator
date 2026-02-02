@@ -193,6 +193,14 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			authProtected.GET("/profile", handlers.GetCurrentUser) // Alias for user profile
 		}
 
+		// Profile routes
+		profile := api.Group("/profile")
+		profile.Use(authMiddleware.RequireAuth())
+		{
+			profile.GET("/timezone", handlers.GetTimezone)
+			profile.PUT("/timezone", handlers.UpdateTimezone)
+		}
+
 		// Protected OAuth routes
 		oauthProtected := api.Group("/oauth")
 		oauthProtected.Use(authMiddleware.RequireAuth())

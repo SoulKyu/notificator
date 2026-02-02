@@ -2,6 +2,29 @@ package scripts
 
 templ StatisticsViews() {
 	<script>
+		// Convert local time (HH:MM) to UTC time using user's timezone
+		function convertTimeToUTC(localTime, timezone) {
+			if (!localTime || !timezone || typeof dayjs === 'undefined') return localTime;
+
+			// Create a date with the local time in the user's timezone
+			// We use today's date but only care about the time portion
+			const today = dayjs().format('YYYY-MM-DD');
+			const localDateTime = dayjs.tz(`${today} ${localTime}`, timezone);
+
+			// Convert to UTC and extract just the time
+			return localDateTime.utc().format('HH:mm');
+		}
+
+		// Convert UTC time (HH:MM) to local time for display
+		function convertTimeFromUTC(utcTime, timezone) {
+			if (!utcTime || !timezone || typeof dayjs === 'undefined') return utcTime;
+
+			const today = dayjs().format('YYYY-MM-DD');
+			const utcDateTime = dayjs.utc(`${today} ${utcTime}`);
+
+			return utcDateTime.tz(timezone).format('HH:mm');
+		}
+
 		// Statistics Views Mixin - provides saved views functionality with backend persistence
 		function statisticsViewsMixin() {
 			return {
@@ -92,10 +115,14 @@ templ StatisticsViews() {
 						absolute_from_time: this.filters.absoluteFromTime,
 						absolute_until_time: this.filters.absoluteUntilTime,
 
-						// Time of day filtering
+						// Time of day filtering (convert to UTC before sending)
 						filter_by_time_of_day: this.filters.filterByTimeOfDay,
-						time_of_day_start: this.filters.timeOfDayStart,
-						time_of_day_end: this.filters.timeOfDayEnd,
+						time_of_day_start: this.filters.filterByTimeOfDay
+							? convertTimeToUTC(this.filters.timeOfDayStart, window.__USER_TIMEZONE__)
+							: this.filters.timeOfDayStart,
+						time_of_day_end: this.filters.filterByTimeOfDay
+							? convertTimeToUTC(this.filters.timeOfDayEnd, window.__USER_TIMEZONE__)
+							: this.filters.timeOfDayEnd,
 						include_weekends: this.filters.includeWeekends !== false,
 
 						// Grouping
@@ -234,6 +261,9 @@ templ StatisticsViews() {
 					this.filters.filterByTimeOfDay = data.filter_by_time_of_day || false;
 					if (data.time_of_day_start) this.filters.timeOfDayStart = data.time_of_day_start;
 					if (data.time_of_day_end) this.filters.timeOfDayEnd = data.time_of_day_end;
+					// Sync raw values for text input display
+					this.timeOfDayStartRaw = this.filters.timeOfDayStart;
+					this.timeOfDayEndRaw = this.filters.timeOfDayEnd;
 					this.filters.includeWeekends = data.include_weekends !== false;
 
 					// Grouping

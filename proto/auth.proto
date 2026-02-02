@@ -103,6 +103,7 @@ message User {
   google.protobuf.Timestamp last_login = 5;
   string oauth_provider = 6;                                        // OAuth provider name
   string oauth_id = 7;                                              // OAuth user ID
+  string timezone = 8;                                              // IANA timezone (e.g., "Europe/Paris")
 }
 
 message SearchUsersRequest {

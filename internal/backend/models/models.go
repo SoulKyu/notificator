@@ -25,6 +25,9 @@ type User struct {
 	OAuthEmail    *string `gorm:"size:255" json:"oauth_email,omitempty"`
 	EmailVerified bool    `gorm:"default:false" json:"email_verified"`
 
+	// User preferences
+	Timezone *string `gorm:"size:100" json:"timezone,omitempty"` // IANA timezone (e.g., "Europe/Paris")
+
 	Sessions        []Session        `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Comments        []Comment        `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Acknowledgments []Acknowledgment `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`

@@ -38,6 +38,7 @@ type User struct {
 	Email         string  `json:"email"`
 	OAuthProvider *string `json:"oauth_provider,omitempty"`
 	OAuthID       *string `json:"oauth_id,omitempty"`
+	Timezone      *string `json:"timezone,omitempty"`
 }
 
 // IsOAuthUser returns true if the user was created via OAuth
