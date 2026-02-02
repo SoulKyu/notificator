@@ -212,6 +212,13 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		impersonate.GET("/status", handlers.GetImpersonationStatus)
 	}
 
+	// Admin API routes (for users who can impersonate)
+	admin := r.Group("/api/admin")
+	admin.Use(authMiddleware.RequireAuth())
+	{
+		admin.GET("/connected-users", handlers.GetConnectedUsers)
+	}
+
 	// Continue with more v1 API routes (reusing api variable)
 	{
 		// Protected alert routes

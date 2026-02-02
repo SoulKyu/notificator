@@ -890,6 +890,51 @@ func (c *BackendClient) ListUsers(sessionID string, limit, offset int) ([]*User,
 	return users, resp.TotalCount, nil
 }
 
+// ConnectedUser represents a user with active sessions
+type ConnectedUser struct {
+	UserID       string    `json:"user_id"`
+	Username     string    `json:"username"`
+	Email        string    `json:"email"`
+	SessionCount int       `json:"session_count"`
+	LastActivity time.Time `json:"last_activity"`
+}
+
+// GetConnectedUsers retrieves all users with active sessions (admin only)
+func (c *BackendClient) GetConnectedUsers(sessionID string) ([]ConnectedUser, int, error) {
+	if c.authClient == nil {
+		return nil, 0, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &authpb.GetConnectedUsersRequest{
+		SessionId: sessionID,
+	}
+
+	resp, err := c.authClient.GetConnectedUsers(ctx, req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if !resp.Success {
+		return nil, 0, fmt.Errorf("failed to get connected users: %s", resp.Message)
+	}
+
+	users := make([]ConnectedUser, len(resp.Users))
+	for i, u := range resp.Users {
+		users[i] = ConnectedUser{
+			UserID:       u.UserId,
+			Username:     u.Username,
+			Email:        u.Email,
+			SessionCount: int(u.SessionCount),
+			LastActivity: u.LastActivity.AsTime(),
+		}
+	}
+
+	return users, int(resp.TotalCount), nil
+}
+
 // Hidden Alerts methods
 
 // GetUserHiddenAlerts retrieves hidden alerts for a user

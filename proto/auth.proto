@@ -32,6 +32,9 @@ service AuthService {
   rpc GetUserSentryToken(GetUserSentryTokenRequest) returns (GetUserSentryTokenResponse);
   rpc SaveUserSentryConfig(SaveUserSentryConfigRequest) returns (SaveUserSentryConfigResponse);
   rpc DeleteUserSentryConfig(DeleteUserSentryConfigRequest) returns (DeleteUserSentryConfigResponse);
+
+  // Admin: Connected Users
+  rpc GetConnectedUsers(GetConnectedUsersRequest) returns (GetConnectedUsersResponse);
 }
 
 // Messages
@@ -247,4 +250,24 @@ message UserSentryConfig {
   google.protobuf.Timestamp created_at = 3;
   google.protobuf.Timestamp updated_at = 4;
   // Note: personal_token is intentionally omitted for security
+}
+
+// Connected Users Messages (Admin only)
+message GetConnectedUsersRequest {
+  string session_id = 1;
+}
+
+message GetConnectedUsersResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ConnectedUser users = 3;
+  int32 total_count = 4;
+}
+
+message ConnectedUser {
+  string user_id = 1;
+  string username = 2;
+  string email = 3;
+  int32 session_count = 4;
+  google.protobuf.Timestamp last_activity = 5;
 }

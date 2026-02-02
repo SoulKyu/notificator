@@ -25,10 +25,6 @@ templ LoginContent(oauthConfig *OAuthConfig) {
 			</h2>
 		</div>
 
-		<div class="sm:mx-auto sm:w-full sm:max-w-sm">
-			@components.BackendWarning()
-		</div>
-
 		<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
 			<!-- OAuth Providers -->
 			if oauthConfig != nil && oauthConfig.Enabled && len(oauthConfig.Providers) > 0 {

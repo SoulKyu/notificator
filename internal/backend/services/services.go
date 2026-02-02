@@ -326,6 +326,46 @@ func (s *AuthServiceGorm) ValidateSessionByID(sessionID string) (*authpb.User, e
 	}, nil
 }
 
+// GetConnectedUsers returns all users with active sessions (Admin only)
+func (s *AuthServiceGorm) GetConnectedUsers(ctx context.Context, req *authpb.GetConnectedUsersRequest) (*authpb.GetConnectedUsersResponse, error) {
+	// Validate session
+	_, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.GetConnectedUsersResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get connected users from database
+	connectedUsers, err := s.db.GetConnectedUsers()
+	if err != nil {
+		log.Printf("Error getting connected users: %v", err)
+		return &authpb.GetConnectedUsersResponse{
+			Success: false,
+			Message: "Failed to get connected users",
+		}, nil
+	}
+
+	// Convert to proto users
+	protoUsers := make([]*authpb.ConnectedUser, len(connectedUsers))
+	for i, cu := range connectedUsers {
+		protoUsers[i] = &authpb.ConnectedUser{
+			UserId:       cu.UserID,
+			Username:     cu.Username,
+			Email:        cu.Email,
+			SessionCount: int32(cu.SessionCount),
+			LastActivity: timestamppb.New(cu.LastActivity),
+		}
+	}
+
+	return &authpb.GetConnectedUsersResponse{
+		Success:    true,
+		Users:      protoUsers,
+		TotalCount: int32(len(protoUsers)),
+	}, nil
+}
+
 // Subscription represents an active subscription to alert updates
 type Subscription struct {
 	AlertKey string

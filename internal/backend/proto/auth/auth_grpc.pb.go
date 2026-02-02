@@ -38,6 +38,7 @@ const (
 	AuthService_GetUserSentryToken_FullMethodName     = "/notificator.auth.AuthService/GetUserSentryToken"
 	AuthService_SaveUserSentryConfig_FullMethodName   = "/notificator.auth.AuthService/SaveUserSentryConfig"
 	AuthService_DeleteUserSentryConfig_FullMethodName = "/notificator.auth.AuthService/DeleteUserSentryConfig"
+	AuthService_GetConnectedUsers_FullMethodName      = "/notificator.auth.AuthService/GetConnectedUsers"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -66,6 +67,8 @@ type AuthServiceClient interface {
 	GetUserSentryToken(ctx context.Context, in *GetUserSentryTokenRequest, opts ...grpc.CallOption) (*GetUserSentryTokenResponse, error)
 	SaveUserSentryConfig(ctx context.Context, in *SaveUserSentryConfigRequest, opts ...grpc.CallOption) (*SaveUserSentryConfigResponse, error)
 	DeleteUserSentryConfig(ctx context.Context, in *DeleteUserSentryConfigRequest, opts ...grpc.CallOption) (*DeleteUserSentryConfigResponse, error)
+	// Admin: Connected Users
+	GetConnectedUsers(ctx context.Context, in *GetConnectedUsersRequest, opts ...grpc.CallOption) (*GetConnectedUsersResponse, error)
 }
 
 type authServiceClient struct {
@@ -246,6 +249,16 @@ func (c *authServiceClient) DeleteUserSentryConfig(ctx context.Context, in *Dele
 	return out, nil
 }
 
+func (c *authServiceClient) GetConnectedUsers(ctx context.Context, in *GetConnectedUsersRequest, opts ...grpc.CallOption) (*GetConnectedUsersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetConnectedUsersResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetConnectedUsers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -272,6 +285,8 @@ type AuthServiceServer interface {
 	GetUserSentryToken(context.Context, *GetUserSentryTokenRequest) (*GetUserSentryTokenResponse, error)
 	SaveUserSentryConfig(context.Context, *SaveUserSentryConfigRequest) (*SaveUserSentryConfigResponse, error)
 	DeleteUserSentryConfig(context.Context, *DeleteUserSentryConfigRequest) (*DeleteUserSentryConfigResponse, error)
+	// Admin: Connected Users
+	GetConnectedUsers(context.Context, *GetConnectedUsersRequest) (*GetConnectedUsersResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -332,6 +347,9 @@ func (UnimplementedAuthServiceServer) SaveUserSentryConfig(context.Context, *Sav
 }
 func (UnimplementedAuthServiceServer) DeleteUserSentryConfig(context.Context, *DeleteUserSentryConfigRequest) (*DeleteUserSentryConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserSentryConfig not implemented")
+}
+func (UnimplementedAuthServiceServer) GetConnectedUsers(context.Context, *GetConnectedUsersRequest) (*GetConnectedUsersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetConnectedUsers not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -660,6 +678,24 @@ func _AuthService_DeleteUserSentryConfig_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetConnectedUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetConnectedUsersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetConnectedUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetConnectedUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetConnectedUsers(ctx, req.(*GetConnectedUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -734,6 +770,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteUserSentryConfig",
 			Handler:    _AuthService_DeleteUserSentryConfig_Handler,
+		},
+		{
+			MethodName: "GetConnectedUsers",
+			Handler:    _AuthService_GetConnectedUsers_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -20,7 +20,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 	<!-- Statistics Views Mixin -->
 	@scripts.StatisticsViews()
-	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="initViews()">
+	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="{ ...statisticsDashboardPage(), ...statisticsViewsMixin() }" x-init="init()">
 		<!-- Sticky Header Bar -->
 		<header class="sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50">
 			<div class="px-6 py-4">
@@ -432,7 +432,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<div x-show="availableSeverities.length > 0" class="max-h-60 overflow-y-auto p-2 space-y-1">
 								<template x-for="severity in availableSeverities" :key="severity">
 									<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-										<input type="checkbox" :id="'severity-filter-' + severity" :name="'severity-filter-' + severity" :value="severity" x-model="filters.severities" class="w-4 h-4 rounded border-slate-300 focus:ring-amber-500" :style="'color: ' + getSeverityColor(severity)"/>
+										<input type="checkbox" :id="'severity-filter-' + severity" :name="'severity-filter-' + severity" :value="severity" x-model="filters.severities" @change="onFilterChange()" class="w-4 h-4 rounded border-slate-300 focus:ring-amber-500" :style="'color: ' + getSeverityColor(severity)"/>
 										<span class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
 											<span class="w-3 h-3 rounded-full" :style="'background-color: ' + getSeverityColor(severity)"></span>
 											<span x-text="severity.charAt(0).toUpperCase() + severity.slice(1)"></span>
@@ -441,7 +441,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								</template>
 							</div>
 							<div x-show="filters.severities.length > 0" class="border-t border-slate-100 dark:border-slate-700 p-2">
-								<button @click="filters.severities = []; showSeverityDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear</button>
+								<button @click="filters.severities = []; onFilterChange(); showSeverityDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear</button>
 							</div>
 						</div>
 					</div>
@@ -474,13 +474,13 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<div x-show="availableTeams.length > 0" class="max-h-60 overflow-y-auto p-2 space-y-1">
 								<template x-for="team in availableTeams" :key="team">
 									<label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-										<input type="checkbox" :id="'team-filter-' + team" :name="'team-filter-' + team" :value="team" x-model="filters.teams" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"/>
+										<input type="checkbox" :id="'team-filter-' + team" :name="'team-filter-' + team" :value="team" x-model="filters.teams" @change="onFilterChange()" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"/>
 										<span class="text-sm text-slate-700 dark:text-slate-200" x-text="team"></span>
 									</label>
 								</template>
 							</div>
 							<div x-show="filters.teams.length > 0" class="border-t border-slate-100 dark:border-slate-700 p-2">
-								<button @click="filters.teams = []; showTeamDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear</button>
+								<button @click="filters.teams = []; onFilterChange(); showTeamDropdown = false" class="w-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 text-center">Clear</button>
 							</div>
 						</div>
 					</div>
@@ -752,6 +752,38 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							<div class="flex items-center gap-3">
 								<h3 class="text-base font-semibold text-slate-900 dark:text-white">Alerts Over Time</h3>
 								<span x-show="appliedGroupBy" class="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" x-text="'by ' + getGroupByLabel()"></span>
+								<!-- Period Type Selector -->
+								<div class="relative" x-data="{ periodSelectorOpen: false }">
+									<button @click="periodSelectorOpen = !periodSelectorOpen" type="button"
+										class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
+										:class="filters.chartPeriodType ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'">
+										<span x-text="getPeriodTypeLabel(determinePeriodType())"></span>
+										<svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+										</svg>
+									</button>
+									<div x-show="periodSelectorOpen" @click.outside="periodSelectorOpen = false" x-transition x-cloak
+										class="absolute left-0 mt-1 w-40 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+										<div class="p-1">
+											<button @click="setChartPeriodType(null); periodSelectorOpen = false"
+												class="w-full px-3 py-1.5 text-xs text-left rounded-md flex items-center justify-between"
+												:class="!filters.chartPeriodType ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'">
+												<span>Auto</span>
+												<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400" x-text="getPeriodTypeLabel(getRecommendedPeriodType())"></span>
+											</button>
+											<div class="h-px bg-slate-100 dark:bg-slate-700 my-1"></div>
+											<template x-for="period in ['hour', 'day', 'week', 'month']" :key="period">
+												<button @click="setChartPeriodType(period); periodSelectorOpen = false"
+													class="w-full px-3 py-1.5 text-xs text-left rounded-md flex items-center justify-between"
+													:class="filters.chartPeriodType === period ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'">
+													<span x-text="getPeriodTypeLabel(period)"></span>
+													<span x-show="period === getRecommendedPeriodType() && filters.chartPeriodType !== period"
+														class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">Recommended</span>
+												</button>
+											</template>
+										</div>
+									</div>
+								</div>
 							</div>
 							<div class="flex items-center gap-3">
 								<!-- Line visibility toggles -->
@@ -1466,6 +1498,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					endDate: new Date().toISOString().split('T')[0], // Today
 					groupBy: 'severity',
 					periodType: 'day',
+					chartPeriodType: null, // null = auto, or 'hour'/'day'/'week'/'month' for manual override
 					limit: 20,
 					timeOfDayStart: '00:00',
 					timeOfDayEnd: '23:59',
@@ -2435,7 +2468,8 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					return classMap[severity.toLowerCase()] || 'bg-slate-200 dark:bg-slate-800/50 text-slate-800 dark:text-slate-200';
 				},
 
-				determinePeriodType() {
+				// Returns the recommended period type based on date range (used for auto-detection)
+				getRecommendedPeriodType() {
 					const start = new Date(this.filters.startDate);
 					const end = new Date(this.filters.endDate);
 					const days = (end - start) / (1000 * 60 * 60 * 24);
@@ -2444,6 +2478,26 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					if (days <= 14) return 'day';
 					if (days <= 90) return 'week';
 					return 'month';
+				},
+
+				// Returns the period type to use (user override or auto-detected)
+				determinePeriodType() {
+					if (this.filters.chartPeriodType) {
+						return this.filters.chartPeriodType;
+					}
+					return this.getRecommendedPeriodType();
+				},
+
+				// Get label for period type
+				getPeriodTypeLabel(type) {
+					const labels = { hour: 'Hourly', day: 'Daily', week: 'Weekly', month: 'Monthly' };
+					return labels[type] || type;
+				},
+
+				// Set chart period type and reload data
+				setChartPeriodType(type) {
+					this.filters.chartPeriodType = type;
+					this.loadTrendData();
 				},
 
 				// Generate complete date range for chart display

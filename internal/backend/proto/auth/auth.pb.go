@@ -2136,6 +2136,195 @@ func (x *UserSentryConfig) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// Connected Users Messages (Admin only)
+type GetConnectedUsersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConnectedUsersRequest) Reset() {
+	*x = GetConnectedUsersRequest{}
+	mi := &file_proto_auth_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConnectedUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConnectedUsersRequest) ProtoMessage() {}
+
+func (x *GetConnectedUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConnectedUsersRequest.ProtoReflect.Descriptor instead.
+func (*GetConnectedUsersRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *GetConnectedUsersRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type GetConnectedUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Users         []*ConnectedUser       `protobuf:"bytes,3,rep,name=users,proto3" json:"users,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,4,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConnectedUsersResponse) Reset() {
+	*x = GetConnectedUsersResponse{}
+	mi := &file_proto_auth_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConnectedUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConnectedUsersResponse) ProtoMessage() {}
+
+func (x *GetConnectedUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConnectedUsersResponse.ProtoReflect.Descriptor instead.
+func (*GetConnectedUsersResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetConnectedUsersResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetConnectedUsersResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *GetConnectedUsersResponse) GetUsers() []*ConnectedUser {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *GetConnectedUsersResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+type ConnectedUser struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	SessionCount  int32                  `protobuf:"varint,4,opt,name=session_count,json=sessionCount,proto3" json:"session_count,omitempty"`
+	LastActivity  *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_activity,json=lastActivity,proto3" json:"last_activity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectedUser) Reset() {
+	*x = ConnectedUser{}
+	mi := &file_proto_auth_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectedUser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectedUser) ProtoMessage() {}
+
+func (x *ConnectedUser) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectedUser.ProtoReflect.Descriptor instead.
+func (*ConnectedUser) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *ConnectedUser) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ConnectedUser) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *ConnectedUser) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ConnectedUser) GetSessionCount() int32 {
+	if x != nil {
+		return x.SessionCount
+	}
+	return 0
+}
+
+func (x *ConnectedUser) GetLastActivity() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastActivity
+	}
+	return nil
+}
+
 var File_proto_auth_proto protoreflect.FileDescriptor
 
 const file_proto_auth_proto_rawDesc = "" +
@@ -2289,7 +2478,22 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt2\x99\r\n" +
+	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"9\n" +
+	"\x18GetConnectedUsersRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\xa7\x01\n" +
+	"\x19GetConnectedUsersResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x125\n" +
+	"\x05users\x18\x03 \x03(\v2\x1f.notificator.auth.ConnectedUserR\x05users\x12\x1f\n" +
+	"\vtotal_count\x18\x04 \x01(\x05R\n" +
+	"totalCount\"\xc0\x01\n" +
+	"\rConnectedUser\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12#\n" +
+	"\rsession_count\x18\x04 \x01(\x05R\fsessionCount\x12?\n" +
+	"\rlast_activity\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\flastActivity2\x87\x0e\n" +
 	"\vAuthService\x12Q\n" +
 	"\bRegister\x12!.notificator.auth.RegisterRequest\x1a\".notificator.auth.RegisterResponse\x12H\n" +
 	"\x05Login\x12\x1e.notificator.auth.LoginRequest\x1a\x1f.notificator.auth.LoginResponse\x12K\n" +
@@ -2308,7 +2512,8 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\x13GetUserSentryConfig\x12,.notificator.auth.GetUserSentryConfigRequest\x1a-.notificator.auth.GetUserSentryConfigResponse\x12o\n" +
 	"\x12GetUserSentryToken\x12+.notificator.auth.GetUserSentryTokenRequest\x1a,.notificator.auth.GetUserSentryTokenResponse\x12u\n" +
 	"\x14SaveUserSentryConfig\x12-.notificator.auth.SaveUserSentryConfigRequest\x1a..notificator.auth.SaveUserSentryConfigResponse\x12{\n" +
-	"\x16DeleteUserSentryConfig\x12/.notificator.auth.DeleteUserSentryConfigRequest\x1a0.notificator.auth.DeleteUserSentryConfigResponseB)Z'notificator/internal/backend/proto/authb\x06proto3"
+	"\x16DeleteUserSentryConfig\x12/.notificator.auth.DeleteUserSentryConfigRequest\x1a0.notificator.auth.DeleteUserSentryConfigResponse\x12l\n" +
+	"\x11GetConnectedUsers\x12*.notificator.auth.GetConnectedUsersRequest\x1a+.notificator.auth.GetConnectedUsersResponseB)Z'notificator/internal/backend/proto/authb\x06proto3"
 
 var (
 	file_proto_auth_proto_rawDescOnce sync.Once
@@ -2322,7 +2527,7 @@ func file_proto_auth_proto_rawDescGZIP() []byte {
 	return file_proto_auth_proto_rawDescData
 }
 
-var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_proto_auth_proto_goTypes = []any{
 	(*RegisterRequest)(nil),                // 0: notificator.auth.RegisterRequest
 	(*RegisterResponse)(nil),               // 1: notificator.auth.RegisterResponse
@@ -2361,62 +2566,69 @@ var file_proto_auth_proto_goTypes = []any{
 	(*GetUserSentryTokenRequest)(nil),      // 34: notificator.auth.GetUserSentryTokenRequest
 	(*GetUserSentryTokenResponse)(nil),     // 35: notificator.auth.GetUserSentryTokenResponse
 	(*UserSentryConfig)(nil),               // 36: notificator.auth.UserSentryConfig
-	(*timestamppb.Timestamp)(nil),          // 37: google.protobuf.Timestamp
+	(*GetConnectedUsersRequest)(nil),       // 37: notificator.auth.GetConnectedUsersRequest
+	(*GetConnectedUsersResponse)(nil),      // 38: notificator.auth.GetConnectedUsersResponse
+	(*ConnectedUser)(nil),                  // 39: notificator.auth.ConnectedUser
+	(*timestamppb.Timestamp)(nil),          // 40: google.protobuf.Timestamp
 }
 var file_proto_auth_proto_depIdxs = []int32{
 	10, // 0: notificator.auth.LoginResponse.user:type_name -> notificator.auth.User
-	37, // 1: notificator.auth.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	40, // 1: notificator.auth.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
 	10, // 2: notificator.auth.ValidateSessionResponse.user:type_name -> notificator.auth.User
 	10, // 3: notificator.auth.GetProfileResponse.user:type_name -> notificator.auth.User
-	37, // 4: notificator.auth.User.created_at:type_name -> google.protobuf.Timestamp
-	37, // 5: notificator.auth.User.last_login:type_name -> google.protobuf.Timestamp
+	40, // 4: notificator.auth.User.created_at:type_name -> google.protobuf.Timestamp
+	40, // 5: notificator.auth.User.last_login:type_name -> google.protobuf.Timestamp
 	10, // 6: notificator.auth.SearchUsersResponse.users:type_name -> notificator.auth.User
 	10, // 7: notificator.auth.ListUsersResponse.users:type_name -> notificator.auth.User
 	22, // 8: notificator.auth.GetOAuthProvidersResponse.providers:type_name -> notificator.auth.OAuthProvider
 	22, // 9: notificator.auth.GetOAuthConfigResponse.providers:type_name -> notificator.auth.OAuthProvider
 	25, // 10: notificator.auth.GetUserGroupsResponse.groups:type_name -> notificator.auth.UserGroup
 	36, // 11: notificator.auth.GetUserSentryConfigResponse.config:type_name -> notificator.auth.UserSentryConfig
-	37, // 12: notificator.auth.UserSentryConfig.created_at:type_name -> google.protobuf.Timestamp
-	37, // 13: notificator.auth.UserSentryConfig.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 14: notificator.auth.AuthService.Register:input_type -> notificator.auth.RegisterRequest
-	2,  // 15: notificator.auth.AuthService.Login:input_type -> notificator.auth.LoginRequest
-	4,  // 16: notificator.auth.AuthService.Logout:input_type -> notificator.auth.LogoutRequest
-	6,  // 17: notificator.auth.AuthService.ValidateSession:input_type -> notificator.auth.ValidateSessionRequest
-	8,  // 18: notificator.auth.AuthService.GetProfile:input_type -> notificator.auth.GetProfileRequest
-	11, // 19: notificator.auth.AuthService.SearchUsers:input_type -> notificator.auth.SearchUsersRequest
-	13, // 20: notificator.auth.AuthService.ListUsers:input_type -> notificator.auth.ListUsersRequest
-	15, // 21: notificator.auth.AuthService.GetOAuthAuthURL:input_type -> notificator.auth.OAuthAuthURLRequest
-	17, // 22: notificator.auth.AuthService.OAuthCallback:input_type -> notificator.auth.OAuthCallbackRequest
-	18, // 23: notificator.auth.AuthService.GetOAuthProviders:input_type -> notificator.auth.GetOAuthProvidersRequest
-	20, // 24: notificator.auth.AuthService.GetOAuthConfig:input_type -> notificator.auth.GetOAuthConfigRequest
-	23, // 25: notificator.auth.AuthService.GetUserGroups:input_type -> notificator.auth.GetUserGroupsRequest
-	26, // 26: notificator.auth.AuthService.SyncUserGroups:input_type -> notificator.auth.SyncUserGroupsRequest
-	28, // 27: notificator.auth.AuthService.GetUserSentryConfig:input_type -> notificator.auth.GetUserSentryConfigRequest
-	34, // 28: notificator.auth.AuthService.GetUserSentryToken:input_type -> notificator.auth.GetUserSentryTokenRequest
-	30, // 29: notificator.auth.AuthService.SaveUserSentryConfig:input_type -> notificator.auth.SaveUserSentryConfigRequest
-	32, // 30: notificator.auth.AuthService.DeleteUserSentryConfig:input_type -> notificator.auth.DeleteUserSentryConfigRequest
-	1,  // 31: notificator.auth.AuthService.Register:output_type -> notificator.auth.RegisterResponse
-	3,  // 32: notificator.auth.AuthService.Login:output_type -> notificator.auth.LoginResponse
-	5,  // 33: notificator.auth.AuthService.Logout:output_type -> notificator.auth.LogoutResponse
-	7,  // 34: notificator.auth.AuthService.ValidateSession:output_type -> notificator.auth.ValidateSessionResponse
-	9,  // 35: notificator.auth.AuthService.GetProfile:output_type -> notificator.auth.GetProfileResponse
-	12, // 36: notificator.auth.AuthService.SearchUsers:output_type -> notificator.auth.SearchUsersResponse
-	14, // 37: notificator.auth.AuthService.ListUsers:output_type -> notificator.auth.ListUsersResponse
-	16, // 38: notificator.auth.AuthService.GetOAuthAuthURL:output_type -> notificator.auth.OAuthAuthURLResponse
-	3,  // 39: notificator.auth.AuthService.OAuthCallback:output_type -> notificator.auth.LoginResponse
-	19, // 40: notificator.auth.AuthService.GetOAuthProviders:output_type -> notificator.auth.GetOAuthProvidersResponse
-	21, // 41: notificator.auth.AuthService.GetOAuthConfig:output_type -> notificator.auth.GetOAuthConfigResponse
-	24, // 42: notificator.auth.AuthService.GetUserGroups:output_type -> notificator.auth.GetUserGroupsResponse
-	27, // 43: notificator.auth.AuthService.SyncUserGroups:output_type -> notificator.auth.SyncUserGroupsResponse
-	29, // 44: notificator.auth.AuthService.GetUserSentryConfig:output_type -> notificator.auth.GetUserSentryConfigResponse
-	35, // 45: notificator.auth.AuthService.GetUserSentryToken:output_type -> notificator.auth.GetUserSentryTokenResponse
-	31, // 46: notificator.auth.AuthService.SaveUserSentryConfig:output_type -> notificator.auth.SaveUserSentryConfigResponse
-	33, // 47: notificator.auth.AuthService.DeleteUserSentryConfig:output_type -> notificator.auth.DeleteUserSentryConfigResponse
-	31, // [31:48] is the sub-list for method output_type
-	14, // [14:31] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	40, // 12: notificator.auth.UserSentryConfig.created_at:type_name -> google.protobuf.Timestamp
+	40, // 13: notificator.auth.UserSentryConfig.updated_at:type_name -> google.protobuf.Timestamp
+	39, // 14: notificator.auth.GetConnectedUsersResponse.users:type_name -> notificator.auth.ConnectedUser
+	40, // 15: notificator.auth.ConnectedUser.last_activity:type_name -> google.protobuf.Timestamp
+	0,  // 16: notificator.auth.AuthService.Register:input_type -> notificator.auth.RegisterRequest
+	2,  // 17: notificator.auth.AuthService.Login:input_type -> notificator.auth.LoginRequest
+	4,  // 18: notificator.auth.AuthService.Logout:input_type -> notificator.auth.LogoutRequest
+	6,  // 19: notificator.auth.AuthService.ValidateSession:input_type -> notificator.auth.ValidateSessionRequest
+	8,  // 20: notificator.auth.AuthService.GetProfile:input_type -> notificator.auth.GetProfileRequest
+	11, // 21: notificator.auth.AuthService.SearchUsers:input_type -> notificator.auth.SearchUsersRequest
+	13, // 22: notificator.auth.AuthService.ListUsers:input_type -> notificator.auth.ListUsersRequest
+	15, // 23: notificator.auth.AuthService.GetOAuthAuthURL:input_type -> notificator.auth.OAuthAuthURLRequest
+	17, // 24: notificator.auth.AuthService.OAuthCallback:input_type -> notificator.auth.OAuthCallbackRequest
+	18, // 25: notificator.auth.AuthService.GetOAuthProviders:input_type -> notificator.auth.GetOAuthProvidersRequest
+	20, // 26: notificator.auth.AuthService.GetOAuthConfig:input_type -> notificator.auth.GetOAuthConfigRequest
+	23, // 27: notificator.auth.AuthService.GetUserGroups:input_type -> notificator.auth.GetUserGroupsRequest
+	26, // 28: notificator.auth.AuthService.SyncUserGroups:input_type -> notificator.auth.SyncUserGroupsRequest
+	28, // 29: notificator.auth.AuthService.GetUserSentryConfig:input_type -> notificator.auth.GetUserSentryConfigRequest
+	34, // 30: notificator.auth.AuthService.GetUserSentryToken:input_type -> notificator.auth.GetUserSentryTokenRequest
+	30, // 31: notificator.auth.AuthService.SaveUserSentryConfig:input_type -> notificator.auth.SaveUserSentryConfigRequest
+	32, // 32: notificator.auth.AuthService.DeleteUserSentryConfig:input_type -> notificator.auth.DeleteUserSentryConfigRequest
+	37, // 33: notificator.auth.AuthService.GetConnectedUsers:input_type -> notificator.auth.GetConnectedUsersRequest
+	1,  // 34: notificator.auth.AuthService.Register:output_type -> notificator.auth.RegisterResponse
+	3,  // 35: notificator.auth.AuthService.Login:output_type -> notificator.auth.LoginResponse
+	5,  // 36: notificator.auth.AuthService.Logout:output_type -> notificator.auth.LogoutResponse
+	7,  // 37: notificator.auth.AuthService.ValidateSession:output_type -> notificator.auth.ValidateSessionResponse
+	9,  // 38: notificator.auth.AuthService.GetProfile:output_type -> notificator.auth.GetProfileResponse
+	12, // 39: notificator.auth.AuthService.SearchUsers:output_type -> notificator.auth.SearchUsersResponse
+	14, // 40: notificator.auth.AuthService.ListUsers:output_type -> notificator.auth.ListUsersResponse
+	16, // 41: notificator.auth.AuthService.GetOAuthAuthURL:output_type -> notificator.auth.OAuthAuthURLResponse
+	3,  // 42: notificator.auth.AuthService.OAuthCallback:output_type -> notificator.auth.LoginResponse
+	19, // 43: notificator.auth.AuthService.GetOAuthProviders:output_type -> notificator.auth.GetOAuthProvidersResponse
+	21, // 44: notificator.auth.AuthService.GetOAuthConfig:output_type -> notificator.auth.GetOAuthConfigResponse
+	24, // 45: notificator.auth.AuthService.GetUserGroups:output_type -> notificator.auth.GetUserGroupsResponse
+	27, // 46: notificator.auth.AuthService.SyncUserGroups:output_type -> notificator.auth.SyncUserGroupsResponse
+	29, // 47: notificator.auth.AuthService.GetUserSentryConfig:output_type -> notificator.auth.GetUserSentryConfigResponse
+	35, // 48: notificator.auth.AuthService.GetUserSentryToken:output_type -> notificator.auth.GetUserSentryTokenResponse
+	31, // 49: notificator.auth.AuthService.SaveUserSentryConfig:output_type -> notificator.auth.SaveUserSentryConfigResponse
+	33, // 50: notificator.auth.AuthService.DeleteUserSentryConfig:output_type -> notificator.auth.DeleteUserSentryConfigResponse
+	38, // 51: notificator.auth.AuthService.GetConnectedUsers:output_type -> notificator.auth.GetConnectedUsersResponse
+	34, // [34:52] is the sub-list for method output_type
+	16, // [16:34] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_proto_auth_proto_init() }
@@ -2430,7 +2642,7 @@ func file_proto_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_auth_proto_rawDesc), len(file_proto_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   37,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

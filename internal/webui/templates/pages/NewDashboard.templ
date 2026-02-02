@@ -165,7 +165,7 @@ templ NewDashboardContent() {
 
 						<!-- Impersonation Dropdown (only visible to admins) -->
 						<div x-data="{ ...impersonationDropdown(), canImpersonate: false }"
-						     x-init="fetch('/api/impersonate/status').then(r => r.json()).then(d => canImpersonate = d.can_impersonate)"
+						     x-init="if (window.impersonationState?.initialized) { canImpersonate = window.impersonationState.canImpersonate } else { window.addEventListener('impersonationStateReady', () => { canImpersonate = window.impersonationState.canImpersonate }, { once: true }) }"
 						     x-show="canImpersonate"
 						     x-cloak
 						     class="relative">
@@ -211,6 +211,66 @@ templ NewDashboardContent() {
 											<span class="font-medium text-gray-900 dark:text-white" x-text="user.username"></span>
 											<span class="text-gray-500 dark:text-gray-400 text-xs" x-text="user.email"></span>
 										</button>
+									</template>
+								</div>
+							</div>
+						</div>
+
+						<!-- Connected Users Dropdown (only visible to admins) -->
+						<div x-data="connectedUsersDropdown()"
+						     x-init="init()"
+						     x-show="canAdmin"
+						     x-cloak
+						     class="relative">
+							<button
+								@click="toggle()"
+								class="flex items-center gap-1 p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary rounded-md transition-colors relative"
+								title="Connected Users">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+									<path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+								</svg>
+								<span x-show="count > 0"
+								      class="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-xs font-bold text-white bg-green-500 rounded-full px-1"
+								      x-text="count"></span>
+							</button>
+							<!-- Dropdown panel -->
+							<div
+								x-show="open"
+								x-cloak
+								@click.outside="open = false"
+								x-transition
+								class="absolute right-0 mt-2 w-80 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg border border-gray-200 dark:border-dark-border-subtle z-50">
+								<div class="p-3 border-b border-gray-200 dark:border-dark-border-subtle flex items-center justify-between">
+									<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Connected Users</span>
+									<span class="text-xs text-gray-500 dark:text-gray-400" x-text="count + ' online'"></span>
+								</div>
+								<div class="max-h-64 overflow-y-auto">
+									<template x-if="loading">
+										<div class="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
+											Loading...
+										</div>
+									</template>
+									<template x-if="!loading && users.length === 0">
+										<div class="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
+											No users connected
+										</div>
+									</template>
+									<template x-for="user in users" :key="user.user_id">
+										<div class="px-3 py-2 border-b border-gray-100 dark:border-dark-border-subtle last:border-b-0">
+											<div class="flex items-center gap-2">
+												<span class="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
+												<div class="flex-1 min-w-0">
+													<div class="flex items-center justify-between">
+														<span class="font-medium text-sm text-gray-900 dark:text-white truncate" x-text="user.username"></span>
+														<span class="text-xs text-gray-500 dark:text-gray-400" x-text="user.session_count + ' session' + (user.session_count > 1 ? 's' : '')"></span>
+													</div>
+													<div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+														<span class="truncate" x-text="user.email"></span>
+														<span x-text="formatLastActivity(user.last_activity)"></span>
+													</div>
+												</div>
+											</div>
+										</div>
 									</template>
 								</div>
 							</div>

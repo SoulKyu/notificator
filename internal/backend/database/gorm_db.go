@@ -302,6 +302,40 @@ func (gdb *GormDB) CleanupExpiredSessions() error {
 	return gdb.db.Where("expires_at < ?", time.Now()).Delete(&models.Session{}).Error
 }
 
+// ConnectedUserInfo represents a user with active session(s)
+type ConnectedUserInfo struct {
+	UserID       string    `json:"user_id"`
+	Username     string    `json:"username"`
+	Email        string    `json:"email"`
+	SessionCount int       `json:"session_count"`
+	LastActivity time.Time `json:"last_activity"`
+}
+
+// GetConnectedUsers returns all users with active (non-expired) sessions
+func (gdb *GormDB) GetConnectedUsers() ([]ConnectedUserInfo, error) {
+	var results []ConnectedUserInfo
+
+	query := `
+		SELECT
+			u.id as user_id,
+			u.username,
+			u.email,
+			COUNT(s.id) as session_count,
+			MAX(s.created_at) as last_activity
+		FROM users u
+		INNER JOIN sessions s ON s.user_id = u.id
+		WHERE s.expires_at > ?
+		GROUP BY u.id, u.username, u.email
+		ORDER BY last_activity DESC
+	`
+
+	if err := gdb.db.Raw(query, time.Now()).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("failed to get connected users: %w", err)
+	}
+
+	return results, nil
+}
+
 func (gdb *GormDB) CreateComment(alertKey, userID, content string) (*models.CommentWithUser, error) {
 	comment := &models.Comment{
 		AlertKey: alertKey,

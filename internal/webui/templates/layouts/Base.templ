@@ -1,5 +1,7 @@
 package layouts
 
+import "notificator/internal/webui/templates/components"
+
 templ Base(title string, content templ.Component) {
 	<!DOCTYPE html>
 	<html lang="en" class="h-full">
@@ -19,6 +21,7 @@ templ Base(title string, content templ.Component) {
 		<script src="https://unpkg.com/alpinejs@3.14.6/dist/cdn.min.js" defer></script>
 	</head>
 	<body class="h-full bg-gray-50 dark:bg-dark-bg-primary">
+		@components.MaintenanceModal()
 		<!-- Impersonation Banner (hidden by default, shown via JS when impersonating) -->
 		<div id="impersonation-banner"
 			 style="display: none;"
@@ -106,6 +109,7 @@ templ Base(title string, content templ.Component) {
 				isImpersonating: false,
 				impersonatedUsername: '',
 				canImpersonate: false,
+				initialized: false,
 
 				async init() {
 					try {
@@ -119,6 +123,10 @@ templ Base(title string, content templ.Component) {
 						}
 					} catch (error) {
 						console.error('Error checking impersonation status:', error);
+					} finally {
+						this.initialized = true;
+						// Dispatch event for other components waiting on this
+						window.dispatchEvent(new CustomEvent('impersonationStateReady'));
 					}
 				},
 
@@ -222,6 +230,71 @@ templ Base(title string, content templ.Component) {
 					startImpersonation(username) {
 						this.isOpen = false;
 						window.startImpersonation(username);
+					}
+				}
+			}
+
+			// Alpine.js component for connected users dropdown (admin only)
+			function connectedUsersDropdown() {
+				return {
+					open: false,
+					loading: false,
+					users: [],
+					count: 0,
+					canAdmin: false,
+					pollInterval: null,
+
+					async init() {
+						// Wait for impersonationState to be ready (reuse its data instead of fetching again)
+						if (!window.impersonationState.initialized) {
+							await new Promise(resolve => {
+								window.addEventListener('impersonationStateReady', resolve, { once: true });
+							});
+						}
+						this.canAdmin = window.impersonationState.canImpersonate;
+						if (this.canAdmin) {
+							await this.refresh();
+							// Poll every 30 seconds
+							this.pollInterval = setInterval(() => this.refresh(), 30000);
+						}
+					},
+
+					toggle() {
+						this.open = !this.open;
+						if (this.open) {
+							this.refresh();
+						}
+					},
+
+					async refresh() {
+						this.loading = true;
+						try {
+							const response = await fetch('/api/admin/connected-users');
+							if (response.ok) {
+								const data = await response.json();
+								this.users = data.users || [];
+								this.count = data.total_count || 0;
+							}
+						} catch (error) {
+							console.error('Error loading connected users:', error);
+						} finally {
+							this.loading = false;
+						}
+					},
+
+					formatLastActivity(timestamp) {
+						if (!timestamp) return '';
+						const date = new Date(timestamp);
+						const now = new Date();
+						const diffMs = now - date;
+						const diffMins = Math.floor(diffMs / 60000);
+
+						if (diffMins < 1) return 'just now';
+						if (diffMins < 60) return diffMins + 'm ago';
+						const diffHours = Math.floor(diffMins / 60);
+						if (diffHours < 24) return diffHours + 'h ago';
+						const diffDays = Math.floor(diffHours / 24);
+						return diffDays + 'd ago';
 					}
 				}
 			}

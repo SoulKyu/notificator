@@ -9,6 +9,8 @@ templ StatisticsViews() {
 				views: [],
 				viewsLoading: false,
 				currentViewId: null,
+				// Flag to prevent clearing view during applyView
+				_applyingView: false,
 
 				// Save view modal
 				showSaveViewModal: false,
@@ -20,7 +22,36 @@ templ StatisticsViews() {
 					isEditing: false
 				},
 
-				// Initialize views from backend
+				// Synchronous init - sets up watchers BEFORE any async operations
+				init() {
+					// Set up watchers SYNCHRONOUSLY before any async operations
+					const clearViewIfNeeded = () => {
+						if (this.currentViewId && !this._applyingView) {
+							this.currentViewId = null;
+						}
+					};
+
+					// Watch primitive filter properties for changes
+					this.$watch('filters.groupBy', clearViewIfNeeded);
+					this.$watch('filters.periodType', clearViewIfNeeded);
+					this.$watch('filters.startDate', clearViewIfNeeded);
+					this.$watch('filters.endDate', clearViewIfNeeded);
+					this.$watch('filters.timeRangeMode', clearViewIfNeeded);
+					this.$watch('filters.timeOfDayStart', clearViewIfNeeded);
+					this.$watch('filters.timeOfDayEnd', clearViewIfNeeded);
+					this.$watch('filters.filterByTimeOfDay', clearViewIfNeeded);
+					this.$watch('filters.includeWeekends', clearViewIfNeeded);
+					this.$watch('filters.limit', clearViewIfNeeded);
+
+					// Watch array lengths using getter functions (Alpine.js supports this)
+					this.$watch(() => this.filters.severities.length, clearViewIfNeeded);
+					this.$watch(() => this.filters.teams.length, clearViewIfNeeded);
+
+					// NOW run the async initialization
+					this.initViews();
+				},
+
+				// Initialize views from backend (async)
 				async initViews() {
 					this.viewsLoading = true;
 					try {
@@ -167,6 +198,9 @@ templ StatisticsViews() {
 				applyView(view, runQuery = true) {
 					if (!view || !view.view_data) return;
 
+					// Prevent the watcher from clearing the view while we're applying it
+					this._applyingView = true;
+
 					const data = view.view_data;
 
 					// Determine if this view has relative time data (new format)
@@ -215,6 +249,11 @@ templ StatisticsViews() {
 					if (data.limit) this.filters.limit = data.limit;
 
 					this.currentViewId = view.id;
+
+					// Re-enable the watcher after a short delay to allow all filter updates to settle
+					setTimeout(() => {
+						this._applyingView = false;
+					}, 100);
 
 					// Recompute dates ONLY if this view was saved with relative time data
 					// This prevents overwriting absolute dates from old views
@@ -314,6 +353,14 @@ templ StatisticsViews() {
 					if (!this.currentViewId) return null;
 					const view = this.views.find(v => v.id === this.currentViewId);
 					return view ? view.name : null;
+				},
+
+				// Called when array filters (severities, teams) change
+				// Use this in @change handlers for checkboxes/selects that modify arrays
+				onFilterChange() {
+					if (this.currentViewId && !this._applyingView) {
+						this.currentViewId = null;
+					}
 				}
 			};
 		}
