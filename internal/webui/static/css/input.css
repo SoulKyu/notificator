@@ -330,3 +330,37 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
 }
+
+/* Time picker enhancements */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+.time-input-error {
+  @apply border-red-500 dark:border-red-400;
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Timeline bar component */
+.timeline-bar {
+  @apply flex h-2 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700;
+}
+
+.timeline-segment {
+  @apply h-full transition-colors duration-200;
+}
+
+.timeline-segment-active {
+  @apply bg-blue-500 dark:bg-blue-400;
+}
+
+.timeline-segment-inactive {
+  @apply bg-slate-200 dark:bg-slate-700;
+}
+
+/* Monospace time input */
+.time-input {
+  @apply font-mono text-center px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-20;
+}
