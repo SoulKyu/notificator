@@ -52,6 +52,8 @@ templ StatisticsViews() {
 						if (this.currentViewId && !this._applyingView) {
 							this.currentViewId = null;
 						}
+						// Show pulse on Query button when filters change
+						this.needsQuery = true;
 					};
 
 					// Watch primitive filter properties for changes

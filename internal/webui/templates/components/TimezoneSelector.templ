@@ -115,7 +115,7 @@ templ TimezoneSelector() {
 
 					// Store in window for other components
 					window.__USER_TIMEZONE__ = this.currentTimezone;
-					if (typeof dayjs !== 'undefined') {
+					if (typeof dayjs !== 'undefined' && dayjs.tz) {
 						dayjs.tz.setDefault(this.currentTimezone);
 					}
 				},
@@ -142,7 +142,7 @@ templ TimezoneSelector() {
 
 					// Update window state immediately
 					window.__USER_TIMEZONE__ = timezone;
-					if (typeof dayjs !== 'undefined') {
+					if (typeof dayjs !== 'undefined' && dayjs.tz) {
 						dayjs.tz.setDefault(timezone);
 					}
 
