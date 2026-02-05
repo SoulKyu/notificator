@@ -45,13 +45,8 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 		<header class="sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50">
 			<div class="px-6 py-4">
 				<div class="flex items-center justify-between">
-					<!-- Left: Navigation & Title -->
-					<div class="flex items-center gap-4">
-						<a href="/dashboard" class="p-2 -ml-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900" title="Back to Dashboard">
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-							</svg>
-						</a>
+					<!-- Left: Title & Stats -->
+					<div class="flex items-center gap-4 flex-1">
 						<div>
 							<h1 class="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">Statistics</h1>
 							<p class="text-sm text-slate-500 dark:text-slate-400" x-show="hasData">
@@ -62,8 +57,13 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						</div>
 					</div>
 
+					<!-- Center: Page Navigation -->
+					<div class="hidden md:flex items-center justify-center">
+						@components.PageNavigator("statistics")
+					</div>
+
 					<!-- Right: Actions -->
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-2 flex-1 justify-end">
 						<!-- Compare Toggle -->
 						<button @click="comparisonMode = !comparisonMode; if(comparisonMode && hasData) loadComparisonData()"
 							:class="comparisonMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
