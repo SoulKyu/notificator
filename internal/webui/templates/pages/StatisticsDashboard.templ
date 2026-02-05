@@ -1516,7 +1516,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					</button>
 				</div>
 				<!-- Chart Container -->
-				<div class="flex-1 p-8 bg-white dark:bg-dark-bg-secondary">
+				<div class="flex-1 min-h-0 p-8 bg-white dark:bg-dark-bg-secondary overflow-hidden">
 					<canvas id="fullscreenChartCanvas" class="w-full h-full"></canvas>
 				</div>
 			</div>
@@ -3535,9 +3535,23 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 				openFullscreenChart(chartType) {
 					this.fullscreenChart = chartType;
-					// Wait for DOM to update, then render the chart
+					// Wait for DOM to update and CSS transitions to complete, then render the chart
 					this.$nextTick(() => {
-						setTimeout(() => this.renderFullscreenChart(), 50);
+						// First timeout to wait for modal transition to start
+						setTimeout(() => {
+							this.renderFullscreenChart();
+							// Force resize after render to ensure proper canvas dimensions
+							if (this.fullscreenChartInstance) {
+								this.fullscreenChartInstance.resize();
+								// Use requestAnimationFrame for additional resize after paint
+								requestAnimationFrame(() => {
+									if (this.fullscreenChartInstance) {
+										this.fullscreenChartInstance.resize();
+										this.fullscreenChartInstance.update('none');
+									}
+								});
+							}
+						}, 300);
 					});
 				},
 
@@ -3657,6 +3671,12 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					// Don't create chart if no datasets
 					if (datasets.length === 0) return;
 
+					// Calculate max value from all datasets for dynamic Y-axis scaling
+					const allValues = datasets.flatMap(ds => ds.data || []);
+					const maxValue = Math.max(...allValues.filter(v => typeof v === 'number' && !isNaN(v)), 0);
+					// Add 10% padding to max value for better visualization
+					const suggestedMax = maxValue > 0 ? Math.ceil(maxValue * 1.1) : undefined;
+
 					this.fullscreenChartInstance = new Chart(canvas, {
 						type: 'line',
 						data: { labels, datasets },
@@ -3694,7 +3714,8 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								y: {
 									ticks: { color: isDark ? '#9ca3af' : '#6b7280' },
 									grid: { color: isDark ? '#374151' : '#e5e7eb' },
-									beginAtZero: true
+									beginAtZero: true,
+									suggestedMax: suggestedMax
 								}
 							}
 						}
