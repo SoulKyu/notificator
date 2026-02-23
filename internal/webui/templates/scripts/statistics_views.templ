@@ -6,12 +6,12 @@ templ StatisticsViews() {
 		function convertTimeToUTC(localTime, timezone) {
 			if (!localTime || !timezone || typeof dayjs === 'undefined') return localTime;
 
-			// Create a date with the local time in the user's timezone
-			// We use today's date but only care about the time portion
+			// Ensure plugins are extended (safe to call multiple times)
+			if (typeof dayjs_plugin_utc !== 'undefined') dayjs.extend(dayjs_plugin_utc);
+			if (typeof dayjs_plugin_timezone !== 'undefined') dayjs.extend(dayjs_plugin_timezone);
+
 			const today = dayjs().format('YYYY-MM-DD');
 			const localDateTime = dayjs.tz(`${today} ${localTime}`, timezone);
-
-			// Convert to UTC and extract just the time
 			return localDateTime.utc().format('HH:mm');
 		}
 
@@ -19,9 +19,12 @@ templ StatisticsViews() {
 		function convertTimeFromUTC(utcTime, timezone) {
 			if (!utcTime || !timezone || typeof dayjs === 'undefined') return utcTime;
 
+			// Ensure plugins are extended (safe to call multiple times)
+			if (typeof dayjs_plugin_utc !== 'undefined') dayjs.extend(dayjs_plugin_utc);
+			if (typeof dayjs_plugin_timezone !== 'undefined') dayjs.extend(dayjs_plugin_timezone);
+
 			const today = dayjs().format('YYYY-MM-DD');
 			const utcDateTime = dayjs.utc(`${today} ${utcTime}`);
-
 			return utcDateTime.tz(timezone).format('HH:mm');
 		}
 
@@ -32,6 +35,7 @@ templ StatisticsViews() {
 				views: [],
 				viewsLoading: false,
 				currentViewId: null,
+				viewSearchQuery: '',
 				// Flag to prevent clearing view during applyView
 				_applyingView: false,
 
@@ -47,6 +51,11 @@ templ StatisticsViews() {
 
 				// Synchronous init - sets up watchers BEFORE any async operations
 				init() {
+					// Call page-specific init if defined (e.g. on-call preset, chart watchers)
+					if (typeof this.initPage === 'function') {
+						this.initPage();
+					}
+
 					// Set up watchers SYNCHRONOUSLY before any async operations
 					const clearViewIfNeeded = () => {
 						if (this.currentViewId && !this._applyingView) {
@@ -99,6 +108,11 @@ templ StatisticsViews() {
 					} finally {
 						this.viewsLoading = false;
 					}
+
+					// Auto-query with defaults or applied default view
+					this.$nextTick(() => {
+						this.queryStatistics();
+					});
 				},
 
 				// Get current filter state as view data
@@ -142,7 +156,7 @@ templ StatisticsViews() {
 				},
 
 				// Open save view modal
-				openSaveViewModal(existingView = null) {
+				openSaveViewModal(existingView = null, isShared = false) {
 					if (existingView) {
 						this.viewForm = {
 							id: existingView.id,
@@ -156,7 +170,7 @@ templ StatisticsViews() {
 							id: null,
 							name: '',
 							description: '',
-							isShared: false,
+							isShared: isShared,
 							isEditing: false
 						};
 					}
@@ -393,6 +407,23 @@ templ StatisticsViews() {
 					if (this.currentViewId && !this._applyingView) {
 						this.currentViewId = null;
 					}
+				},
+
+				personalViews() {
+					return this.views.filter(v => !v.is_shared);
+				},
+				globalViews() {
+					return this.views.filter(v => v.is_shared);
+				},
+				filteredPersonalViews() {
+					const q = this.viewSearchQuery.toLowerCase().trim();
+					const views = this.personalViews();
+					return q ? views.filter(v => v.name.toLowerCase().includes(q)) : views;
+				},
+				filteredGlobalViews() {
+					const q = this.viewSearchQuery.toLowerCase().trim();
+					const views = this.globalViews();
+					return q ? views.filter(v => v.name.toLowerCase().includes(q)) : views;
 				}
 			};
 		}
