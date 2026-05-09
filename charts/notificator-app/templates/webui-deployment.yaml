@@ -54,7 +54,11 @@ spec:
         # Custom environment variables from values.yaml
         {{- range $key, $value := .Values.webui.env }}
         - name: {{ $key }}
+          {{- if kindIs "string" $value }}
           value: {{ $value | quote }}
+          {{- else }}
+            {{- toYaml $value | nindent 10 }}
+          {{- end }}
         {{- end }}
         
         # Backend connection (can be overridden by webui.env)

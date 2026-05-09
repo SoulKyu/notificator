@@ -55,7 +55,11 @@ spec:
         # Custom environment variables from values.yaml
         {{- range $key, $value := .Values.backend.env }}
         - name: {{ $key }}
+          {{- if kindIs "string" $value }}
           value: {{ $value | quote }}
+          {{- else }}
+            {{- toYaml $value | nindent 10 }}
+          {{- end }}
         {{- end }}
         
         # Global settings (can be overridden by backend.env)
