@@ -7746,6 +7746,8 @@ type GetAlertsByNameRequest struct {
 	Limit             int32                  `protobuf:"varint,9,opt,name=limit,proto3" json:"limit,omitempty"`
 	IncludeWeekends   bool                   `protobuf:"varint,10,opt,name=include_weekends,json=includeWeekends,proto3" json:"include_weekends,omitempty"` // Include weekends in time-of-day filter (default: true)
 	WeekendMode       string                 `protobuf:"bytes,11,opt,name=weekend_mode,json=weekendMode,proto3" json:"weekend_mode,omitempty"`              // "exclude", "same_hours", "full_weekends"
+	Severities        []string               `protobuf:"bytes,12,rep,name=severities,proto3" json:"severities,omitempty"`                                   // Filter by severities (multi-select, OR logic)
+	Teams             []string               `protobuf:"bytes,13,rep,name=teams,proto3" json:"teams,omitempty"`                                             // Filter by teams (multi-select, OR logic)
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -7855,6 +7857,20 @@ func (x *GetAlertsByNameRequest) GetWeekendMode() string {
 		return x.WeekendMode
 	}
 	return ""
+}
+
+func (x *GetAlertsByNameRequest) GetSeverities() []string {
+	if x != nil {
+		return x.Severities
+	}
+	return nil
+}
+
+func (x *GetAlertsByNameRequest) GetTeams() []string {
+	if x != nil {
+		return x.Teams
+	}
+	return nil
 }
 
 type GetAlertsByNameResponse struct {
@@ -10028,7 +10044,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x17GetAlertHistoryResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12;\n" +
-	"\ahistory\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\ahistory\"\xd1\x03\n" +
+	"\ahistory\x18\x03 \x03(\v2!.notificator.alert.AlertStatisticR\ahistory\"\x87\x04\n" +
 	"\x16GetAlertsByNameRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
@@ -10045,7 +10061,11 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x05limit\x18\t \x01(\x05R\x05limit\x12)\n" +
 	"\x10include_weekends\x18\n" +
 	" \x01(\bR\x0fincludeWeekends\x12!\n" +
-	"\fweekend_mode\x18\v \x01(\tR\vweekendMode\"\xa9\x01\n" +
+	"\fweekend_mode\x18\v \x01(\tR\vweekendMode\x12\x1e\n" +
+	"\n" +
+	"severities\x18\f \x03(\tR\n" +
+	"severities\x12\x14\n" +
+	"\x05teams\x18\r \x03(\tR\x05teams\"\xa9\x01\n" +
 	"\x17GetAlertsByNameResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x129\n" +

@@ -85,7 +85,7 @@ templ StatisticsViews() {
 					this.initViews();
 				},
 
-				// Initialize views from backend (async)
+				// Initialize views from backend (async) — runs on page load only
 				async initViews() {
 					this.viewsLoading = true;
 					try {
@@ -93,7 +93,7 @@ templ StatisticsViews() {
 						const data = await resp.json();
 						if (data.success) {
 							this.views = data.views || [];
-							// Check if there's a default view to apply
+							// Check if there's a default view to apply (only on initial load)
 							const defaultView = this.views.find(v => v.is_default);
 							if (defaultView) {
 								this.applyView(defaultView, false); // Don't query immediately
@@ -113,6 +113,24 @@ templ StatisticsViews() {
 					this.$nextTick(() => {
 						this.queryStatistics();
 					});
+				},
+
+				// Reload views list without applying default or auto-querying
+				async reloadViews() {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch('/api/v1/statistics/views?include_shared=true');
+						const data = await resp.json();
+						if (data.success) {
+							this.views = data.views || [];
+						} else {
+							console.error('Error loading statistics views:', data.message);
+						}
+					} catch (e) {
+						console.error('Error loading statistics views:', e);
+					} finally {
+						this.viewsLoading = false;
+					}
 				},
 
 				// Get current filter state as view data
@@ -222,8 +240,13 @@ templ StatisticsViews() {
 
 						const data = await resp.json();
 						if (data.success) {
-							// Reload views from backend
-							await this.initViews();
+							// Reload views list (without applying default or re-querying)
+							await this.reloadViews();
+							// Keep the saved/updated view as the active one
+							const savedId = this.viewForm.isEditing ? this.viewForm.id : (data.view ? data.view.id : null);
+							if (savedId) {
+								this.currentViewId = savedId;
+							}
 							this.closeSaveViewModal();
 						} else {
 							console.error('Error saving view:', data.message);
@@ -329,8 +352,7 @@ templ StatisticsViews() {
 							if (this.currentViewId === viewId) {
 								this.currentViewId = null;
 							}
-							// Reload views from backend
-							await this.initViews();
+							await this.reloadViews();
 						} else {
 							console.error('Error deleting view:', data.message);
 							alert('Failed to delete view: ' + data.message);
@@ -343,6 +365,16 @@ templ StatisticsViews() {
 					}
 				},
 
+				// Toggle default view — sets or clears
+				async toggleDefaultView(viewId) {
+					const view = this.views.find(v => v.id === viewId);
+					if (view && view.is_default) {
+						await this.clearDefaultView();
+					} else {
+						await this.setDefaultView(viewId);
+					}
+				},
+
 				// Set a view as default
 				async setDefaultView(viewId) {
 					this.viewsLoading = true;
@@ -352,8 +384,7 @@ templ StatisticsViews() {
 						});
 						const data = await resp.json();
 						if (data.success) {
-							// Reload views from backend
-							await this.initViews();
+							await this.reloadViews();
 						} else {
 							console.error('Error setting default view:', data.message);
 							alert('Failed to set default view: ' + data.message);
@@ -375,8 +406,7 @@ templ StatisticsViews() {
 						});
 						const data = await resp.json();
 						if (data.success) {
-							// Reload views from backend
-							await this.initViews();
+							await this.reloadViews();
 						} else {
 							console.error('Error clearing default view:', data.message);
 							alert('Failed to clear default view: ' + data.message);

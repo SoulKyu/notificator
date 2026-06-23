@@ -1896,7 +1896,7 @@ func (c *BackendClient) GetAlertHistory(sessionID, fingerprint string, limit int
 }
 
 // GetAlertsByName retrieves all alerts with a specific alert name, respecting filter criteria
-func (c *BackendClient) GetAlertsByName(sessionID string, alertName string, startDate, endDate time.Time, applyRules, filterByTimeOfDay bool, timeOfDayStart, timeOfDayEnd string, limit int32) ([]*alertpb.AlertStatistic, int64, error) {
+func (c *BackendClient) GetAlertsByName(sessionID string, alertName string, startDate, endDate time.Time, applyRules, filterByTimeOfDay bool, timeOfDayStart, timeOfDayEnd, weekendMode string, severities, teams []string, limit int32) ([]*alertpb.AlertStatistic, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1909,6 +1909,9 @@ func (c *BackendClient) GetAlertsByName(sessionID string, alertName string, star
 		FilterByTimeOfDay: filterByTimeOfDay,
 		TimeOfDayStart:    timeOfDayStart,
 		TimeOfDayEnd:      timeOfDayEnd,
+		WeekendMode:       weekendMode,
+		Severities:        severities,
+		Teams:             teams,
 		Limit:             limit,
 	}
 

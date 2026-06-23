@@ -623,6 +623,16 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		}
 	}
 
+	// Apply severity filter if specified (multi-select, OR logic)
+	if len(req.Severities) > 0 {
+		query = query.Where("severity IN ?", req.Severities)
+	}
+
+	// Apply team filter if specified (multi-select, OR logic)
+	if len(req.Teams) > 0 {
+		query = query.Where("COALESCE(metadata->'labels'->>'team', 'unknown') IN ?", req.Teams)
+	}
+
 	// Get total count first
 	var totalCount int64
 	if err := query.Count(&totalCount).Error; err != nil {

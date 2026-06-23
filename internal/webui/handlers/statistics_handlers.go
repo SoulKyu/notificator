@@ -170,6 +170,9 @@ func GetAlertsByName(c *gin.Context) {
 		FilterByTimeOfDay bool      `json:"filter_by_time_of_day"`
 		TimeOfDayStart    string    `json:"time_of_day_start"`
 		TimeOfDayEnd      string    `json:"time_of_day_end"`
+		WeekendMode       string    `json:"weekend_mode"`
+		Severities        []string  `json:"severities"`
+		Teams             []string  `json:"teams"`
 		Limit             int32     `json:"limit"`
 	}
 
@@ -193,6 +196,9 @@ func GetAlertsByName(c *gin.Context) {
 		request.FilterByTimeOfDay,
 		request.TimeOfDayStart,
 		request.TimeOfDayEnd,
+		request.WeekendMode,
+		request.Severities,
+		request.Teams,
 		request.Limit,
 	)
 	if err != nil {

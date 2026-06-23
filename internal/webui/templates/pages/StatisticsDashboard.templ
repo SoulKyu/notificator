@@ -663,17 +663,17 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							class="absolute right-0 mt-2 w-80 bg-white dark:bg-dark-bg-secondary rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
 							<!-- Save buttons row -->
 							<div class="flex gap-1 p-2">
-								<button @click="openSaveViewModal(null, false); viewsOpen = false; viewSearchQuery = ''"
-									class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors
-									border-violet-200 dark:border-violet-700/50 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
-									<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-									Personal
-								</button>
 								<button @click="openSaveViewModal(null, true); viewsOpen = false; viewSearchQuery = ''"
 									class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors
 									border-emerald-200 dark:border-emerald-700/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
 									<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
 									Global
+								</button>
+								<button @click="openSaveViewModal(null, false); viewsOpen = false; viewSearchQuery = ''"
+									class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-colors
+									border-violet-200 dark:border-violet-700/50 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
+									<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+									Personal
 								</button>
 							</div>
 							<!-- Tabs -->
@@ -731,7 +731,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 											</div>
 											<!-- Action buttons row — always visible, owned views only for global -->
 											<div x-show="view.user_id === currentUserId" class="flex items-center gap-0.5 px-2 pb-2 pt-0.5" @click.stop>
-												<button @click="setDefaultView(view.id)"
+												<button @click="toggleDefaultView(view.id)"
 													class="flex items-center gap-1 px-2 py-1 text-[11px] rounded-md transition-colors"
 													:class="view.is_default ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'"
 													:title="view.is_default ? 'Remove default' : 'Set as default'">
@@ -785,7 +785,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 											</div>
 											<!-- Action buttons row — always visible -->
 											<div class="flex items-center gap-0.5 px-2 pb-2 pt-0.5" @click.stop>
-												<button @click="setDefaultView(view.id)"
+												<button @click="toggleDefaultView(view.id)"
 													class="flex items-center gap-1 px-2 py-1 text-[11px] rounded-md transition-colors"
 													:class="view.is_default ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'"
 													:title="view.is_default ? 'Remove default' : 'Set as default'">
@@ -1796,18 +1796,18 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							break;
 					}
 
-					// For 1h preset, auto-set time-of-day filter to match the last hour
-					// For other presets, clear time-of-day filter back to full day
-					if (preset === '1h') {
+					// For sub-day presets, auto-set time-of-day filter to match the window
+					// For day+ presets, clear time-of-day filter back to full day
+					if (preset === '1h' || preset === '24h') {
+						const hours = preset === '1h' ? 1 : 24;
 						const tz = window.__USER_TIMEZONE__ || 'UTC';
 						if (typeof dayjs !== 'undefined' && dayjs.tz) {
 							const nowTz = dayjs().tz(tz);
-							const fromTz = nowTz.subtract(1, 'hour');
+							const fromTz = nowTz.subtract(hours, 'hour');
 							this.filters.timeOfDayStart = fromTz.format('HH:mm');
 							this.filters.timeOfDayEnd = nowTz.format('HH:mm');
 						} else {
-							// Fallback if dayjs timezone not available
-							const fromTime = new Date(now.getTime() - 60 * 60 * 1000);
+							const fromTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
 							this.filters.timeOfDayStart = String(fromTime.getHours()).padStart(2, '0') + ':' + String(fromTime.getMinutes()).padStart(2, '0');
 							this.filters.timeOfDayEnd = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
 						}
