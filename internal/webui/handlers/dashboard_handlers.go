@@ -28,23 +28,51 @@ var (
 	userSettings = make(map[string]*webuimodels.DashboardSettings)
 )
 
+// parseExtendedDuration parses duration strings with extended units (d, y)
+// in addition to Go's standard units (ns, µs, ms, s, m, h)
+func parseExtendedDuration(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty duration string")
+	}
+
+	// Handle extended units first: years and days
+	// Convert them to hours which Go can parse
+	original := s
+
+	// Replace years (approximate: 365 days)
+	s = regexp.MustCompile(`(\d+)y`).ReplaceAllStringFunc(s, func(match string) string {
+		var years int
+		fmt.Sscanf(match, "%dy", &years)
+		return fmt.Sprintf("%dh", years*365*24)
+	})
+
+	// Replace days
+	s = regexp.MustCompile(`(\d+)d`).ReplaceAllStringFunc(s, func(match string) string {
+		var days int
+		fmt.Sscanf(match, "%dd", &days)
+		return fmt.Sprintf("%dh", days*24)
+	})
+
+	duration, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration format '%s': %v", original, err)
+	}
+
+	return duration, nil
+}
+
 func validateCustomDuration(durationStr string) (time.Duration, error) {
 	if durationStr == "" {
 		return 0, fmt.Errorf("duration cannot be empty")
 	}
 
-	duration, err := time.ParseDuration(durationStr)
+	duration, err := parseExtendedDuration(durationStr)
 	if err != nil {
-		return 0, fmt.Errorf("invalid duration format: %v", err)
+		return 0, err
 	}
 
 	if duration <= 0 {
 		return 0, fmt.Errorf("duration must be positive")
-	}
-
-	maxDuration := 30 * 24 * time.Hour
-	if duration > maxDuration {
-		return 0, fmt.Errorf("duration cannot exceed 30 days")
 	}
 
 	minDuration := 1 * time.Second
@@ -266,10 +294,9 @@ func parseStringArray(s string) []string {
 }
 
 func getCurrentUserID(c *gin.Context) string {
-	if userID := middleware.GetSessionValue(c, "user_id"); userID != nil {
-		if uid, ok := userID.(string); ok {
-			return uid
-		}
+	// Use effective user ID (respects impersonation)
+	if effectiveID := middleware.GetEffectiveUserID(c); effectiveID != "" {
+		return effectiveID
 	}
 	if user := c.GetHeader("X-User-ID"); user != "" {
 		return user
@@ -599,7 +626,9 @@ func convertToResponseAlerts(alerts []*webuimodels.DashboardAlert) []webuimodels
 }
 
 func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
-	counters := webuimodels.DashboardCounters{}
+	counters := webuimodels.DashboardCounters{
+		SeverityCounters: make(map[string]int),
+	}
 	availableFilters := webuimodels.DashboardAvailableFilters{
 		Alertmanagers: []string{},
 		Severities:    []string{},
@@ -617,7 +646,14 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 
 	// Count statistics from filtered alerts only
 	for _, alert := range filteredAlerts {
-		switch strings.ToLower(alert.Severity) {
+		// Track dynamic severity counters (includes all severity types)
+		severityLower := strings.ToLower(alert.Severity)
+		if severityLower != "" {
+			counters.SeverityCounters[severityLower]++
+		}
+
+		// Keep backward-compatible fixed counters
+		switch severityLower {
 		case "critical":
 			counters.Critical++
 		case "warning":
@@ -1017,8 +1053,13 @@ func PostDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
 	sessionID := middleware.GetSessionID(c)
 
-	// Parse last update timestamp from query parameter - for future use
-	_ = c.Query("lastUpdate")
+	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
+	var lastUpdate int64
+	if lastUpdateStr := c.Query("lastUpdate"); lastUpdateStr != "" {
+		if parsed, err := strconv.ParseInt(lastUpdateStr, 10, 64); err == nil {
+			lastUpdate = parsed
+		}
+	}
 
 	// Parse filters from query parameters
 	filters := parseDashboardFilters(c)
@@ -1050,15 +1091,20 @@ func PostDashboardIncremental(c *gin.Context) {
 	}
 
 	// Process incremental update
-	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID)
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, lastUpdate)
 }
 
 func GetDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
 	sessionID := middleware.GetSessionID(c)
 
-	// Parse last update timestamp from query parameter - for future use
-	_ = c.Query("lastUpdate")
+	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
+	var lastUpdate int64
+	if lastUpdateStr := c.Query("lastUpdate"); lastUpdateStr != "" {
+		if parsed, err := strconv.ParseInt(lastUpdateStr, 10, 64); err == nil {
+			lastUpdate = parsed
+		}
+	}
 
 	// Parse filters from query parameters
 	filters := parseDashboardFilters(c)
@@ -1092,10 +1138,10 @@ func GetDashboardIncremental(c *gin.Context) {
 	}
 
 	// Process incremental update
-	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID)
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, lastUpdate)
 }
 
-func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAlert, clientFingerprints map[string]bool, settings *webuimodels.DashboardSettings, userID string, sessionID string) {
+func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAlert, clientFingerprints map[string]bool, settings *webuimodels.DashboardSettings, userID string, sessionID string, lastUpdate int64) {
 	// Parse filters from query parameters for metadata
 	filters := parseDashboardFilters(c)
 
@@ -1111,13 +1157,16 @@ func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAl
 		currentFingerprints[alert.Fingerprint] = true
 
 		if !clientFingerprints[alert.Fingerprint] {
-			// Alert not in client's list = new alert
+			// Alert not in client's list = new alert (always include regardless of lastUpdate)
 			newAlerts = append(newAlerts, alert)
 		} else {
-			// Alert exists in client, check if it was updated since lastUpdate
-			// For simplicity, we'll include it as updated if it's recent
-			// In a real implementation, you'd track alert modification times
-			updatedAlerts = append(updatedAlerts, alert)
+			// Alert exists in client, only include if it was updated since lastUpdate
+			// Convert alert's UpdatedAt to milliseconds and compare with lastUpdate
+			alertUpdateMs := alert.UpdatedAt.UnixMilli()
+			if lastUpdate == 0 || alertUpdateMs > lastUpdate {
+				// Include alert if no lastUpdate provided (first sync) or if alert was updated after lastUpdate
+				updatedAlerts = append(updatedAlerts, alert)
+			}
 		}
 	}
 
@@ -1436,8 +1485,11 @@ func GetUserColorPreferences(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Get color preferences from backend
-	pbPreferences, err := backendClient.GetUserColorPreferences(sessionID)
+	pbPreferences, err := backendClient.GetUserColorPreferences(sessionID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to get color preferences: "+err.Error()))
 		return
@@ -1485,6 +1537,9 @@ func SaveUserColorPreferences(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Parse request body
 	var request struct {
 		Preferences []webuimodels.UserColorPreference `json:"preferences"`
@@ -1495,7 +1550,7 @@ func SaveUserColorPreferences(c *gin.Context) {
 	}
 
 	// Convert to backend format and save
-	err := backendClient.SaveUserColorPreferences(sessionID, request.Preferences)
+	err := backendClient.SaveUserColorPreferences(sessionID, request.Preferences, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to save color preferences: "+err.Error()))
 		return
@@ -1523,6 +1578,9 @@ func DeleteUserColorPreference(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	preferenceID := c.Param("id")
 	if preferenceID == "" {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Preference ID is required"))
@@ -1530,7 +1588,7 @@ func DeleteUserColorPreference(c *gin.Context) {
 	}
 
 	// Delete color preference via backend
-	err := backendClient.DeleteUserColorPreference(sessionID, preferenceID)
+	err := backendClient.DeleteUserColorPreference(sessionID, preferenceID, impersonateUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to delete color preference: "+err.Error()))
 		return
@@ -2265,12 +2323,16 @@ func HandleGetAlertHistory(c *gin.Context) {
 			item["acknowledged_at"] = stat.AcknowledgedAt.AsTime().Format(time.RFC3339)
 		}
 
-		if stat.DurationSeconds != 0 {
-			item["duration_seconds"] = stat.DurationSeconds
-		}
-
 		if stat.MttrSeconds != 0 {
 			item["mttr_seconds"] = stat.MttrSeconds
+		}
+
+		if stat.MttaSeconds != 0 {
+			item["mtta_seconds"] = stat.MttaSeconds
+		}
+
+		if stat.FixTimeSeconds != 0 {
+			item["fix_time_seconds"] = stat.FixTimeSeconds
 		}
 
 		historyItems = append(historyItems, item)
@@ -2434,10 +2496,16 @@ func GetUserColumnPreferences(c *gin.Context) {
 
 	sessionID, _ := c.Get("session_id")
 
+	// Use effective user ID (respects impersonation)
+	effectiveUserID := middleware.GetEffectiveUserID(c)
+	if effectiveUserID == "" {
+		effectiveUserID = user.ID
+	}
+
 	// Get user column preferences from backend
-	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
-	if err != nil {
-		// If not found, return nil to let frontend use defaults
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), effectiveUserID)
+	if err != nil || prefs == nil {
+		// If not found or nil, return nil to let frontend use defaults
 		c.JSON(http.StatusOK, gin.H{
 			"success":        true,
 			"column_configs": nil,
@@ -2466,6 +2534,12 @@ func SaveUserColumnPreferences(c *gin.Context) {
 	}
 
 	sessionID, _ := c.Get("session_id")
+
+	// Use effective user ID (respects impersonation)
+	effectiveUserID := middleware.GetEffectiveUserID(c)
+	if effectiveUserID == "" {
+		effectiveUserID = user.ID
+	}
 
 	// Parse request
 	var req SaveUserColumnPreferencesRequest
@@ -2528,7 +2602,7 @@ func SaveUserColumnPreferences(c *gin.Context) {
 	}
 
 	// Save to backend
-	err := backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, req.ColumnConfigs)
+	err := backendClient.SaveUserColumnPreferences(sessionID.(string), effectiveUserID, req.ColumnConfigs)
 	if err != nil {
 		log.Printf("Error saving column preferences: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -2561,6 +2635,12 @@ func UpdateColumnWidth(c *gin.Context) {
 
 	sessionID, _ := c.Get("session_id")
 
+	// Use effective user ID (respects impersonation)
+	effectiveUserID := middleware.GetEffectiveUserID(c)
+	if effectiveUserID == "" {
+		effectiveUserID = user.ID
+	}
+
 	// Parse request
 	var req UpdateColumnWidthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -2572,8 +2652,8 @@ func UpdateColumnWidth(c *gin.Context) {
 	}
 
 	// Get current preferences
-	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), user.ID)
-	if err != nil {
+	prefs, err := backendClient.GetUserColumnPreferences(sessionID.(string), effectiveUserID)
+	if err != nil || prefs == nil {
 		// If no preferences exist yet, can't update width
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
@@ -2601,7 +2681,7 @@ func UpdateColumnWidth(c *gin.Context) {
 	}
 
 	// Save updated preferences
-	err = backendClient.SaveUserColumnPreferences(sessionID.(string), user.ID, prefs.ColumnConfigs)
+	err = backendClient.SaveUserColumnPreferences(sessionID.(string), effectiveUserID, prefs.ColumnConfigs)
 	if err != nil {
 		log.Printf("Error updating column width: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

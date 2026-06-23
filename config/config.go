@@ -24,6 +24,21 @@ type Config struct {
 	WebUI          WebUIConfig          `json:"webui"`
 	OAuth          *OAuthPortalConfig   `json:"oauth,omitempty"`
 	Sentry         *SentryConfig        `json:"sentry,omitempty"`
+	Admin          AdminConfig          `json:"admin"`
+}
+
+type AdminConfig struct {
+	ImpersonationAllowedUsers []string `json:"impersonation_allowed_users"`
+}
+
+// CanImpersonate checks if a user (by username or email) is allowed to impersonate others
+func (a *AdminConfig) CanImpersonate(usernameOrEmail string) bool {
+	for _, allowed := range a.ImpersonationAllowedUsers {
+		if strings.EqualFold(allowed, usernameOrEmail) {
+			return true
+		}
+	}
+	return false
 }
 
 type BackendConfig struct {
@@ -105,7 +120,8 @@ type NotificationConfig struct {
 }
 
 type PollingConfig struct {
-	Interval time.Duration `json:"interval"`
+	Interval     time.Duration `json:"interval"`
+	SyncInterval time.Duration `json:"sync_interval"` // Backend sync interval for WebUI alert cache (default: 10s)
 }
 
 type WebUIConfig struct {
@@ -171,7 +187,8 @@ func DefaultConfig() *Config {
 			RespectFilters: true,
 		},
 		Polling: PollingConfig{
-			Interval: 30 * time.Second,
+			Interval:     30 * time.Second,
+			SyncInterval: 10 * time.Second, // Default sync interval for WebUI alert cache
 		},
 		Backend: BackendConfig{
 			Enabled:    false,
@@ -305,6 +322,18 @@ func LoadConfigWithViper() (*Config, error) {
 	}
 
 	initializeFilterStates(cfg)
+
+	// Load Admin impersonation allowed users from environment variable (comma-separated)
+	if adminUsersEnv := os.Getenv("NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS"); adminUsersEnv != "" {
+		users := strings.Split(adminUsersEnv, ",")
+		var cleanUsers []string
+		for _, u := range users {
+			if trimmed := strings.TrimSpace(u); trimmed != "" {
+				cleanUsers = append(cleanUsers, trimmed)
+			}
+		}
+		cfg.Admin.ImpersonationAllowedUsers = cleanUsers
+	}
 
 	// Load Sentry configuration if enabled
 	if viper.GetBool("sentry.enabled") {
@@ -470,6 +499,9 @@ func setViperDefaults(cfg *Config) {
 	if !viper.IsSet("polling.interval") {
 		viper.SetDefault("polling.interval", cfg.Polling.Interval)
 	}
+	if !viper.IsSet("polling.sync_interval") {
+		viper.SetDefault("polling.sync_interval", cfg.Polling.SyncInterval)
+	}
 
 	// Resolved alerts defaults - only set if not already configured from config file or env vars
 	if !viper.IsSet("resolved_alerts.enabled") {
@@ -528,6 +560,12 @@ func setViperDefaults(cfg *Config) {
 	viper.BindEnv("sentry.base_url", "NOTIFICATOR_SENTRY_BASE_URL")
 	viper.BindEnv("sentry.global_token", "NOTIFICATOR_SENTRY_GLOBAL_TOKEN")
 
+	// Admin defaults
+	viper.SetDefault("admin.impersonation_allowed_users", []string{})
+
+	// Admin environment variable bindings
+	viper.BindEnv("admin.impersonation_allowed_users", "NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS")
+
 	// Alertmanager defaults - DISABLED to allow JSON config to work properly
 	// The alertmanager configuration should come from the config file, not defaults
 	/*
@@ -570,6 +608,9 @@ func setViperDefaults(cfg *Config) {
 
 	// Support DATABASE_URL for full connection string (POSTGRES_URL handled directly by GORM)
 	viper.BindEnv("database_url", "DATABASE_URL")
+
+	// Polling environment variable bindings
+	viper.BindEnv("polling.sync_interval", "NOTIFICATOR_POLLING_SYNC_INTERVAL")
 
 	// Resolved Alerts environment variable bindings
 	viper.BindEnv("resolved_alerts.enabled", "NOTIFICATOR_RESOLVED_ALERTS_ENABLED")

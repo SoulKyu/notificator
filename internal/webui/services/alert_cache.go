@@ -28,8 +28,6 @@ func transformSeverity(severity string) string {
 	switch strings.ToLower(severity) {
 	case "information":
 		return "info"
-	case "critical-daytime":
-		return "critical"
 	default:
 		return strings.ToLower(severity)
 	}
@@ -43,6 +41,10 @@ type AlertCache struct {
 	backendClient      *client.BackendClient
 	colorService       *ColorService
 
+	// Color caching - keyed by userID then fingerprint
+	colorsMutex  sync.RWMutex
+	cachedColors map[string]map[string]*AlertColorResult // userID -> fingerprint -> color result
+
 	// Configuration
 	refreshInterval       time.Duration
 	resolvedRetentionDays int // Days to keep resolved alerts
@@ -51,18 +53,27 @@ type AlertCache struct {
 	newAlerts           []string // fingerprints of new alerts since last fetch
 	resolvedAlertsSince []string // fingerprints of recently resolved alerts
 
+	// SSE pub/sub - subscribers for real-time updates
+	subscribers map[chan *webuimodels.DashboardIncrementalUpdate]bool
+	subMutex    sync.RWMutex
+
 	// Control channels
 	ctx           context.Context
 	cancel        context.CancelFunc
 	refreshTicker *time.Ticker
 }
 
-func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient, resolvedRetentionDays int) *AlertCache {
+func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient, resolvedRetentionDays int, syncInterval time.Duration) *AlertCache {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Ensure valid retention days
 	if resolvedRetentionDays <= 0 {
 		resolvedRetentionDays = 90 // Default to 90 days
+	}
+
+	// Ensure valid sync interval (default to 10 seconds if not provided or invalid)
+	if syncInterval <= 0 {
+		syncInterval = 10 * time.Second
 	}
 
 	return &AlertCache{
@@ -71,10 +82,12 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 		alertmanagerClient:    amClient,
 		backendClient:         backendClient,
 		colorService:          NewColorService(backendClient),
-		refreshInterval:       5 * time.Second,
+		cachedColors:          make(map[string]map[string]*AlertColorResult),
+		refreshInterval:       syncInterval,
 		resolvedRetentionDays: resolvedRetentionDays,
 		newAlerts:             make([]string, 0),
 		resolvedAlertsSince:   make([]string, 0),
+		subscribers:           make(map[chan *webuimodels.DashboardIncrementalUpdate]bool),
 		ctx:                   ctx,
 		cancel:                cancel,
 	}
@@ -132,10 +145,13 @@ func (ac *AlertCache) refreshAlerts() {
 	log.Printf("Alert cache refresh: fetched %d alerts from Alertmanager", len(alertsWithSource))
 
 	ac.mu.Lock()
-	defer ac.mu.Unlock()
 
 	ac.newAlerts = make([]string, 0)
 	ac.resolvedAlertsSince = make([]string, 0)
+
+	// Track alerts for SSE notification
+	var newAlertsForSSE []*webuimodels.DashboardAlert
+	var updatedAlertsForSSE []*webuimodels.DashboardAlert
 
 	currentFingerprints := make(map[string]bool)
 
@@ -148,6 +164,7 @@ func (ac *AlertCache) refreshAlerts() {
 		if existingAlert, exists := ac.alerts[fingerprint]; !exists {
 			ac.alerts[fingerprint] = dashAlert
 			ac.newAlerts = append(ac.newAlerts, fingerprint)
+			newAlertsForSSE = append(newAlertsForSSE, dashAlert)
 
 			// Capture alert fired event for statistics
 			go func(alert *webuimodels.DashboardAlert) {
@@ -159,11 +176,16 @@ func (ac *AlertCache) refreshAlerts() {
 			}(dashAlert)
 
 		} else {
+			// Check if alert changed before updating
+			if ac.hasAlertChanged(existingAlert, dashAlert) {
+				updatedAlertsForSSE = append(updatedAlertsForSSE, dashAlert)
+			}
 			ac.updateExistingAlert(existingAlert, dashAlert)
 		}
 	}
 
 	resolvedCount := 0
+	var removedFingerprints []string
 	for fingerprint, alert := range ac.alerts {
 		if !currentFingerprints[fingerprint] {
 			log.Printf("Alert cache: marking alert %s as resolved (not found in current fetch)", fingerprint)
@@ -187,13 +209,30 @@ func (ac *AlertCache) refreshAlerts() {
 			delete(ac.alerts, fingerprint)
 
 			ac.resolvedAlertsSince = append(ac.resolvedAlertsSince, fingerprint)
+			removedFingerprints = append(removedFingerprints, fingerprint)
 			resolvedCount++
 		}
 	}
 
+	ac.mu.Unlock()
+
 	log.Printf("Alert cache refresh complete: %d active alerts, %d newly resolved", len(ac.alerts), resolvedCount)
 
 	ac.loadBackendData()
+
+	// Refresh color cache for all active users after alerts are updated
+	go ac.RefreshAllCachedColors()
+
+	// Notify SSE subscribers if there are any changes
+	if len(newAlertsForSSE) > 0 || len(updatedAlertsForSSE) > 0 || len(removedFingerprints) > 0 {
+		update := &webuimodels.DashboardIncrementalUpdate{
+			NewAlerts:      newAlertsForSSE,
+			UpdatedAlerts:  updatedAlertsForSSE,
+			RemovedAlerts:  removedFingerprints,
+			LastUpdateTime: time.Now().Unix(),
+		}
+		ac.notifySubscribers(update)
+	}
 }
 
 func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string) *webuimodels.DashboardAlert {
@@ -266,13 +305,77 @@ func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string)
 // }
 
 func (ac *AlertCache) updateExistingAlert(existing, new *webuimodels.DashboardAlert) {
+	// Check if alert has meaningfully changed before updating UpdatedAt
+	if ac.hasAlertChanged(existing, new) {
+		existing.UpdatedAt = time.Now()
+	}
+	// Note: UpdatedAt is NOT updated if alert hasn't changed
+
 	existing.Status = new.Status
 	existing.EndsAt = new.EndsAt
-	existing.UpdatedAt = new.UpdatedAt
 	existing.Duration = new.Duration
 	existing.IsResolved = new.IsResolved
 
 	existing.Annotations = new.Annotations
+}
+
+// hasAlertChanged compares two alerts to determine if there are meaningful changes
+// that warrant updating the UpdatedAt timestamp.
+// It compares: Status, IsAcknowledged, CommentCount, Summary
+func (ac *AlertCache) hasAlertChanged(existing, new *webuimodels.DashboardAlert) bool {
+	// Check Status.State change
+	if existing.Status.State != new.Status.State {
+		return true
+	}
+
+	// Check IsAcknowledged change
+	if existing.IsAcknowledged != new.IsAcknowledged {
+		return true
+	}
+
+	// Check CommentCount change
+	if existing.CommentCount != new.CommentCount {
+		return true
+	}
+
+	// Check Summary change
+	if existing.Summary != new.Summary {
+		return true
+	}
+
+	return false
+}
+
+// UpdateAlert adds or updates an alert in the cache with proper UpdatedAt tracking.
+// If the alert is new, UpdatedAt is set to current time.
+// If the alert exists and has changed, UpdatedAt is updated.
+// If the alert exists but hasn't changed, UpdatedAt is preserved.
+func (ac *AlertCache) UpdateAlert(alert *webuimodels.DashboardAlert) {
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	if existingAlert, exists := ac.alerts[alert.Fingerprint]; exists {
+		// Alert exists - check for changes
+		if ac.hasAlertChanged(existingAlert, alert) {
+			// Alert has changed - update UpdatedAt
+			existingAlert.UpdatedAt = time.Now()
+		}
+		// Note: If alert hasn't changed, UpdatedAt is preserved
+
+		// Update other fields
+		existingAlert.Status = alert.Status
+		existingAlert.IsAcknowledged = alert.IsAcknowledged
+		existingAlert.CommentCount = alert.CommentCount
+		existingAlert.Summary = alert.Summary
+		existingAlert.EndsAt = alert.EndsAt
+		existingAlert.Duration = alert.Duration
+		existingAlert.IsResolved = alert.IsResolved
+		existingAlert.Annotations = alert.Annotations
+	} else {
+		// New alert - set UpdatedAt to current time
+		alert.UpdatedAt = time.Now()
+		ac.alerts[alert.Fingerprint] = alert
+	}
 }
 
 func (ac *AlertCache) loadBackendData() {
@@ -322,24 +425,48 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 }
 
 func (ac *AlertCache) loadCommentCountsEfficiently() {
-	log.Printf("Loading comment counts for all alerts...")
+	log.Printf("Loading comment counts for all alerts using batch query...")
 
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
 
-	count := 0
+	// Collect all fingerprints
+	fingerprints := make([]string, 0, len(ac.alerts))
+	for fingerprint := range ac.alerts {
+		fingerprints = append(fingerprints, fingerprint)
+	}
+
+	// Handle empty case
+	if len(fingerprints) == 0 {
+		log.Printf("No alerts to load comment counts for")
+		return
+	}
+
+	// Get all comment counts in a single batch query
+	counts, err := ac.backendClient.GetCommentCountsBatch(fingerprints)
+	if err != nil {
+		log.Printf("Failed to load comment counts batch: %v", err)
+		// Reset all comment counts to 0 on error
+		for _, alert := range ac.alerts {
+			alert.CommentCount = 0
+		}
+		return
+	}
+
+	// Apply counts to alerts
+	alertsWithComments := 0
 	for fingerprint, alert := range ac.alerts {
-		if comments, err := ac.backendClient.GetComments(fingerprint); err == nil {
-			alert.CommentCount = len(comments)
-			if len(comments) > 0 {
-				count++
+		if count, exists := counts[fingerprint]; exists {
+			alert.CommentCount = count
+			if count > 0 {
+				alertsWithComments++
 			}
 		} else {
 			alert.CommentCount = 0
 		}
 	}
 
-	log.Printf("Successfully loaded comment counts for %d alerts (%d with comments)", len(ac.alerts), count)
+	log.Printf("Successfully loaded comment counts for %d alerts (%d with comments) using batch query", len(ac.alerts), alertsWithComments)
 }
 
 func (ac *AlertCache) GetAllAlerts() []*webuimodels.DashboardAlert {
@@ -543,6 +670,124 @@ func (ac *AlertCache) GetAllAlertColors(userID string) map[string]*AlertColorRes
 
 func (ac *AlertCache) InvalidateColorCache(userID string) {
 	ac.colorService.InvalidateUserCache(userID)
+
+	// Also clear the cached alert colors for this user
+	ac.colorsMutex.Lock()
+	delete(ac.cachedColors, userID)
+	ac.colorsMutex.Unlock()
+}
+
+// RefreshColorCache refreshes the cached colors for a specific user.
+// This should be called during background sync after alerts are updated.
+func (ac *AlertCache) RefreshColorCache(userID string) {
+	ac.mu.RLock()
+	alertCount := len(ac.alerts)
+	var modelAlerts []*models.Alert
+	fingerprintMap := make(map[*models.Alert]string)
+
+	for fingerprint, dashAlert := range ac.alerts {
+		modelAlert := &models.Alert{
+			Labels:       dashAlert.Labels,
+			Annotations:  dashAlert.Annotations,
+			StartsAt:     dashAlert.StartsAt,
+			EndsAt:       dashAlert.EndsAt,
+			GeneratorURL: dashAlert.GeneratorURL,
+			Source:       dashAlert.Source,
+			Status: models.AlertStatus{
+				State:       dashAlert.Status.State,
+				SilencedBy:  dashAlert.Status.SilencedBy,
+				InhibitedBy: dashAlert.Status.InhibitedBy,
+			},
+		}
+		modelAlerts = append(modelAlerts, modelAlert)
+		fingerprintMap[modelAlert] = fingerprint
+	}
+	ac.mu.RUnlock()
+
+	if alertCount == 0 {
+		return
+	}
+
+	// Calculate colors using the color service (this fetches user preferences if needed)
+	colorResults := ac.colorService.GetAlertColorsOptimized(modelAlerts, userID)
+
+	// Build the result map keyed by fingerprint
+	result := make(map[string]*AlertColorResult)
+	for modelAlert, fingerprint := range fingerprintMap {
+		if colorResult, exists := colorResults[modelAlert.GetFingerprint()]; exists {
+			result[fingerprint] = colorResult
+		}
+	}
+
+	// Update the cache
+	ac.colorsMutex.Lock()
+	ac.cachedColors[userID] = result
+	ac.colorsMutex.Unlock()
+
+	log.Printf("Color cache refreshed for user %s: %d alerts", userID, len(result))
+}
+
+// GetCachedAlertColors returns cached alert colors for a user.
+// If colors are not cached for this user, it will calculate and cache them.
+// Returns a map of fingerprint -> AlertColorResult.
+func (ac *AlertCache) GetCachedAlertColors(userID string) map[string]*AlertColorResult {
+	ac.colorsMutex.RLock()
+	cached, exists := ac.cachedColors[userID]
+	ac.colorsMutex.RUnlock()
+
+	if exists && len(cached) > 0 {
+		// Return a copy to avoid race conditions
+		result := make(map[string]*AlertColorResult, len(cached))
+		for k, v := range cached {
+			result[k] = v
+		}
+		return result
+	}
+
+	// Cache miss - refresh and return
+	ac.RefreshColorCache(userID)
+
+	ac.colorsMutex.RLock()
+	defer ac.colorsMutex.RUnlock()
+
+	cached = ac.cachedColors[userID]
+	if cached == nil {
+		return make(map[string]*AlertColorResult)
+	}
+
+	// Return a copy
+	result := make(map[string]*AlertColorResult, len(cached))
+	for k, v := range cached {
+		result[k] = v
+	}
+	return result
+}
+
+// GetCachedUserIDs returns a list of user IDs that have cached colors.
+// This is useful for refreshing colors for all active users during background sync.
+func (ac *AlertCache) GetCachedUserIDs() []string {
+	ac.colorsMutex.RLock()
+	defer ac.colorsMutex.RUnlock()
+
+	userIDs := make([]string, 0, len(ac.cachedColors))
+	for userID := range ac.cachedColors {
+		userIDs = append(userIDs, userID)
+	}
+	return userIDs
+}
+
+// RefreshAllCachedColors refreshes colors for all users that have cached colors.
+// This is called during background sync after alerts are updated.
+func (ac *AlertCache) RefreshAllCachedColors() {
+	userIDs := ac.GetCachedUserIDs()
+	if len(userIDs) == 0 {
+		return
+	}
+
+	log.Printf("Refreshing color cache for %d users", len(userIDs))
+	for _, userID := range userIDs {
+		ac.RefreshColorCache(userID)
+	}
 }
 
 func (ac *AlertCache) storeResolvedAlertInBackend(alert *webuimodels.DashboardAlert) {
@@ -616,4 +861,64 @@ func (ac *AlertCache) RemoveAllResolvedAlerts() error {
 
 	log.Printf("Successfully removed all resolved alerts from backend")
 	return nil
+}
+
+// Subscribe creates a new channel and registers it for receiving incremental updates.
+// Returns a channel that will receive DashboardIncrementalUpdate when alerts change.
+// The caller must call Unsubscribe when done to prevent resource leaks.
+func (ac *AlertCache) Subscribe() chan *webuimodels.DashboardIncrementalUpdate {
+	ch := make(chan *webuimodels.DashboardIncrementalUpdate, 10) // Buffered channel to prevent blocking
+
+	ac.subMutex.Lock()
+	ac.subscribers[ch] = true
+	subscriberCount := len(ac.subscribers)
+	ac.subMutex.Unlock()
+
+	log.Printf("SSE subscriber added, total subscribers: %d", subscriberCount)
+	return ch
+}
+
+// Unsubscribe removes a channel from the subscribers list and closes it.
+// This should be called when a client disconnects to clean up resources.
+func (ac *AlertCache) Unsubscribe(ch chan *webuimodels.DashboardIncrementalUpdate) {
+	ac.subMutex.Lock()
+	defer ac.subMutex.Unlock()
+
+	if _, exists := ac.subscribers[ch]; exists {
+		delete(ac.subscribers, ch)
+		close(ch)
+		log.Printf("SSE subscriber removed, total subscribers: %d", len(ac.subscribers))
+	}
+}
+
+// notifySubscribers sends an incremental update to all active subscribers.
+// Uses non-blocking sends to prevent slow subscribers from blocking the refresh cycle.
+func (ac *AlertCache) notifySubscribers(update *webuimodels.DashboardIncrementalUpdate) {
+	ac.subMutex.RLock()
+	defer ac.subMutex.RUnlock()
+
+	if len(ac.subscribers) == 0 {
+		return
+	}
+
+	log.Printf("Notifying %d SSE subscribers of alert changes", len(ac.subscribers))
+
+	for ch := range ac.subscribers {
+		// Non-blocking send to prevent slow subscribers from blocking
+		select {
+		case ch <- update:
+			// Successfully sent
+		default:
+			// Channel buffer full, skip this update for this subscriber
+			log.Printf("SSE subscriber channel full, skipping update")
+		}
+	}
+}
+
+// GetSubscriberCount returns the current number of SSE subscribers.
+// Useful for monitoring and debugging.
+func (ac *AlertCache) GetSubscriberCount() int {
+	ac.subMutex.RLock()
+	defer ac.subMutex.RUnlock()
+	return len(ac.subscribers)
 }

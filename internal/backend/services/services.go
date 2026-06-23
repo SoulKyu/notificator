@@ -122,7 +122,7 @@ func (s *AuthServiceGorm) Login(ctx context.Context, req *authpb.LoginRequest) (
 		}, nil
 	}
 
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 	if err := s.db.CreateSession(user.ID, sessionID, expiresAt); err != nil {
 		log.Printf("Error creating session: %v", err)
 		return &authpb.LoginResponse{
@@ -265,6 +265,52 @@ func (s *AuthServiceGorm) SearchUsers(ctx context.Context, req *authpb.SearchUse
 	}, nil
 }
 
+func (s *AuthServiceGorm) ListUsers(ctx context.Context, req *authpb.ListUsersRequest) (*authpb.ListUsersResponse, error) {
+	// Validate session
+	_, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.ListUsersResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Default limit if not specified
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+
+	users, totalCount, err := s.db.ListUsers(limit, int(req.Offset))
+	if err != nil {
+		log.Printf("Error listing users: %v", err)
+		return &authpb.ListUsersResponse{
+			Success: false,
+			Message: "Failed to list users",
+		}, nil
+	}
+
+	// Convert to proto users
+	protoUsers := make([]*authpb.User, len(users))
+	for i, user := range users {
+		protoUsers[i] = &authpb.User{
+			Id:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			CreatedAt: timestamppb.New(user.CreatedAt),
+		}
+		if user.LastLogin != nil {
+			protoUsers[i].LastLogin = timestamppb.New(*user.LastLogin)
+		}
+	}
+
+	return &authpb.ListUsersResponse{
+		Success:    true,
+		Users:      protoUsers,
+		TotalCount: int32(totalCount),
+	}, nil
+}
+
 // ValidateSessionByID is a helper method for internal use
 func (s *AuthServiceGorm) ValidateSessionByID(sessionID string) (*authpb.User, error) {
 	user, err := s.db.GetUserBySession(sessionID)
@@ -277,6 +323,46 @@ func (s *AuthServiceGorm) ValidateSessionByID(sessionID string) (*authpb.User, e
 		Username:  user.Username,
 		Email:     user.Email,
 		CreatedAt: timestamppb.New(user.CreatedAt),
+	}, nil
+}
+
+// GetConnectedUsers returns all users with active sessions (Admin only)
+func (s *AuthServiceGorm) GetConnectedUsers(ctx context.Context, req *authpb.GetConnectedUsersRequest) (*authpb.GetConnectedUsersResponse, error) {
+	// Validate session
+	_, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.GetConnectedUsersResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Get connected users from database
+	connectedUsers, err := s.db.GetConnectedUsers()
+	if err != nil {
+		log.Printf("Error getting connected users: %v", err)
+		return &authpb.GetConnectedUsersResponse{
+			Success: false,
+			Message: "Failed to get connected users",
+		}, nil
+	}
+
+	// Convert to proto users
+	protoUsers := make([]*authpb.ConnectedUser, len(connectedUsers))
+	for i, cu := range connectedUsers {
+		protoUsers[i] = &authpb.ConnectedUser{
+			UserId:       cu.UserID,
+			Username:     cu.Username,
+			Email:        cu.Email,
+			SessionCount: int32(cu.SessionCount),
+			LastActivity: timestamppb.New(cu.LastActivity),
+		}
+	}
+
+	return &authpb.GetConnectedUsersResponse{
+		Success:    true,
+		Users:      protoUsers,
+		TotalCount: int32(len(protoUsers)),
 	}, nil
 }
 
@@ -403,6 +489,37 @@ func (s *AlertServiceGorm) GetComments(ctx context.Context, req *alertpb.GetComm
 	return &alertpb.GetCommentsResponse{
 		Comments: pbComments,
 		Count:    int32(len(pbComments)),
+	}, nil
+}
+
+// GetCommentCountsBatch implements the GetCommentCountsBatch RPC method
+// This efficiently loads comment counts for multiple alerts in a single query,
+// solving the N+1 query problem when loading comment counts for the dashboard.
+func (s *AlertServiceGorm) GetCommentCountsBatch(ctx context.Context, req *alertpb.GetCommentCountsBatchRequest) (*alertpb.GetCommentCountsBatchResponse, error) {
+	// Handle empty request
+	if len(req.AlertKeys) == 0 {
+		return &alertpb.GetCommentCountsBatchResponse{
+			Counts: make(map[string]int32),
+		}, nil
+	}
+
+	// Get counts from database
+	counts, err := s.db.GetCommentCountsBatch(req.AlertKeys)
+	if err != nil {
+		log.Printf("Error getting comment counts batch: %v", err)
+		return &alertpb.GetCommentCountsBatchResponse{
+			Counts: make(map[string]int32),
+		}, nil
+	}
+
+	// Convert to protobuf format (int -> int32)
+	pbCounts := make(map[string]int32, len(counts))
+	for key, count := range counts {
+		pbCounts[key] = int32(count)
+	}
+
+	return &alertpb.GetCommentCountsBatchResponse{
+		Counts: pbCounts,
 	}, nil
 }
 
@@ -738,8 +855,14 @@ func (s *AlertServiceGorm) GetUserColorPreferences(ctx context.Context, req *ale
 		}, nil
 	}
 
+	// Use impersonated user ID if provided, otherwise use session user
+	targetUserID := user.ID
+	if req.ImpersonateUserId != "" {
+		targetUserID = req.ImpersonateUserId
+	}
+
 	// Get user color preferences
-	preferences, err := s.db.GetUserColorPreferences(user.ID)
+	preferences, err := s.db.GetUserColorPreferences(targetUserID)
 	if err != nil {
 		log.Printf("Error getting user color preferences: %v", err)
 		return &alertpb.GetUserColorPreferencesResponse{
@@ -796,12 +919,18 @@ func (s *AlertServiceGorm) SaveUserColorPreferences(ctx context.Context, req *al
 		}, nil
 	}
 
+	// Use impersonated user ID if provided, otherwise use session user
+	targetUserID := user.ID
+	if req.ImpersonateUserId != "" {
+		targetUserID = req.ImpersonateUserId
+	}
+
 	// Convert protobuf preferences to model preferences
 	var modelPreferences []mainmodels.UserColorPreference
 	for _, pbPref := range req.Preferences {
 		modelPref := mainmodels.UserColorPreference{
 			ID:                 pbPref.Id,
-			UserID:             user.ID,
+			UserID:             targetUserID,
 			Color:              pbPref.Color,
 			ColorType:          pbPref.ColorType,
 			Priority:           int(pbPref.Priority),
@@ -827,7 +956,7 @@ func (s *AlertServiceGorm) SaveUserColorPreferences(ctx context.Context, req *al
 	}
 
 	// Save preferences
-	if err := s.db.SaveUserColorPreferences(user.ID, modelPreferences); err != nil {
+	if err := s.db.SaveUserColorPreferences(targetUserID, modelPreferences); err != nil {
 		log.Printf("Error saving user color preferences: %v", err)
 		return &alertpb.SaveUserColorPreferencesResponse{
 			Success: false,
@@ -865,8 +994,14 @@ func (s *AlertServiceGorm) DeleteUserColorPreference(ctx context.Context, req *a
 		}, nil
 	}
 
+	// Use impersonated user ID if provided, otherwise use session user
+	targetUserID := user.ID
+	if req.ImpersonateUserId != "" {
+		targetUserID = req.ImpersonateUserId
+	}
+
 	// Delete preference
-	if err := s.db.DeleteUserColorPreference(user.ID, req.PreferenceId); err != nil {
+	if err := s.db.DeleteUserColorPreference(targetUserID, req.PreferenceId); err != nil {
 		log.Printf("Error deleting color preference: %v", err)
 		return &alertpb.DeleteUserColorPreferenceResponse{
 			Success: false,
@@ -1379,7 +1514,7 @@ func (s *AuthServiceGorm) OAuthCallback(ctx context.Context, req *authpb.OAuthCa
 	}
 
 	// Create session
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 	if err := s.db.CreateSession(user.ID, sessionID, expiresAt); err != nil {
 		log.Printf("Error creating session for OAuth user: %v", err)
 		return &authpb.LoginResponse{
@@ -1563,10 +1698,16 @@ func (s *AlertServiceGorm) GetUserHiddenAlerts(ctx context.Context, req *alertpb
 		}, nil
 	}
 
+	// Use impersonated user ID if provided, otherwise use session user
+	targetUserID := user.ID
+	if req.ImpersonateUserId != "" {
+		targetUserID = req.ImpersonateUserId
+	}
+
 	// Get hidden alerts from database
-	hiddenAlerts, err := s.db.GetUserHiddenAlerts(user.ID)
+	hiddenAlerts, err := s.db.GetUserHiddenAlerts(targetUserID)
 	if err != nil {
-		log.Printf("Error getting hidden alerts for user %s: %v", user.ID, err)
+		log.Printf("Error getting hidden alerts for user %s: %v", targetUserID, err)
 		return &alertpb.GetUserHiddenAlertsResponse{
 			Success: false,
 			Message: "Failed to get hidden alerts",
@@ -1742,10 +1883,16 @@ func (s *AlertServiceGorm) GetUserHiddenRules(ctx context.Context, req *alertpb.
 		}, nil
 	}
 
+	// Use impersonated user ID if provided, otherwise use session user
+	targetUserID := user.ID
+	if req.ImpersonateUserId != "" {
+		targetUserID = req.ImpersonateUserId
+	}
+
 	// Get hidden rules from database
-	hiddenRules, err := s.db.GetUserHiddenRules(user.ID)
+	hiddenRules, err := s.db.GetUserHiddenRules(targetUserID)
 	if err != nil {
-		log.Printf("Error getting hidden rules for user %s: %v", user.ID, err)
+		log.Printf("Error getting hidden rules for user %s: %v", targetUserID, err)
 		return &alertpb.GetUserHiddenRulesResponse{
 			Success: false,
 			Message: "Failed to get hidden rules",
@@ -2237,10 +2384,16 @@ func (s *AlertServiceGorm) GetFilterPresets(ctx context.Context, req *alertpb.Ge
 		}, nil
 	}
 
+	// Use impersonated user ID if provided, otherwise use session user
+	targetUserID := user.ID
+	if req.ImpersonateUserId != "" {
+		targetUserID = req.ImpersonateUserId
+	}
+
 	// Get filter presets from database
-	presets, err := s.db.GetFilterPresets(user.ID, req.IncludeShared)
+	presets, err := s.db.GetFilterPresets(targetUserID, req.IncludeShared)
 	if err != nil {
-		log.Printf("Failed to get filter presets for user %s: %v", user.ID, err)
+		log.Printf("Failed to get filter presets for user %s: %v", targetUserID, err)
 		return &alertpb.GetFilterPresetsResponse{
 			Success: false,
 			Message: "Failed to retrieve filter presets",

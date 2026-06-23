@@ -2,49 +2,58 @@ package components
 
 // Settings modal
 templ SettingsModal() {
-	<div x-show="showSettings" x-data="settingsModalData()" x-init="init()" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
+	<div x-show="showSettings" x-data="settingsModalData()" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-			<div class="fixed inset-0 bg-gray-500/75 transition-opacity z-0" @click="showSettings = false"></div>
+			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity z-0" @click="showSettings = false"></div>
 
-			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] relative z-10">
-				<div class="bg-white dark:bg-dark-bg-secondary px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] relative z-10 border border-gray-200/50 dark:border-dark-border-subtle/50">
+				<!-- Header with close button -->
+				<div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle bg-gradient-to-r from-gray-50 to-white dark:from-dark-bg-secondary dark:to-dark-bg-tertiary">
+					<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+						Dashboard Settings
+					</h3>
+					<button @click="showSettings = false"
+							class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary transition-colors group">
+						<svg class="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+				<div class="px-6 py-4">
 					<div class="w-full">
-						<h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-6">
-							Dashboard Settings
-						</h3>
 						
 						<!-- Tab Navigation -->
-						<div class="border-b border-gray-200 dark:border-dark-border-DEFAULT mb-6">
-							<nav class="-mb-px flex space-x-8">
-								<button @click="activeTab = 'general'" 
-										:class="activeTab === 'general' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
-										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+						<div class="mb-6">
+							<nav class="flex space-x-1 p-1 bg-gray-100 dark:bg-dark-bg-tertiary rounded-lg overflow-x-auto">
+								<button @click="activeTab = 'general'"
+										:class="activeTab === 'general' ? 'bg-white dark:bg-dark-bg-secondary text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-bg-secondary/50'"
+										class="whitespace-nowrap px-4 py-2 rounded-md font-medium text-sm transition-all duration-200">
 									General
 								</button>
-								<button @click="activeTab = 'colors'" 
-										:class="activeTab === 'colors' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
-										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-									Color Preferences
+								<button @click="activeTab = 'colors'"
+										:class="activeTab === 'colors' ? 'bg-white dark:bg-dark-bg-secondary text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-bg-secondary/50'"
+										class="whitespace-nowrap px-4 py-2 rounded-md font-medium text-sm transition-all duration-200">
+									Colors
 								</button>
-								<button @click="activeTab = 'hidden'" 
-										:class="activeTab === 'hidden' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
-										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-									Hidden Alerts
+								<button @click="activeTab = 'hidden'"
+										:class="activeTab === 'hidden' ? 'bg-white dark:bg-dark-bg-secondary text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-bg-secondary/50'"
+										class="whitespace-nowrap px-4 py-2 rounded-md font-medium text-sm transition-all duration-200">
+									Hidden
 								</button>
 								<button @click="activeTab = 'sentry'"
-										:class="activeTab === 'sentry' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
-										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-									Sentry Integration
+										:class="activeTab === 'sentry' ? 'bg-white dark:bg-dark-bg-secondary text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-bg-secondary/50'"
+										class="whitespace-nowrap px-4 py-2 rounded-md font-medium text-sm transition-all duration-200">
+									Sentry
 								</button>
 								<button @click="activeTab = 'notifications'"
-										:class="activeTab === 'notifications' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
-										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+										:class="activeTab === 'notifications' ? 'bg-white dark:bg-dark-bg-secondary text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-bg-secondary/50'"
+										class="whitespace-nowrap px-4 py-2 rounded-md font-medium text-sm transition-all duration-200">
 									Notifications
 								</button>
 								<button @click="setActiveTab('annotation-buttons')"
-										:class="activeTab === 'annotation-buttons' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'"
-										class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-									Annotation Buttons
+										:class="activeTab === 'annotation-buttons' ? 'bg-white dark:bg-dark-bg-secondary text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-bg-secondary/50'"
+										class="whitespace-nowrap px-4 py-2 rounded-md font-medium text-sm transition-all duration-200">
+									Buttons
 								</button>
 							</nav>
 						</div>
@@ -57,12 +66,14 @@ templ SettingsModal() {
 								<div>
 									<label class="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</label>
 									<div class="mt-2 space-x-4">
-										<label class="inline-flex items-center">
-											<input type="radio" x-model="settings.theme" value="light" class="form-radio text-blue-600">
+										<label for="settings-theme-light" class="inline-flex items-center">
+											<input type="radio" id="settings-theme-light" name="settings-theme"
+												   x-model="settings.theme" value="light" class="form-radio text-blue-600">
 											<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Light</span>
 										</label>
-										<label class="inline-flex items-center">
-											<input type="radio" x-model="settings.theme" value="dark" class="form-radio text-blue-600">
+										<label for="settings-theme-dark" class="inline-flex items-center">
+											<input type="radio" id="settings-theme-dark" name="settings-theme"
+												   x-model="settings.theme" value="dark" class="form-radio text-blue-600">
 											<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Dark</span>
 										</label>
 									</div>
@@ -71,11 +82,12 @@ templ SettingsModal() {
 
 								<!-- Resolved Alerts Display Limit -->
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label for="settings-resolved-limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 										Resolved Alerts Display Limit
 									</label>
 									<div class="mt-1">
-										<input type="number" x-model="settings.resolvedAlertsLimit" min="10" max="1000" 
+										<input type="number" id="settings-resolved-limit" name="settings-resolved-limit"
+											   x-model="settings.resolvedAlertsLimit" min="10" max="1000"
 											   class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
 									</div>
 									<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -85,11 +97,12 @@ templ SettingsModal() {
 								
 								<!-- Refresh Interval -->
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+									<label for="settings-refresh-interval" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
 										Refresh Interval (seconds)
 									</label>
 									<div class="mt-1">
-										<select x-model="settings.refreshInterval" 
+										<select id="settings-refresh-interval" name="settings-refresh-interval"
+												x-model="settings.refreshInterval"
 												class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
 											<option value="5">5 seconds</option>
 											<option value="10">10 seconds</option>
@@ -98,7 +111,40 @@ templ SettingsModal() {
 										</select>
 									</div>
 								</div>
-								
+
+								<!-- On-Call Schedule -->
+								<div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+										On-Call Schedule
+									</label>
+									<p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+										Configure your on-call hours for quick filtering in Statistics.
+									</p>
+									<div class="space-y-3">
+										<!-- Weekday Hours -->
+										<div class="flex items-center space-x-3">
+											<label for="settings-oncall-start" class="text-sm text-gray-600 dark:text-gray-400 w-28">Weekday hours:</label>
+											<input type="time" id="settings-oncall-start" name="settings-oncall-start"
+												   x-model="settings.onCallSchedule.weekdayStart"
+												   class="px-2 py-1 text-sm border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white"/>
+											<span class="text-sm text-gray-500 dark:text-gray-400">to</span>
+											<input type="time" id="settings-oncall-end" name="settings-oncall-end"
+												   x-model="settings.onCallSchedule.weekdayEnd"
+												   class="px-2 py-1 text-sm border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white"/>
+										</div>
+										<!-- Weekend Toggle -->
+										<label for="settings-oncall-weekends" class="flex items-center cursor-pointer">
+											<input type="checkbox" id="settings-oncall-weekends" name="settings-oncall-weekends"
+												   x-model="settings.onCallSchedule.includeWeekends"
+												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"/>
+											<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Include full weekends as on-call</span>
+										</label>
+									</div>
+									<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+										Default: 18:00 - 08:00 weekdays + full weekends
+									</p>
+								</div>
+
 								<!-- Remove All Resolved Alerts -->
 								<div>
 									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -723,37 +769,40 @@ templ SettingsModal() {
 // Acknowledgment Modal Component
 templ AcknowledgmentModal() {
 	<!-- Acknowledgment Dialog -->
-	<div x-show="showAckModal" 
-		 x-transition:enter="ease-out duration-300" 
-		 x-transition:enter-start="opacity-0" 
+	<div x-show="showAckModal"
+		 x-transition:enter="ease-out duration-300"
+		 x-transition:enter-start="opacity-0"
 		 x-transition:enter-end="opacity-100"
-		 x-transition:leave="ease-in duration-200" 
-		 x-transition:leave-start="opacity-100" 
+		 x-transition:leave="ease-in duration-200"
+		 x-transition:leave-start="opacity-100"
 		 x-transition:leave-end="opacity-0"
-		 class="fixed inset-0 z-60 overflow-y-auto" 
+		 class="fixed inset-0 z-60 overflow-y-auto"
 		 @click.away="showAckModal = false"
 		 style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+			<!-- Backdrop -->
+			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity" @click="showAckModal = false"></div>
 
 			<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
-			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full z-10"
+			<div class="relative inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full z-10 border border-gray-200/50 dark:border-dark-border-subtle/50"
+				 @click.stop
 				 x-transition:enter="ease-out duration-300"
 				 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
 				 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
 				 x-transition:leave="ease-in duration-200"
 				 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
 				 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-				
-				<div class="bg-white dark:bg-dark-bg-secondary px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+
+				<div class="bg-white dark:bg-dark-bg-secondary px-6 pt-6 pb-4">
 					<div class="sm:flex sm:items-start">
-						<div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-800 sm:mx-0 sm:h-10 sm:w-10">
-							<svg class="h-6 w-6 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/50 sm:mx-0 sm:h-10 sm:w-10">
+							<svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 							</svg>
 						</div>
 						<div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-							<h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+							<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
 								Acknowledge Alert
 							</h3>
 							<div class="mt-2">
@@ -1632,38 +1681,41 @@ templ AlertDetailsModal() {
 // Silence Modal Component
 templ SilenceModal() {
 	<!-- Silence Dialog -->
-	<div x-show="showSilenceModal" 
-		 x-transition:enter="ease-out duration-300" 
-		 x-transition:enter-start="opacity-0" 
+	<div x-show="showSilenceModal"
+		 x-transition:enter="ease-out duration-300"
+		 x-transition:enter-start="opacity-0"
 		 x-transition:enter-end="opacity-100"
-		 x-transition:leave="ease-in duration-200" 
-		 x-transition:leave-start="opacity-100" 
+		 x-transition:leave="ease-in duration-200"
+		 x-transition:leave-start="opacity-100"
 		 x-transition:leave-end="opacity-0"
-		 class="fixed inset-0 z-60 overflow-y-auto" 
+		 class="fixed inset-0 z-60 overflow-y-auto"
 		 @click.away="showSilenceModal = false"
 		 style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+			<!-- Backdrop -->
+			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity" @click="showSilenceModal = false"></div>
 
 			<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
-			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full z-10"
+			<div class="relative inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full z-10 border border-gray-200/50 dark:border-dark-border-subtle/50"
+				 @click.stop
 				 x-transition:enter="ease-out duration-300"
 				 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
 				 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
 				 x-transition:leave="ease-in duration-200"
 				 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
 				 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-				
-				<div class="bg-white dark:bg-dark-bg-secondary px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+
+				<div class="bg-white dark:bg-dark-bg-secondary px-6 pt-6 pb-4">
 					<div class="sm:flex sm:items-start">
-						<div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-800 sm:mx-0 sm:h-10 sm:w-10">
-							<svg class="h-6 w-6 text-purple-600 dark:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/50 sm:mx-0 sm:h-10 sm:w-10 shadow-lg shadow-purple-500/25">
+							<svg class="h-6 w-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
 							</svg>
 						</div>
 						<div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-							<h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+							<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
 								Silence Alert
 							</h3>
 							<div class="mt-2">
@@ -1700,13 +1752,15 @@ templ SilenceModal() {
 									<!-- Duration Type Selection -->
 									<div class="mb-3">
 										<div class="flex items-center space-x-4">
-											<label class="flex items-center">
-												<input type="radio" x-model="silenceDurationType" value="preset" 
+											<label for="silence-duration-preset" class="flex items-center">
+												<input type="radio" id="silence-duration-preset" name="silence-duration-type"
+													   x-model="silenceDurationType" value="preset"
 													   class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-dark-border-DEFAULT">
 												<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Preset</span>
 											</label>
-											<label class="flex items-center">
-												<input type="radio" x-model="silenceDurationType" value="custom" 
+											<label for="silence-duration-custom" class="flex items-center">
+												<input type="radio" id="silence-duration-custom" name="silence-duration-type"
+													   x-model="silenceDurationType" value="custom"
 													   class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-dark-border-DEFAULT">
 												<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Custom</span>
 											</label>
@@ -1715,7 +1769,8 @@ templ SilenceModal() {
 									
 									<!-- Preset Duration Dropdown -->
 									<div x-show="silenceDurationType === 'preset'">
-										<select x-model="silenceDuration" 
+										<select id="silence-duration-select" name="silence-duration-select"
+												x-model="silenceDuration"
 												class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-dark-bg-tertiary dark:text-white">
 											<option value="1h">1 hour</option>
 											<option value="2h">2 hours</option>
@@ -1727,15 +1782,16 @@ templ SilenceModal() {
 											<option value="7d">7 days</option>
 										</select>
 									</div>
-									
+
 									<!-- Custom Duration Input -->
 									<div x-show="silenceDurationType === 'custom'">
-										<input type="text" x-model="customSilenceDuration" 
-											   placeholder="e.g., 1h30m, 2h15m30s, 30m"
+										<input type="text" id="silence-custom-duration" name="silence-custom-duration"
+											   x-model="customSilenceDuration"
+											   placeholder="e.g., 1h30m, 2d, 1y, 30d12h"
 											   class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-dark-bg-tertiary dark:text-white"
 											   @input="validateCustomDuration()">
 										<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-											Supported formats: 1h30m, 2h15m30s, 30m (ns, µs, ms, s, m, h combinations)
+											Supported formats: 1h30m, 2d, 1y, 30d12h (ns, µs, ms, s, m, h, d, y combinations)
 										</div>
 										<div x-show="customDurationError" class="mt-1 text-xs text-red-600 dark:text-red-400" x-text="customDurationError"></div>
 									</div>
@@ -1813,11 +1869,11 @@ templ SilenceModal() {
 					</div>
 				</div>
 				
-				<div class="bg-gray-50 dark:bg-dark-bg-tertiary px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-					<button type="button" 
-							@click="submitSilence()" 
+				<div class="bg-gray-50 dark:bg-dark-bg-tertiary px-6 py-4 border-t border-gray-200 dark:border-dark-border-subtle sm:flex sm:flex-row-reverse sm:gap-3">
+					<button type="button"
+							@click="submitSilence()"
 							:disabled="!silenceReason.trim() || silenceSubmitting"
-							class="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200"
+							class="w-full inline-flex justify-center items-center rounded-lg border border-transparent shadow-sm px-4 py-2 text-sm font-medium text-white sm:w-auto transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-secondary"
 							:class="{
 								'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500': silenceReason.trim() && !silenceSubmitting,
 								'bg-gray-400 cursor-not-allowed': !silenceReason.trim() || silenceSubmitting
@@ -1829,10 +1885,10 @@ templ SilenceModal() {
 						<span x-show="!silenceSubmitting">Silence</span>
 						<span x-show="silenceSubmitting">Processing...</span>
 					</button>
-					<button type="button" 
-							@click="cancelSilence()" 
+					<button type="button"
+							@click="cancelSilence()"
 							:disabled="silenceSubmitting"
-							class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-dark-border-DEFAULT shadow-sm px-4 py-2 bg-white dark:bg-dark-bg-secondary text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+							class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-dark-border-DEFAULT shadow-sm px-4 py-2 bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:mt-0 sm:w-auto transition-colors"
 							:class="{ 'opacity-50 cursor-not-allowed': silenceSubmitting }">
 						Cancel
 					</button>

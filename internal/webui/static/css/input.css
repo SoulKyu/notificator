@@ -33,12 +33,12 @@
   --color-severity-critical-text-light: #991b1b;
   --color-severity-critical-text-dark: #fca5a5;
 
-  --color-severity-critical-daytime-light: #be123c;
-  --color-severity-critical-daytime-dark: #fb7185;
-  --color-severity-critical-daytime-bg-light: #ffe4e6;
-  --color-severity-critical-daytime-bg-dark: #881337;
-  --color-severity-critical-daytime-text-light: #9f1239;
-  --color-severity-critical-daytime-text-dark: #fda4af;
+  --color-severity-critical-daytime-light: #7c3aed;
+  --color-severity-critical-daytime-dark: #a78bfa;
+  --color-severity-critical-daytime-bg-light: #ede9fe;
+  --color-severity-critical-daytime-bg-dark: #4c1d95;
+  --color-severity-critical-daytime-text-light: #5b21b6;
+  --color-severity-critical-daytime-text-dark: #c4b5fd;
 
   --color-severity-warning-light: #d97706;
   --color-severity-warning-dark: #fbbf24;
@@ -74,6 +74,11 @@
 @layer base {
   html {
     font-family: system-ui, sans-serif;
+  }
+
+  /* Hide x-cloak elements until Alpine.js initializes */
+  [x-cloak] {
+    display: none !important;
   }
 }
 
@@ -151,6 +156,9 @@
     white-space: nowrap;
     z-index: 1000;
     pointer-events: none;
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .text-tooltip:hover::before {
@@ -166,7 +174,7 @@
 
   /* Table responsive improvements */
   .alert-table-container {
-    @apply overflow-x-auto overflow-y-auto shadow ring-1 ring-black/5 rounded-lg dark:ring-dark-border-subtle;
+    @apply overflow-x-auto overflow-y-auto shadow-sm ring-1 ring-black/5 rounded-lg dark:ring-dark-border-subtle;
     max-height: calc(100vh - 200px);
   }
 
@@ -176,42 +184,51 @@
     min-width: 1400px;
   }
 
-  /* Enhanced notification interaction - alert highlighting */
-  .highlight-alert {
-    @apply bg-primary-100 dark:bg-primary-900/20 border-2 border-primary-400 dark:border-primary-500;
-    transition: all 0.3s ease-in-out;
-    animation: pulseHighlight 2s ease-in-out;
+  /* Table cell overflow control */
+  .alert-table td {
+    @apply overflow-hidden;
+    max-width: 0; /* Forces cells to respect column width */
   }
 
+  .alert-table td > div {
+    @apply truncate;
+  }
+
+  /* Enhanced notification interaction - alert highlighting */
+  /* Uses compositor-friendly opacity animation to avoid CLS */
+  .highlight-alert {
+    @apply border-2 border-primary-400 dark:border-primary-500;
+    position: relative;
+    transition: border-color 0.3s ease-in-out;
+    /* Hint to browser for optimization */
+    will-change: opacity;
+  }
+
+  .highlight-alert::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: rgb(147 197 253); /* blue-300 */
+    z-index: -1;
+    animation: pulseHighlight 2s ease-in-out;
+    /* Use compositor-friendly properties */
+    will-change: opacity;
+  }
+
+  .dark .highlight-alert::before {
+    background-color: rgba(59, 130, 246, 0.3); /* blue-500 with opacity */
+  }
+
+  /* Compositor-friendly animation using opacity instead of background-color */
   @keyframes pulseHighlight {
     0% {
-      background-color: rgb(147 197 253); /* blue-300 */
-      border-color: rgb(59 130 246); /* blue-500 */
+      opacity: 1;
     }
     50% {
-      background-color: rgb(219 234 254); /* blue-100 */
-      border-color: rgb(96 165 250); /* blue-400 */
+      opacity: 0.4;
     }
     100% {
-      background-color: rgb(147 197 253); /* blue-300 */
-      border-color: rgb(59 130 246); /* blue-500 */
-    }
-  }
-
-  @media (prefers-color-scheme: dark) {
-    @keyframes pulseHighlight {
-      0% {
-        background-color: rgba(59, 130, 246, 0.2); /* blue-500 with opacity */
-        border-color: rgb(59 130 246); /* blue-500 */
-      }
-      50% {
-        background-color: rgba(96, 165, 250, 0.3); /* blue-400 with opacity */
-        border-color: rgb(96 165 250); /* blue-400 */
-      }
-      100% {
-        background-color: rgba(59, 130, 246, 0.2); /* blue-500 with opacity */
-        border-color: rgb(59 130 246); /* blue-500 */
-      }
+      opacity: 1;
     }
   }
 
@@ -244,6 +261,61 @@
   }
 }
 
+@layer components {
+  /* Modal backdrop consistency */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity;
+  }
+
+  /* Modal panel base styling */
+  .modal-panel {
+    @apply inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle border border-gray-200/50 dark:border-dark-border-subtle/50;
+  }
+
+  /* Modal header */
+  .modal-header {
+    @apply px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle bg-gradient-to-r from-gray-50 to-white dark:from-dark-bg-secondary dark:to-dark-bg-tertiary;
+  }
+
+  /* Modal footer */
+  .modal-footer {
+    @apply px-6 py-4 bg-gray-50 dark:bg-dark-bg-tertiary border-t border-gray-200 dark:border-dark-border-subtle flex justify-end space-x-3;
+  }
+
+  /* Primary button */
+  .btn-modal-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors dark:focus:ring-offset-dark-bg-secondary;
+  }
+
+  /* Secondary button */
+  .btn-modal-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary border border-gray-300 dark:border-dark-border-DEFAULT rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors;
+  }
+
+  /* Destructive button */
+  .btn-modal-danger {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors dark:focus:ring-offset-dark-bg-secondary;
+  }
+
+  /* Modal input styling */
+  .modal-input {
+    @apply w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-lg shadow-sm bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors;
+  }
+
+  /* Modal tabs */
+  .modal-tab {
+    @apply px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200;
+  }
+
+  .modal-tab-active {
+    @apply bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800;
+  }
+
+  .modal-tab-inactive {
+    @apply text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50;
+  }
+}
+
 @keyframes fadeIn {
   0% { opacity: 0; }
   100% { opacity: 1; }
@@ -257,4 +329,38 @@
 @keyframes pulseSoft {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
+}
+
+/* Time picker enhancements */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+.time-input-error {
+  @apply border-red-500 dark:border-red-400;
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Timeline bar component */
+.timeline-bar {
+  @apply flex h-2 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700;
+}
+
+.timeline-segment {
+  @apply h-full transition-colors duration-200;
+}
+
+.timeline-segment-active {
+  @apply bg-blue-500 dark:bg-blue-400;
+}
+
+.timeline-segment-inactive {
+  @apply bg-slate-200 dark:bg-slate-700;
+}
+
+/* Monospace time input */
+.time-input {
+  @apply font-mono text-center px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-20;
 }

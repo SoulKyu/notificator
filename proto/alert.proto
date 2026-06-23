@@ -12,6 +12,7 @@ service AlertService {
   // Comments
   rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
   rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
+  rpc GetCommentCountsBatch(GetCommentCountsBatchRequest) returns (GetCommentCountsBatchResponse);
   rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
   
   // Acknowledgments
@@ -89,6 +90,15 @@ message GetCommentsRequest {
 message GetCommentsResponse {
   repeated Comment comments = 1;
   int32 count = 2;
+}
+
+// Batch comment counts request - solves N+1 query problem
+message GetCommentCountsBatchRequest {
+  repeated string alert_keys = 1;  // List of alert fingerprints to get counts for
+}
+
+message GetCommentCountsBatchResponse {
+  map<string, int32> counts = 1;  // alert_key -> comment count
 }
 
 message DeleteCommentRequest {
@@ -189,6 +199,7 @@ enum UpdateType {
 // User Color Preferences Messages
 message GetUserColorPreferencesRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: load preferences for this user instead
 }
 
 message GetUserColorPreferencesResponse {
@@ -200,6 +211,7 @@ message GetUserColorPreferencesResponse {
 message SaveUserColorPreferencesRequest {
   string session_id = 1;
   repeated UserColorPreference preferences = 2;
+  string impersonate_user_id = 3;  // Optional: save preferences for this user instead
 }
 
 message SaveUserColorPreferencesResponse {
@@ -210,6 +222,7 @@ message SaveUserColorPreferencesResponse {
 message DeleteUserColorPreferenceRequest {
   string session_id = 1;
   string preference_id = 2;
+  string impersonate_user_id = 3;  // Optional: delete preference for this user instead
 }
 
 message DeleteUserColorPreferenceResponse {
@@ -305,6 +318,7 @@ message ResolvedAlertInfo {
 // User Hidden Alerts Messages
 message GetUserHiddenAlertsRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: load hidden alerts for this user instead
 }
 
 message GetUserHiddenAlertsResponse {
@@ -319,6 +333,7 @@ message HideAlertRequest {
   string alert_name = 3;
   string instance = 4;
   string reason = 5;
+  string impersonate_user_id = 6;  // Optional: hide for this user instead
 }
 
 message HideAlertResponse {
@@ -330,6 +345,7 @@ message HideAlertResponse {
 message UnhideAlertRequest {
   string session_id = 1;
   string fingerprint = 2;
+  string impersonate_user_id = 3;  // Optional: unhide for this user instead
 }
 
 message UnhideAlertResponse {
@@ -339,6 +355,7 @@ message UnhideAlertResponse {
 
 message ClearAllHiddenAlertsRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: clear for this user instead
 }
 
 message ClearAllHiddenAlertsResponse {
@@ -361,6 +378,7 @@ message UserHiddenAlert {
 // User Hidden Rules Messages
 message GetUserHiddenRulesRequest {
   string session_id = 1;
+  string impersonate_user_id = 2;  // Optional: load rules for this user instead
 }
 
 message GetUserHiddenRulesResponse {
@@ -372,6 +390,7 @@ message GetUserHiddenRulesResponse {
 message SaveHiddenRuleRequest {
   string session_id = 1;
   UserHiddenRule rule = 2;
+  string impersonate_user_id = 3;  // Optional: save rule for this user instead
 }
 
 message SaveHiddenRuleResponse {
@@ -383,6 +402,7 @@ message SaveHiddenRuleResponse {
 message RemoveHiddenRuleRequest {
   string session_id = 1;
   string rule_id = 2;
+  string impersonate_user_id = 3;  // Optional: remove rule for this user instead
 }
 
 message RemoveHiddenRuleResponse {
@@ -448,6 +468,7 @@ message NotificationPreference {
 message GetFilterPresetsRequest {
   string session_id = 1;
   bool include_shared = 2;
+  string impersonate_user_id = 3;  // Optional: load presets for this user instead
 }
 
 message GetFilterPresetsResponse {
@@ -462,6 +483,7 @@ message SaveFilterPresetRequest {
   string description = 3;
   bool is_shared = 4;
   bytes filter_data = 5;  // JSON serialized filter state
+  string impersonate_user_id = 6;  // Optional: save preset for this user instead
 }
 
 message SaveFilterPresetResponse {
@@ -477,6 +499,7 @@ message UpdateFilterPresetRequest {
   string description = 4;
   bool is_shared = 5;
   bytes filter_data = 6;  // JSON serialized filter state
+  string impersonate_user_id = 7;  // Optional: update preset for this user instead
 }
 
 message UpdateFilterPresetResponse {
@@ -488,6 +511,7 @@ message UpdateFilterPresetResponse {
 message DeleteFilterPresetRequest {
   string session_id = 1;
   string preset_id = 2;
+  string impersonate_user_id = 3;  // Optional: delete preset for this user instead
 }
 
 message DeleteFilterPresetResponse {
@@ -498,6 +522,7 @@ message DeleteFilterPresetResponse {
 message SetDefaultFilterPresetRequest {
   string session_id = 1;
   string preset_id = 2;
+  string impersonate_user_id = 3;  // Optional: set default for this user instead
 }
 
 message SetDefaultFilterPresetResponse {
@@ -615,6 +640,13 @@ service StatisticsService {
 
   // Get alerts by name with filters (for drill-down view)
   rpc GetAlertsByName(GetAlertsByNameRequest) returns (GetAlertsByNameResponse);
+
+  // Statistics Views (saved filter configurations)
+  rpc GetStatisticsViews(GetStatisticsViewsRequest) returns (GetStatisticsViewsResponse);
+  rpc SaveStatisticsView(SaveStatisticsViewRequest) returns (SaveStatisticsViewResponse);
+  rpc UpdateStatisticsView(UpdateStatisticsViewRequest) returns (UpdateStatisticsViewResponse);
+  rpc DeleteStatisticsView(DeleteStatisticsViewRequest) returns (DeleteStatisticsViewResponse);
+  rpc SetDefaultStatisticsView(SetDefaultStatisticsViewRequest) returns (SetDefaultStatisticsViewResponse);
 }
 
 // ==================== Statistics Query Messages ====================
@@ -631,6 +663,11 @@ message QueryStatisticsRequest {
   bool filter_by_time_of_day = 9; // Enable time-of-day filtering
   string time_of_day_start = 10;  // "HH:MM" format (e.g., "22:00")
   string time_of_day_end = 11;    // "HH:MM" format (e.g., "06:00") - supports cross-midnight
+  bool include_weekends = 12;     // Include weekends in time-of-day filter (default: true)
+  string secondary_group_by = 13; // For period grouping: sub-group breakdown by "severity", "team", "alert_name"
+  repeated string severities = 14; // Filter by severities (multi-select, OR logic)
+  repeated string teams = 15;      // Filter by teams (multi-select, OR logic)
+  string weekend_mode = 16;        // "exclude", "same_hours", "full_weekends"
 }
 
 message QueryStatisticsResponse {
@@ -649,17 +686,18 @@ message TimeRange {
 
 message AggregatedStatistics {
   int32 count = 1;
-  double avg_duration_seconds = 2;
-  int32 total_duration_seconds = 3;
-  double avg_mttr_seconds = 4;
+  double avg_mttr_seconds = 2;        // Mean Time To Resolve (resolved - fired)
+  int32 total_mttr_seconds = 3;
+  double avg_mtta_seconds = 4;        // Mean Time To Acknowledge (acknowledged - fired)
+  double avg_fix_time_seconds = 5;    // Fix Time (resolved - acknowledged)
 }
 
 message BreakdownItem {
-  string period = 1;                                  // e.g., "2025-10-22" or "Week of 2025-10-20"
+  string period = 1;                                  // e.g., "2025-10-22", "2025-W05", "2025-10-22T14:00"
   google.protobuf.Timestamp start_time = 2;
   google.protobuf.Timestamp end_time = 3;
   int32 total_count = 4;
-  map<string, AggregatedStatistics> statistics = 5;  // Breakdown by severity within period
+  map<string, AggregatedStatistics> statistics = 5;  // Breakdown by secondary_group_by within period (default: severity)
 }
 
 // ==================== On-Call Rules Messages ====================
@@ -769,10 +807,11 @@ message AlertStatistic {
   google.protobuf.Timestamp fired_at = 6;
   google.protobuf.Timestamp resolved_at = 7;
   google.protobuf.Timestamp acknowledged_at = 8;
-  int32 duration_seconds = 9;
-  int32 mttr_seconds = 10;
+  int32 mttr_seconds = 9;       // Mean Time To Resolve (resolved - fired)
+  int32 mtta_seconds = 10;      // Mean Time To Acknowledge (acknowledged - fired)
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp updated_at = 12;
+  int32 fix_time_seconds = 13;  // Fix Time (resolved - acknowledged)
 }
 
 // ==================== Statistics Summary Messages ====================
@@ -846,18 +885,19 @@ message ResolvedAlertItem {
   string fingerprint = 1;
   string alert_name = 2;
   string severity = 3;
-  int32 occurrence_count = 4;              // How many times resolved in time range
-  google.protobuf.Timestamp first_fired_at = 5;    // Earliest fired_at
-  google.protobuf.Timestamp last_resolved_at = 6;  // Most recent resolved_at
-  int32 total_duration = 7;                // Sum of all durations
-  double avg_duration = 8;                 // Average duration
-  int32 total_mttr = 9;                    // Sum of all MTTR
-  double avg_mttr = 10;                    // Average MTTR
+  int32 occurrence_count = 4;                      // How many times resolved in time range
+  google.protobuf.Timestamp first_fired_at = 5;   // Earliest fired_at
+  google.protobuf.Timestamp last_resolved_at = 6; // Most recent resolved_at
+  int32 total_mttr = 7;                           // Sum of MTTR (resolved - fired)
+  double avg_mttr = 8;                            // Average MTTR
+  int32 total_mtta = 9;                           // Sum of MTTA (acknowledged - fired)
+  double avg_mtta = 10;                           // Average MTTA
   map<string, string> labels = 11;
   map<string, string> annotations = 12;
   string source = 13;
   string instance = 14;
   string team = 15;
+  double avg_fix_time = 16;                       // Average Fix Time (resolved - acknowledged)
 }
 
 message QueryRecentlyResolvedResponse {
@@ -894,6 +934,10 @@ message GetAlertsByNameRequest {
   string time_of_day_start = 7;
   string time_of_day_end = 8;
   int32 limit = 9;
+  bool include_weekends = 10;     // Include weekends in time-of-day filter (default: true)
+  string weekend_mode = 11;       // "exclude", "same_hours", "full_weekends"
+  repeated string severities = 12; // Filter by severities (multi-select, OR logic)
+  repeated string teams = 13;     // Filter by teams (multi-select, OR logic)
 }
 
 message GetAlertsByNameResponse {
@@ -944,4 +988,118 @@ message SaveUserColumnPreferencesRequest {
 message SaveUserColumnPreferencesResponse {
   bool success = 1;
   string message = 2;
+}
+
+// ==================== Statistics Views Messages ====================
+
+message GetStatisticsViewsRequest {
+  string session_id = 1;
+  bool include_shared = 2;                // Include shared views from other users
+  string impersonate_user_id = 3;         // Optional: load views for this user instead
+}
+
+message GetStatisticsViewsResponse {
+  bool success = 1;
+  repeated StatisticsView views = 2;
+  string message = 3;
+}
+
+message SaveStatisticsViewRequest {
+  string session_id = 1;
+  string name = 2;
+  string description = 3;
+  bool is_shared = 4;
+  StatisticsViewData view_data = 5;
+  string impersonate_user_id = 6;         // Optional: save view for this user instead
+}
+
+message SaveStatisticsViewResponse {
+  bool success = 1;
+  StatisticsView view = 2;
+  string message = 3;
+}
+
+message UpdateStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  StatisticsViewData view_data = 6;
+  string impersonate_user_id = 7;         // Optional: update view for this user instead
+}
+
+message UpdateStatisticsViewResponse {
+  bool success = 1;
+  StatisticsView view = 2;
+  string message = 3;
+}
+
+message DeleteStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;
+  string impersonate_user_id = 3;         // Optional: delete view for this user instead
+}
+
+message DeleteStatisticsViewResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SetDefaultStatisticsViewRequest {
+  string session_id = 1;
+  string view_id = 2;                     // Empty string to clear default
+  string impersonate_user_id = 3;         // Optional: set default for this user instead
+}
+
+message SetDefaultStatisticsViewResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message StatisticsView {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_shared = 5;
+  bool is_default = 6;
+  StatisticsViewData view_data = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// RelativeTimeConfig represents relative time settings (e.g., "7 days ago")
+message RelativeTimeConfig {
+  int32 value = 1;                        // Numeric value (e.g., 7)
+  string unit = 2;                        // "minutes", "hours", "days", "weeks", "months"
+  bool all_time = 3;                      // If true, represents "all time" (no start limit)
+  bool now = 4;                           // If true, represents "now" (current time)
+}
+
+message StatisticsViewData {
+  string date_range_type = 1;             // Legacy field (for backward compatibility)
+  string start_date = 2;                  // Computed start date: "YYYY-MM-DD"
+  string end_date = 3;                    // Computed end date: "YYYY-MM-DD"
+  bool filter_by_time_of_day = 4;
+  string time_of_day_start = 5;           // "HH:MM" format
+  string time_of_day_end = 6;             // "HH:MM" format
+  bool use_on_call_period = 7;            // Use global on-call config
+  bool include_weekends = 8;              // Include weekends in time-of-day filter
+  string group_by = 9;                    // "", "severity", "team", "alert_name", "period"
+  string period_type = 10;                // "hour", "day", "week", "month"
+  bool apply_rules = 11;
+  int32 limit = 12;                       // For top N alerts when groupBy is "alert_name"
+
+  // New fields for enhanced time range support
+  string time_range_mode = 13;            // "relative" or "absolute"
+  RelativeTimeConfig relative_from = 14;  // Relative "from" settings
+  RelativeTimeConfig relative_until = 15; // Relative "until" settings
+  string absolute_from_time = 16;         // "HH:MM" format for absolute mode
+  string absolute_until_time = 17;        // "HH:MM" format for absolute mode
+
+  // Filter arrays
+  repeated string severities = 18;        // Filter by severity levels
+  repeated string teams = 19;             // Filter by team names
+  string weekend_mode = 20;               // "exclude", "same_hours", "full_weekends"
 }

@@ -172,7 +172,14 @@ templ DashboardData() {
 				if (!force && Object.keys(this.alertColors).length > 0) {
 					return;
 				}
-				
+
+				// Prevent concurrent requests - if already loading, skip
+				if (this._loadingAlertColors) {
+					console.log('Skipping alert colors load - request already in progress');
+					return;
+				}
+				this._loadingAlertColors = true;
+
 				try {
 					console.log('Loading alert colors...');
 					
@@ -235,6 +242,8 @@ templ DashboardData() {
 					}
 				} catch (error) {
 					console.error('Error loading alert colors:', error);
+				} finally {
+					this._loadingAlertColors = false;
 				}
 			},
 
@@ -248,6 +257,14 @@ templ DashboardData() {
 
 			// Apply incremental changes to the dashboard
 			applyIncrementalUpdate(update) {
+				// Track if this update has changes (for adaptive polling)
+				const hasChanges = (update.newAlerts?.length > 0 ||
+				                    update.updatedAlerts?.length > 0 ||
+				                    update.removedAlerts?.length > 0);
+				if (hasChanges) {
+					this.recentChanges++;
+				}
+
 				// Create fingerprint maps for efficient lookups
 				const alertMap = new Map();
 				this.alerts.forEach((alert, index) => {
@@ -268,28 +285,54 @@ templ DashboardData() {
 					);
 				}
 				
-				// Update existing alerts
+				// Update existing alerts (and remove those that no longer match filters)
 				if (update.updatedAlerts && update.updatedAlerts.length > 0) {
 					const newAlertMap = new Map();
 					this.alerts.forEach((alert, index) => {
 						newAlertMap.set(alert.fingerprint, { alert, index });
 					});
-					
+
+					// Track indices to remove (alerts that no longer match filters)
+					const indicesToRemove = [];
+
 					update.updatedAlerts.forEach(updatedAlert => {
 						const existing = newAlertMap.get(updatedAlert.fingerprint);
 						if (existing) {
-							// Update in place to maintain order
-							this.alerts[existing.index] = updatedAlert;
+							// Check if updated alert still matches current filters
+							if (this.alertMatchesFilters(updatedAlert)) {
+								// Update in place to maintain order
+								this.alerts[existing.index] = updatedAlert;
+							} else {
+								// Alert no longer matches filters (e.g., was silenced), mark for removal
+								indicesToRemove.push(existing.index);
+								console.log('Alert no longer matches filters, removing:', updatedAlert.alertName, 'status:', updatedAlert.status?.state);
+							}
 						}
 					});
+
+					// Remove alerts that no longer match filters (in reverse order to maintain indices)
+					if (indicesToRemove.length > 0) {
+						indicesToRemove.sort((a, b) => b - a); // Sort descending
+						indicesToRemove.forEach(index => {
+							this.alerts.splice(index, 1);
+						});
+						// Also remove from selection
+						const removedFingerprints = update.updatedAlerts
+							.filter((_, i) => indicesToRemove.includes(newAlertMap.get(update.updatedAlerts[i]?.fingerprint)?.index))
+							.map(a => a.fingerprint);
+						this.selectedAlerts = this.selectedAlerts.filter(fp => !removedFingerprints.includes(fp));
+					}
 				}
 				
-				// Add new alerts
+				// Add new alerts (filter them first for SSE which sends unfiltered data)
 				if (update.newAlerts && update.newAlerts.length > 0) {
-					this.alerts.push(...update.newAlerts);
-					
-					// Sort after adding new alerts to maintain correct order
-					this.alerts = this.sortAlerts(this.alerts);
+					const filteredNewAlerts = update.newAlerts.filter(alert => this.alertMatchesFilters(alert));
+					if (filteredNewAlerts.length > 0) {
+						this.alerts.push(...filteredNewAlerts);
+
+						// Sort after adding new alerts to maintain correct order
+						this.alerts = this.sortAlerts(this.alerts);
+					}
 				}
 				
 				// Update metadata and settings
@@ -306,6 +349,15 @@ templ DashboardData() {
 					this.alertColors = { ...this.alertColors, ...update.colors };
 					this.alertColorsTimestamp = Date.now();
 					console.log(`Updated colors for ${Object.keys(update.colors).length} alerts from incremental update`);
+				} else if (this.sseConnection && (update.newAlerts?.length > 0 || update.updatedAlerts?.length > 0)) {
+					// SSE doesn't include colors (they're user-specific), so fetch them
+					// Debounce to prevent multiple rapid calls
+					if (this._colorLoadTimeout) {
+						clearTimeout(this._colorLoadTimeout);
+					}
+					this._colorLoadTimeout = setTimeout(() => {
+						this.loadAlertColors(true);
+					}, 500);
 				}
 				
 				// Update timestamp
@@ -314,6 +366,11 @@ templ DashboardData() {
 				// Process new alerts for notifications
 				if (window.notificationService && this.currentUser) {
 					window.notificationService.processNewAlerts(this.alerts, this.filters, this.currentUser.id);
+				}
+
+				// Call adaptive refresh only when polling (not using SSE)
+				if (!this.sseConnection && this.adaptiveRefresh) {
+					this.adaptiveRefresh();
 				}
 			},
 
@@ -328,7 +385,7 @@ templ DashboardData() {
 							bVal = b.alertName.toLowerCase();
 							break;
 						case 'severity':
-							const severityOrder = { 'critical': 3, 'warning': 2, 'info': 1 };
+							const severityOrder = { 'critical': 4, 'critical-daytime': 3, 'warning': 2, 'info': 1 };
 							aVal = severityOrder[a.severity] || 0;
 							bVal = severityOrder[b.severity] || 0;
 							break;
@@ -357,6 +414,131 @@ templ DashboardData() {
 						return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
 					}
 				});
+			},
+
+			// Check if an alert matches current filter settings
+			// Used to filter SSE updates which arrive unfiltered
+			alertMatchesFilters(alert) {
+				// Check alertmanager filter
+				if (this.filters.alertmanagers && this.filters.alertmanagers.length > 0) {
+					if (!this.filters.alertmanagers.includes(alert.source)) {
+						return false;
+					}
+				}
+
+				// Check severity filter
+				if (this.filters.severities && this.filters.severities.length > 0) {
+					const alertSeverity = (alert.severity || '').toLowerCase();
+					const matchesSeverity = this.filters.severities.some(s => s.toLowerCase() === alertSeverity);
+					if (!matchesSeverity) {
+						return false;
+					}
+				}
+
+				// Check status filter
+				if (this.filters.statuses && this.filters.statuses.length > 0) {
+					const alertStatus = (alert.status?.state || alert.status || '').toLowerCase();
+					const matchesStatus = this.filters.statuses.some(s => s.toLowerCase() === alertStatus);
+					if (!matchesStatus) {
+						return false;
+					}
+				}
+
+				// Check team filter
+				if (this.filters.teams && this.filters.teams.length > 0) {
+					const alertTeam = alert.team || alert.labels?.team || '';
+					if (!this.filters.teams.includes(alertTeam)) {
+						return false;
+					}
+				}
+
+				// Check alertName filter
+				if (this.filters.alertNames && this.filters.alertNames.length > 0) {
+					if (!this.filters.alertNames.includes(alert.alertName)) {
+						return false;
+					}
+				}
+
+				// Check search query
+				if (this.searchQuery && this.searchQuery.trim() !== '') {
+					const query = this.searchQuery.toLowerCase();
+					const searchableText = [
+						alert.alertName,
+						alert.summary,
+						alert.instance,
+						alert.team,
+						alert.source,
+						JSON.stringify(alert.labels)
+					].join(' ').toLowerCase();
+
+					if (!searchableText.includes(query)) {
+						return false;
+					}
+				}
+
+				// Check hidden alerts (user-specific)
+				if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
+					if (this.filterHiddenAlerts.includes(alert.fingerprint)) {
+						return false;
+					}
+				}
+
+				// Check hidden rules (user-specific label-based rules)
+				if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
+					for (const rule of this.filterHiddenRules) {
+						if (this.alertMatchesHiddenRule(alert, rule)) {
+							return false;
+						}
+					}
+				}
+
+				// Check acknowledgment filter
+				if (this.acknowledgmentFilter) {
+					const isAcknowledged = alert.isAcknowledged || false;
+					if (this.acknowledgmentFilter === 'acknowledged' && !isAcknowledged) {
+						return false;
+					}
+					if (this.acknowledgmentFilter === 'unacknowledged' && isAcknowledged) {
+						return false;
+					}
+				}
+
+				// Check comments filter
+				if (this.commentsFilter) {
+					const hasComments = (alert.commentCount || 0) > 0;
+					if (this.commentsFilter === 'with' && !hasComments) {
+						return false;
+					}
+					if (this.commentsFilter === 'without' && hasComments) {
+						return false;
+					}
+				}
+
+				// Check display mode - don't show resolved in classic mode
+				if (this.displayMode === 'classic') {
+					const isResolved = alert.isResolved || (alert.status?.state || alert.status || '').toLowerCase() === 'resolved';
+					if (isResolved) {
+						return false;
+					}
+				}
+
+				return true;
+			},
+
+			// Check if an alert matches a hidden rule
+			alertMatchesHiddenRule(alert, rule) {
+				if (!rule || !rule.matchers) return false;
+
+				for (const matcher of rule.matchers) {
+					const labelValue = alert.labels?.[matcher.name] || '';
+					const matches = matcher.isRegex
+						? new RegExp(matcher.value).test(labelValue)
+						: labelValue === matcher.value;
+
+					if (matcher.isEqual && !matches) return false;
+					if (!matcher.isEqual && matches) return false;
+				}
+				return true;
 			}
 		};
 	</script>

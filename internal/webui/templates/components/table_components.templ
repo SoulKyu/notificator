@@ -27,8 +27,10 @@ templ AlertsTable() {
 				<tr>
 					<!-- Select All Checkbox -->
 					<th class="px-6 py-3 text-left w-12 min-w-12">
-						<input type="checkbox" 
-							   @change="toggleSelectAll($event)" 
+						<input type="checkbox"
+							   id="select-all-alerts"
+							   name="select-all-alerts"
+							   @change="toggleSelectAll($event)"
 							   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
 					</th>
 					
@@ -57,7 +59,9 @@ templ AlertsTable() {
 						
 						<!-- Selection Checkbox - @click.stop prevents row click from firing -->
 						<td class="px-6 py-4 whitespace-nowrap">
-							<input type="checkbox" 
+							<input type="checkbox"
+								   :id="'alert-checkbox-' + alert.fingerprint"
+								   :name="'alert-checkbox-' + alert.fingerprint"
 								   :checked="selectedAlerts.includes(alert.fingerprint)"
 								   @click.stop="toggleAlert(alert.fingerprint)"
 								   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">

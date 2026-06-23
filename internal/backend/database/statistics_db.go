@@ -99,14 +99,23 @@ func (gdb *GormDB) UpdateAlertStatistic(stat *models.AlertStatistic) error {
 // UpdateAllUnresolvedByFingerprint updates all unresolved statistics for a fingerprint
 // This handles the case where duplicate statistics exist (legacy data)
 // Returns the number of records updated
-func (gdb *GormDB) UpdateAllUnresolvedByFingerprint(fingerprint string, resolvedAt time.Time, durationSeconds int, metadata []byte) (int64, error) {
+// mttrSeconds: Mean Time To Resolve (resolved - fired)
+// fixTimeSeconds: Fix Time (resolved - acknowledged), can be nil if not acknowledged
+func (gdb *GormDB) UpdateAllUnresolvedByFingerprint(fingerprint string, resolvedAt time.Time, mttrSeconds int, fixTimeSeconds *int, metadata []byte) (int64, error) {
+	updates := map[string]interface{}{
+		"resolved_at":  resolvedAt,
+		"mttr_seconds": mttrSeconds,
+		"metadata":     metadata,
+	}
+
+	// Only update fix_time_seconds if provided (alert was acknowledged before resolution)
+	if fixTimeSeconds != nil {
+		updates["fix_time_seconds"] = *fixTimeSeconds
+	}
+
 	result := gdb.db.Model(&models.AlertStatistic{}).
 		Where("fingerprint = ? AND resolved_at IS NULL", fingerprint).
-		Updates(map[string]interface{}{
-			"resolved_at":      resolvedAt,
-			"duration_seconds": durationSeconds,
-			"metadata":         metadata,
-		})
+		Updates(updates)
 
 	if result.Error != nil {
 		return 0, fmt.Errorf("failed to update unresolved statistics: %w", result.Error)
@@ -206,77 +215,6 @@ func (gdb *GormDB) DeleteOldStatistics(retentionDays int) (int64, error) {
 	return result.RowsAffected, nil
 }
 
-// ==================== On-Call Rules Operations ====================
-
-// SaveOnCallRule creates or updates an on-call rule
-func (gdb *GormDB) SaveOnCallRule(rule *models.OnCallRule) error {
-	if err := gdb.db.Save(rule).Error; err != nil {
-		return fmt.Errorf("failed to save on-call rule: %w", err)
-	}
-	return nil
-}
-
-// GetOnCallRules retrieves all rules for a user
-// If activeOnly is true, only returns active rules
-func (gdb *GormDB) GetOnCallRules(userID string, activeOnly bool) ([]*models.OnCallRule, error) {
-	var rules []*models.OnCallRule
-
-	query := gdb.db.Where("user_id = ?", userID)
-
-	if activeOnly {
-		query = query.Where("is_active = ?", true)
-	}
-
-	query = query.Order("created_at DESC")
-
-	err := query.Find(&rules).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to get on-call rules: %w", err)
-	}
-
-	return rules, nil
-}
-
-// GetActiveOnCallRules retrieves only active rules for a user
-func (gdb *GormDB) GetActiveOnCallRules(userID string) ([]*models.OnCallRule, error) {
-	return gdb.GetOnCallRules(userID, true)
-}
-
-// GetOnCallRuleByID retrieves a specific rule by ID
-func (gdb *GormDB) GetOnCallRuleByID(ruleID string) (*models.OnCallRule, error) {
-	var rule models.OnCallRule
-
-	err := gdb.db.First(&rule, "id = ?", ruleID).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to get on-call rule: %w", err)
-	}
-
-	return &rule, nil
-}
-
-// UpdateOnCallRule updates an existing on-call rule
-func (gdb *GormDB) UpdateOnCallRule(rule *models.OnCallRule) error {
-	if err := gdb.db.Save(rule).Error; err != nil {
-		return fmt.Errorf("failed to update on-call rule: %w", err)
-	}
-	return nil
-}
-
-// DeleteOnCallRule deletes an on-call rule by ID
-func (gdb *GormDB) DeleteOnCallRule(ruleID string) error {
-	result := gdb.db.Delete(&models.OnCallRule{}, "id = ?", ruleID)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete on-call rule: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("on-call rule not found: %s", ruleID)
-	}
-
-	return nil
-}
-
 // ==================== Statistics Aggregates Operations ====================
 
 // SaveStatisticsAggregate creates or updates a statistics aggregate record
@@ -317,22 +255,25 @@ func BuildMetadataJSON(metadata map[string]interface{}) (models.JSONB, error) {
 	return models.JSONB(jsonData), nil
 }
 
-// BuildRuleConfigJSON converts rule config to JSONB
-func BuildRuleConfigJSON(config *models.RuleConfig) (models.JSONB, error) {
-	jsonData, err := json.Marshal(config)
+// BuildStatisticsViewDataJSON converts statistics view data to JSONB
+func BuildStatisticsViewDataJSON(data *models.StatisticsViewData) (models.JSONB, error) {
+	if data == nil {
+		return models.JSONB("{}"), nil
+	}
+	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal rule config: %w", err)
+		return nil, fmt.Errorf("failed to marshal statistics view data: %w", err)
 	}
 	return models.JSONB(jsonData), nil
 }
 
-// ParseRuleConfig parses JSONB rule_config into RuleConfig struct
-func ParseRuleConfig(jsonb models.JSONB) (*models.RuleConfig, error) {
-	var config models.RuleConfig
+// ParseStatisticsViewData parses JSONB view_data into StatisticsViewData struct
+func ParseStatisticsViewData(jsonb models.JSONB) *models.StatisticsViewData {
+	var data models.StatisticsViewData
 
-	if err := json.Unmarshal([]byte(jsonb), &config); err != nil {
-		return nil, fmt.Errorf("failed to parse rule config: %w", err)
+	if err := json.Unmarshal([]byte(jsonb), &data); err != nil {
+		return &models.StatisticsViewData{}
 	}
 
-	return &config, nil
+	return &data
 }

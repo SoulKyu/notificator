@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"notificator/internal/webui/client"
+	"notificator/internal/webui/middleware"
 	"notificator/internal/webui/models"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,9 @@ func GetFilterPresets(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Get include_shared parameter (default true)
 	includeShared := true
 	if c.Query("include_shared") == "false" {
@@ -37,7 +41,7 @@ func GetFilterPresets(c *gin.Context) {
 	}
 
 	// Get presets from backend
-	presets, err := filterPresetBackendClient.GetFilterPresets(sessionID.(string), includeShared)
+	presets, err := filterPresetBackendClient.GetFilterPresets(sessionID.(string), includeShared, impersonateUserID)
 	if err != nil {
 		log.Printf("Failed to get filter presets: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -145,6 +149,9 @@ func CreateFilterPreset(c *gin.Context) {
 		}
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Save preset via backend
 	preset, err := filterPresetBackendClient.SaveFilterPreset(
 		sessionID.(string),
@@ -152,6 +159,7 @@ func CreateFilterPreset(c *gin.Context) {
 		req.Description,
 		req.IsShared,
 		req.FilterData,
+		impersonateUserID,
 	)
 	if err != nil {
 		log.Printf("Failed to save filter preset: %v", err)
@@ -180,6 +188,9 @@ func UpdateFilterPreset(c *gin.Context) {
 		})
 		return
 	}
+
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
 
 	// Get preset ID from URL
 	presetID := c.Param("id")
@@ -278,6 +289,7 @@ func UpdateFilterPreset(c *gin.Context) {
 		req.Description,
 		req.IsShared,
 		req.FilterData,
+		impersonateUserID,
 	)
 	if err != nil {
 		log.Printf("Failed to update filter preset: %v", err)
@@ -307,6 +319,9 @@ func DeleteFilterPreset(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Get preset ID from URL
 	presetID := c.Param("id")
 	if presetID == "" {
@@ -318,7 +333,7 @@ func DeleteFilterPreset(c *gin.Context) {
 	}
 
 	// Delete preset via backend
-	err := filterPresetBackendClient.DeleteFilterPreset(sessionID.(string), presetID)
+	err := filterPresetBackendClient.DeleteFilterPreset(sessionID.(string), presetID, impersonateUserID)
 	if err != nil {
 		log.Printf("Failed to delete filter preset: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -346,6 +361,9 @@ func SetDefaultFilterPreset(c *gin.Context) {
 		return
 	}
 
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
 	// Get preset ID from URL
 	presetID := c.Param("id")
 	if presetID == "" {
@@ -357,7 +375,7 @@ func SetDefaultFilterPreset(c *gin.Context) {
 	}
 
 	// Set default via backend
-	err := filterPresetBackendClient.SetDefaultFilterPreset(sessionID.(string), presetID)
+	err := filterPresetBackendClient.SetDefaultFilterPreset(sessionID.(string), presetID, impersonateUserID)
 	if err != nil {
 		log.Printf("Failed to set default filter preset: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -385,8 +403,12 @@ func GetDefaultFilterPreset(c *gin.Context) {
 		return
 	}
 
-	// Get all presets and find the default one
-	presets, err := filterPresetBackendClient.GetFilterPresets(sessionID.(string), false)
+	// Get impersonated user ID if impersonating
+	impersonateUserID := middleware.GetImpersonatedUserID(c)
+
+	// Get all presets including shared ones to find the default
+	// (user might have set a shared preset as their default)
+	presets, err := filterPresetBackendClient.GetFilterPresets(sessionID.(string), true, impersonateUserID)
 	if err != nil {
 		log.Printf("Failed to get filter presets: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

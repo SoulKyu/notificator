@@ -143,8 +143,10 @@ func (gdb *GormDB) AutoMigrate() error {
 		&models.UserSentryConfig{},
 		// Alert statistics
 		&models.AlertStatistic{},
-		&models.OnCallRule{},
 		&models.StatisticsAggregate{},
+		// Statistics saved views
+		&models.StatisticsView{},
+		&models.UserDefaultStatisticsView{},
 		// Annotation button configs
 		&models.AnnotationButtonConfig{},
 	)
@@ -177,10 +179,6 @@ func (gdb *GormDB) createPostgreSQLIndexes() error {
 		// GIN index specifically for labels queries (more targeted)
 		`CREATE INDEX IF NOT EXISTS idx_alert_statistics_metadata_labels_gin
 		 ON alert_statistics USING GIN ((metadata->'labels'))`,
-
-		// GIN index on on_call_rules.rule_config for rule queries
-		`CREATE INDEX IF NOT EXISTS idx_on_call_rules_config_gin
-		 ON on_call_rules USING GIN (rule_config)`,
 
 		// GIN index on statistics_aggregates.aggregated_data
 		`CREATE INDEX IF NOT EXISTS idx_statistics_aggregates_data_gin
@@ -249,6 +247,31 @@ func (gdb *GormDB) SearchUsers(query string, limit int) ([]models.User, error) {
 	return users, nil
 }
 
+func (gdb *GormDB) ListUsers(limit, offset int) ([]models.User, int64, error) {
+	var users []models.User
+	var totalCount int64
+
+	// Get total count
+	if err := gdb.db.Model(&models.User{}).Count(&totalCount).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	// Get paginated users
+	query := gdb.db.Order("username")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	if err := query.Find(&users).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+	}
+
+	return users, totalCount, nil
+}
+
 func (gdb *GormDB) CreateSession(userID, sessionID string, expiresAt time.Time) error {
 	session := &models.Session{
 		ID:        sessionID,
@@ -277,6 +300,40 @@ func (gdb *GormDB) DeleteSession(sessionID string) error {
 
 func (gdb *GormDB) CleanupExpiredSessions() error {
 	return gdb.db.Where("expires_at < ?", time.Now()).Delete(&models.Session{}).Error
+}
+
+// ConnectedUserInfo represents a user with active session(s)
+type ConnectedUserInfo struct {
+	UserID       string    `json:"user_id"`
+	Username     string    `json:"username"`
+	Email        string    `json:"email"`
+	SessionCount int       `json:"session_count"`
+	LastActivity time.Time `json:"last_activity"`
+}
+
+// GetConnectedUsers returns all users with active (non-expired) sessions
+func (gdb *GormDB) GetConnectedUsers() ([]ConnectedUserInfo, error) {
+	var results []ConnectedUserInfo
+
+	query := `
+		SELECT
+			u.id as user_id,
+			u.username,
+			u.email,
+			COUNT(s.id) as session_count,
+			MAX(s.created_at) as last_activity
+		FROM users u
+		INNER JOIN sessions s ON s.user_id = u.id
+		WHERE s.expires_at > ?
+		GROUP BY u.id, u.username, u.email
+		ORDER BY last_activity DESC
+	`
+
+	if err := gdb.db.Raw(query, time.Now()).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("failed to get connected users: %w", err)
+	}
+
+	return results, nil
 }
 
 func (gdb *GormDB) CreateComment(alertKey, userID, content string) (*models.CommentWithUser, error) {
@@ -317,6 +374,40 @@ func (gdb *GormDB) GetComments(alertKey string) ([]models.CommentWithUser, error
 		Find(&comments).Error
 
 	return comments, err
+}
+
+// GetCommentCountsBatch retrieves comment counts for multiple alert keys in a single query.
+// This solves the N+1 query problem when loading comment counts for many alerts.
+// Returns a map of alert_key -> count.
+func (gdb *GormDB) GetCommentCountsBatch(alertKeys []string) (map[string]int, error) {
+	result := make(map[string]int)
+
+	if len(alertKeys) == 0 {
+		return result, nil
+	}
+
+	// Query: SELECT alert_key, COUNT(*) as count FROM comments WHERE alert_key IN (...) GROUP BY alert_key
+	type countResult struct {
+		AlertKey string `gorm:"column:alert_key"`
+		Count    int    `gorm:"column:count"`
+	}
+
+	var counts []countResult
+	err := gdb.db.Table("comments").
+		Select("alert_key, COUNT(*) as count").
+		Where("alert_key IN ?", alertKeys).
+		Group("alert_key").
+		Find(&counts).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comment counts batch: %w", err)
+	}
+
+	for _, c := range counts {
+		result[c.AlertKey] = c.Count
+	}
+
+	return result, nil
 }
 
 func (gdb *GormDB) DeleteComment(commentID, userID string) error {
@@ -930,4 +1021,160 @@ func (gdb *GormDB) DeleteAnnotationButtonConfig(userID, configID string) error {
 		return fmt.Errorf("annotation button config not found or not authorized")
 	}
 	return nil
+}
+
+// Statistics Views Methods
+
+// CreateStatisticsView creates a new statistics view for a user
+func (gdb *GormDB) CreateStatisticsView(view *models.StatisticsView) (*models.StatisticsView, error) {
+	if err := gdb.db.Create(view).Error; err != nil {
+		return nil, fmt.Errorf("failed to create statistics view: %w", err)
+	}
+	return view, nil
+}
+
+// GetStatisticsViews gets all statistics views for a user (private + shared)
+func (gdb *GormDB) GetStatisticsViews(userID string, includeShared bool) ([]models.StatisticsView, error) {
+	var views []models.StatisticsView
+
+	query := gdb.db.Where("user_id = ?", userID)
+
+	if includeShared {
+		// Get user's own views + shared views from others
+		query = gdb.db.Where("user_id = ? OR is_shared = ?", userID, true)
+	}
+
+	err := query.Order("created_at DESC").Find(&views).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get statistics views: %w", err)
+	}
+
+	// Get user's default view ID
+	var userDefault models.UserDefaultStatisticsView
+	defaultErr := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error
+	defaultViewID := ""
+	if defaultErr == nil {
+		defaultViewID = userDefault.StatisticsViewID
+	}
+
+	// Mark the default view and sort (default first)
+	var sortedViews []models.StatisticsView
+	var defaultView *models.StatisticsView
+	for i := range views {
+		if views[i].ID == defaultViewID {
+			views[i].IsDefault = true
+			defaultView = &views[i]
+		} else {
+			views[i].IsDefault = false
+			sortedViews = append(sortedViews, views[i])
+		}
+	}
+
+	// Put default view first if it exists
+	if defaultView != nil {
+		sortedViews = append([]models.StatisticsView{*defaultView}, sortedViews...)
+	}
+
+	return sortedViews, nil
+}
+
+// GetStatisticsViewByID gets a specific statistics view by ID
+func (gdb *GormDB) GetStatisticsViewByID(id string) (*models.StatisticsView, error) {
+	var view models.StatisticsView
+	err := gdb.db.Where("id = ?", id).First(&view).Error
+	if err != nil {
+		return nil, err
+	}
+	return &view, nil
+}
+
+// UpdateStatisticsView updates an existing statistics view
+func (gdb *GormDB) UpdateStatisticsView(view *models.StatisticsView) error {
+	if err := gdb.db.Save(view).Error; err != nil {
+		return fmt.Errorf("failed to update statistics view: %w", err)
+	}
+	return nil
+}
+
+// DeleteStatisticsView deletes a statistics view (with ownership check)
+func (gdb *GormDB) DeleteStatisticsView(id, userID string) error {
+	// First, remove any default references to this view (before FK constraint blocks delete)
+	gdb.db.Where("statistics_view_id = ?", id).Delete(&models.UserDefaultStatisticsView{})
+
+	// Then delete the view itself
+	result := gdb.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.StatisticsView{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("statistics view not found or not authorized")
+	}
+	return nil
+}
+
+// SetDefaultStatisticsView sets a statistics view as default for a user
+// Users can set any view (including shared ones) as their default
+func (gdb *GormDB) SetDefaultStatisticsView(id, userID string) error {
+	tx := gdb.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// First verify that the view exists and is accessible to the user
+	var view models.StatisticsView
+	err := tx.Where("id = ? AND (user_id = ? OR is_shared = ?)", id, userID, true).First(&view).Error
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("statistics view not found or not accessible")
+		}
+		return err
+	}
+
+	// Delete existing default for this user (if any)
+	if err := tx.Where("user_id = ?", userID).Delete(&models.UserDefaultStatisticsView{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to clear existing default: %w", err)
+	}
+
+	// Create new default entry
+	userDefault := &models.UserDefaultStatisticsView{
+		UserID:           userID,
+		StatisticsViewID: id,
+	}
+	if err := tx.Create(userDefault).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to set new default: %w", err)
+	}
+
+	return tx.Commit().Error
+}
+
+// ClearDefaultStatisticsView clears the default statistics view for a user
+func (gdb *GormDB) ClearDefaultStatisticsView(userID string) error {
+	result := gdb.db.Where("user_id = ?", userID).Delete(&models.UserDefaultStatisticsView{})
+	return result.Error
+}
+
+// GetDefaultStatisticsView gets the default statistics view for a user
+func (gdb *GormDB) GetDefaultStatisticsView(userID string) (*models.StatisticsView, error) {
+	var userDefault models.UserDefaultStatisticsView
+	err := gdb.db.Where("user_id = ?", userID).First(&userDefault).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Now get the actual view
+	var view models.StatisticsView
+	err = gdb.db.Where("id = ?", userDefault.StatisticsViewID).First(&view).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &view, nil
 }

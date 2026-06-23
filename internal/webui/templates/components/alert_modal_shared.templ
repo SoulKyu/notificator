@@ -22,14 +22,15 @@ templ AlertModalShell(showVar string, closeFunc string, zIndex string, maxWidth 
 		 class={ "relative " + zIndex }
 		 role="dialog"
 		 aria-modal="true"
+		 aria-labelledby="alert-modal-shell-title"
 		 style="display: none;"
 		 @keydown.escape.window={ closeFunc }>
 
 		<!-- Background backdrop with blur effect -->
-		<div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300" @click={ closeFunc }></div>
+		<div class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-all duration-300" @click={ closeFunc }></div>
 
 		<!-- Modal container -->
-		<div class={ "fixed inset-0 " + zIndex + " overflow-y-auto" }>
+		<div class={ "fixed inset-0 z-50 " + zIndex + " overflow-y-auto" }>
 			<div class="flex min-h-full items-center justify-center p-2 sm:p-4">
 
 				<!-- Modal panel -->
@@ -229,12 +230,13 @@ templ AlertModalTimelineCard(dataVar string, useDateHelper bool) {
 				<div class="flex items-center justify-between">
 					<span class="text-sm font-medium text-gray-500 dark:text-gray-400">Ended:</span>
 					if useDateHelper {
-						<span class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
+						<span x-show={ dataVar + "?.endsAt && " + dataVar + "?.status?.state?.toLowerCase() !== 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
 							  x-text={ "formatAlertDate(" + dataVar + "?.endsAt)" }></span>
+						<span x-show={ "!" + dataVar + "?.endsAt || " + dataVar + "?.status?.state?.toLowerCase() === 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white">—</span>
 					} else {
-						<span x-show={ dataVar + "?.endsAt" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
+						<span x-show={ dataVar + "?.endsAt && " + dataVar + "?.status?.state?.toLowerCase() !== 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white"
 							  x-text={ dataVar + "?.endsAt ? new Date(" + dataVar + ".endsAt).toLocaleString() : '—'" }></span>
-						<span x-show={ "!" + dataVar + "?.endsAt" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white">—</span>
+						<span x-show={ "!" + dataVar + "?.endsAt || " + dataVar + "?.status?.state?.toLowerCase() === 'active'" } class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-900 dark:text-white">—</span>
 					}
 				</div>
 			</div>
@@ -457,14 +459,15 @@ templ AlertModalReadonly(showVar string, loadingVar string, dataVar string, occu
 		 class={ "relative " + zIndex }
 		 role="dialog"
 		 aria-modal="true"
+		 aria-labelledby="alert-modal-readonly-title"
 		 style="display: none;"
 		 @keydown.escape.window={ closeFunc }>
 
 		<!-- Background backdrop with blur effect -->
-		<div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300" @click={ closeFunc }></div>
+		<div class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-all duration-300" @click={ closeFunc }></div>
 
 		<!-- Modal container -->
-		<div class={ "fixed inset-0 " + zIndex + " overflow-y-auto" }>
+		<div class={ "fixed inset-0 z-50 " + zIndex + " overflow-y-auto" }>
 			<div class="flex min-h-full items-center justify-center p-2 sm:p-4">
 
 				<!-- Modal panel -->
@@ -500,7 +503,7 @@ templ AlertModalReadonly(showVar string, loadingVar string, dataVar string, occu
 
 								<!-- Alert Info -->
 								<div class="flex-1 min-w-0">
-									<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2 break-words"
+									<h1 id="alert-modal-readonly-title" class="text-2xl font-bold text-gray-900 dark:text-white mb-2 break-words"
 										x-text={ dataVar + "?.alert?.alertName || 'Alert Details'" }>
 									</h1>
 

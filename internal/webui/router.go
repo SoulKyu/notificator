@@ -55,6 +55,10 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	// Set backend client for handlers
 	handlers.SetBackendClient(backendClient)
 	handlers.SetFilterPresetBackendClient(backendClient)
+	handlers.SetStatisticsViewBackendClient(backendClient)
+
+	// Set app config for impersonation handlers
+	handlers.SetAppConfig(cfg)
 
 	// Fetch OAuth configuration from backend and update local config
 	oauthEnabled, err := backendClient.IsOAuthEnabled()
@@ -88,8 +92,9 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	}
 
 	// Initialize alert cache for new dashboard
-	alertCache := services.NewAlertCache(amClient, backendClient, cfg.ResolvedAlerts.RetentionDays)
+	alertCache := services.NewAlertCache(amClient, backendClient, cfg.ResolvedAlerts.RetentionDays, cfg.Polling.SyncInterval)
 	handlers.SetAlertCache(alertCache)
+	log.Printf("Alert cache initialized with sync interval: %v", cfg.Polling.SyncInterval)
 	alertCache.Start()
 
 	// Initialize color service for dynamic alert coloring
@@ -188,6 +193,14 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			authProtected.GET("/profile", handlers.GetCurrentUser) // Alias for user profile
 		}
 
+		// Profile routes
+		profile := api.Group("/profile")
+		profile.Use(authMiddleware.RequireAuth())
+		{
+			profile.GET("/timezone", handlers.GetTimezone)
+			profile.PUT("/timezone", handlers.UpdateTimezone)
+		}
+
 		// Protected OAuth routes
 		oauthProtected := api.Group("/oauth")
 		oauthProtected.Use(authMiddleware.RequireAuth())
@@ -195,10 +208,30 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			oauthProtected.GET("/groups", handlers.GetUserGroups)
 			oauthProtected.POST("/sync-groups", handlers.SyncUserGroups)
 		}
+	}
 
+	// Impersonation API routes (separate from v1 to avoid conflicts)
+	impersonate := r.Group("/api/impersonate")
+	impersonate.Use(authMiddleware.RequireAuth())
+	{
+		impersonate.POST("/start", handlers.StartImpersonation)
+		impersonate.POST("/stop", handlers.StopImpersonation)
+		impersonate.GET("/users", handlers.ListUsersForImpersonation)
+		impersonate.GET("/status", handlers.GetImpersonationStatus)
+	}
+
+	// Admin API routes (for users who can impersonate)
+	admin := r.Group("/api/admin")
+	admin.Use(authMiddleware.RequireAuth())
+	{
+		admin.GET("/connected-users", handlers.GetConnectedUsers)
+	}
+
+	// Continue with more v1 API routes (reusing api variable)
+	{
 		// Protected alert routes
 		alerts := api.Group("/alerts")
-		alerts.Use(authMiddleware.OptionalAuth()) // Optional auth for now
+		alerts.Use(authMiddleware.RequireAuth())
 		{
 			alerts.GET("", handlers.GetAlerts)
 			// Note: Individual alert endpoint removed - use dashboard API instead
@@ -206,11 +239,13 @@ func SetupRouter(backendAddress string) *gin.Engine {
 
 		// New dashboard API routes
 		dashboard := api.Group("/dashboard")
-		dashboard.Use(authMiddleware.OptionalAuth()) // Optional auth for now
+		dashboard.Use(authMiddleware.RequireAuth())
 		{
 			dashboard.GET("/data", handlers.GetDashboardData)
 			dashboard.GET("/incremental", handlers.GetDashboardIncremental)
 			dashboard.POST("/incremental", handlers.PostDashboardIncremental)
+			dashboard.GET("/stream", handlers.SSEStream)       // SSE endpoint for real-time updates
+			dashboard.GET("/stream/status", handlers.SSEStatus) // SSE status endpoint
 			dashboard.POST("/bulk-action", handlers.BulkActionAlerts)
 			dashboard.GET("/settings", handlers.GetDashboardSettings)
 			dashboard.POST("/settings", handlers.SaveDashboardSettings)
@@ -274,7 +309,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			notifications.POST("/preferences", handlers.SaveNotificationPreferences)
 		}
 
-		// Statistics and On-Call Rules routes
+		// Statistics routes
 		statistics := api.Group("/statistics")
 		statistics.Use(authMiddleware.RequireAuth())
 		{
@@ -285,13 +320,13 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			statistics.GET("/alert/:fingerprint", handlers.GetResolvedAlertDetails)
 			statistics.POST("/alerts-by-name", handlers.GetAlertsByName)
 
-			// On-call rules CRUD
-			statistics.GET("/rules", handlers.GetOnCallRules)
-			statistics.GET("/rules/:id", handlers.GetOnCallRule)
-			statistics.POST("/rules", handlers.SaveOnCallRule)
-			statistics.PUT("/rules/:id", handlers.UpdateOnCallRule)
-			statistics.DELETE("/rules/:id", handlers.DeleteOnCallRule)
-			statistics.POST("/rules/test", handlers.TestOnCallRule)
+			// Statistics views (saved filter configurations)
+			statistics.GET("/views", handlers.GetStatisticsViews)
+			statistics.POST("/views", handlers.CreateStatisticsView)
+			statistics.PUT("/views/:id", handlers.UpdateStatisticsView)
+			statistics.DELETE("/views/:id", handlers.DeleteStatisticsView)
+			statistics.POST("/views/:id/default", handlers.SetDefaultStatisticsView)
+			statistics.DELETE("/views/default", handlers.ClearDefaultStatisticsView)
 		}
 	}
 
@@ -319,7 +354,6 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		protectedPages.GET("/dashboard/alert/:id", handlers.DashboardPage) // Show dashboard with modal
 		protectedPages.GET("/profile", handlers.ProfilePage)
 		protectedPages.GET("/statistics", handlers.StatisticsDashboardPage)
-		protectedPages.GET("/statistics/rules", handlers.OnCallRulesPage)
 	}
 
 	return r

@@ -19,7 +19,6 @@ type StatisticsServiceGorm struct {
 	alertpb.UnimplementedStatisticsServiceServer
 	db             *database.GormDB
 	queryService   *StatisticsQueryService
-	ruleEngine     *RuleEngine
 	captureService *StatisticsCaptureService
 	workerPool     *StatisticsWorkerPool
 }
@@ -29,7 +28,6 @@ func NewStatisticsServiceGorm(db *database.GormDB) *StatisticsServiceGorm {
 	return &StatisticsServiceGorm{
 		db:             db,
 		queryService:   NewStatisticsQueryService(db),
-		ruleEngine:     NewRuleEngine(db),
 		captureService: NewStatisticsCaptureService(db),
 		workerPool:     nil, // Will be set later via SetWorkerPool
 	}
@@ -78,14 +76,18 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 		UserID:            user.ID,
 		StartDate:         startDate,
 		EndDate:           endDate,
-		ApplyRules:        req.ApplyRules,
 		GroupBy:           req.GroupBy,
+		SecondaryGroupBy:  req.SecondaryGroupBy,
 		PeriodType:        req.PeriodType,
 		Limit:             int(req.Limit),
 		Offset:            int(req.Offset),
 		FilterByTimeOfDay: req.FilterByTimeOfDay,
 		TimeOfDayStart:    req.TimeOfDayStart,
 		TimeOfDayEnd:      req.TimeOfDayEnd,
+		IncludeWeekends:   req.IncludeWeekends,
+		WeekendMode:       req.WeekendMode,
+		Severities:        req.Severities,
+		Teams:             req.Teams,
 	}
 
 	// Execute query
@@ -113,10 +115,11 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 	// Convert statistics map
 	for key, stats := range result.Statistics {
 		pbResponse.Statistics[key] = &alertpb.AggregatedStatistics{
-			Count:                int32(stats.Count),
-			AvgDurationSeconds:   stats.AvgDurationSeconds,
-			TotalDurationSeconds: int32(stats.TotalDurationSeconds),
-			AvgMttrSeconds:       stats.AvgMTTRSeconds,
+			Count:             int32(stats.Count),
+			AvgMttrSeconds:    stats.AvgMTTRSeconds,
+			TotalMttrSeconds:  int32(stats.TotalMTTRSeconds),
+			AvgMttaSeconds:    stats.AvgMTTASeconds,
+			AvgFixTimeSeconds: stats.AvgFixTimeSeconds,
 		}
 	}
 
@@ -135,10 +138,11 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 			// Convert nested statistics
 			for key, stats := range item.Statistics {
 				pbBreakdownItem.Statistics[key] = &alertpb.AggregatedStatistics{
-					Count:                int32(stats.Count),
-					AvgDurationSeconds:   stats.AvgDurationSeconds,
-					TotalDurationSeconds: int32(stats.TotalDurationSeconds),
-					AvgMttrSeconds:       stats.AvgMTTRSeconds,
+					Count:             int32(stats.Count),
+					AvgMttrSeconds:    stats.AvgMTTRSeconds,
+					TotalMttrSeconds:  int32(stats.TotalMTTRSeconds),
+					AvgMttaSeconds:    stats.AvgMTTASeconds,
+					AvgFixTimeSeconds: stats.AvgFixTimeSeconds,
 				}
 			}
 
@@ -147,423 +151,6 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 	}
 
 	return pbResponse, nil
-}
-
-// ==================== On-Call Rules Management ====================
-
-// SaveOnCallRule implements the SaveOnCallRule RPC method
-func (s *StatisticsServiceGorm) SaveOnCallRule(ctx context.Context, req *alertpb.SaveOnCallRuleRequest) (*alertpb.SaveOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleName == "" {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Rule name is required",
-		}, nil
-	}
-
-	if req.RuleConfig == nil {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Rule configuration is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Convert protobuf rule config to model
-	ruleConfig := protoToModelRuleConfig(req.RuleConfig)
-
-	// Validate rule
-	if err := s.ruleEngine.ValidateRule(ruleConfig); err != nil {
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: fmt.Sprintf("Invalid rule configuration: %v", err),
-		}, nil
-	}
-
-	// Build rule config JSONB
-	ruleConfigJSON, err := database.BuildRuleConfigJSON(ruleConfig)
-	if err != nil {
-		log.Printf("Failed to build rule config JSON: %v", err)
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to process rule configuration",
-		}, nil
-	}
-
-	// Create rule model
-	rule := &models.OnCallRule{
-		UserID:     user.ID,
-		RuleName:   req.RuleName,
-		RuleConfig: ruleConfigJSON,
-		IsActive:   req.IsActive,
-	}
-
-	// Save to database
-	if err := s.db.SaveOnCallRule(rule); err != nil {
-		log.Printf("Failed to save on-call rule for user %s: %v", user.ID, err)
-		return &alertpb.SaveOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to save rule",
-		}, nil
-	}
-
-	log.Printf("On-call rule '%s' saved for user %s", req.RuleName, user.ID)
-
-	// Convert to protobuf format
-	pbRule := modelToProtoRule(rule, ruleConfig)
-
-	return &alertpb.SaveOnCallRuleResponse{
-		Success: true,
-		Rule:    pbRule,
-		Message: "Rule saved successfully",
-	}, nil
-}
-
-// GetOnCallRules implements the GetOnCallRules RPC method
-func (s *StatisticsServiceGorm) GetOnCallRules(ctx context.Context, req *alertpb.GetOnCallRulesRequest) (*alertpb.GetOnCallRulesResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.GetOnCallRulesResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.GetOnCallRulesResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get rules from database
-	rules, err := s.db.GetOnCallRules(user.ID, req.ActiveOnly)
-	if err != nil {
-		log.Printf("Failed to get on-call rules for user %s: %v", user.ID, err)
-		return &alertpb.GetOnCallRulesResponse{
-			Success: false,
-			Message: "Failed to retrieve rules",
-		}, nil
-	}
-
-	// Convert to protobuf format
-	pbRules := make([]*alertpb.OnCallRule, len(rules))
-	for i, rule := range rules {
-		ruleConfig, err := database.ParseRuleConfig(rule.RuleConfig)
-		if err != nil {
-			log.Printf("Failed to parse rule config for rule %s: %v", rule.ID, err)
-			continue
-		}
-
-		pbRules[i] = modelToProtoRule(rule, ruleConfig)
-	}
-
-	return &alertpb.GetOnCallRulesResponse{
-		Success: true,
-		Rules:   pbRules,
-		Message: "Rules retrieved successfully",
-	}, nil
-}
-
-// GetOnCallRule implements the GetOnCallRule RPC method
-func (s *StatisticsServiceGorm) GetOnCallRule(ctx context.Context, req *alertpb.GetOnCallRuleRequest) (*alertpb.GetOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleId == "" {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Rule ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get rule from database
-	rule, err := s.db.GetOnCallRuleByID(req.RuleId)
-	if err != nil {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Rule not found",
-		}, nil
-	}
-
-	// Verify ownership
-	if rule.UserID != user.ID {
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Not authorized to access this rule",
-		}, nil
-	}
-
-	// Parse rule config
-	ruleConfig, err := database.ParseRuleConfig(rule.RuleConfig)
-	if err != nil {
-		log.Printf("Failed to parse rule config: %v", err)
-		return &alertpb.GetOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to parse rule configuration",
-		}, nil
-	}
-
-	// Convert to protobuf format
-	pbRule := modelToProtoRule(rule, ruleConfig)
-
-	return &alertpb.GetOnCallRuleResponse{
-		Success: true,
-		Rule:    pbRule,
-		Message: "Rule retrieved successfully",
-	}, nil
-}
-
-// UpdateOnCallRule implements the UpdateOnCallRule RPC method
-func (s *StatisticsServiceGorm) UpdateOnCallRule(ctx context.Context, req *alertpb.UpdateOnCallRuleRequest) (*alertpb.UpdateOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleId == "" {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Rule ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get existing rule
-	rule, err := s.db.GetOnCallRuleByID(req.RuleId)
-	if err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Rule not found",
-		}, nil
-	}
-
-	// Verify ownership
-	if rule.UserID != user.ID {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Not authorized to update this rule",
-		}, nil
-	}
-
-	// Convert and validate new rule config
-	ruleConfig := protoToModelRuleConfig(req.RuleConfig)
-	if err := s.ruleEngine.ValidateRule(ruleConfig); err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: fmt.Sprintf("Invalid rule configuration: %v", err),
-		}, nil
-	}
-
-	// Build rule config JSONB
-	ruleConfigJSON, err := database.BuildRuleConfigJSON(ruleConfig)
-	if err != nil {
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to process rule configuration",
-		}, nil
-	}
-
-	// Update rule fields
-	rule.RuleName = req.RuleName
-	rule.RuleConfig = ruleConfigJSON
-	rule.IsActive = req.IsActive
-
-	// Save to database
-	if err := s.db.UpdateOnCallRule(rule); err != nil {
-		log.Printf("Failed to update rule %s for user %s: %v", req.RuleId, user.ID, err)
-		return &alertpb.UpdateOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to update rule",
-		}, nil
-	}
-
-	log.Printf("On-call rule %s updated for user %s", req.RuleId, user.ID)
-
-	// Convert to protobuf format
-	pbRule := modelToProtoRule(rule, ruleConfig)
-
-	return &alertpb.UpdateOnCallRuleResponse{
-		Success: true,
-		Rule:    pbRule,
-		Message: "Rule updated successfully",
-	}, nil
-}
-
-// DeleteOnCallRule implements the DeleteOnCallRule RPC method
-func (s *StatisticsServiceGorm) DeleteOnCallRule(ctx context.Context, req *alertpb.DeleteOnCallRuleRequest) (*alertpb.DeleteOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleId == "" {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Rule ID is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Get existing rule to verify ownership
-	rule, err := s.db.GetOnCallRuleByID(req.RuleId)
-	if err != nil {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Rule not found",
-		}, nil
-	}
-
-	// Verify ownership
-	if rule.UserID != user.ID {
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Not authorized to delete this rule",
-		}, nil
-	}
-
-	// Delete from database
-	if err := s.db.DeleteOnCallRule(req.RuleId); err != nil {
-		log.Printf("Failed to delete rule %s for user %s: %v", req.RuleId, user.ID, err)
-		return &alertpb.DeleteOnCallRuleResponse{
-			Success: false,
-			Message: "Failed to delete rule",
-		}, nil
-	}
-
-	log.Printf("On-call rule %s deleted for user %s", req.RuleId, user.ID)
-
-	return &alertpb.DeleteOnCallRuleResponse{
-		Success: true,
-		Message: "Rule deleted successfully",
-	}, nil
-}
-
-// TestOnCallRule implements the TestOnCallRule RPC method
-func (s *StatisticsServiceGorm) TestOnCallRule(ctx context.Context, req *alertpb.TestOnCallRuleRequest) (*alertpb.TestOnCallRuleResponse, error) {
-	if req.SessionId == "" {
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: "Session ID is required",
-		}, nil
-	}
-
-	if req.RuleConfig == nil {
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: "Rule configuration is required",
-		}, nil
-	}
-
-	// Validate session and get user
-	user, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: "Invalid session",
-		}, nil
-	}
-
-	// Convert protobuf rule config to model
-	ruleConfig := protoToModelRuleConfig(req.RuleConfig)
-
-	// Test rule
-	sampleSize := int(req.SampleSize)
-	if sampleSize <= 0 {
-		sampleSize = 10
-	}
-
-	matches, totalCount, err := s.ruleEngine.TestRule(user.ID, ruleConfig, sampleSize)
-	if err != nil {
-		log.Printf("Failed to test rule for user %s: %v", user.ID, err)
-		return &alertpb.TestOnCallRuleResponse{
-			Success: false,
-			Message: fmt.Sprintf("Failed to test rule: %v", err),
-		}, nil
-	}
-
-	// Convert sample alerts to protobuf format
-	pbSampleAlerts := make([]*alertpb.AlertStatistic, len(matches))
-	for i, stat := range matches {
-		pbSampleAlerts[i] = &alertpb.AlertStatistic{
-			Id:          stat.ID,
-			Fingerprint: stat.Fingerprint,
-			AlertName:   stat.AlertName,
-			Severity:    stat.Severity,
-			Metadata:    []byte(stat.Metadata),
-			FiredAt:     timestamppb.New(stat.FiredAt),
-			CreatedAt:   timestamppb.New(stat.CreatedAt),
-			UpdatedAt:   timestamppb.New(stat.UpdatedAt),
-		}
-
-		if stat.ResolvedAt != nil {
-			pbSampleAlerts[i].ResolvedAt = timestamppb.New(*stat.ResolvedAt)
-		}
-		if stat.AcknowledgedAt != nil {
-			pbSampleAlerts[i].AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
-		}
-		if stat.DurationSeconds != nil {
-			pbSampleAlerts[i].DurationSeconds = int32(*stat.DurationSeconds)
-		}
-		if stat.MTTRSeconds != nil {
-			pbSampleAlerts[i].MttrSeconds = int32(*stat.MTTRSeconds)
-		}
-	}
-
-	return &alertpb.TestOnCallRuleResponse{
-		Success:      true,
-		TotalMatches: totalCount,
-		SampleAlerts: pbSampleAlerts,
-		Message:      fmt.Sprintf("Rule matches %d alerts", totalCount),
-	}, nil
 }
 
 // ==================== Statistics Summary ====================
@@ -601,10 +188,11 @@ func (s *StatisticsServiceGorm) GetStatisticsSummary(ctx context.Context, req *a
 	if severityStats, ok := summary["by_severity"].(map[string]*models.AggregatedStatistics); ok {
 		for key, stats := range severityStats {
 			bySeverity[key] = &alertpb.AggregatedStatistics{
-				Count:                int32(stats.Count),
-				AvgDurationSeconds:   stats.AvgDurationSeconds,
-				TotalDurationSeconds: int32(stats.TotalDurationSeconds),
-				AvgMttrSeconds:       stats.AvgMTTRSeconds,
+				Count:             int32(stats.Count),
+				AvgMttrSeconds:    stats.AvgMTTRSeconds,
+				TotalMttrSeconds:  int32(stats.TotalMTTRSeconds),
+				AvgMttaSeconds:    stats.AvgMTTASeconds,
+				AvgFixTimeSeconds: stats.AvgFixTimeSeconds,
 			}
 		}
 	}
@@ -629,56 +217,6 @@ func (s *StatisticsServiceGorm) GetStatisticsSummary(ctx context.Context, req *a
 }
 
 // ==================== Helper Functions ====================
-
-// protoToModelRuleConfig converts protobuf RuleConfig to model RuleConfig
-func protoToModelRuleConfig(pbConfig *alertpb.RuleConfig) *models.RuleConfig {
-	criteria := make([]models.RuleCriterion, len(pbConfig.Criteria))
-	for i, pbCriterion := range pbConfig.Criteria {
-		criteria[i] = models.RuleCriterion{
-			Type:     pbCriterion.Type,
-			Operator: pbCriterion.Operator,
-			Value:    pbCriterion.Value,
-			Values:   pbCriterion.Values,
-			Key:      pbCriterion.Key,
-			Pattern:  pbCriterion.Pattern,
-		}
-	}
-
-	return &models.RuleConfig{
-		Criteria: criteria,
-		Logic:    pbConfig.Logic,
-	}
-}
-
-// modelToProtoRule converts model OnCallRule to protobuf OnCallRule
-func modelToProtoRule(rule *models.OnCallRule, config *models.RuleConfig) *alertpb.OnCallRule {
-	pbCriteria := make([]*alertpb.RuleCriterion, len(config.Criteria))
-	for i, criterion := range config.Criteria {
-		pbCriteria[i] = &alertpb.RuleCriterion{
-			Type:     criterion.Type,
-			Operator: criterion.Operator,
-			Value:    criterion.Value,
-			Values:   criterion.Values,
-			Key:      criterion.Key,
-			Pattern:  criterion.Pattern,
-		}
-	}
-
-	pbConfig := &alertpb.RuleConfig{
-		Criteria: pbCriteria,
-		Logic:    config.Logic,
-	}
-
-	return &alertpb.OnCallRule{
-		Id:         rule.ID,
-		UserId:     rule.UserID,
-		RuleName:   rule.RuleName,
-		RuleConfig: pbConfig,
-		IsActive:   rule.IsActive,
-		CreatedAt:  timestamppb.New(rule.CreatedAt),
-		UpdatedAt:  timestamppb.New(rule.UpdatedAt),
-	}
-}
 
 // Helper to marshal metadata to JSON
 func metadataToJSON(metadata map[string]interface{}) []byte {
@@ -777,10 +315,17 @@ func (s *StatisticsServiceGorm) UpdateAlertResolved(ctx context.Context, req *al
 	resolvedAt := req.ResolvedAt.AsTime()
 	stat.ResolvedAt = &resolvedAt
 
-	// Calculate duration in seconds
-	duration := resolvedAt.Sub(stat.FiredAt)
-	durationSec := int(duration.Seconds())
-	stat.DurationSeconds = &durationSec
+	// Calculate MTTR (Mean Time To Resolve) in seconds
+	mttr := resolvedAt.Sub(stat.FiredAt)
+	mttrSec := int(mttr.Seconds())
+	stat.MTTRSeconds = &mttrSec
+
+	// Calculate Fix Time (resolved - acknowledged) if acknowledged
+	if stat.AcknowledgedAt != nil {
+		fixTime := resolvedAt.Sub(*stat.AcknowledgedAt)
+		fixTimeSec := int(fixTime.Seconds())
+		stat.FixTimeSeconds = &fixTimeSec
+	}
 
 	// Update in database
 	if err := s.db.UpdateAlertStatistic(stat); err != nil {
@@ -791,7 +336,7 @@ func (s *StatisticsServiceGorm) UpdateAlertResolved(ctx context.Context, req *al
 		}, nil
 	}
 
-	log.Printf("📊 Updated resolution for alert: fingerprint=%s (duration: %ds)", req.Fingerprint, durationSec)
+	log.Printf("📊 Updated resolution for alert: fingerprint=%s (MTTR: %ds)", req.Fingerprint, mttrSec)
 
 	return &alertpb.UpdateAlertResolvedResponse{
 		Success: true,
@@ -905,21 +450,22 @@ func (s *StatisticsServiceGorm) QueryRecentlyResolved(ctx context.Context, req *
 	alerts := make([]*alertpb.ResolvedAlertItem, len(result.Alerts))
 	for i, item := range result.Alerts {
 		alerts[i] = &alertpb.ResolvedAlertItem{
-			Fingerprint:      item.Fingerprint,
-			AlertName:        item.AlertName,
-			Severity:         item.Severity,
-			OccurrenceCount:  int32(item.OccurrenceCount),
-			FirstFiredAt:     timestamppb.New(item.FirstFiredAt),
-			LastResolvedAt:   timestamppb.New(item.LastResolvedAt),
-			TotalDuration:    int32(item.TotalDuration),
-			AvgDuration:      item.AvgDuration,
-			TotalMttr:        int32(item.TotalMTTR),
-			AvgMttr:          item.AvgMTTR,
-			Labels:           item.Labels,
-			Annotations:      item.Annotations,
-			Source:           item.Source,
-			Instance:         item.Instance,
-			Team:             item.Team,
+			Fingerprint:     item.Fingerprint,
+			AlertName:       item.AlertName,
+			Severity:        item.Severity,
+			OccurrenceCount: int32(item.OccurrenceCount),
+			FirstFiredAt:    timestamppb.New(item.FirstFiredAt),
+			LastResolvedAt:  timestamppb.New(item.LastResolvedAt),
+			TotalMttr:       int32(item.TotalMTTR),
+			AvgMttr:         item.AvgMTTR,
+			TotalMtta:       int32(item.TotalMTTA),
+			AvgMtta:         item.AvgMTTA,
+			AvgFixTime:      item.AvgFixTime,
+			Labels:          item.Labels,
+			Annotations:     item.Annotations,
+			Source:          item.Source,
+			Instance:        item.Instance,
+			Team:            item.Team,
 		}
 	}
 
@@ -981,12 +527,16 @@ func (s *StatisticsServiceGorm) GetAlertHistory(
 			pbStat.AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
 		}
 
-		if stat.DurationSeconds != nil {
-			pbStat.DurationSeconds = int32(*stat.DurationSeconds)
-		}
-
 		if stat.MTTRSeconds != nil {
 			pbStat.MttrSeconds = int32(*stat.MTTRSeconds)
+		}
+
+		if stat.MTTASeconds != nil {
+			pbStat.MttaSeconds = int32(*stat.MTTASeconds)
+		}
+
+		if stat.FixTimeSeconds != nil {
+			pbStat.FixTimeSeconds = int32(*stat.FixTimeSeconds)
 		}
 
 		// Convert metadata JSONB to bytes
@@ -1041,23 +591,46 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 	startDate := req.StartDate.AsTime()
 	endDate := req.EndDate.AsTime()
 
-	// Build base query - alerts are global, rules are per-user
+	// Build base query
 	query := s.db.GetDB().Model(&models.AlertStatistic{}).
 		Where("alert_name = ?", req.AlertName).
 		Where("fired_at >= ? AND fired_at <= ?", startDate, endDate)
 
 	// Apply time of day filter if requested
 	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
-		query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+		// Determine weekend mode (use WeekendMode if set, otherwise fall back to IncludeWeekends)
+		weekendMode := req.WeekendMode
+		if weekendMode == "" {
+			if req.IncludeWeekends {
+				weekendMode = "same_hours"
+			} else {
+				weekendMode = "exclude"
+			}
+		}
+
+		// Apply weekend mode logic
+		switch weekendMode {
+		case "exclude":
+			// Apply time filter to weekdays only, exclude weekends entirely
+			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+			query = s.queryService.applyWeekendFilter(query)
+		case "full_weekends":
+			// Apply time filter only to weekdays, include all of weekends
+			query = s.queryService.applyTimeOfDayFilterWeekdaysOnly(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+		default: // "same_hours"
+			// Apply same time filter to all days
+			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+		}
 	}
 
-	// Apply on-call rules if requested
-	if req.ApplyRules {
-		query, err = s.ruleEngine.ApplyRulesToQuery(user.ID, query)
-		if err != nil {
-			log.Printf("Warning: Failed to apply rules for user %s: %v", user.ID, err)
-			// Continue without rules applied
-		}
+	// Apply severity filter if specified (multi-select, OR logic)
+	if len(req.Severities) > 0 {
+		query = query.Where("severity IN ?", req.Severities)
+	}
+
+	// Apply team filter if specified (multi-select, OR logic)
+	if len(req.Teams) > 0 {
+		query = query.Where("COALESCE(metadata->'labels'->>'team', 'unknown') IN ?", req.Teams)
 	}
 
 	// Get total count first
@@ -1106,11 +679,14 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		if stat.AcknowledgedAt != nil {
 			pbAlerts[i].AcknowledgedAt = timestamppb.New(*stat.AcknowledgedAt)
 		}
-		if stat.DurationSeconds != nil {
-			pbAlerts[i].DurationSeconds = int32(*stat.DurationSeconds)
-		}
 		if stat.MTTRSeconds != nil {
 			pbAlerts[i].MttrSeconds = int32(*stat.MTTRSeconds)
+		}
+		if stat.MTTASeconds != nil {
+			pbAlerts[i].MttaSeconds = int32(*stat.MTTASeconds)
+		}
+		if stat.FixTimeSeconds != nil {
+			pbAlerts[i].FixTimeSeconds = int32(*stat.FixTimeSeconds)
 		}
 		if stat.Metadata != nil {
 			pbAlerts[i].Metadata = stat.Metadata
@@ -1123,4 +699,448 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		Alerts:     pbAlerts,
 		TotalCount: totalCount,
 	}, nil
+}
+
+// ==================== Statistics Views ====================
+
+// GetStatisticsViews implements the GetStatisticsViews RPC method
+func (s *StatisticsServiceGorm) GetStatisticsViews(ctx context.Context, req *alertpb.GetStatisticsViewsRequest) (*alertpb.GetStatisticsViewsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Get views from database
+	views, err := s.db.GetStatisticsViews(userID, req.IncludeShared)
+	if err != nil {
+		log.Printf("Failed to get statistics views for user %s: %v", userID, err)
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Failed to retrieve views",
+		}, nil
+	}
+
+	// Convert to protobuf format
+	pbViews := make([]*alertpb.StatisticsView, len(views))
+	for i, view := range views {
+		pbViews[i] = modelToProtoStatisticsView(&view)
+	}
+
+	return &alertpb.GetStatisticsViewsResponse{
+		Success: true,
+		Views:   pbViews,
+		Message: "Views retrieved successfully",
+	}, nil
+}
+
+// SaveStatisticsView implements the SaveStatisticsView RPC method
+func (s *StatisticsServiceGorm) SaveStatisticsView(ctx context.Context, req *alertpb.SaveStatisticsViewRequest) (*alertpb.SaveStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.Name == "" {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "View name is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Build view data JSON
+	viewDataJSON, err := database.BuildStatisticsViewDataJSON(protoToModelViewData(req.ViewData))
+	if err != nil {
+		log.Printf("Failed to build view data JSON: %v", err)
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to process view data",
+		}, nil
+	}
+
+	// Create view model
+	view := &models.StatisticsView{
+		UserID:      userID,
+		Name:        req.Name,
+		Description: req.Description,
+		IsShared:    req.IsShared,
+		ViewData:    viewDataJSON,
+	}
+
+	// Save to database
+	savedView, err := s.db.CreateStatisticsView(view)
+	if err != nil {
+		log.Printf("Failed to save statistics view for user %s: %v", userID, err)
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to save view",
+		}, nil
+	}
+
+	log.Printf("Statistics view '%s' saved for user %s", req.Name, userID)
+
+	return &alertpb.SaveStatisticsViewResponse{
+		Success: true,
+		View:    modelToProtoStatisticsView(savedView),
+		Message: "View saved successfully",
+	}, nil
+}
+
+// UpdateStatisticsView implements the UpdateStatisticsView RPC method
+func (s *StatisticsServiceGorm) UpdateStatisticsView(ctx context.Context, req *alertpb.UpdateStatisticsViewRequest) (*alertpb.UpdateStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ViewId == "" {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "View ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Get existing view
+	view, err := s.db.GetStatisticsViewByID(req.ViewId)
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "View not found",
+		}, nil
+	}
+
+	// Verify ownership
+	if view.UserID != userID {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Not authorized to update this view",
+		}, nil
+	}
+
+	// Build view data JSON
+	viewDataJSON, err := database.BuildStatisticsViewDataJSON(protoToModelViewData(req.ViewData))
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to process view data",
+		}, nil
+	}
+
+	// Update view fields
+	view.Name = req.Name
+	view.Description = req.Description
+	view.IsShared = req.IsShared
+	view.ViewData = viewDataJSON
+
+	// Save to database
+	if err := s.db.UpdateStatisticsView(view); err != nil {
+		log.Printf("Failed to update view %s for user %s: %v", req.ViewId, userID, err)
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to update view",
+		}, nil
+	}
+
+	log.Printf("Statistics view %s updated for user %s", req.ViewId, userID)
+
+	return &alertpb.UpdateStatisticsViewResponse{
+		Success: true,
+		View:    modelToProtoStatisticsView(view),
+		Message: "View updated successfully",
+	}, nil
+}
+
+// DeleteStatisticsView implements the DeleteStatisticsView RPC method
+func (s *StatisticsServiceGorm) DeleteStatisticsView(ctx context.Context, req *alertpb.DeleteStatisticsViewRequest) (*alertpb.DeleteStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	if req.ViewId == "" {
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "View ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// Delete from database (with ownership check)
+	if err := s.db.DeleteStatisticsView(req.ViewId, userID); err != nil {
+		log.Printf("Failed to delete view %s for user %s: %v", req.ViewId, userID, err)
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to delete view",
+		}, nil
+	}
+
+	log.Printf("Statistics view %s deleted for user %s", req.ViewId, userID)
+
+	return &alertpb.DeleteStatisticsViewResponse{
+		Success: true,
+		Message: "View deleted successfully",
+	}, nil
+}
+
+// SetDefaultStatisticsView implements the SetDefaultStatisticsView RPC method
+func (s *StatisticsServiceGorm) SetDefaultStatisticsView(ctx context.Context, req *alertpb.SetDefaultStatisticsViewRequest) (*alertpb.SetDefaultStatisticsViewResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	// Validate session and get user
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	// Determine which user ID to use
+	userID := user.ID
+	if req.GetImpersonateUserId() != "" {
+		userID = req.GetImpersonateUserId()
+	}
+
+	// If view_id is empty, clear the default
+	if req.ViewId == "" {
+		if err := s.db.ClearDefaultStatisticsView(userID); err != nil {
+			log.Printf("Failed to clear default view for user %s: %v", userID, err)
+			return &alertpb.SetDefaultStatisticsViewResponse{
+				Success: false,
+				Message: "Failed to clear default view",
+			}, nil
+		}
+		log.Printf("Default statistics view cleared for user %s", userID)
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: true,
+			Message: "Default view cleared successfully",
+		}, nil
+	}
+
+	// Set new default
+	if err := s.db.SetDefaultStatisticsView(req.ViewId, userID); err != nil {
+		log.Printf("Failed to set default view %s for user %s: %v", req.ViewId, userID, err)
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: false,
+			Message: "Failed to set default view",
+		}, nil
+	}
+
+	log.Printf("Default statistics view set to %s for user %s", req.ViewId, userID)
+
+	return &alertpb.SetDefaultStatisticsViewResponse{
+		Success: true,
+		Message: "Default view set successfully",
+	}, nil
+}
+
+// Helper functions for Statistics Views
+
+// modelToProtoStatisticsView converts model StatisticsView to protobuf StatisticsView
+func modelToProtoStatisticsView(view *models.StatisticsView) *alertpb.StatisticsView {
+	// Parse view data from JSONB
+	viewData := database.ParseStatisticsViewData(view.ViewData)
+
+	return &alertpb.StatisticsView{
+		Id:          view.ID,
+		UserId:      view.UserID,
+		Name:        view.Name,
+		Description: view.Description,
+		IsShared:    view.IsShared,
+		IsDefault:   view.IsDefault,
+		ViewData:    modelToProtoViewData(viewData),
+		CreatedAt:   timestamppb.New(view.CreatedAt),
+		UpdatedAt:   timestamppb.New(view.UpdatedAt),
+	}
+}
+
+// protoToModelViewData converts protobuf StatisticsViewData to model StatisticsViewData
+func protoToModelViewData(pbData *alertpb.StatisticsViewData) *models.StatisticsViewData {
+	if pbData == nil {
+		return &models.StatisticsViewData{}
+	}
+	result := &models.StatisticsViewData{
+		// Time range mode
+		TimeRangeMode: pbData.TimeRangeMode,
+
+		// Absolute dates
+		DateRangeType:     pbData.DateRangeType,
+		StartDate:         pbData.StartDate,
+		EndDate:           pbData.EndDate,
+		AbsoluteFromTime:  pbData.AbsoluteFromTime,
+		AbsoluteUntilTime: pbData.AbsoluteUntilTime,
+
+		// Time of day filtering
+		FilterByTimeOfDay: pbData.FilterByTimeOfDay,
+		TimeOfDayStart:    pbData.TimeOfDayStart,
+		TimeOfDayEnd:      pbData.TimeOfDayEnd,
+		UseOnCallPeriod:   pbData.UseOnCallPeriod,
+		IncludeWeekends:   pbData.IncludeWeekends,
+		WeekendMode:       pbData.WeekendMode,
+
+		// Grouping
+		GroupBy:    pbData.GroupBy,
+		PeriodType: pbData.PeriodType,
+
+		// Filter arrays
+		Severities: pbData.Severities,
+		Teams:      pbData.Teams,
+
+		// Other
+		ApplyRules: pbData.ApplyRules,
+		Limit:      int(pbData.Limit),
+	}
+
+	// Handle RelativeFrom
+	if pbData.RelativeFrom != nil {
+		result.RelativeFrom = &models.RelativeTimeConfig{
+			Value:   int(pbData.RelativeFrom.Value),
+			Unit:    pbData.RelativeFrom.Unit,
+			AllTime: pbData.RelativeFrom.AllTime,
+			Now:     pbData.RelativeFrom.Now,
+		}
+	}
+
+	// Handle RelativeUntil
+	if pbData.RelativeUntil != nil {
+		result.RelativeUntil = &models.RelativeTimeConfig{
+			Value:   int(pbData.RelativeUntil.Value),
+			Unit:    pbData.RelativeUntil.Unit,
+			AllTime: pbData.RelativeUntil.AllTime,
+			Now:     pbData.RelativeUntil.Now,
+		}
+	}
+
+	return result
+}
+
+// modelToProtoViewData converts model StatisticsViewData to protobuf StatisticsViewData
+func modelToProtoViewData(data *models.StatisticsViewData) *alertpb.StatisticsViewData {
+	if data == nil {
+		return &alertpb.StatisticsViewData{}
+	}
+	result := &alertpb.StatisticsViewData{
+		// Time range mode
+		TimeRangeMode: data.TimeRangeMode,
+
+		// Absolute dates
+		DateRangeType:     data.DateRangeType,
+		StartDate:         data.StartDate,
+		EndDate:           data.EndDate,
+		AbsoluteFromTime:  data.AbsoluteFromTime,
+		AbsoluteUntilTime: data.AbsoluteUntilTime,
+
+		// Time of day filtering
+		FilterByTimeOfDay: data.FilterByTimeOfDay,
+		TimeOfDayStart:    data.TimeOfDayStart,
+		TimeOfDayEnd:      data.TimeOfDayEnd,
+		UseOnCallPeriod:   data.UseOnCallPeriod,
+		IncludeWeekends:   data.IncludeWeekends,
+		WeekendMode:       data.WeekendMode,
+
+		// Grouping
+		GroupBy:    data.GroupBy,
+		PeriodType: data.PeriodType,
+
+		// Filter arrays
+		Severities: data.Severities,
+		Teams:      data.Teams,
+
+		// Other
+		ApplyRules: data.ApplyRules,
+		Limit:      int32(data.Limit),
+	}
+
+	// Handle RelativeFrom
+	if data.RelativeFrom != nil {
+		result.RelativeFrom = &alertpb.RelativeTimeConfig{
+			Value:   int32(data.RelativeFrom.Value),
+			Unit:    data.RelativeFrom.Unit,
+			AllTime: data.RelativeFrom.AllTime,
+			Now:     data.RelativeFrom.Now,
+		}
+	}
+
+	// Handle RelativeUntil
+	if data.RelativeUntil != nil {
+		result.RelativeUntil = &alertpb.RelativeTimeConfig{
+			Value:   int32(data.RelativeUntil.Value),
+			Unit:    data.RelativeUntil.Unit,
+			AllTime: data.RelativeUntil.AllTime,
+			Now:     data.RelativeUntil.Now,
+		}
+	}
+
+	return result
 }

@@ -226,8 +226,8 @@ func (s *HiddenAlertsService) CompileFilterRules(rules []webuimodels.FilterHidde
 }
 
 // HideAlert hides a specific alert for a user
-func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.DashboardAlert, reason string) error {
-	err := s.backendClient.HideAlert(sessionID, alert.Fingerprint, alert.AlertName, alert.Instance, reason)
+func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.DashboardAlert, reason string, impersonateUserID ...string) error {
+	err := s.backendClient.HideAlert(sessionID, alert.Fingerprint, alert.AlertName, alert.Instance, reason, impersonateUserID...)
 	if err != nil {
 		return fmt.Errorf("failed to hide alert in backend: %w", err)
 	}
@@ -244,8 +244,8 @@ func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.Das
 }
 
 // UnhideAlert unhides a specific alert for a user
-func (s *HiddenAlertsService) UnhideAlert(sessionID, fingerprint string) error {
-	err := s.backendClient.UnhideAlert(sessionID, fingerprint)
+func (s *HiddenAlertsService) UnhideAlert(sessionID, fingerprint string, impersonateUserID ...string) error {
+	err := s.backendClient.UnhideAlert(sessionID, fingerprint, impersonateUserID...)
 	if err != nil {
 		return fmt.Errorf("failed to unhide alert in backend: %w", err)
 	}
@@ -261,8 +261,8 @@ func (s *HiddenAlertsService) UnhideAlert(sessionID, fingerprint string) error {
 }
 
 // GetUserHiddenAlerts gets all hidden alerts for a user
-func (s *HiddenAlertsService) GetUserHiddenAlerts(sessionID string) ([]models.UserHiddenAlert, error) {
-	pbHiddenAlerts, err := s.backendClient.GetUserHiddenAlerts(sessionID)
+func (s *HiddenAlertsService) GetUserHiddenAlerts(sessionID string, impersonateUserID ...string) ([]models.UserHiddenAlert, error) {
+	pbHiddenAlerts, err := s.backendClient.GetUserHiddenAlerts(sessionID, impersonateUserID...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch hidden alerts from backend: %w", err)
 	}
@@ -286,7 +286,7 @@ func (s *HiddenAlertsService) GetUserHiddenAlerts(sessionID string) ([]models.Us
 }
 
 // SaveHiddenRule saves or updates a hidden rule for a user
-func (s *HiddenAlertsService) SaveHiddenRule(sessionID string, rule *models.UserHiddenRule) error {
+func (s *HiddenAlertsService) SaveHiddenRule(sessionID string, rule *models.UserHiddenRule, impersonateUserID ...string) error {
 	// Validate regex if needed
 	if rule.IsRegex {
 		_, err := regexp.Compile(rule.LabelValue)
@@ -294,7 +294,7 @@ func (s *HiddenAlertsService) SaveHiddenRule(sessionID string, rule *models.User
 			return fmt.Errorf("invalid regex pattern: %w", err)
 		}
 	}
-	
+
 	// Convert to protobuf model
 	pbRule := &alertpb.UserHiddenRule{
 		Id:          rule.ID,
@@ -307,8 +307,8 @@ func (s *HiddenAlertsService) SaveHiddenRule(sessionID string, rule *models.User
 		IsEnabled:   rule.IsEnabled,
 		Priority:    int32(rule.Priority),
 	}
-	
-	_, err := s.backendClient.SaveHiddenRule(sessionID, pbRule)
+
+	_, err := s.backendClient.SaveHiddenRule(sessionID, pbRule, impersonateUserID...)
 	if err != nil {
 		return fmt.Errorf("failed to save hidden rule in backend: %w", err)
 	}
@@ -320,8 +320,8 @@ func (s *HiddenAlertsService) SaveHiddenRule(sessionID string, rule *models.User
 }
 
 // RemoveHiddenRule removes a hidden rule for a user
-func (s *HiddenAlertsService) RemoveHiddenRule(sessionID, ruleID string) error {
-	err := s.backendClient.RemoveHiddenRule(sessionID, ruleID)
+func (s *HiddenAlertsService) RemoveHiddenRule(sessionID, ruleID string, impersonateUserID ...string) error {
+	err := s.backendClient.RemoveHiddenRule(sessionID, ruleID, impersonateUserID...)
 	if err != nil {
 		return fmt.Errorf("failed to remove hidden rule in backend: %w", err)
 	}
@@ -343,8 +343,8 @@ func (s *HiddenAlertsService) InvalidateCache(sessionID string) {
 }
 
 // GetUserHiddenRules gets all hidden rules for a user
-func (s *HiddenAlertsService) GetUserHiddenRules(sessionID string) ([]models.UserHiddenRule, error) {
-	pbRules, err := s.backendClient.GetUserHiddenRules(sessionID)
+func (s *HiddenAlertsService) GetUserHiddenRules(sessionID string, impersonateUserID ...string) ([]models.UserHiddenRule, error) {
+	pbRules, err := s.backendClient.GetUserHiddenRules(sessionID, impersonateUserID...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch hidden rules from backend: %w", err)
 	}
@@ -371,8 +371,8 @@ func (s *HiddenAlertsService) GetUserHiddenRules(sessionID string) ([]models.Use
 }
 
 // ClearAllHiddenAlerts removes all hidden alerts for a user
-func (s *HiddenAlertsService) ClearAllHiddenAlerts(sessionID string) error {
-	err := s.backendClient.ClearAllHiddenAlerts(sessionID)
+func (s *HiddenAlertsService) ClearAllHiddenAlerts(sessionID string, impersonateUserID ...string) error {
+	err := s.backendClient.ClearAllHiddenAlerts(sessionID, impersonateUserID...)
 	if err != nil {
 		return fmt.Errorf("failed to clear hidden alerts in backend: %w", err)
 	}

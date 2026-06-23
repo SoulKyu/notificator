@@ -130,6 +130,8 @@ services:
       - NOTIFICATOR_SENTRY_ENABLED=false
       - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.example.com
       - NOTIFICATOR_SENTRY_GLOBAL_TOKEN=""
+      # Session persistence (generate with: openssl rand -hex 32)
+      - NOTIFICATOR_SESSION_SECRET=${NOTIFICATOR_SESSION_SECRET:-}
 
     depends_on:
       backend:

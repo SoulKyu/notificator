@@ -1,0 +1,464 @@
+package scripts
+
+templ StatisticsViews() {
+	<script>
+		// Convert local time (HH:MM) to UTC time using user's timezone
+		function convertTimeToUTC(localTime, timezone) {
+			if (!localTime || !timezone || typeof dayjs === 'undefined') return localTime;
+
+			// Ensure plugins are extended (safe to call multiple times)
+			if (typeof dayjs_plugin_utc !== 'undefined') dayjs.extend(dayjs_plugin_utc);
+			if (typeof dayjs_plugin_timezone !== 'undefined') dayjs.extend(dayjs_plugin_timezone);
+
+			const today = dayjs().format('YYYY-MM-DD');
+			const localDateTime = dayjs.tz(`${today} ${localTime}`, timezone);
+			return localDateTime.utc().format('HH:mm');
+		}
+
+		// Convert UTC time (HH:MM) to local time for display
+		function convertTimeFromUTC(utcTime, timezone) {
+			if (!utcTime || !timezone || typeof dayjs === 'undefined') return utcTime;
+
+			// Ensure plugins are extended (safe to call multiple times)
+			if (typeof dayjs_plugin_utc !== 'undefined') dayjs.extend(dayjs_plugin_utc);
+			if (typeof dayjs_plugin_timezone !== 'undefined') dayjs.extend(dayjs_plugin_timezone);
+
+			const today = dayjs().format('YYYY-MM-DD');
+			const utcDateTime = dayjs.utc(`${today} ${utcTime}`);
+			return utcDateTime.tz(timezone).format('HH:mm');
+		}
+
+		// Statistics Views Mixin - provides saved views functionality with backend persistence
+		function statisticsViewsMixin() {
+			return {
+				// Views data
+				views: [],
+				viewsLoading: false,
+				currentViewId: null,
+				viewSearchQuery: '',
+				// Flag to prevent clearing view during applyView
+				_applyingView: false,
+
+				// Save view modal
+				showSaveViewModal: false,
+				viewForm: {
+					id: null,
+					name: '',
+					description: '',
+					isShared: false,
+					isEditing: false
+				},
+
+				// Synchronous init - sets up watchers BEFORE any async operations
+				init() {
+					// Call page-specific init if defined (e.g. on-call preset, chart watchers)
+					if (typeof this.initPage === 'function') {
+						this.initPage();
+					}
+
+					// Set up watchers SYNCHRONOUSLY before any async operations
+					const clearViewIfNeeded = () => {
+						if (this.currentViewId && !this._applyingView) {
+							this.currentViewId = null;
+						}
+						// Show pulse on Query button when filters change
+						this.needsQuery = true;
+					};
+
+					// Watch primitive filter properties for changes
+					this.$watch('filters.groupBy', clearViewIfNeeded);
+					this.$watch('filters.periodType', clearViewIfNeeded);
+					this.$watch('filters.startDate', clearViewIfNeeded);
+					this.$watch('filters.endDate', clearViewIfNeeded);
+					this.$watch('filters.timeRangeMode', clearViewIfNeeded);
+					this.$watch('filters.timeOfDayStart', clearViewIfNeeded);
+					this.$watch('filters.timeOfDayEnd', clearViewIfNeeded);
+					this.$watch('filters.filterByTimeOfDay', clearViewIfNeeded);
+					this.$watch('filters.includeWeekends', clearViewIfNeeded);
+					this.$watch('filters.limit', clearViewIfNeeded);
+
+					// Watch array lengths using getter functions (Alpine.js supports this)
+					this.$watch(() => this.filters.severities.length, clearViewIfNeeded);
+					this.$watch(() => this.filters.teams.length, clearViewIfNeeded);
+
+					// NOW run the async initialization
+					this.initViews();
+				},
+
+				// Initialize views from backend (async) — runs on page load only
+				async initViews() {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch('/api/v1/statistics/views?include_shared=true');
+						const data = await resp.json();
+						if (data.success) {
+							this.views = data.views || [];
+							// Check if there's a default view to apply (only on initial load)
+							const defaultView = this.views.find(v => v.is_default);
+							if (defaultView) {
+								this.applyView(defaultView, false); // Don't query immediately
+							}
+						} else {
+							console.error('Error loading statistics views:', data.message);
+							this.views = [];
+						}
+					} catch (e) {
+						console.error('Error loading statistics views:', e);
+						this.views = [];
+					} finally {
+						this.viewsLoading = false;
+					}
+
+					// Auto-query with defaults or applied default view
+					this.$nextTick(() => {
+						this.queryStatistics();
+					});
+				},
+
+				// Reload views list without applying default or auto-querying
+				async reloadViews() {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch('/api/v1/statistics/views?include_shared=true');
+						const data = await resp.json();
+						if (data.success) {
+							this.views = data.views || [];
+						} else {
+							console.error('Error loading statistics views:', data.message);
+						}
+					} catch (e) {
+						console.error('Error loading statistics views:', e);
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Get current filter state as view data
+				getCurrentViewData() {
+					return {
+						// Time range mode
+						time_range_mode: this.filters.timeRangeMode,
+
+						// Relative time settings
+						relative_from: this.filters.relativeFrom ? { ...this.filters.relativeFrom } : null,
+						relative_until: this.filters.relativeUntil ? { ...this.filters.relativeUntil } : null,
+
+						// Absolute dates (computed)
+						start_date: this.filters.startDate,
+						end_date: this.filters.endDate,
+						absolute_from_time: this.filters.absoluteFromTime,
+						absolute_until_time: this.filters.absoluteUntilTime,
+
+						// Time of day filtering (convert to UTC before sending)
+						filter_by_time_of_day: this.filters.filterByTimeOfDay,
+						time_of_day_start: this.filters.filterByTimeOfDay
+							? convertTimeToUTC(this.filters.timeOfDayStart, window.__USER_TIMEZONE__)
+							: this.filters.timeOfDayStart,
+						time_of_day_end: this.filters.filterByTimeOfDay
+							? convertTimeToUTC(this.filters.timeOfDayEnd, window.__USER_TIMEZONE__)
+							: this.filters.timeOfDayEnd,
+						include_weekends: this.filters.includeWeekends !== false,
+
+						// Grouping
+						group_by: this.filters.groupBy,
+						period_type: this.filters.periodType,
+
+						// Filters
+						severities: this.filters.severities || [],
+						teams: this.filters.teams || [],
+
+						// Options
+						apply_rules: this.filters.applyRules,
+						limit: this.filters.limit
+					};
+				},
+
+				// Open save view modal
+				openSaveViewModal(existingView = null, isShared = false) {
+					if (existingView) {
+						this.viewForm = {
+							id: existingView.id,
+							name: existingView.name,
+							description: existingView.description || '',
+							isShared: existingView.is_shared || false,
+							isEditing: true
+						};
+					} else {
+						this.viewForm = {
+							id: null,
+							name: '',
+							description: '',
+							isShared: isShared,
+							isEditing: false
+						};
+					}
+					this.showSaveViewModal = true;
+				},
+
+				// Close save view modal
+				closeSaveViewModal() {
+					this.showSaveViewModal = false;
+					this.viewForm = { id: null, name: '', description: '', isShared: false, isEditing: false };
+				},
+
+				// Save current view
+				async saveView() {
+					if (!this.viewForm.name.trim()) {
+						return;
+					}
+
+					const viewData = this.getCurrentViewData();
+					this.viewsLoading = true;
+
+					try {
+						let resp;
+						if (this.viewForm.isEditing && this.viewForm.id) {
+							// Update existing view
+							resp = await fetch(`/api/v1/statistics/views/${this.viewForm.id}`, {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									name: this.viewForm.name.trim(),
+									description: this.viewForm.description.trim(),
+									is_shared: this.viewForm.isShared,
+									view_data: viewData
+								})
+							});
+						} else {
+							// Create new view
+							resp = await fetch('/api/v1/statistics/views', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									name: this.viewForm.name.trim(),
+									description: this.viewForm.description.trim(),
+									is_shared: this.viewForm.isShared,
+									view_data: viewData
+								})
+							});
+						}
+
+						const data = await resp.json();
+						if (data.success) {
+							// Reload views list (without applying default or re-querying)
+							await this.reloadViews();
+							// Keep the saved/updated view as the active one
+							const savedId = this.viewForm.isEditing ? this.viewForm.id : (data.view ? data.view.id : null);
+							if (savedId) {
+								this.currentViewId = savedId;
+							}
+							this.closeSaveViewModal();
+						} else {
+							console.error('Error saving view:', data.message);
+							alert('Failed to save view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error saving view:', e);
+						alert('Failed to save view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Apply a view to filters
+				applyView(view, runQuery = true) {
+					if (!view || !view.view_data) return;
+
+					// Prevent the watcher from clearing the view while we're applying it
+					this._applyingView = true;
+
+					const data = view.view_data;
+
+					// Determine if this view has relative time data (new format)
+					const hasRelativeTimeData = data.time_range_mode === 'relative' && data.relative_from;
+
+					// Time range mode - default to 'absolute' for old views without this field
+					if (data.time_range_mode) {
+						this.filters.timeRangeMode = data.time_range_mode;
+						this.timeRangePickerTab = data.time_range_mode;
+					} else {
+						// Old view format - treat as absolute since it only has start/end dates
+						this.filters.timeRangeMode = 'absolute';
+						this.timeRangePickerTab = 'absolute';
+					}
+
+					// Relative time settings (only if view has them)
+					if (data.relative_from) {
+						this.filters.relativeFrom = { ...data.relative_from };
+					}
+					if (data.relative_until) {
+						this.filters.relativeUntil = { ...data.relative_until };
+					}
+
+					// Absolute dates - always apply these first
+					if (data.start_date) this.filters.startDate = data.start_date;
+					if (data.end_date) this.filters.endDate = data.end_date;
+					if (data.absolute_from_time) this.filters.absoluteFromTime = data.absolute_from_time;
+					if (data.absolute_until_time) this.filters.absoluteUntilTime = data.absolute_until_time;
+
+					// Time of day filtering
+					this.filters.filterByTimeOfDay = data.filter_by_time_of_day || false;
+					if (data.time_of_day_start) this.filters.timeOfDayStart = data.time_of_day_start;
+					if (data.time_of_day_end) this.filters.timeOfDayEnd = data.time_of_day_end;
+					// Sync raw values for text input display
+					this.timeOfDayStartRaw = this.filters.timeOfDayStart;
+					this.timeOfDayEndRaw = this.filters.timeOfDayEnd;
+					this.filters.includeWeekends = data.include_weekends !== false;
+
+					// Grouping
+					if (data.group_by !== undefined) this.filters.groupBy = data.group_by;
+					if (data.period_type) this.filters.periodType = data.period_type;
+
+					// Filters
+					this.filters.severities = data.severities || [];
+					this.filters.teams = data.teams || [];
+
+					// Options
+					this.filters.applyRules = data.apply_rules || false;
+					if (data.limit) this.filters.limit = data.limit;
+
+					this.currentViewId = view.id;
+
+					// Re-enable the watcher after a short delay to allow all filter updates to settle
+					setTimeout(() => {
+						this._applyingView = false;
+					}, 100);
+
+					// Recompute dates ONLY if this view was saved with relative time data
+					// This prevents overwriting absolute dates from old views
+					if (hasRelativeTimeData && typeof this.applyTimeRangeFromRelative === 'function') {
+						this.applyTimeRangeFromRelative();
+					}
+
+					// Optionally run query
+					if (runQuery) {
+						this.queryStatistics();
+					}
+				},
+
+				// Delete a view
+				async deleteView(viewId) {
+					if (!confirm('Are you sure you want to delete this view?')) {
+						return;
+					}
+
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch(`/api/v1/statistics/views/${viewId}`, {
+							method: 'DELETE'
+						});
+						const data = await resp.json();
+						if (data.success) {
+							if (this.currentViewId === viewId) {
+								this.currentViewId = null;
+							}
+							await this.reloadViews();
+						} else {
+							console.error('Error deleting view:', data.message);
+							alert('Failed to delete view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error deleting view:', e);
+						alert('Failed to delete view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Toggle default view — sets or clears
+				async toggleDefaultView(viewId) {
+					const view = this.views.find(v => v.id === viewId);
+					if (view && view.is_default) {
+						await this.clearDefaultView();
+					} else {
+						await this.setDefaultView(viewId);
+					}
+				},
+
+				// Set a view as default
+				async setDefaultView(viewId) {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch(`/api/v1/statistics/views/${viewId}/default`, {
+							method: 'POST'
+						});
+						const data = await resp.json();
+						if (data.success) {
+							await this.reloadViews();
+						} else {
+							console.error('Error setting default view:', data.message);
+							alert('Failed to set default view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error setting default view:', e);
+						alert('Failed to set default view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Clear default view
+				async clearDefaultView() {
+					this.viewsLoading = true;
+					try {
+						const resp = await fetch('/api/v1/statistics/views/default', {
+							method: 'DELETE'
+						});
+						const data = await resp.json();
+						if (data.success) {
+							await this.reloadViews();
+						} else {
+							console.error('Error clearing default view:', data.message);
+							alert('Failed to clear default view: ' + data.message);
+						}
+					} catch (e) {
+						console.error('Error clearing default view:', e);
+						alert('Failed to clear default view');
+					} finally {
+						this.viewsLoading = false;
+					}
+				},
+
+				// Check if current filters match a view
+				isViewActive(view) {
+					return this.currentViewId === view.id;
+				},
+
+				// Get the currently active view name
+				getActiveViewName() {
+					if (!this.currentViewId) return null;
+					const view = this.views.find(v => v.id === this.currentViewId);
+					return view ? view.name : null;
+				},
+
+				// Called when array filters (severities, teams) change
+				// Use this in @change handlers for checkboxes/selects that modify arrays
+				onFilterChange() {
+					if (this.currentViewId && !this._applyingView) {
+						this.currentViewId = null;
+					}
+				},
+
+				personalViews() {
+					return this.views.filter(v => !v.is_shared);
+				},
+				globalViews() {
+					return this.views.filter(v => v.is_shared);
+				},
+				filteredPersonalViews() {
+					const q = this.viewSearchQuery.toLowerCase().trim();
+					const views = this.personalViews();
+					return q ? views.filter(v => v.name.toLowerCase().includes(q)) : views;
+				},
+				filteredGlobalViews() {
+					const q = this.viewSearchQuery.toLowerCase().trim();
+					const views = this.globalViews();
+					return q ? views.filter(v => v.name.toLowerCase().includes(q)) : views;
+				}
+			};
+		}
+
+		// Make mixin available globally
+		window.statisticsViewsMixin = statisticsViewsMixin;
+	</script>
+}

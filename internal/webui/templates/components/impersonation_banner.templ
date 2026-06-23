@@ -1,0 +1,177 @@
+package components
+
+// ImpersonationBannerProps holds the props for the impersonation banner
+type ImpersonationBannerProps struct {
+	IsImpersonating      bool
+	ImpersonatedUsername string
+	CanImpersonate       bool
+}
+
+templ ImpersonationBanner(props ImpersonationBannerProps) {
+	if props.IsImpersonating {
+		<div id="impersonation-banner"
+			 class="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between shadow-md">
+			<div class="flex items-center gap-2">
+				<!-- Eye icon -->
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+					<path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+					<path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+				</svg>
+				<span class="font-medium">
+					Viewing as <strong>{ props.ImpersonatedUsername }</strong>
+				</span>
+			</div>
+			<button
+				onclick="stopImpersonation()"
+				class="px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded text-sm font-medium transition-colors">
+				Exit Impersonation
+			</button>
+		</div>
+		<!-- Spacer to push content down when banner is visible -->
+		<div class="h-10"></div>
+	}
+}
+
+// ImpersonationDropdown renders the dropdown for selecting a user to impersonate
+templ ImpersonationDropdown() {
+	<div x-data="impersonationDropdown()" class="relative">
+		<button
+			@click="toggleDropdown()"
+			class="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+			title="Impersonate User">
+			<!-- User switch icon -->
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+				<path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
+			</svg>
+			<span class="hidden sm:inline">Impersonate</span>
+		</button>
+
+		<!-- Dropdown panel -->
+		<div
+			x-show="isOpen"
+			x-cloak
+			@click.outside="isOpen = false"
+			class="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+			<div class="p-3">
+				<input
+					type="text"
+					x-model="search"
+					@input="filterUsers()"
+					placeholder="Search users..."
+					class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500">
+			</div>
+			<div class="max-h-64 overflow-y-auto">
+				<template x-if="loading">
+					<div class="px-3 py-4 text-center text-gray-500">
+						Loading users...
+					</div>
+				</template>
+				<template x-if="!loading && filteredUsers.length === 0">
+					<div class="px-3 py-4 text-center text-gray-500">
+						No users found
+					</div>
+				</template>
+				<template x-for="user in filteredUsers" :key="user.id">
+					<button
+						@click="startImpersonation(user.username)"
+						class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+						<span class="font-medium text-gray-900 dark:text-white" x-text="user.username"></span>
+						<span class="text-gray-500 text-xs" x-text="user.email"></span>
+					</button>
+				</template>
+			</div>
+		</div>
+	</div>
+}
+
+templ ImpersonationScripts() {
+	<script>
+		// Global function to stop impersonation
+		async function stopImpersonation() {
+			try {
+				const response = await fetch('/api/impersonate/stop', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' }
+				});
+				if (response.ok) {
+					// Reload the page to reflect the change
+					window.location.reload();
+				} else {
+					const data = await response.json();
+					alert(data.error || 'Failed to stop impersonation');
+				}
+			} catch (error) {
+				console.error('Error stopping impersonation:', error);
+				alert('Failed to stop impersonation');
+			}
+		}
+
+		// Global function to start impersonation
+		async function startImpersonation(username) {
+			try {
+				const response = await fetch('/api/impersonate/start', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ username: username })
+				});
+				if (response.ok) {
+					// Reload the page to reflect the change
+					window.location.reload();
+				} else {
+					const data = await response.json();
+					alert(data.error || 'Failed to start impersonation');
+				}
+			} catch (error) {
+				console.error('Error starting impersonation:', error);
+				alert('Failed to start impersonation');
+			}
+		}
+
+		// Alpine.js component for the impersonation dropdown
+		function impersonationDropdown() {
+			return {
+				isOpen: false,
+				loading: false,
+				search: '',
+				users: [],
+				filteredUsers: [],
+
+				toggleDropdown() {
+					this.isOpen = !this.isOpen;
+					if (this.isOpen && this.users.length === 0) {
+						this.loadUsers();
+					}
+				},
+
+				async loadUsers() {
+					this.loading = true;
+					try {
+						const response = await fetch('/api/impersonate/users');
+						if (response.ok) {
+							const data = await response.json();
+							this.users = data.users || [];
+							this.filteredUsers = this.users;
+						}
+					} catch (error) {
+						console.error('Error loading users:', error);
+					} finally {
+						this.loading = false;
+					}
+				},
+
+				filterUsers() {
+					const searchLower = this.search.toLowerCase();
+					this.filteredUsers = this.users.filter(user =>
+						user.username.toLowerCase().includes(searchLower) ||
+						(user.email && user.email.toLowerCase().includes(searchLower))
+					);
+				},
+
+				async startImpersonation(username) {
+					this.isOpen = false;
+					await window.startImpersonation(username);
+				}
+			}
+		}
+	</script>
+}

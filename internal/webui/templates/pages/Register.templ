@@ -1,7 +1,6 @@
 package pages
 
 import "notificator/internal/webui/templates/layouts"
-import "notificator/internal/webui/templates/components"
 
 templ Register() {
 	@layouts.Base("Register - Notificator", RegisterContent())
@@ -13,10 +12,6 @@ templ RegisterContent() {
 			<h2 class="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900 dark:text-white">
 				Create your account
 			</h2>
-		</div>
-
-		<div class="sm:mx-auto sm:w-full sm:max-w-sm">
-			@components.BackendWarning()
 		</div>
 
 		<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
