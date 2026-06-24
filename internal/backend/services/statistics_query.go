@@ -70,6 +70,24 @@ type BreakdownItem struct {
 	Statistics map[string]*models.AggregatedStatistics `json:"statistics"`
 }
 
+// AggregatedResult holds the raw aggregated data returned by QueryResolvedAlerts and
+// convertAggregatedToResolvedAlertItem. Declared at package scope so the type-switch
+// in convertAggregatedToResolvedAlertItem matches the values passed from QueryResolvedAlerts.
+type AggregatedResult struct {
+	Fingerprint     string
+	AlertName       string
+	Severity        string
+	OccurrenceCount int
+	FirstFiredAt    time.Time
+	LastResolvedAt  time.Time
+	TotalMTTR       int64   // Sum of MTTR (resolved - fired)
+	AvgMTTR         float64 // Average MTTR
+	TotalMTTA       int64   // Sum of MTTA (acknowledged - fired)
+	AvgMTTA         float64 // Average MTTA
+	AvgFixTime      float64 // Average Fix Time (resolved - acknowledged)
+	Metadata        string  // Latest metadata (JSONB as string)
+}
+
 // QueryStatistics queries alert statistics with filters and aggregation
 func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryResponse, error) {
 	// Validate query request
@@ -432,7 +450,7 @@ func (sqs *StatisticsQueryService) aggregateByTeam(query *gorm.DB) (map[string]*
 			COALESCE(AVG(NULLIF(mtta_seconds, 0)), 0) as avg_mtta_seconds,
 			COALESCE(AVG(NULLIF(fix_time_seconds, 0)), 0) as avg_fix_time_seconds
 		`).
-		Group("team").
+		Group("COALESCE(metadata->'labels'->>'team', 'unknown')").
 		Scan(&results).Error
 
 	if err != nil {
@@ -795,7 +813,7 @@ func (sqs *StatisticsQueryService) generateDailyPeriods(start, end time.Time) []
 	// Truncate to start of day
 	current := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
 
-	for current.Before(end) || current.Equal(end) {
+	for current.Before(end) {
 		periodEnd := current.AddDate(0, 0, 1)
 		if periodEnd.After(end) {
 			periodEnd = end
@@ -819,7 +837,7 @@ func (sqs *StatisticsQueryService) generateHourlyPeriods(start, end time.Time) [
 	// Truncate to start of hour
 	current := time.Date(start.Year(), start.Month(), start.Day(), start.Hour(), 0, 0, 0, start.Location())
 
-	for current.Before(end) || current.Equal(end) {
+	for current.Before(end) {
 		periodEnd := current.Add(time.Hour)
 		if periodEnd.After(end) {
 			periodEnd = end
@@ -847,7 +865,7 @@ func (sqs *StatisticsQueryService) generateWeeklyPeriods(start, end time.Time) [
 		current = current.AddDate(0, 0, -1)
 	}
 
-	for current.Before(end) || current.Equal(end) {
+	for current.Before(end) {
 		periodEnd := current.AddDate(0, 0, 7)
 		if periodEnd.After(end) {
 			periodEnd = end
@@ -873,7 +891,7 @@ func (sqs *StatisticsQueryService) generateMonthlyPeriods(start, end time.Time) 
 	// Truncate to start of month
 	current := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
 
-	for current.Before(end) || current.Equal(end) {
+	for current.Before(end) {
 		periodEnd := current.AddDate(0, 1, 0)
 		if periodEnd.After(end) {
 			periodEnd = end
@@ -914,7 +932,7 @@ func (sqs *StatisticsQueryService) GetStatisticsSummary(userID string) (map[stri
 		MinDate time.Time
 		MaxDate time.Time
 	}
-	if err := baseQuery.Select("MIN(fired_at) as min_date, MAX(fired_at) as max_date").Scan(&dateRange).Error; err != nil {
+	if err := baseQuery.Session(&gorm.Session{}).Select("MIN(fired_at) as min_date, MAX(fired_at) as max_date").Scan(&dateRange).Error; err != nil {
 		return nil, fmt.Errorf("failed to get date range: %w", err)
 	}
 
@@ -1197,21 +1215,6 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 	}
 
 	// Get aggregated results grouped by fingerprint
-	type AggregatedResult struct {
-		Fingerprint      string
-		AlertName        string
-		Severity         string
-		OccurrenceCount  int
-		FirstFiredAt     time.Time
-		LastResolvedAt   time.Time
-		TotalMTTR        int64   // Sum of MTTR (resolved - fired)
-		AvgMTTR          float64 // Average MTTR
-		TotalMTTA        int64   // Sum of MTTA (acknowledged - fired)
-		AvgMTTA          float64 // Average MTTA
-		AvgFixTime       float64 // Average Fix Time (resolved - acknowledged)
-		Metadata         string  // Latest metadata (JSONB as string)
-	}
-
 	// Aggregate query - note: source and instance are in metadata JSONB, not separate columns
 	var aggregatedResults []AggregatedResult
 	aggregateQuery := baseQuery.
@@ -1311,22 +1314,6 @@ func (sqs *StatisticsQueryService) QueryResolvedAlerts(req *ResolvedAlertsQueryR
 
 // convertAggregatedToResolvedAlertItem converts aggregated result to ResolvedAlertItem
 func (sqs *StatisticsQueryService) convertAggregatedToResolvedAlertItem(result interface{}) (*ResolvedAlertItem, error) {
-	// Type assertion to get the AggregatedResult struct
-	type AggregatedResult struct {
-		Fingerprint      string
-		AlertName        string
-		Severity         string
-		OccurrenceCount  int
-		FirstFiredAt     time.Time
-		LastResolvedAt   time.Time
-		TotalMTTR        int64   // Sum of MTTR (resolved - fired)
-		AvgMTTR          float64 // Average MTTR
-		TotalMTTA        int64   // Sum of MTTA (acknowledged - fired)
-		AvgMTTA          float64 // Average MTTA
-		AvgFixTime       float64 // Average Fix Time (resolved - acknowledged)
-		Metadata         string
-	}
-
 	// Convert result interface to struct using reflection or type assertion
 	var aggResult AggregatedResult
 	switch v := result.(type) {
