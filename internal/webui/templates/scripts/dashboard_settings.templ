@@ -554,6 +554,23 @@ templ DashboardSettings() {
 					}
 				},
 
+				async unhideSpecificAlert(fingerprint) {
+					await this.unhideAlert(fingerprint);
+				},
+
+				removeLabelCondition(preference, key) {
+					if (preference.labelConditions) {
+						delete preference.labelConditions[key];
+					}
+				},
+
+				async clearAllHiddenAlerts() {
+					const fingerprints = this.hiddenAlerts.map(a => a.fingerprint);
+					for (const fp of fingerprints) {
+						await this.unhideAlert(fp);
+					}
+				},
+
 				async toggleHiddenRule(ruleId) {
 					try {
 						const rule = this.hiddenRules.find(r => r.id === ruleId);

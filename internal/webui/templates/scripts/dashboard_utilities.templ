@@ -614,8 +614,8 @@ templ DashboardUtilities() {
 
 			initializeColumns() {
 				// Try to get columns from current filter preset
-				const currentPreset = this.filterPresets && this.filterPresets.length > 0
-					? this.filterPresets.find(p => p.is_default) || this.filterPresets[0]
+				const currentPreset = this.presets && this.presets.length > 0
+					? this.presets.find(p => p.is_default) || this.presets[0]
 					: null;
 
 				if (currentPreset && currentPreset.column_configs && currentPreset.column_configs.length > 0) {
@@ -846,7 +846,7 @@ templ DashboardUtilities() {
 				return `<input
 					type="checkbox"
 					${checked}
-					onclick="event.stopPropagation(); window.dashboardInstance.toggleAlert('${alert.fingerprint}')"
+					onclick="event.stopPropagation(); window.dashboardInstance.toggleAlert('${this.escapeHtml(alert.fingerprint)}')"
 					class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
 				>`;
 			},
@@ -863,7 +863,7 @@ templ DashboardUtilities() {
 					</div>`;
 				} else {
 					html += `<button
-						onclick="event.stopPropagation(); window.dashboardInstance.acknowledgeAlert('${alert.fingerprint}')"
+						onclick="event.stopPropagation(); window.dashboardInstance.acknowledgeAlert('${this.escapeHtml(alert.fingerprint)}')"
 						class="p-1.5 rounded-md text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:text-emerald-400 dark:hover:bg-emerald-900/30 transition-all duration-150"
 						title="Acknowledge Alert">
 						<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
@@ -873,7 +873,7 @@ templ DashboardUtilities() {
 				}
 
 				html += `<button
-					onclick="event.stopPropagation(); window.dashboardInstance.silenceAlert('${alert.fingerprint}')"
+					onclick="event.stopPropagation(); window.dashboardInstance.silenceAlert('${this.escapeHtml(alert.fingerprint)}')"
 					class="p-1.5 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:text-amber-400 dark:hover:bg-amber-900/30 transition-all duration-150"
 					title="Silence Alert">
 					<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">

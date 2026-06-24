@@ -172,8 +172,8 @@ templ DashboardFilterPresetsMixin() {
 			this.filters.statuses = data.statuses || [];
 			this.filters.teams = data.teams || [];
 			this.filters.alertNames = data.alert_names || [];
-			this.acknowledgmentFilter = data.acknowledged || 'all';
-			this.commentsFilter = data.comments || 'all';
+			this.acknowledgmentFilter = data.acknowledged || null;
+			this.commentsFilter = data.comments || null;
 
 			// Apply display settings
 			if (data.display_mode) this.displayMode = data.display_mode;

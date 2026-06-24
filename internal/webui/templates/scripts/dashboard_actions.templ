@@ -204,6 +204,7 @@ templ DashboardActions() {
 
 			acknowledgeAlert(fingerprint) {
 				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+				if (!alert) { return; }
 				this.currentAckAlert = alert;
 				this.ackAction = 'single';
 				this.ackReason = '';
@@ -620,6 +621,7 @@ templ DashboardActions() {
 
 			silenceAlert(fingerprint) {
 				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+				if (!alert) { return; }
 				this.currentSilenceAlert = alert;
 				this.silenceAction = 'single';
 				this.silenceReason = '';

@@ -390,12 +390,12 @@ templ DashboardData() {
 							bVal = severityOrder[b.severity] || 0;
 							break;
 						case 'status':
-							aVal = a.status.toLowerCase();
-							bVal = b.status.toLowerCase();
+							aVal = ((typeof a.status === 'object' ? a.status?.state : a.status) || '').toLowerCase();
+							bVal = ((typeof b.status === 'object' ? b.status?.state : b.status) || '').toLowerCase();
 							break;
 						case 'instance':
-							aVal = a.instance.toLowerCase();
-							bVal = b.instance.toLowerCase();
+							aVal = (a.instance || '').toLowerCase();
+							bVal = (b.instance || '').toLowerCase();
 							break;
 						case 'team':
 							aVal = (a.labels.team || '').toLowerCase();
