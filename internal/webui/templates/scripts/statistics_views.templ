@@ -94,8 +94,11 @@ templ StatisticsViews() {
 						if (data.success) {
 							this.views = data.views || [];
 							// Check if there's a default view to apply (only on initial load)
+							// Skip if URL params are present — they represent an explicit deep-link
+							// that must not be silently overwritten by the user's default view.
 							const defaultView = this.views.find(v => v.is_default);
-							if (defaultView) {
+							const hasUrlParams = new URLSearchParams(window.location.search).toString().length > 0;
+							if (defaultView && !hasUrlParams) {
 								this.applyView(defaultView, false); // Don't query immediately
 							}
 						} else {

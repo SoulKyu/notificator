@@ -82,6 +82,22 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							</svg>
 							<span class="hidden sm:inline">Export</span>
 						</button>
+
+						<!-- Share -->
+						<button
+							@click="navigator.clipboard.writeText(window.location.href).then(() => { shareButtonCopied = true; setTimeout(() => { shareButtonCopied = false; }, 1500); })"
+							:disabled="!hasData"
+							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+							:class="shareButtonCopied ? 'text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/30' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+						>
+							<svg x-show="!shareButtonCopied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+							</svg>
+							<svg x-show="shareButtonCopied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+							</svg>
+							<span class="hidden sm:inline" x-text="shareButtonCopied ? 'Copied!' : 'Share'"></span>
+						</button>
 					</div>
 				</div>
 			</div>
@@ -1856,6 +1872,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				// Flapping
 				flappingData: [],
 
+				// Share button transient state
+				shareButtonCopied: false,
+
 				filters: {
 					startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
 					endDate: new Date().toISOString().split('T')[0], // Today
@@ -2080,6 +2099,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					// Apply on-call preset from user's localStorage settings (overrides hardcoded 18:00/08:00)
 					this.setTimePreset('oncall');
 
+					// Restore any filters previously serialized into the URL (URL params win over defaults)
+					this.hydrateFiltersFromURL();
+
 					// Watch for timeSeriesView changes
 					this.$watch('timeSeriesView', () => {
 						if (this.timeSeriesData) {
@@ -2146,6 +2168,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 						// Initialize chart visibility based on loaded data
 						this.initChartVisibility();
+
+						// Sync current filters to URL for shareability
+						this.syncFiltersToURL();
 
 						// Load comparison data if comparison mode is active
 						if (this.comparisonMode) {
@@ -4556,6 +4581,62 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 					// Show export success feedback
 					this.showExportSuccess(filename);
+				},
+
+				// Serialize current filters into the URL for deep-linking / sharing.
+				// Called after every successful queryStatistics() run.
+				syncFiltersToURL() {
+					const f = this.filters;
+					const params = new URLSearchParams();
+
+					if (f.startDate)        params.set('startDate',       f.startDate);
+					if (f.endDate)          params.set('endDate',         f.endDate);
+					if (f.groupBy)          params.set('groupBy',         f.groupBy);
+					if (f.periodType)       params.set('periodType',      f.periodType);
+					if (f.chartPeriodType)  params.set('chartPeriodType', f.chartPeriodType);
+					if (f.limit != null)    params.set('limit',           String(f.limit));
+					if (f.includeSilenced)  params.set('includeSilenced', 'true');
+					if (f.timeOfDayStart)   params.set('timeOfDayStart',  f.timeOfDayStart);
+					if (f.timeOfDayEnd)     params.set('timeOfDayEnd',    f.timeOfDayEnd);
+					if (f.weekendMode)      params.set('weekendMode',     f.weekendMode);
+					if (f.timeRangeMode)    params.set('timeRangeMode',   f.timeRangeMode);
+					if (f.absoluteFromTime) params.set('absoluteFromTime', f.absoluteFromTime);
+					if (f.absoluteUntilTime) params.set('absoluteUntilTime', f.absoluteUntilTime);
+					if (f.severities && f.severities.length > 0) params.set('severities', f.severities.join(','));
+					if (f.teams && f.teams.length > 0)           params.set('teams',      f.teams.join(','));
+
+					window.history.replaceState(null, '', '/statistics?' + params.toString());
+				},
+
+				// Restore filters from URL search params on page load.
+				// Called in initPage() AFTER setTimePreset('oncall') so URL params override defaults.
+				// Only assigns a filter when the param is actually present in the URL.
+				hydrateFiltersFromURL() {
+					const params = new URLSearchParams(window.location.search);
+					if (!params.toString()) return; // nothing to restore
+
+					const f = this.filters;
+					if (params.has('startDate'))        f.startDate        = params.get('startDate');
+					if (params.has('endDate'))          f.endDate          = params.get('endDate');
+					if (params.has('groupBy'))          f.groupBy          = params.get('groupBy');
+					if (params.has('periodType'))       f.periodType       = params.get('periodType');
+					if (params.has('chartPeriodType'))  f.chartPeriodType  = params.get('chartPeriodType');
+					if (params.has('limit'))            f.limit            = parseInt(params.get('limit'), 10);
+					if (params.has('includeSilenced'))  f.includeSilenced  = params.get('includeSilenced') === 'true';
+					if (params.has('timeOfDayStart'))   f.timeOfDayStart   = params.get('timeOfDayStart');
+					if (params.has('timeOfDayEnd'))     f.timeOfDayEnd     = params.get('timeOfDayEnd');
+					if (params.has('weekendMode'))      f.weekendMode      = params.get('weekendMode');
+					if (params.has('timeRangeMode'))    f.timeRangeMode    = params.get('timeRangeMode');
+					if (params.has('absoluteFromTime')) f.absoluteFromTime = params.get('absoluteFromTime');
+					if (params.has('absoluteUntilTime')) f.absoluteUntilTime = params.get('absoluteUntilTime');
+					if (params.has('severities')) {
+						const sv = params.get('severities');
+						f.severities = sv ? sv.split(',') : [];
+					}
+					if (params.has('teams')) {
+						const t = params.get('teams');
+						f.teams = t ? t.split(',') : [];
+					}
 				},
 
 				showExportSuccess(filename) {
