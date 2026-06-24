@@ -16,8 +16,6 @@ templ DashboardUtilities() {
 				if (this.viewMode !== 'list') params.set('viewMode', this.viewMode);
 				if (this.sortField !== 'duration') params.set('sortField', this.sortField);
 				if (this.sortDirection !== 'asc') params.set('sortDirection', this.sortDirection);
-				if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
-				if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
 				
 				const queryString = params.toString();
 				const newURL = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
@@ -40,8 +38,6 @@ templ DashboardUtilities() {
 				this.viewMode = params.get('viewMode') || 'list';
 				this.sortField = params.get('sortField') || 'duration';
 				this.sortDirection = params.get('sortDirection') || 'asc';
-				this.acknowledgmentFilter = params.get('acknowledged') || null;
-				this.commentsFilter = params.get('hasComments') || null;
 			},
 
 			checkAlertFromURL() {
@@ -95,8 +91,6 @@ templ DashboardUtilities() {
 					teams: [],
 					alertNames: []
 				};
-				this.acknowledgmentFilter = null;
-				this.commentsFilter = null;
 				this.activePresetName = null; // Clear active preset indicator
 				this.loadDashboardData();
 			},
@@ -120,9 +114,7 @@ templ DashboardUtilities() {
 					   this.filters.severities.length > 0 ||
 					   this.filters.statuses.length > 0 ||
 					   this.filters.teams.length > 0 ||
-					   this.filters.alertNames.length > 0 ||
-					   this.acknowledgmentFilter !== null ||
-					   this.commentsFilter !== null;
+					   this.filters.alertNames.length > 0;
 			},
 
 			// Selection management

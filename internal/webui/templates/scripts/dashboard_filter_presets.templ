@@ -172,8 +172,6 @@ templ DashboardFilterPresetsMixin() {
 			this.filters.statuses = data.statuses || [];
 			this.filters.teams = data.teams || [];
 			this.filters.alertNames = data.alert_names || [];
-			this.acknowledgmentFilter = data.acknowledged || null;
-			this.commentsFilter = data.comments || null;
 
 			// Apply display settings
 			if (data.display_mode) this.displayMode = data.display_mode;
@@ -287,8 +285,6 @@ templ DashboardFilterPresetsMixin() {
 				statuses: this.filters.statuses,
 				teams: this.filters.teams,
 				alert_names: this.filters.alertNames,
-				acknowledged: this.acknowledgmentFilter,
-				comments: this.commentsFilter,
 				display_mode: this.displayMode,
 				view_mode: this.viewMode,
 				group_by: this.groupByLabel,

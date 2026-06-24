@@ -689,54 +689,6 @@ templ NewDashboardContent() {
 								</div>
 							</div>
 
-							<!-- Additional Filters -->
-							<div class="relative" x-data="{ open: false }">
-								<button @click="open = !open" type="button"
-										class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-									<span>More</span>
-									<svg class="ml-2 -mr-1 h-4 w-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
-										<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-									</svg>
-								</button>
-								
-								<div x-show="open" x-cloak @click.away="open = false" x-transition
-									 class="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
-									<div class="py-2">
-										<div class="px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT">
-											<span class="text-sm font-medium text-gray-700 dark:text-gray-200">Additional Filters</span>
-										</div>
-										
-										<label for="filter-acknowledged" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" id="filter-acknowledged" name="filter-acknowledged"
-												   x-model="acknowledgmentFilter" value="acknowledged" @change="applyFilters()"
-												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
-											<span>Only Acknowledged</span>
-										</label>
-
-										<label for="filter-not-acknowledged" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" id="filter-not-acknowledged" name="filter-not-acknowledged"
-												   x-model="acknowledgmentFilter" value="not-acknowledged" @change="applyFilters()"
-												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
-											<span>Only Not Acknowledged</span>
-										</label>
-
-										<label for="filter-with-comments" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" id="filter-with-comments" name="filter-with-comments"
-												   x-model="commentsFilter" value="with-comments" @change="applyFilters()"
-												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
-											<span>With Comments</span>
-										</label>
-
-										<label for="filter-without-comments" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
-											<input type="checkbox" id="filter-without-comments" name="filter-without-comments"
-												   x-model="commentsFilter" value="without-comments" @change="applyFilters()"
-												   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3">
-											<span>Without Comments</span>
-										</label>
-									</div>
-								</div>
-							</div>
-
 							<!-- Saved Filters Button -->
 							<button @click="showFilterPresetsModal = true; loadFilterPresets()"
 									class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">

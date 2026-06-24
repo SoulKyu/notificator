@@ -30,8 +30,6 @@ templ DashboardData() {
 					params.set('page', this.currentPage.toString());
 					params.set('limit', this.itemsPerPage.toString());
 					
-					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
-					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
 					
 					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
 						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
@@ -114,8 +112,6 @@ templ DashboardData() {
 					params.set('page', this.currentPage.toString());
 					params.set('limit', this.itemsPerPage.toString());
 					
-					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
-					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
 					
 					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
 						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
@@ -207,8 +203,6 @@ templ DashboardData() {
 					params.set('page', this.currentPage.toString());
 					params.set('limit', this.itemsPerPage.toString());
 					
-					if (this.acknowledgmentFilter) params.set('acknowledged', this.acknowledgmentFilter);
-					if (this.commentsFilter) params.set('hasComments', this.commentsFilter);
 					
 					if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0) {
 						params.set('resolvedAlertsLimit', this.settings.resolvedAlertsLimit.toString());
@@ -493,28 +487,6 @@ templ DashboardData() {
 						if (this.alertMatchesHiddenRule(alert, rule)) {
 							return false;
 						}
-					}
-				}
-
-				// Check acknowledgment filter
-				if (this.acknowledgmentFilter) {
-					const isAcknowledged = alert.isAcknowledged || false;
-					if (this.acknowledgmentFilter === 'acknowledged' && !isAcknowledged) {
-						return false;
-					}
-					if (this.acknowledgmentFilter === 'unacknowledged' && isAcknowledged) {
-						return false;
-					}
-				}
-
-				// Check comments filter
-				if (this.commentsFilter) {
-					const hasComments = (alert.commentCount || 0) > 0;
-					if (this.commentsFilter === 'with' && !hasComments) {
-						return false;
-					}
-					if (this.commentsFilter === 'without' && hasComments) {
-						return false;
 					}
 				}
 
