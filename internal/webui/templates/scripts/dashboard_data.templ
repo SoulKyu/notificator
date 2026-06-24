@@ -55,6 +55,12 @@ templ DashboardData() {
 					const result = await response.json();
 					
 					if (result.success) {
+						// Apply colors first so the very first render is correctly colored.
+						// The server embeds them in the response, removing the second
+						// /alert-colors round-trip that caused the color-lag race.
+						if (result.data.colors) {
+							this.alertColors = result.data.colors;
+						}
 						this.alerts = result.data.alerts || [];
 						this.groups = result.data.groups || [];
 						this.metadata = result.data.metadata;
@@ -62,7 +68,10 @@ templ DashboardData() {
 						this.settings = { ...this.settings, ...result.data.settings };
 						this.lastUpdateTime = Date.now();
 
-						await this.loadAlertColors();
+						// Fallback only if the server didn't embed colors
+						if (!result.data.colors) {
+							await this.loadAlertColors();
+						}
 
 						// Initialize notification service with seen alerts on first load
 						if (window.notificationService && this.currentUser) {

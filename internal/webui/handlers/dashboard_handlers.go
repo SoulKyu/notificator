@@ -206,6 +206,10 @@ func GetDashboardData(c *gin.Context) {
 	response.Metadata.TotalCount = totalCount // Add total count for pagination
 	response.Settings = *settings
 
+	// Embed colors for the rendered alerts so the first paint is correctly
+	// colored (avoids a second /alert-colors round-trip and the color-lag race)
+	response.Colors = computeAlertColorsMap(paginatedAlerts, sessionID)
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(response))
 }
 
@@ -1201,38 +1205,11 @@ func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAl
 	// Get updated metadata
 	metadata := getDashboardMetadata(currentAlerts, filters, userID, sessionID)
 
-	// Get colors for new and updated alerts
-	var colorsMap map[string]interface{}
-	if colorService != nil && sessionID != "" && (len(newAlerts) > 0 || len(updatedAlerts) > 0) {
-		// Combine new and updated alerts for color processing
-		alertsForColors := make([]*webuimodels.DashboardAlert, 0, len(newAlerts)+len(updatedAlerts))
-		alertsForColors = append(alertsForColors, newAlerts...)
-		alertsForColors = append(alertsForColors, updatedAlerts...)
-
-		// Convert to model alerts
-		modelAlerts := make([]*models.Alert, len(alertsForColors))
-		fingerprintToAlert := make(map[string]*models.Alert)
-
-		for i, alert := range alertsForColors {
-			modelAlert := convertDashboardToModel(alert)
-			modelAlerts[i] = modelAlert
-			fingerprintToAlert[alert.Fingerprint] = modelAlert
-		}
-
-		// Get colors
-		colorResults := colorService.GetAlertColorsOptimized(modelAlerts, sessionID)
-
-		// Remap results to use correct fingerprints
-		finalResults := make(map[string]interface{})
-		for fingerprint, alert := range fingerprintToAlert {
-			generatedFingerprint := alert.GetFingerprint()
-			if colorResult, exists := colorResults[generatedFingerprint]; exists {
-				finalResults[fingerprint] = colorResult
-			}
-		}
-
-		colorsMap = finalResults
-	}
+	// Get colors for new and updated alerts (combined; helper returns nil if none)
+	alertsForColors := make([]*webuimodels.DashboardAlert, 0, len(newAlerts)+len(updatedAlerts))
+	alertsForColors = append(alertsForColors, newAlerts...)
+	alertsForColors = append(alertsForColors, updatedAlerts...)
+	colorsMap := computeAlertColorsMap(alertsForColors, sessionID)
 
 	// Create incremental response
 	now := time.Now().Unix()
@@ -1707,6 +1684,31 @@ func GetAvailableAlertLabels(c *gin.Context) {
 	}))
 }
 
+// computeAlertColorsMap computes per-fingerprint color results for the given
+// alerts, keyed by DashboardAlert fingerprint. Returns nil when colors cannot
+// be computed (no color service, no session, or no alerts). Shared by
+// GetDashboardData (embedded colors), GetAlertColors, and processIncremental.
+func computeAlertColorsMap(alerts []*webuimodels.DashboardAlert, sessionID string) map[string]interface{} {
+	if colorService == nil || sessionID == "" || len(alerts) == 0 {
+		return nil
+	}
+	modelAlerts := make([]*models.Alert, len(alerts))
+	fingerprintToAlert := make(map[string]*models.Alert, len(alerts))
+	for i, alert := range alerts {
+		modelAlert := convertDashboardToModel(alert)
+		modelAlerts[i] = modelAlert
+		fingerprintToAlert[alert.Fingerprint] = modelAlert
+	}
+	colorResults := colorService.GetAlertColorsOptimized(modelAlerts, sessionID)
+	finalResults := make(map[string]interface{}, len(fingerprintToAlert))
+	for fingerprint, modelAlert := range fingerprintToAlert {
+		if colorResult, exists := colorResults[modelAlert.GetFingerprint()]; exists {
+			finalResults[fingerprint] = colorResult
+		}
+	}
+	return finalResults
+}
+
 func GetAlertColors(c *gin.Context) {
 	if alertCache == nil {
 		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Dashboard cache not ready"))
@@ -1752,35 +1754,13 @@ func GetAlertColors(c *gin.Context) {
 	// Apply filters (same as dashboard data)
 	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID)
 
-	// Build fingerprint to alert mapping
-	fingerprintToAlert := make(map[string]*models.Alert)
-	var modelAlerts []*models.Alert
-
-	for _, alert := range filteredAlerts {
-		modelAlert := convertDashboardToModel(alert)
-		modelAlerts = append(modelAlerts, modelAlert)
-		// Use the existing fingerprint from DashboardAlert
-		fingerprintToAlert[alert.Fingerprint] = modelAlert
-	}
-
 	// Check if color service is available
 	if colorService == nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Color service not available"))
 		return
 	}
 
-	// Get optimized colors for all alerts
-	colorResults := colorService.GetAlertColorsOptimized(modelAlerts, sessionID)
-
-	// Remap results to use the correct fingerprints
-	finalResults := make(map[string]*services.AlertColorResult)
-	for fingerprint, alert := range fingerprintToAlert {
-		// Find the color result for this alert (it might have wrong fingerprint)
-		generatedFingerprint := alert.GetFingerprint()
-		if colorResult, exists := colorResults[generatedFingerprint]; exists {
-			finalResults[fingerprint] = colorResult
-		}
-	}
+	finalResults := computeAlertColorsMap(filteredAlerts, sessionID)
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
 		"colors":     finalResults,

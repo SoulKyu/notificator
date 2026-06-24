@@ -139,10 +139,11 @@ type DashboardIncrementalUpdate struct {
 
 // DashboardResponse represents the API response for dashboard data
 type DashboardResponse struct {
-	Alerts   []DashboardAlert  `json:"alerts"`
-	Groups   []AlertGroup      `json:"groups,omitempty"` // Only present in group view
-	Metadata DashboardMetadata `json:"metadata"`
-	Settings DashboardSettings `json:"settings"`
+	Alerts   []DashboardAlert       `json:"alerts"`
+	Groups   []AlertGroup           `json:"groups,omitempty"` // Only present in group view
+	Metadata DashboardMetadata      `json:"metadata"`
+	Settings DashboardSettings      `json:"settings"`
+	Colors   map[string]interface{} `json:"colors,omitempty"` // fingerprint -> ColorResult, embedded so first render is correctly colored
 }
 
 // AlertGroup represents a group of alerts for group view
