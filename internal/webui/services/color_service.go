@@ -1,8 +1,8 @@
 package services
 
 import (
-	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -202,13 +202,22 @@ func (cs *ColorService) buildLookupKey(conditions map[string]string) string {
 		return "*"
 	}
 
-	keyData := make(map[string]string)
-	for k, v := range conditions {
-		keyData[k] = v
+	keys := make([]string, 0, len(conditions))
+	for k := range conditions {
+		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 
-	jsonKey, _ := json.Marshal(keyData)
-	return string(jsonKey)
+	var sb strings.Builder
+	for i, k := range keys {
+		if i > 0 {
+			sb.WriteByte('\x00')
+		}
+		sb.WriteString(k)
+		sb.WriteByte('=')
+		sb.WriteString(conditions[k])
+	}
+	return sb.String()
 }
 
 func (cs *ColorService) findColorMatch(alert *models.Alert, cache *ColorPreferenceCache) *ColorMatch {

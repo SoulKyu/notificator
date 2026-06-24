@@ -61,6 +61,7 @@ type AlertCache struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	refreshTicker *time.Ticker
+	tickerMu      sync.Mutex // guards refreshTicker pointer only
 }
 
 func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.BackendClient, resolvedRetentionDays int, syncInterval time.Duration) *AlertCache {
@@ -111,21 +112,27 @@ func (ac *AlertCache) Stop() {
 
 func (ac *AlertCache) SetRefreshInterval(interval time.Duration) {
 	ac.mu.Lock()
-	defer ac.mu.Unlock()
-
 	ac.refreshInterval = interval
+	ac.mu.Unlock()
+
+	ac.tickerMu.Lock()
 	if ac.refreshTicker != nil {
 		ac.refreshTicker.Stop()
 		ac.refreshTicker = time.NewTicker(interval)
 	}
+	ac.tickerMu.Unlock()
 }
 
 func (ac *AlertCache) backgroundRefresh() {
 	for {
+		ac.tickerMu.Lock()
+		tickerC := ac.refreshTicker.C
+		ac.tickerMu.Unlock()
+
 		select {
 		case <-ac.ctx.Done():
 			return
-		case <-ac.refreshTicker.C:
+		case <-tickerC:
 			ac.refreshAlerts()
 		}
 	}
@@ -203,8 +210,11 @@ func (ac *AlertCache) refreshAlerts() {
 				}
 			}(alert)
 
-			// Capture complete alert data with comments and acknowledgments for backend storage
-			go ac.storeResolvedAlertInBackend(alert)
+			// Capture complete alert data with comments and acknowledgments for backend storage.
+			// Copy the struct before spawning the goroutine so it operates on a snapshot,
+			// not the cache-resident pointer which may be mutated by concurrent writers.
+			alertCopy := *alert
+			go ac.storeResolvedAlertInBackend(&alertCopy)
 
 			delete(ac.alerts, fingerprint)
 
@@ -427,14 +437,13 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 func (ac *AlertCache) loadCommentCountsEfficiently() {
 	log.Printf("Loading comment counts for all alerts using batch query...")
 
-	ac.mu.Lock()
-	defer ac.mu.Unlock()
-
-	// Collect all fingerprints
+	// Step 1: collect fingerprints under RLock (no write needed)
+	ac.mu.RLock()
 	fingerprints := make([]string, 0, len(ac.alerts))
 	for fingerprint := range ac.alerts {
 		fingerprints = append(fingerprints, fingerprint)
 	}
+	ac.mu.RUnlock()
 
 	// Handle empty case
 	if len(fingerprints) == 0 {
@@ -442,19 +451,22 @@ func (ac *AlertCache) loadCommentCountsEfficiently() {
 		return
 	}
 
-	// Get all comment counts in a single batch query
+	// Step 2: call gRPC with NO lock held
 	counts, err := ac.backendClient.GetCommentCountsBatch(fingerprints)
 	if err != nil {
 		log.Printf("Failed to load comment counts batch: %v", err)
 		// Reset all comment counts to 0 on error
+		ac.mu.Lock()
 		for _, alert := range ac.alerts {
 			alert.CommentCount = 0
 		}
+		ac.mu.Unlock()
 		return
 	}
 
-	// Apply counts to alerts
+	// Step 3: write results back under Lock
 	alertsWithComments := 0
+	ac.mu.Lock()
 	for fingerprint, alert := range ac.alerts {
 		if count, exists := counts[fingerprint]; exists {
 			alert.CommentCount = count
@@ -465,8 +477,10 @@ func (ac *AlertCache) loadCommentCountsEfficiently() {
 			alert.CommentCount = 0
 		}
 	}
+	totalAlerts := len(ac.alerts)
+	ac.mu.Unlock()
 
-	log.Printf("Successfully loaded comment counts for %d alerts (%d with comments) using batch query", len(ac.alerts), alertsWithComments)
+	log.Printf("Successfully loaded comment counts for %d alerts (%d with comments) using batch query", totalAlerts, alertsWithComments)
 }
 
 func (ac *AlertCache) GetAllAlerts() []*webuimodels.DashboardAlert {
