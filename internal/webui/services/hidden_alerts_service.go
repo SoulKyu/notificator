@@ -48,70 +48,85 @@ func (s *HiddenAlertsService) LoadUserData(sessionID string) error {
 	// Get userID from session for cache key
 	// Note: We'll need to pass userID separately or get it from session
 	// For now, we'll use sessionID as the cache key
-	
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	
-	// Initialize maps if needed
-	if s.userHiddenAlerts[sessionID] == nil {
-		s.userHiddenAlerts[sessionID] = make(map[string]bool)
+
+	// C4 fix: perform gRPC calls BEFORE acquiring the write lock to avoid
+	// holding the lock across potentially long-running I/O operations.
+	// GetUserHiddenAlerts and GetUserHiddenRules do not take s.mu, so this is safe.
+
+	// Fetch hidden alerts from backend (no lock held)
+	hiddenAlerts, hiddenAlertsErr := s.GetUserHiddenAlerts(sessionID)
+	if hiddenAlertsErr != nil {
+		log.Printf("Failed to load hidden alerts: %v", hiddenAlertsErr)
 	}
-	
-	if s.userHiddenRules[sessionID] == nil {
-		s.userHiddenRules[sessionID] = []models.UserHiddenRule{}
+
+	// Fetch hidden rules from backend (no lock held)
+	rules, hiddenRulesErr := s.GetUserHiddenRules(sessionID)
+	if hiddenRulesErr != nil {
+		log.Printf("Failed to load hidden rules: %v", hiddenRulesErr)
 	}
-	
-	if s.compiledRegexRules[sessionID] == nil {
-		s.compiledRegexRules[sessionID] = make(map[string]*regexp.Regexp)
-	}
-	
-	// Fetch hidden alerts from backend
-	hiddenAlerts, err := s.GetUserHiddenAlerts(sessionID)
-	if err != nil {
-		log.Printf("Failed to load hidden alerts: %v", err)
-		// Continue anyway, don't fail completely
-	} else {
-		// Populate the cache with hidden alerts
-		for _, alert := range hiddenAlerts {
-			s.userHiddenAlerts[sessionID][alert.Fingerprint] = true
-		}
-	}
-	
-	// Fetch hidden rules from backend
-	rules, err := s.GetUserHiddenRules(sessionID)
-	if err != nil {
-		log.Printf("Failed to load hidden rules: %v", err)
-		// Continue anyway
-	} else {
-		s.userHiddenRules[sessionID] = rules
-		
-		// Compile regex patterns for rules
+
+	// Pre-compile regex patterns outside the lock
+	compiledRegexes := make(map[string]*regexp.Regexp)
+	if hiddenRulesErr == nil {
 		for _, rule := range rules {
 			if rule.IsRegex && rule.LabelValue != "" {
 				regex, err := regexp.Compile(rule.LabelValue)
 				if err != nil {
 					log.Printf("Failed to compile regex for rule %s: %v", rule.ID, err)
 				} else {
-					s.compiledRegexRules[sessionID][rule.ID] = regex
+					compiledRegexes[rule.ID] = regex
 				}
 			}
 		}
 	}
-	
+
+	// Acquire write lock only to write results into the maps
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Initialize maps if needed
+	if s.userHiddenAlerts[sessionID] == nil {
+		s.userHiddenAlerts[sessionID] = make(map[string]bool)
+	}
+
+	if s.userHiddenRules[sessionID] == nil {
+		s.userHiddenRules[sessionID] = []models.UserHiddenRule{}
+	}
+
+	if s.compiledRegexRules[sessionID] == nil {
+		s.compiledRegexRules[sessionID] = make(map[string]*regexp.Regexp)
+	}
+
+	// Populate cache with hidden alerts
+	if hiddenAlertsErr == nil {
+		for _, alert := range hiddenAlerts {
+			s.userHiddenAlerts[sessionID][alert.Fingerprint] = true
+		}
+	}
+
+	// Populate cache with rules and compiled regexes
+	if hiddenRulesErr == nil {
+		s.userHiddenRules[sessionID] = rules
+		for id, regex := range compiledRegexes {
+			s.compiledRegexRules[sessionID][id] = regex
+		}
+	}
+
 	return nil
 }
 
 // IsAlertHidden checks if an alert is hidden for a user using sessionID
 func (s *HiddenAlertsService) IsAlertHidden(sessionID string, alert *webuimodels.DashboardAlert) bool {
-	// Ensure data is loaded for this session
-	if s.userHiddenAlerts[sessionID] == nil {
-		// Try to load data if not cached
-		if err := s.LoadUserData(sessionID); err != nil {
-			log.Printf("Failed to load user data for hidden alerts: %v", err)
-			return false
-		}
+	// C3 fix: check the map under a read lock to avoid a racy map read.
+	s.mu.RLock()
+	loaded := s.userHiddenAlerts[sessionID] != nil
+	s.mu.RUnlock()
+
+	if !loaded {
+		// Try to load data if not cached; LoadUserData acquires its own write lock.
+		_ = s.LoadUserData(sessionID)
 	}
-	
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	
