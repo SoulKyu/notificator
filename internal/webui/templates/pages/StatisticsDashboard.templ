@@ -1876,6 +1876,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							case 'months':
 								fromDate.setMonth(fromDate.getMonth() - value);
 								break;
+							case 'years':
+								fromDate.setFullYear(fromDate.getFullYear() - value);
+								break;
 						}
 						this.filters.startDate = fromDate.toISOString().split('T')[0];
 					}
@@ -1903,6 +1906,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								break;
 							case 'months':
 								untilDate.setMonth(untilDate.getMonth() - value);
+								break;
+							case 'years':
+								untilDate.setFullYear(untilDate.getFullYear() - value);
 								break;
 						}
 						this.filters.endDate = untilDate.toISOString().split('T')[0];
@@ -1936,7 +1942,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					try {
 						const payload = {
 							start_date: this.filters.startDate + 'T00:00:00Z',
-							end_date: this.filters.endDate + 'T23:59:59Z',
+							end_date: this.filters.timeRangeMode === 'absolute' && !this.filters.relativeUntil.now
+								? this.filters.endDate + 'T' + (this.filters.absoluteUntilTime || '23:59') + ':00Z'
+								: (this.filters.relativeUntil.now ? new Date().toISOString() : this.filters.endDate + 'T23:59:59Z'),
 							group_by: this.filters.groupBy,
 							period_type: this.filters.periodType,
 							limit: this.filters.groupBy === 'alert_name' ? this.filters.limit : 0,
@@ -2094,13 +2102,13 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				isTimeFilterActive() {
 					return this.filters.timeOfDayStart !== '00:00' ||
 						   this.filters.timeOfDayEnd !== '23:59' ||
-						   this.filters.weekendMode !== 'same_hours';
+						   this.filters.weekendMode !== 'full_weekends';
 				},
 
 				resetTimeFilter() {
 					this.filters.timeOfDayStart = '00:00';
 					this.filters.timeOfDayEnd = '23:59';
-					this.filters.weekendMode = 'same_hours';
+					this.filters.weekendMode = 'full_weekends';
 					this.filters.activePreset = null;
 					// Sync raw values
 					this.timeOfDayStartRaw = '00:00';
@@ -2233,7 +2241,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 								this.filters.timeOfDayStart = '00:00';
 								this.filters.timeOfDayEnd = '23:59';
 								this.filters.activePreset = null;
-								this.filters.weekendMode = 'same_hours';
+								this.filters.weekendMode = 'full_weekends';
 								this.timeOfDayStartRaw = '00:00';
 								this.timeOfDayEndRaw = '23:59';
 							}
@@ -2408,27 +2416,27 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				},
 
 				getOverallAvgMTTR() {
-					if (!this.statsData?.statistics) return 0;
-					const stats = Object.values(this.statsData.statistics);
-					if (stats.length === 0) return 0;
-					const total = stats.reduce((sum, s) => sum + (s.avg_mttr_seconds || 0), 0);
-					return total / stats.length;
+					const stats = Object.values(this.statsData?.statistics || {});
+					const totalAlerts = stats.reduce((s, g) => s + (g.count || 0), 0);
+					if (totalAlerts === 0) return 0;
+					const totalSecs = stats.reduce((s, g) => s + ((g.total_mttr_seconds != null) ? g.total_mttr_seconds : (g.avg_mttr_seconds || 0) * (g.count || 0)), 0);
+					return totalSecs / totalAlerts;
 				},
 
 				getOverallAvgMTTA() {
-					if (!this.statsData?.statistics) return 0;
-					const stats = Object.values(this.statsData.statistics);
-					if (stats.length === 0) return 0;
-					const total = stats.reduce((sum, s) => sum + (s.avg_mtta_seconds || 0), 0);
-					return total / stats.length;
+					const stats = Object.values(this.statsData?.statistics || {});
+					const totalAlerts = stats.reduce((s, g) => s + (g.count || 0), 0);
+					if (totalAlerts === 0) return 0;
+					const totalSecs = stats.reduce((s, g) => s + ((g.total_mtta_seconds != null) ? g.total_mtta_seconds : (g.avg_mtta_seconds || 0) * (g.count || 0)), 0);
+					return totalSecs / totalAlerts;
 				},
 
 				getOverallAvgFixTime() {
-					if (!this.statsData?.statistics) return 0;
-					const stats = Object.values(this.statsData.statistics);
-					if (stats.length === 0) return 0;
-					const total = stats.reduce((sum, s) => sum + (s.avg_fix_time_seconds || 0), 0);
-					return total / stats.length;
+					const stats = Object.values(this.statsData?.statistics || {});
+					const totalAlerts = stats.reduce((s, g) => s + (g.count || 0), 0);
+					if (totalAlerts === 0) return 0;
+					const totalSecs = stats.reduce((s, g) => s + ((g.total_fix_time_seconds != null) ? g.total_fix_time_seconds : (g.avg_fix_time_seconds || 0) * (g.count || 0)), 0);
+					return totalSecs / totalAlerts;
 				},
 
 				getSeverityClass(severity) {
@@ -2882,7 +2890,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				// Set chart period type and reload data
 				setChartPeriodType(type) {
 					this.filters.chartPeriodType = type;
-					this.loadTrendData();
+					this.loadTimeSeriesData().then(() => this.updateTimeSeriesChart());
 				},
 
 				// Generate complete date range for chart display
@@ -4309,15 +4317,25 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				},
 
 				showExportSuccess(filename) {
-					// Create toast notification
+					// Create toast notification using DOM methods to avoid XSS via innerHTML
 					const toast = document.createElement('div');
 					toast.className = 'fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-fade-in';
-					toast.innerHTML = `
-						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-						</svg>
-						<span>Exported: ${filename}</span>
-					`;
+					const svgNS = 'http://www.w3.org/2000/svg';
+					const svg = document.createElementNS(svgNS, 'svg');
+					svg.setAttribute('class', 'w-5 h-5');
+					svg.setAttribute('fill', 'none');
+					svg.setAttribute('stroke', 'currentColor');
+					svg.setAttribute('viewBox', '0 0 24 24');
+					const path = document.createElementNS(svgNS, 'path');
+					path.setAttribute('stroke-linecap', 'round');
+					path.setAttribute('stroke-linejoin', 'round');
+					path.setAttribute('stroke-width', '2');
+					path.setAttribute('d', 'M5 13l4 4L19 7');
+					svg.appendChild(path);
+					const span = document.createElement('span');
+					span.textContent = 'Exported: ' + String(filename);
+					toast.appendChild(svg);
+					toast.appendChild(span);
 					document.body.appendChild(toast);
 
 					// Remove after 3 seconds

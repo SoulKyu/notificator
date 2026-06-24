@@ -413,35 +413,38 @@ templ DashboardFilterPresetsMixin() {
 
 		// Get filter summary for display
 		getFilterSummary() {
+			const _amp = String.fromCharCode(38);
+			const _esc = {'\x26':_amp+'amp;','\x3C':_amp+'lt;','\x3E':_amp+'gt;','\x22':_amp+'quot;','\x27':_amp+'#039;'};
+			const esc = s => String(s).replace(/[\x26\x3C\x3E\x22\x27]/g, c => _esc[c]);
 			const parts = [];
 
 			if (this.searchQuery) {
-				parts.push(`<div><strong>Search:</strong> ${this.searchQuery}</div>`);
+				parts.push(`<div><strong>Search:</strong> ${esc(this.searchQuery)}</div>`);
 			}
 			if (this.filters.alertmanagers.length > 0) {
-				parts.push(`<div><strong>Alertmanagers:</strong> ${this.filters.alertmanagers.join(', ')}</div>`);
+				parts.push(`<div><strong>Alertmanagers:</strong> ${this.filters.alertmanagers.map(esc).join(', ')}</div>`);
 			}
 			if (this.filters.severities.length > 0) {
-				parts.push(`<div><strong>Severities:</strong> ${this.filters.severities.join(', ')}</div>`);
+				parts.push(`<div><strong>Severities:</strong> ${this.filters.severities.map(esc).join(', ')}</div>`);
 			}
 			if (this.filters.statuses.length > 0) {
-				parts.push(`<div><strong>Statuses:</strong> ${this.filters.statuses.join(', ')}</div>`);
+				parts.push(`<div><strong>Statuses:</strong> ${this.filters.statuses.map(esc).join(', ')}</div>`);
 			}
 			if (this.filters.teams.length > 0) {
-				parts.push(`<div><strong>Teams:</strong> ${this.filters.teams.join(', ')}</div>`);
+				parts.push(`<div><strong>Teams:</strong> ${this.filters.teams.map(esc).join(', ')}</div>`);
 			}
 			if (this.filters.alertNames.length > 0) {
-				parts.push(`<div><strong>Alert Names:</strong> ${this.filters.alertNames.join(', ')}</div>`);
+				parts.push(`<div><strong>Alert Names:</strong> ${this.filters.alertNames.map(esc).join(', ')}</div>`);
 			}
 
-			parts.push(`<div><strong>Display Mode:</strong> ${this.displayMode}</div>`);
-			parts.push(`<div><strong>View Mode:</strong> ${this.viewMode}</div>`);
+			parts.push(`<div><strong>Display Mode:</strong> ${esc(this.displayMode)}</div>`);
+			parts.push(`<div><strong>View Mode:</strong> ${esc(this.viewMode)}</div>`);
 
 			if (this.viewMode === 'group') {
-				parts.push(`<div><strong>Group By:</strong> ${this.groupByLabel}</div>`);
+				parts.push(`<div><strong>Group By:</strong> ${esc(this.groupByLabel)}</div>`);
 			}
 
-			parts.push(`<div><strong>Sort:</strong> ${this.sortField} (${this.sortDirection})</div>`);
+			parts.push(`<div><strong>Sort:</strong> ${esc(this.sortField)} (${esc(this.sortDirection)})</div>`);
 			parts.push(`<div><strong>Items Per Page:</strong> ${this.itemsPerPage}</div>`);
 
 			// Show filter-specific hidden alerts count
