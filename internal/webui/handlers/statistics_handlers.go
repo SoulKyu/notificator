@@ -17,6 +17,14 @@ import (
 	"notificator/internal/webui/templates/pages"
 )
 
+// tsToTime converts a possibly-nil protobuf timestamp to time.Time (zero value if nil).
+func tsToTime(ts *timestamppb.Timestamp) time.Time {
+	if ts == nil {
+		return time.Time{}
+	}
+	return ts.AsTime()
+}
+
 // ==================== Statistics Query Endpoints ====================
 
 // QueryStatistics handles querying alert statistics with filters and aggregations
@@ -58,6 +66,17 @@ func QueryStatistics(c *gin.Context) {
 		return
 	}
 
+	if request.Timezone != "" {
+		if _, err := time.LoadLocation(request.Timezone); err != nil {
+			c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid timezone"))
+			return
+		}
+	}
+
+	if request.Limit > 1000 {
+		request.Limit = 1000
+	}
+
 	// Build gRPC request
 	req := &alertpb.QueryStatisticsRequest{
 		SessionId:          sessionID,
@@ -94,12 +113,14 @@ func QueryStatistics(c *gin.Context) {
 
 	// Convert response to JSON-friendly format
 	result := gin.H{
-		"time_range": gin.H{
-			"start": resp.TimeRange.Start.AsTime(),
-			"end":   resp.TimeRange.End.AsTime(),
-		},
 		"total_alerts": resp.TotalAlerts,
 		"statistics":   convertStatisticsMap(resp.Statistics),
+	}
+	if resp.TimeRange != nil {
+		result["time_range"] = gin.H{
+			"start": tsToTime(resp.TimeRange.Start),
+			"end":   tsToTime(resp.TimeRange.End),
+		}
 	}
 
 	// Add breakdown if present (for period grouping)
@@ -143,10 +164,10 @@ func GetStatisticsSummary(c *gin.Context) {
 	}
 
 	if resp.EarliestAlert != nil {
-		result["earliest_alert"] = resp.EarliestAlert.AsTime()
+		result["earliest_alert"] = tsToTime(resp.EarliestAlert)
 	}
 	if resp.LatestAlert != nil {
-		result["latest_alert"] = resp.LatestAlert.AsTime()
+		result["latest_alert"] = tsToTime(resp.LatestAlert)
 	}
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(result))
@@ -189,6 +210,9 @@ func GetAlertsByName(c *gin.Context) {
 	if request.Limit <= 0 {
 		request.Limit = 100
 	}
+	if request.Limit > 1000 {
+		request.Limit = 1000
+	}
 
 	// Query alerts
 	alerts, totalCount, err := backendClient.GetAlertsByName(
@@ -226,7 +250,7 @@ func GetAlertsByName(c *gin.Context) {
 			"fingerprint":       alert.Fingerprint,
 			"alert_name":        alert.AlertName,
 			"severity":          alert.Severity,
-			"fired_at":          alert.FiredAt.AsTime(),
+			"fired_at":          tsToTime(alert.FiredAt),
 			"resolved_at":       nil,
 			"mttr_seconds":      alert.MttrSeconds,
 			"mtta_seconds":      alert.MttaSeconds,
@@ -234,7 +258,7 @@ func GetAlertsByName(c *gin.Context) {
 			"metadata":          metadata,
 		}
 		if alert.ResolvedAt != nil {
-			result[i]["resolved_at"] = alert.ResolvedAt.AsTime()
+			result[i]["resolved_at"] = tsToTime(alert.ResolvedAt)
 		}
 	}
 
@@ -267,8 +291,8 @@ func convertBreakdownItems(items []*alertpb.BreakdownItem) []gin.H {
 	for i, item := range items {
 		result[i] = gin.H{
 			"period":      item.Period,
-			"start_time":  item.StartTime.AsTime(),
-			"end_time":    item.EndTime.AsTime(),
+			"start_time":  tsToTime(item.StartTime),
+			"end_time":    tsToTime(item.EndTime),
 			"total_count": item.TotalCount,
 			"statistics":  convertStatisticsMap(item.Statistics),
 		}
@@ -312,8 +336,8 @@ func QueryRecentlyResolved(c *gin.Context) {
 	}
 
 	var req struct {
-		StartDate       string   `json:"start_date"`
-		EndDate         string   `json:"end_date"`
+		StartDate       string   `json:"start_date" binding:"required"`
+		EndDate         string   `json:"end_date" binding:"required"`
 		Severity        []string `json:"severity"`
 		Teams           []string `json:"teams"`
 		AlertNames      []string `json:"alert_names"`
@@ -457,7 +481,7 @@ func GetResolvedAlertDetails(c *gin.Context) {
 		Fingerprint:  fingerprint,
 		Labels:       labels,
 		Annotations:  annotations,
-		StartsAt:     latestStat.FiredAt.AsTime(),
+		StartsAt:     tsToTime(latestStat.FiredAt),
 		GeneratorURL: generatorURL,
 		Source:       source,
 		IsResolved:   true,
@@ -475,7 +499,7 @@ func GetResolvedAlertDetails(c *gin.Context) {
 
 	// Set EndsAt if resolved
 	if latestStat.ResolvedAt != nil {
-		alert.EndsAt = latestStat.ResolvedAt.AsTime()
+		alert.EndsAt = tsToTime(latestStat.ResolvedAt)
 	}
 
 	// Calculate duration (using MTTR - Mean Time To Resolve)
@@ -487,11 +511,11 @@ func GetResolvedAlertDetails(c *gin.Context) {
 	details := &webuimodels.AlertDetails{
 		Alert:        alert,
 		GeneratorURL: generatorURL,
-		StartedAt:    latestStat.FiredAt.AsTime(),
+		StartedAt:    tsToTime(latestStat.FiredAt),
 	}
 
 	if latestStat.ResolvedAt != nil {
-		endTime := latestStat.ResolvedAt.AsTime()
+		endTime := tsToTime(latestStat.ResolvedAt)
 		details.EndedAt = &endTime
 		details.Duration = endTime.Sub(details.StartedAt)
 	}
@@ -506,8 +530,8 @@ func GetResolvedAlertDetails(c *gin.Context) {
 				Username:  comment.Username,
 				UserID:    comment.UserId,
 				Content:   comment.Content,
-				CreatedAt: comment.CreatedAt.AsTime(),
-				UpdatedAt: comment.CreatedAt.AsTime(),
+				CreatedAt: tsToTime(comment.CreatedAt),
+				UpdatedAt: tsToTime(comment.CreatedAt),
 			}
 		}
 	} else {
@@ -524,8 +548,8 @@ func GetResolvedAlertDetails(c *gin.Context) {
 				Username:  ack.Username,
 				UserID:    fmt.Sprintf("%d", ack.UserId),
 				Reason:    ack.Reason,
-				CreatedAt: ack.CreatedAt.AsTime(),
-				UpdatedAt: ack.CreatedAt.AsTime(),
+				CreatedAt: tsToTime(ack.CreatedAt),
+				UpdatedAt: tsToTime(ack.CreatedAt),
 			}
 		}
 	} else {
@@ -543,14 +567,14 @@ func GetResolvedAlertDetails(c *gin.Context) {
 			"fingerprint": stat.Fingerprint,
 			"alert_name":  stat.AlertName,
 			"severity":    stat.Severity,
-			"fired_at":    stat.FiredAt.AsTime(),
+			"fired_at":    tsToTime(stat.FiredAt),
 		}
 
 		if stat.ResolvedAt != nil {
-			occ["resolved_at"] = stat.ResolvedAt.AsTime()
+			occ["resolved_at"] = tsToTime(stat.ResolvedAt)
 		}
 		if stat.AcknowledgedAt != nil {
-			occ["acknowledged_at"] = stat.AcknowledgedAt.AsTime()
+			occ["acknowledged_at"] = tsToTime(stat.AcknowledgedAt)
 		}
 		if stat.MttrSeconds > 0 {
 			occ["mttr_seconds"] = stat.MttrSeconds
