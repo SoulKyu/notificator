@@ -1798,6 +1798,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				individualAlertLoading: false,
 				individualAlertOccurrences: [],
 
+				// Comment writing (individual alert modal)
+				newCommentContent: '',
+				commentSubmitting: false,
+
 				// Heatmap
 				heatmapData: [],
 				heatmapMetric: 'count',
@@ -4349,6 +4353,53 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					this.showAlertModal = false;
 					this.individualAlertData = null;
 					this.individualAlertOccurrences = [];
+					this.newCommentContent = '';
+				},
+
+				async addComment() {
+					const content = this.newCommentContent.trim();
+					if (!content) return;
+					const fingerprint = this.individualAlertData?.alert?.fingerprint;
+					if (!fingerprint) {
+						console.error('Alert fingerprint not available');
+						return;
+					}
+					this.commentSubmitting = true;
+					try {
+						const response = await fetch(`/api/v1/dashboard/alert/${fingerprint}/comments`, {
+							method: 'POST',
+							credentials: 'include',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ content })
+						});
+						const result = await response.json();
+						if (result.success) {
+							this.newCommentContent = '';
+							await this.refreshComments();
+						} else {
+							console.error('Failed to add comment:', result.error);
+						}
+					} catch (error) {
+						console.error('Error adding comment:', error);
+					} finally {
+						this.commentSubmitting = false;
+					}
+				},
+
+				async refreshComments() {
+					const fingerprint = this.individualAlertData?.alert?.fingerprint;
+					if (!fingerprint) return;
+					try {
+						const response = await fetch(`/api/v1/statistics/alert/${fingerprint}`, {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						if (result.success && result.data?.details) {
+							this.individualAlertData.comments = result.data.details.comments || [];
+						}
+					} catch (error) {
+						console.error('Error refreshing comments:', error);
+					}
 				},
 
 	
