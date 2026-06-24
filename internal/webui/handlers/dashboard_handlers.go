@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	alertpb "notificator/internal/backend/proto/alert"
@@ -25,7 +26,8 @@ var (
 	colorService        *services.ColorService
 	hiddenAlertsService *services.HiddenAlertsService
 	// Store user settings - in production this should be in database
-	userSettings = make(map[string]*webuimodels.DashboardSettings)
+	userSettings   = make(map[string]*webuimodels.DashboardSettings)
+	userSettingsMu sync.RWMutex
 )
 
 // parseExtendedDuration parses duration strings with extended units (d, y)
@@ -110,6 +112,11 @@ func SetHiddenAlertsService(has *services.HiddenAlertsService) {
 }
 
 func GetDashboardData(c *gin.Context) {
+	if alertCache == nil {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Dashboard cache not ready"))
+		return
+	}
+
 	userID := getCurrentUserID(c)
 	sessionID := middleware.GetSessionID(c)
 
@@ -305,7 +312,10 @@ func getCurrentUserID(c *gin.Context) string {
 }
 
 func getUserSettings(userID string) *webuimodels.DashboardSettings {
-	if settings, exists := userSettings[userID]; exists {
+	userSettingsMu.RLock()
+	settings, exists := userSettings[userID]
+	userSettingsMu.RUnlock()
+	if exists {
 		return settings
 	}
 
@@ -323,7 +333,9 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 		},
 	}
 
+	userSettingsMu.Lock()
 	userSettings[userID] = defaultSettings
+	userSettingsMu.Unlock()
 	return defaultSettings
 }
 
@@ -941,14 +953,18 @@ func processGroupAction(c *gin.Context, groupName, action, comment, userID strin
 	// Find all alerts in the group
 	allAlerts := alertCache.GetAllAlerts()
 
+	var errs []string
 	for _, alert := range allAlerts {
 		if alert.GroupName == groupName {
 			if err := processAlertAction(c, alert.Fingerprint, action, comment, userID); err != nil {
-				return err
+				errs = append(errs, err.Error())
 			}
 		}
 	}
 
+	if len(errs) > 0 {
+		return fmt.Errorf("group action had %d failure(s): %s", len(errs), strings.Join(errs, "; "))
+	}
 	return nil
 }
 
@@ -965,10 +981,15 @@ func SaveDashboardSettings(c *gin.Context) {
 	// Update cache retention if changed
 	if alertCache != nil {
 		// Resolved alert retention is now handled by the backend TTL cleanup job
+		if settings.RefreshInterval < 1 {
+			settings.RefreshInterval = 1 // seconds; avoid time.NewTicker(0) panic
+		}
 		alertCache.SetRefreshInterval(time.Duration(settings.RefreshInterval) * time.Second)
 	}
 
+	userSettingsMu.Lock()
 	userSettings[userID] = &settings
+	userSettingsMu.Unlock()
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
 		"message": "Settings saved successfully",
@@ -1456,8 +1477,31 @@ func DeleteAlertComment(c *gin.Context) {
 		return
 	}
 
+	// Verify comment ownership before deletion
+	currentUserID := getCurrentUserID(c)
+	comments, err := backendClient.GetComments(fingerprint)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to fetch comments: "+err.Error()))
+		return
+	}
+	var commentFound bool
+	for _, cm := range comments {
+		if cm.GetId() == commentID {
+			commentFound = true
+			if cm.GetUserId() != currentUserID {
+				c.JSON(http.StatusForbidden, webuimodels.ErrorResponse("Cannot delete another user's comment"))
+				return
+			}
+			break
+		}
+	}
+	if !commentFound {
+		c.JSON(http.StatusNotFound, webuimodels.ErrorResponse("Comment not found"))
+		return
+	}
+
 	// Delete comment via backend
-	err := backendClient.DeleteComment(sessionID, commentID)
+	err = backendClient.DeleteComment(sessionID, commentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to delete comment: "+err.Error()))
 		return
@@ -1664,6 +1708,11 @@ func GetAvailableAlertLabels(c *gin.Context) {
 }
 
 func GetAlertColors(c *gin.Context) {
+	if alertCache == nil {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Dashboard cache not ready"))
+		return
+	}
+
 	// Get session ID for backend authentication
 	sessionID := middleware.GetSessionID(c)
 	if sessionID == "" {
@@ -2365,6 +2414,11 @@ type AvailableFieldsResponse struct {
 // This includes system fields, labels, and annotations from recent alerts
 // GET /api/v1/dashboard/available-fields
 func GetAvailableFields(c *gin.Context) {
+	if alertCache == nil {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Dashboard cache not ready"))
+		return
+	}
+
 	// Get recent alerts from cache (up to 1000 or all available)
 	alerts := alertCache.GetAllAlerts()
 
