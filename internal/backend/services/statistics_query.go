@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -1405,4 +1407,202 @@ func (sqs *StatisticsQueryService) GetRecentlyResolvedAlerts(hours int, limit in
 		Limit:     limit,
 		Offset:    0,
 	})
+}
+
+// ==================== Heatmap Query ====================
+
+// HeatmapRequest holds parameters for the heatmap query.
+type HeatmapRequest struct {
+	StartDate       time.Time
+	EndDate         time.Time
+	Severities      []string
+	Teams           []string
+	IncludeSilenced bool
+	Timezone        string // IANA timezone, already validated
+}
+
+// HeatmapCellResult holds one aggregated (dow, hour) cell returned from the database.
+type HeatmapCellResult struct {
+	Dow     int     `gorm:"column:dow"`
+	Hour    int     `gorm:"column:hour"`
+	Count   int64   `gorm:"column:count"`
+	AvgMTTR float64 `gorm:"column:avg_mttr"`
+}
+
+// QueryHeatmap aggregates alert counts and MTTR per (day-of-week, hour) cell.
+// PostgreSQL-only: uses EXTRACT and AT TIME ZONE. Returns an error for SQLite.
+func (sqs *StatisticsQueryService) QueryHeatmap(req *HeatmapRequest) ([]HeatmapCellResult, error) {
+	if !sqs.db.IsPostgreSQL() {
+		return nil, fmt.Errorf("heatmap query requires PostgreSQL (SQLite not supported)")
+	}
+
+	local := sqs.localFiredAt(req.Timezone)
+	dow := sqs.dowExpr(req.Timezone)
+
+	baseQuery := sqs.db.GetDB().Model(&models.AlertStatistic{}).
+		Where("fired_at >= ?", req.StartDate).
+		Where("fired_at <= ?", req.EndDate)
+
+	if len(req.Severities) > 0 {
+		baseQuery = baseQuery.Where("severity IN ?", req.Severities)
+	}
+	if len(req.Teams) > 0 {
+		baseQuery = baseQuery.Where("COALESCE(metadata->'labels'->>'team', 'unknown') IN ?", req.Teams)
+	}
+	if !req.IncludeSilenced {
+		baseQuery = baseQuery.Where("silenced_at_fire = ?", false)
+	}
+
+	var results []HeatmapCellResult
+	err := baseQuery.
+		Select(fmt.Sprintf(
+			`%s::int AS dow,
+			EXTRACT(HOUR FROM %s)::int AS hour,
+			COUNT(*) AS count,
+			COALESCE(AVG(mttr_seconds), 0) AS avg_mttr`,
+			dow, local,
+		)).
+		Group(fmt.Sprintf("%s::int, EXTRACT(HOUR FROM %s)::int", dow, local)).
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query heatmap: %w", err)
+	}
+
+	return results, nil
+}
+
+// ==================== Flapping Alerts Query ====================
+
+// FlappingRequest holds parameters for the flapping alerts query.
+type FlappingRequest struct {
+	StartDate       time.Time
+	EndDate         time.Time
+	Severities      []string
+	Teams           []string
+	IncludeSilenced bool
+	MinFires        int
+	Limit           int
+	Timezone        string // IANA timezone, already validated
+}
+
+// FlappingResult holds the raw aggregated data per fingerprint before computing derived metrics.
+type FlappingResult struct {
+	Fingerprint string    `gorm:"column:fingerprint"`
+	AlertName   string    `gorm:"column:alert_name"`
+	Team        string    `gorm:"column:team"`
+	Severity    string    `gorm:"column:severity"`
+	FireCount   int64     `gorm:"column:fire_count"`
+	AvgMTTR     float64   `gorm:"column:avg_mttr"`
+	FirstFired  time.Time `gorm:"column:first_fired"`
+	LastFired   time.Time `gorm:"column:last_fired"`
+}
+
+// FlappingAlertResult is the fully computed flapping alert entry returned to callers.
+type FlappingAlertResult struct {
+	Fingerprint   string
+	AlertName     string
+	Team          string
+	Severity      string
+	FireCount     int64
+	AvgGapSeconds float64
+	FiresPerHour  float64
+	AvgMTTR       float64
+	FlapScore     int64
+}
+
+// QueryFlappingAlerts identifies frequently re-firing alerts within the given time window.
+// PostgreSQL-only: uses array_agg. Returns an error for SQLite.
+func (sqs *StatisticsQueryService) QueryFlappingAlerts(req *FlappingRequest) ([]FlappingAlertResult, error) {
+	if !sqs.db.IsPostgreSQL() {
+		return nil, fmt.Errorf("flapping alerts query requires PostgreSQL (SQLite not supported)")
+	}
+
+	minFires := req.MinFires
+	if minFires <= 0 {
+		minFires = 2
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	baseQuery := sqs.db.GetDB().Model(&models.AlertStatistic{}).
+		Where("fired_at >= ?", req.StartDate).
+		Where("fired_at <= ?", req.EndDate)
+
+	if len(req.Severities) > 0 {
+		baseQuery = baseQuery.Where("severity IN ?", req.Severities)
+	}
+	if len(req.Teams) > 0 {
+		baseQuery = baseQuery.Where("COALESCE(metadata->'labels'->>'team', 'unknown') IN ?", req.Teams)
+	}
+	if !req.IncludeSilenced {
+		baseQuery = baseQuery.Where("silenced_at_fire = ?", false)
+	}
+
+	var raw []FlappingResult
+	err := baseQuery.
+		Select(`
+			fingerprint,
+			(array_agg(alert_name ORDER BY fired_at DESC))[1] AS alert_name,
+			COALESCE((array_agg(metadata->'labels'->>'team' ORDER BY fired_at DESC))[1], '') AS team,
+			(array_agg(severity ORDER BY fired_at DESC))[1] AS severity,
+			COUNT(*) AS fire_count,
+			COALESCE(AVG(mttr_seconds), 0) AS avg_mttr,
+			MIN(fired_at) AS first_fired,
+			MAX(fired_at) AS last_fired
+		`).
+		Group("fingerprint").
+		Having("COUNT(*) >= ?", minFires).
+		Scan(&raw).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query flapping alerts: %w", err)
+	}
+
+	// Compute derived metrics in Go and build result slice.
+	results := make([]FlappingAlertResult, 0, len(raw))
+	for _, r := range raw {
+		spanSec := r.LastFired.Sub(r.FirstFired).Seconds()
+
+		avgGap := 0.0
+		if r.FireCount > 1 {
+			avgGap = spanSec / float64(r.FireCount-1)
+		}
+
+		firesPerHour := 0.0
+		if spanSec > 0 {
+			firesPerHour = float64(r.FireCount) / (spanSec / 3600)
+		}
+
+		flapScore := int64(0)
+		if avgGap > 0 {
+			flapScore = int64(math.Round(float64(r.FireCount) / (avgGap / 3600)))
+		} else if r.FireCount > 1 {
+			flapScore = r.FireCount * 100
+		}
+
+		results = append(results, FlappingAlertResult{
+			Fingerprint:   r.Fingerprint,
+			AlertName:     r.AlertName,
+			Team:          r.Team,
+			Severity:      r.Severity,
+			FireCount:     r.FireCount,
+			AvgGapSeconds: avgGap,
+			FiresPerHour:  firesPerHour,
+			AvgMTTR:       r.AvgMTTR,
+			FlapScore:     flapScore,
+		})
+	}
+
+	// Sort by flap_score descending then truncate to limit.
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].FlapScore > results[j].FlapScore
+	})
+	if len(results) > limit {
+		results = results[:limit]
+	}
+
+	return results, nil
 }

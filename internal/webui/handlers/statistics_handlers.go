@@ -130,6 +130,151 @@ func QueryStatistics(c *gin.Context) {
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(result))
 }
 
+// QueryHeatmap handles querying the (day-of-week × hour) alert noise heatmap.
+func QueryHeatmap(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	var request struct {
+		StartDate       time.Time `json:"start_date" binding:"required"`
+		EndDate         time.Time `json:"end_date" binding:"required"`
+		Severities      []string  `json:"severities"`
+		Teams           []string  `json:"teams"`
+		IncludeSilenced bool      `json:"include_silenced"`
+		Timezone        string    `json:"timezone"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request: "+err.Error()))
+		return
+	}
+
+	if request.Timezone != "" {
+		if _, err := time.LoadLocation(request.Timezone); err != nil {
+			c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid timezone"))
+			return
+		}
+	}
+
+	req := &alertpb.QueryHeatmapRequest{
+		StartDate:       timestamppb.New(request.StartDate),
+		EndDate:         timestamppb.New(request.EndDate),
+		Severities:      request.Severities,
+		Teams:           request.Teams,
+		IncludeSilenced: request.IncludeSilenced,
+		Timezone:        request.Timezone,
+	}
+
+	resp, err := backendClient.QueryHeatmap(sessionID, req)
+	if err != nil {
+		log.Printf("Failed to query heatmap: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to query heatmap"))
+		return
+	}
+
+	if !resp.Success {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse(resp.Message))
+		return
+	}
+
+	cells := make([]gin.H, len(resp.Cells))
+	for i, cell := range resp.Cells {
+		cells[i] = gin.H{
+			"dow":              cell.Dow,
+			"hour":             cell.Hour,
+			"count":            cell.Count,
+			"avg_mttr_seconds": cell.AvgMttrSeconds,
+		}
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{"cells": cells}))
+}
+
+// QueryFlappingAlerts handles querying the top flapping (frequently re-firing) alerts.
+func QueryFlappingAlerts(c *gin.Context) {
+	sessionID := middleware.GetSessionID(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("User not authenticated"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Backend service not available"))
+		return
+	}
+
+	var request struct {
+		StartDate       time.Time `json:"start_date" binding:"required"`
+		EndDate         time.Time `json:"end_date" binding:"required"`
+		Severities      []string  `json:"severities"`
+		Teams           []string  `json:"teams"`
+		IncludeSilenced bool      `json:"include_silenced"`
+		MinFires        int32     `json:"min_fires"`
+		Limit           int32     `json:"limit"`
+		Timezone        string    `json:"timezone"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid request: "+err.Error()))
+		return
+	}
+
+	if request.Timezone != "" {
+		if _, err := time.LoadLocation(request.Timezone); err != nil {
+			c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid timezone"))
+			return
+		}
+	}
+
+	req := &alertpb.QueryFlappingAlertsRequest{
+		StartDate:       timestamppb.New(request.StartDate),
+		EndDate:         timestamppb.New(request.EndDate),
+		Severities:      request.Severities,
+		Teams:           request.Teams,
+		IncludeSilenced: request.IncludeSilenced,
+		MinFires:        request.MinFires,
+		Limit:           request.Limit,
+		Timezone:        request.Timezone,
+	}
+
+	resp, err := backendClient.QueryFlappingAlerts(sessionID, req)
+	if err != nil {
+		log.Printf("Failed to query flapping alerts: %v", err)
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to query flapping alerts"))
+		return
+	}
+
+	if !resp.Success {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse(resp.Message))
+		return
+	}
+
+	alerts := make([]gin.H, len(resp.Alerts))
+	for i, a := range resp.Alerts {
+		alerts[i] = gin.H{
+			"fingerprint":      a.Fingerprint,
+			"alert_name":       a.AlertName,
+			"team":             a.Team,
+			"severity":         a.Severity,
+			"fire_count":       a.FireCount,
+			"avg_gap_seconds":  a.AvgGapSeconds,
+			"fires_per_hour":   a.FiresPerHour,
+			"avg_mttr_seconds": a.AvgMttrSeconds,
+			"flap_score":       a.FlapScore,
+		}
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{"alerts": alerts}))
+}
+
 // GetStatisticsSummary handles getting a summary of available statistics
 func GetStatisticsSummary(c *gin.Context) {
 	sessionID := middleware.GetSessionID(c)

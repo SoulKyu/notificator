@@ -1563,6 +1563,8 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 
 const (
 	StatisticsService_QueryStatistics_FullMethodName          = "/notificator.alert.StatisticsService/QueryStatistics"
+	StatisticsService_QueryHeatmap_FullMethodName             = "/notificator.alert.StatisticsService/QueryHeatmap"
+	StatisticsService_QueryFlappingAlerts_FullMethodName      = "/notificator.alert.StatisticsService/QueryFlappingAlerts"
 	StatisticsService_SaveOnCallRule_FullMethodName           = "/notificator.alert.StatisticsService/SaveOnCallRule"
 	StatisticsService_GetOnCallRules_FullMethodName           = "/notificator.alert.StatisticsService/GetOnCallRules"
 	StatisticsService_GetOnCallRule_FullMethodName            = "/notificator.alert.StatisticsService/GetOnCallRule"
@@ -1591,6 +1593,9 @@ const (
 type StatisticsServiceClient interface {
 	// Query statistics with filters and aggregations
 	QueryStatistics(ctx context.Context, in *QueryStatisticsRequest, opts ...grpc.CallOption) (*QueryStatisticsResponse, error)
+	// Heatmap and flapping analysis
+	QueryHeatmap(ctx context.Context, in *QueryHeatmapRequest, opts ...grpc.CallOption) (*QueryHeatmapResponse, error)
+	QueryFlappingAlerts(ctx context.Context, in *QueryFlappingAlertsRequest, opts ...grpc.CallOption) (*QueryFlappingAlertsResponse, error)
 	// On-Call Rules Management
 	SaveOnCallRule(ctx context.Context, in *SaveOnCallRuleRequest, opts ...grpc.CallOption) (*SaveOnCallRuleResponse, error)
 	GetOnCallRules(ctx context.Context, in *GetOnCallRulesRequest, opts ...grpc.CallOption) (*GetOnCallRulesResponse, error)
@@ -1630,6 +1635,26 @@ func (c *statisticsServiceClient) QueryStatistics(ctx context.Context, in *Query
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryStatisticsResponse)
 	err := c.cc.Invoke(ctx, StatisticsService_QueryStatistics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) QueryHeatmap(ctx context.Context, in *QueryHeatmapRequest, opts ...grpc.CallOption) (*QueryHeatmapResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryHeatmapResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_QueryHeatmap_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *statisticsServiceClient) QueryFlappingAlerts(ctx context.Context, in *QueryFlappingAlertsRequest, opts ...grpc.CallOption) (*QueryFlappingAlertsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryFlappingAlertsResponse)
+	err := c.cc.Invoke(ctx, StatisticsService_QueryFlappingAlerts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1824,6 +1849,9 @@ func (c *statisticsServiceClient) SetDefaultStatisticsView(ctx context.Context, 
 type StatisticsServiceServer interface {
 	// Query statistics with filters and aggregations
 	QueryStatistics(context.Context, *QueryStatisticsRequest) (*QueryStatisticsResponse, error)
+	// Heatmap and flapping analysis
+	QueryHeatmap(context.Context, *QueryHeatmapRequest) (*QueryHeatmapResponse, error)
+	QueryFlappingAlerts(context.Context, *QueryFlappingAlertsRequest) (*QueryFlappingAlertsResponse, error)
 	// On-Call Rules Management
 	SaveOnCallRule(context.Context, *SaveOnCallRuleRequest) (*SaveOnCallRuleResponse, error)
 	GetOnCallRules(context.Context, *GetOnCallRulesRequest) (*GetOnCallRulesResponse, error)
@@ -1861,6 +1889,12 @@ type UnimplementedStatisticsServiceServer struct{}
 
 func (UnimplementedStatisticsServiceServer) QueryStatistics(context.Context, *QueryStatisticsRequest) (*QueryStatisticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryStatistics not implemented")
+}
+func (UnimplementedStatisticsServiceServer) QueryHeatmap(context.Context, *QueryHeatmapRequest) (*QueryHeatmapResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryHeatmap not implemented")
+}
+func (UnimplementedStatisticsServiceServer) QueryFlappingAlerts(context.Context, *QueryFlappingAlertsRequest) (*QueryFlappingAlertsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryFlappingAlerts not implemented")
 }
 func (UnimplementedStatisticsServiceServer) SaveOnCallRule(context.Context, *SaveOnCallRuleRequest) (*SaveOnCallRuleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveOnCallRule not implemented")
@@ -1951,6 +1985,42 @@ func _StatisticsService_QueryStatistics_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(StatisticsServiceServer).QueryStatistics(ctx, req.(*QueryStatisticsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_QueryHeatmap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryHeatmapRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).QueryHeatmap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_QueryHeatmap_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).QueryHeatmap(ctx, req.(*QueryHeatmapRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StatisticsService_QueryFlappingAlerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryFlappingAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatisticsServiceServer).QueryFlappingAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatisticsService_QueryFlappingAlerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatisticsServiceServer).QueryFlappingAlerts(ctx, req.(*QueryFlappingAlertsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2289,6 +2359,14 @@ var StatisticsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryStatistics",
 			Handler:    _StatisticsService_QueryStatistics_Handler,
+		},
+		{
+			MethodName: "QueryHeatmap",
+			Handler:    _StatisticsService_QueryHeatmap_Handler,
+		},
+		{
+			MethodName: "QueryFlappingAlerts",
+			Handler:    _StatisticsService_QueryFlappingAlerts_Handler,
 		},
 		{
 			MethodName: "SaveOnCallRule",

@@ -167,6 +167,109 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 	return pbResponse, nil
 }
 
+// ==================== Heatmap RPC ====================
+
+// QueryHeatmap implements the QueryHeatmap RPC method.
+func (s *StatisticsServiceGorm) QueryHeatmap(ctx context.Context, req *alertpb.QueryHeatmapRequest) (*alertpb.QueryHeatmapResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.QueryHeatmapResponse{Success: false, Message: "Session ID is required"}, nil
+	}
+
+	if _, err := s.db.GetUserBySession(req.SessionId); err != nil {
+		return &alertpb.QueryHeatmapResponse{Success: false, Message: "Invalid session"}, nil
+	}
+
+	if req.StartDate == nil || req.EndDate == nil {
+		return &alertpb.QueryHeatmapResponse{Success: false, Message: "Start date and end date are required"}, nil
+	}
+
+	tz := validateTimezone(req.Timezone)
+
+	cells, err := s.queryService.QueryHeatmap(&HeatmapRequest{
+		StartDate:       req.StartDate.AsTime(),
+		EndDate:         req.EndDate.AsTime(),
+		Severities:      req.Severities,
+		Teams:           req.Teams,
+		IncludeSilenced: req.IncludeSilenced,
+		Timezone:        tz,
+	})
+	if err != nil {
+		log.Printf("Failed to query heatmap: %v", err)
+		return &alertpb.QueryHeatmapResponse{Success: false, Message: fmt.Sprintf("Failed to query heatmap: %v", err)}, nil
+	}
+
+	pbCells := make([]*alertpb.HeatmapCell, len(cells))
+	for i, c := range cells {
+		pbCells[i] = &alertpb.HeatmapCell{
+			Dow:            int32(c.Dow),
+			Hour:           int32(c.Hour),
+			Count:          c.Count,
+			AvgMttrSeconds: c.AvgMTTR,
+		}
+	}
+
+	return &alertpb.QueryHeatmapResponse{
+		Success: true,
+		Message: fmt.Sprintf("Heatmap retrieved: %d cells", len(pbCells)),
+		Cells:   pbCells,
+	}, nil
+}
+
+// ==================== Flapping Alerts RPC ====================
+
+// QueryFlappingAlerts implements the QueryFlappingAlerts RPC method.
+func (s *StatisticsServiceGorm) QueryFlappingAlerts(ctx context.Context, req *alertpb.QueryFlappingAlertsRequest) (*alertpb.QueryFlappingAlertsResponse, error) {
+	if req.SessionId == "" {
+		return &alertpb.QueryFlappingAlertsResponse{Success: false, Message: "Session ID is required"}, nil
+	}
+
+	if _, err := s.db.GetUserBySession(req.SessionId); err != nil {
+		return &alertpb.QueryFlappingAlertsResponse{Success: false, Message: "Invalid session"}, nil
+	}
+
+	if req.StartDate == nil || req.EndDate == nil {
+		return &alertpb.QueryFlappingAlertsResponse{Success: false, Message: "Start date and end date are required"}, nil
+	}
+
+	tz := validateTimezone(req.Timezone)
+
+	alerts, err := s.queryService.QueryFlappingAlerts(&FlappingRequest{
+		StartDate:       req.StartDate.AsTime(),
+		EndDate:         req.EndDate.AsTime(),
+		Severities:      req.Severities,
+		Teams:           req.Teams,
+		IncludeSilenced: req.IncludeSilenced,
+		MinFires:        int(req.MinFires),
+		Limit:           int(req.Limit),
+		Timezone:        tz,
+	})
+	if err != nil {
+		log.Printf("Failed to query flapping alerts: %v", err)
+		return &alertpb.QueryFlappingAlertsResponse{Success: false, Message: fmt.Sprintf("Failed to query flapping alerts: %v", err)}, nil
+	}
+
+	pbAlerts := make([]*alertpb.FlappingAlert, len(alerts))
+	for i, a := range alerts {
+		pbAlerts[i] = &alertpb.FlappingAlert{
+			Fingerprint:    a.Fingerprint,
+			AlertName:      a.AlertName,
+			Team:           a.Team,
+			Severity:       a.Severity,
+			FireCount:      a.FireCount,
+			AvgGapSeconds:  a.AvgGapSeconds,
+			FiresPerHour:   a.FiresPerHour,
+			AvgMttrSeconds: a.AvgMTTR,
+			FlapScore:      a.FlapScore,
+		}
+	}
+
+	return &alertpb.QueryFlappingAlertsResponse{
+		Success: true,
+		Message: fmt.Sprintf("Found %d flapping alerts", len(pbAlerts)),
+		Alerts:  pbAlerts,
+	}, nil
+}
+
 // ==================== Statistics Summary ====================
 
 // GetStatisticsSummary implements the GetStatisticsSummary RPC method

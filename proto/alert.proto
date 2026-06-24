@@ -616,6 +616,10 @@ service StatisticsService {
   // Query statistics with filters and aggregations
   rpc QueryStatistics(QueryStatisticsRequest) returns (QueryStatisticsResponse);
 
+  // Heatmap and flapping analysis
+  rpc QueryHeatmap(QueryHeatmapRequest) returns (QueryHeatmapResponse);
+  rpc QueryFlappingAlerts(QueryFlappingAlertsRequest) returns (QueryFlappingAlertsResponse);
+
   // On-Call Rules Management
   rpc SaveOnCallRule(SaveOnCallRuleRequest) returns (SaveOnCallRuleResponse);
   rpc GetOnCallRules(GetOnCallRulesRequest) returns (GetOnCallRulesResponse);
@@ -700,6 +704,63 @@ message BreakdownItem {
   google.protobuf.Timestamp end_time = 3;
   int32 total_count = 4;
   map<string, AggregatedStatistics> statistics = 5;  // Breakdown by secondary_group_by within period (default: severity)
+}
+
+// ==================== Heatmap Messages ====================
+
+message QueryHeatmapRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+  repeated string severities = 4;
+  repeated string teams = 5;
+  bool include_silenced = 6;
+  string timezone = 7;
+}
+
+message HeatmapCell {
+  int32 dow = 1;   // 0=Sunday .. 6=Saturday (PostgreSQL EXTRACT(DOW))
+  int32 hour = 2;  // 0..23
+  int64 count = 3;
+  double avg_mttr_seconds = 4;
+}
+
+message QueryHeatmapResponse {
+  bool success = 1;
+  string message = 2;
+  repeated HeatmapCell cells = 3;
+}
+
+// ==================== Flapping Alerts Messages ====================
+
+message QueryFlappingAlertsRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+  repeated string severities = 4;
+  repeated string teams = 5;
+  bool include_silenced = 6;
+  int32 min_fires = 7;
+  int32 limit = 8;
+  string timezone = 9;
+}
+
+message FlappingAlert {
+  string fingerprint = 1;
+  string alert_name = 2;
+  string team = 3;
+  string severity = 4;
+  int64 fire_count = 5;
+  double avg_gap_seconds = 6;
+  double fires_per_hour = 7;
+  double avg_mttr_seconds = 8;
+  int64 flap_score = 9;
+}
+
+message QueryFlappingAlertsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated FlappingAlert alerts = 3;
 }
 
 // ==================== On-Call Rules Messages ====================

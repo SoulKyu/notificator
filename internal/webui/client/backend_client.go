@@ -1592,6 +1592,42 @@ func (c *BackendClient) GetStatisticsSummary(sessionID string) (*alertpb.GetStat
 	return resp, nil
 }
 
+// QueryHeatmap queries the heatmap of alert counts and MTTR per (day-of-week, hour) cell.
+func (c *BackendClient) QueryHeatmap(sessionID string, req *alertpb.QueryHeatmapRequest) (*alertpb.QueryHeatmapResponse, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req.SessionId = sessionID
+
+	resp, err := c.statisticsClient.QueryHeatmap(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query heatmap: %w", err)
+	}
+
+	return resp, nil
+}
+
+// QueryFlappingAlerts queries for the most frequently re-firing alerts.
+func (c *BackendClient) QueryFlappingAlerts(sessionID string, req *alertpb.QueryFlappingAlertsRequest) (*alertpb.QueryFlappingAlertsResponse, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req.SessionId = sessionID
+
+	resp, err := c.statisticsClient.QueryFlappingAlerts(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query flapping alerts: %w", err)
+	}
+
+	return resp, nil
+}
+
 // ==================== Alert Capture Methods ====================
 
 // CaptureAlertFired captures statistics when an alert fires

@@ -319,6 +319,8 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			statistics.POST("/recently-resolved", handlers.QueryRecentlyResolved)
 			statistics.GET("/alert/:fingerprint", handlers.GetResolvedAlertDetails)
 			statistics.POST("/alerts-by-name", handlers.GetAlertsByName)
+			statistics.POST("/heatmap", handlers.QueryHeatmap)
+			statistics.POST("/flapping", handlers.QueryFlappingAlerts)
 
 			// Statistics views (saved filter configurations)
 			statistics.GET("/views", handlers.GetStatisticsViews)
