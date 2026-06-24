@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -544,9 +543,9 @@ func GetResolvedAlertDetails(c *gin.Context) {
 		details.Acknowledgments = make([]webuimodels.Acknowledgment, len(acknowledgments))
 		for i, ack := range acknowledgments {
 			details.Acknowledgments[i] = webuimodels.Acknowledgment{
-				ID:        fmt.Sprintf("%d", ack.Id),
+				ID:        ack.Id,
 				Username:  ack.Username,
-				UserID:    fmt.Sprintf("%d", ack.UserId),
+				UserID:    ack.UserId,
 				Reason:    ack.Reason,
 				CreatedAt: tsToTime(ack.CreatedAt),
 				UpdatedAt: tsToTime(ack.CreatedAt),

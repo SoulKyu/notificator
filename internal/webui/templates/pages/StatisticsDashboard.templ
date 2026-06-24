@@ -1941,7 +1941,9 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 
 					try {
 						const payload = {
-							start_date: this.filters.startDate + 'T00:00:00Z',
+							start_date: this.filters.timeRangeMode === 'absolute'
+								? this.filters.startDate + 'T' + (this.filters.absoluteFromTime || '00:00') + ':00Z'
+								: this.filters.startDate + 'T00:00:00Z',
 							end_date: this.filters.timeRangeMode === 'absolute' && !this.filters.relativeUntil.now
 								? this.filters.endDate + 'T' + (this.filters.absoluteUntilTime || '23:59') + ':00Z'
 								: (this.filters.relativeUntil.now ? new Date().toISOString() : this.filters.endDate + 'T23:59:59Z'),

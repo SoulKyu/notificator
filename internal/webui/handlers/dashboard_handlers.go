@@ -1255,9 +1255,9 @@ func GetAlertDetails(c *gin.Context) {
 			details.Acknowledgments = make([]webuimodels.Acknowledgment, len(acknowledgments))
 			for i, ack := range acknowledgments {
 				details.Acknowledgments[i] = webuimodels.Acknowledgment{
-					ID:        fmt.Sprintf("%d", ack.Id),
+					ID:        ack.Id,
 					Username:  ack.Username,
-					UserID:    fmt.Sprintf("%d", ack.UserId),
+					UserID:    ack.UserId,
 					Reason:    ack.Reason,
 					CreatedAt: ack.CreatedAt.AsTime(),
 					UpdatedAt: ack.CreatedAt.AsTime(), // Use CreatedAt if UpdatedAt not available
