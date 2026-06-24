@@ -222,7 +222,7 @@ func (s *StatisticsServiceGorm) GetStatisticsSummary(ctx context.Context, req *a
 
 	return &alertpb.GetStatisticsSummaryResponse{
 		Success:         true,
-		TotalStatistics: summary["total_statistics"].(int64),
+		TotalStatistics: func() int64 { v, _ := summary["total_statistics"].(int64); return v }(),
 		BySeverity:      bySeverity,
 		EarliestAlert:   earliestAlert,
 		LatestAlert:     latestAlert,
@@ -383,11 +383,11 @@ func (s *StatisticsServiceGorm) UpdateAlertAcknowledged(ctx context.Context, req
 	acknowledgedAt := req.AcknowledgedAt.AsTime()
 	stat.AcknowledgedAt = &acknowledgedAt
 
-	// Calculate MTTR (Mean Time To Resolve) in seconds
-	// MTTR = time from alert firing to acknowledgment
-	mttr := acknowledgedAt.Sub(stat.FiredAt)
-	mttrSec := int(mttr.Seconds())
-	stat.MTTRSeconds = &mttrSec
+	// Calculate MTTA (Mean Time To Acknowledge) in seconds
+	// MTTA = time from alert firing to acknowledgment
+	mtta := acknowledgedAt.Sub(stat.FiredAt)
+	mttaSec := int(mtta.Seconds())
+	stat.MTTASeconds = &mttaSec
 
 	// Update in database
 	if err := s.db.UpdateAlertStatistic(stat); err != nil {
@@ -398,7 +398,7 @@ func (s *StatisticsServiceGorm) UpdateAlertAcknowledged(ctx context.Context, req
 		}, nil
 	}
 
-	log.Printf("📊 Updated acknowledgment for alert: fingerprint=%s (MTTR: %ds)", req.Fingerprint, mttrSec)
+	log.Printf("📊 Updated acknowledgment for alert: fingerprint=%s (MTTA: %ds)", req.Fingerprint, mttaSec)
 
 	return &alertpb.UpdateAlertAcknowledgedResponse{
 		Success: true,
