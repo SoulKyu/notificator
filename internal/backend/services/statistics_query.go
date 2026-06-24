@@ -1520,7 +1520,7 @@ func (sqs *StatisticsQueryService) QueryFlappingAlerts(req *FlappingRequest) ([]
 
 	minFires := req.MinFires
 	if minFires <= 0 {
-		minFires = 2
+		minFires = 3
 	}
 	limit := req.Limit
 	if limit <= 0 {
