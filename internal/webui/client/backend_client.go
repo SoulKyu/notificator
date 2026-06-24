@@ -67,7 +67,7 @@ func (c *BackendClient) Connect() error {
 }
 
 func (c *BackendClient) IsConnected() bool {
-	return c.conn != nil && c.authClient != nil
+	return c.conn != nil && c.authClient != nil && c.statisticsClient != nil
 }
 
 func (c *BackendClient) HealthCheck() error {
@@ -1556,6 +1556,9 @@ func (c *BackendClient) SetDefaultFilterPreset(sessionID, presetID string, imper
 
 // QueryStatistics queries alert statistics with filters and aggregations
 func (c *BackendClient) QueryStatistics(sessionID string, req *alertpb.QueryStatisticsRequest) (*alertpb.QueryStatisticsResponse, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1571,6 +1574,9 @@ func (c *BackendClient) QueryStatistics(sessionID string, req *alertpb.QueryStat
 
 // GetStatisticsSummary retrieves a summary of available statistics
 func (c *BackendClient) GetStatisticsSummary(sessionID string) (*alertpb.GetStatisticsSummaryResponse, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -1715,13 +1721,20 @@ func (c *BackendClient) QueryRecentlyResolved(sessionID string, startDate, endDa
 	// Convert to map for JSON
 	alerts := make([]map[string]interface{}, len(resp.Alerts))
 	for i, alert := range resp.Alerts {
+		var firstFired, lastResolved time.Time
+		if alert.FirstFiredAt != nil {
+			firstFired = alert.FirstFiredAt.AsTime()
+		}
+		if alert.LastResolvedAt != nil {
+			lastResolved = alert.LastResolvedAt.AsTime()
+		}
 		alerts[i] = map[string]interface{}{
 			"fingerprint":        alert.Fingerprint,
 			"alert_name":         alert.AlertName,
 			"severity":           alert.Severity,
 			"occurrence_count":   alert.OccurrenceCount,
-			"first_fired_at":     alert.FirstFiredAt.AsTime(),
-			"last_resolved_at":   alert.LastResolvedAt.AsTime(),
+			"first_fired_at":     firstFired,
+			"last_resolved_at":   lastResolved,
 			"total_mttr":         alert.TotalMttr,
 			"avg_mttr":           alert.AvgMttr,
 			"total_mtta":         alert.TotalMtta,
@@ -1875,6 +1888,9 @@ func (c *BackendClient) DeleteAnnotationButtonConfig(sessionID, configID string)
 
 // GetAlertHistory retrieves the occurrence history for an alert fingerprint
 func (c *BackendClient) GetAlertHistory(sessionID, fingerprint string, limit int32) ([]*alertpb.AlertStatistic, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -1898,6 +1914,9 @@ func (c *BackendClient) GetAlertHistory(sessionID, fingerprint string, limit int
 
 // GetAlertsByName retrieves all alerts with a specific alert name, respecting filter criteria
 func (c *BackendClient) GetAlertsByName(sessionID string, alertName string, startDate, endDate time.Time, applyRules, filterByTimeOfDay bool, timeOfDayStart, timeOfDayEnd, weekendMode string, severities, teams []string, limit int32) ([]*alertpb.AlertStatistic, int64, error) {
+	if c.statisticsClient == nil {
+		return nil, 0, fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -2023,6 +2042,9 @@ func (c *BackendClient) SaveUserColumnPreferences(sessionID, userID string, colu
 
 // GetStatisticsViews gets all statistics views for the current user
 func (c *BackendClient) GetStatisticsViews(sessionID string, includeShared bool, impersonateUserID ...string) ([]models.StatisticsView, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -2054,6 +2076,9 @@ func (c *BackendClient) GetStatisticsViews(sessionID string, includeShared bool,
 
 // SaveStatisticsView creates a new statistics view
 func (c *BackendClient) SaveStatisticsView(sessionID, name, description string, isShared bool, viewData models.StatisticsViewData, impersonateUserID ...string) (*models.StatisticsView, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -2083,6 +2108,9 @@ func (c *BackendClient) SaveStatisticsView(sessionID, name, description string, 
 
 // UpdateStatisticsView updates an existing statistics view
 func (c *BackendClient) UpdateStatisticsView(sessionID, viewID, name, description string, isShared bool, viewData models.StatisticsViewData, impersonateUserID ...string) (*models.StatisticsView, error) {
+	if c.statisticsClient == nil {
+		return nil, fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -2113,6 +2141,9 @@ func (c *BackendClient) UpdateStatisticsView(sessionID, viewID, name, descriptio
 
 // DeleteStatisticsView deletes a statistics view
 func (c *BackendClient) DeleteStatisticsView(sessionID, viewID string, impersonateUserID ...string) error {
+	if c.statisticsClient == nil {
+		return fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -2138,6 +2169,9 @@ func (c *BackendClient) DeleteStatisticsView(sessionID, viewID string, impersona
 
 // SetDefaultStatisticsView sets or clears the default statistics view
 func (c *BackendClient) SetDefaultStatisticsView(sessionID, viewID string, impersonateUserID ...string) error {
+	if c.statisticsClient == nil {
+		return fmt.Errorf("statistics client not connected")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
