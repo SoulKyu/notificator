@@ -6,6 +6,7 @@ import (
 	"log"
 	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -42,6 +43,8 @@ type QueryRequest struct {
 	WeekendMode        string   // "exclude", "same_hours", "full_weekends"
 	Severities         []string // Filter by severities (multi-select, OR logic)
 	Teams              []string // Filter by teams (multi-select, OR logic)
+	IncludeSilenced    bool     // Include alerts silenced at fire time (default: false = excluded)
+	Timezone           string   // IANA timezone (e.g. "Europe/Paris") for time-of-day/weekend/period bucketing; "" or "UTC" = UTC
 }
 
 // QueryResponse represents the aggregated statistics response
@@ -95,14 +98,14 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 		switch weekendMode {
 		case "exclude":
 			// Apply time filter to weekdays only, exclude weekends entirely
-			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
-			baseQuery = sqs.applyWeekendFilter(baseQuery)
+			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd, req.Timezone)
+			baseQuery = sqs.applyWeekendFilter(baseQuery, req.Timezone)
 		case "full_weekends":
 			// Apply time filter only to weekdays, include all of weekends
-			baseQuery = sqs.applyTimeOfDayFilterWeekdaysOnly(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
+			baseQuery = sqs.applyTimeOfDayFilterWeekdaysOnly(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd, req.Timezone)
 		default: // "same_hours"
 			// Apply same time filter to all days
-			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
+			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd, req.Timezone)
 		}
 	}
 
@@ -114,6 +117,11 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 	// Apply team filter if specified (multi-select, OR logic)
 	if len(req.Teams) > 0 {
 		baseQuery = baseQuery.Where("COALESCE(metadata->'labels'->>'team', 'unknown') IN ?", req.Teams)
+	}
+
+	// Exclude alerts that were silenced at fire time (unless explicitly included)
+	if !req.IncludeSilenced {
+		baseQuery = baseQuery.Where("silenced_at_fire = ?", false)
 	}
 
 	// Count total alerts
@@ -135,7 +143,7 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 	case "alert_name":
 		statistics, err = sqs.aggregateByAlertName(baseQuery, req.Limit)
 	case "period":
-		breakdown, err = sqs.aggregateByPeriod(baseQuery, req.PeriodType, req.SecondaryGroupBy, req.StartDate, req.EndDate)
+		breakdown, err = sqs.aggregateByPeriod(baseQuery, req.PeriodType, req.SecondaryGroupBy, req.StartDate, req.EndDate, req.Timezone)
 	default:
 		// No grouping - return overall statistics
 		statistics, err = sqs.aggregateOverall(baseQuery)
@@ -212,7 +220,7 @@ func (sqs *StatisticsQueryService) validateQueryRequest(req *QueryRequest) error
 
 // applyTimeOfDayFilter adds a WHERE clause to filter by time of day
 // Supports cross-midnight ranges (e.g., 22:00 to 06:00 means "night hours")
-func (sqs *StatisticsQueryService) applyTimeOfDayFilter(query *gorm.DB, startTime, endTime string) *gorm.DB {
+func (sqs *StatisticsQueryService) applyTimeOfDayFilter(query *gorm.DB, startTime, endTime, tz string) *gorm.DB {
 	// Parse HH:MM to minutes since midnight
 	startMinutes := parseTimeToMinutes(startTime)
 	endMinutes := parseTimeToMinutes(endTime)
@@ -222,54 +230,25 @@ func (sqs *StatisticsQueryService) applyTimeOfDayFilter(query *gorm.DB, startTim
 		return query
 	}
 
-	// Determine if we're using PostgreSQL or SQLite
-	isPostgres := sqs.db.IsPostgreSQL()
+	mins := sqs.minutesOfDayExpr(tz)
 
 	if startMinutes <= endMinutes {
-		// Same-day range (e.g., 09:00 to 18:00)
-		// Filter: time_of_day BETWEEN start AND end
-		if isPostgres {
-			return query.Where(
-				"(EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) BETWEEN ? AND ?",
-				startMinutes, endMinutes,
-			)
-		}
-		// SQLite
-		return query.Where(
-			"(CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) BETWEEN ? AND ?",
-			startMinutes, endMinutes,
-		)
+		// Same-day range (e.g., 09:00 to 18:00): time_of_day BETWEEN start AND end
+		return query.Where(fmt.Sprintf("%s BETWEEN ? AND ?", mins), startMinutes, endMinutes)
 	}
 
-	// Cross-midnight range (e.g., 22:00 to 06:00)
-	// Filter: time_of_day >= start OR time_of_day <= end
-	if isPostgres {
-		return query.Where(
-			"((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) >= ? OR (EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) <= ?)",
-			startMinutes, endMinutes,
-		)
-	}
-	// SQLite
-	return query.Where(
-		"((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) >= ? OR (CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) <= ?)",
-		startMinutes, endMinutes,
-	)
+	// Cross-midnight range (e.g., 22:00 to 06:00): time_of_day >= start OR <= end
+	return query.Where(fmt.Sprintf("(%s >= ? OR %s <= ?)", mins, mins), startMinutes, endMinutes)
 }
 
 // applyWeekendFilter adds a WHERE clause to exclude weekends (Saturday and Sunday)
-func (sqs *StatisticsQueryService) applyWeekendFilter(query *gorm.DB) *gorm.DB {
-	isPostgres := sqs.db.IsPostgreSQL()
-
-	if isPostgres {
-		// PostgreSQL: EXTRACT(DOW FROM timestamp) returns 0 for Sunday, 6 for Saturday
-		return query.Where("EXTRACT(DOW FROM fired_at) NOT IN (0, 6)")
-	}
-	// SQLite: strftime('%w', timestamp) returns 0 for Sunday, 6 for Saturday
-	return query.Where("CAST(strftime('%w', fired_at) AS INTEGER) NOT IN (0, 6)")
+func (sqs *StatisticsQueryService) applyWeekendFilter(query *gorm.DB, tz string) *gorm.DB {
+	// DOW: 0 for Sunday, 6 for Saturday (same for PostgreSQL EXTRACT and SQLite strftime)
+	return query.Where(fmt.Sprintf("%s NOT IN (0, 6)", sqs.dowExpr(tz)))
 }
 
 // applyTimeOfDayFilterWeekdaysOnly applies time filter only to weekdays, includes full weekends
-func (sqs *StatisticsQueryService) applyTimeOfDayFilterWeekdaysOnly(query *gorm.DB, startTime, endTime string) *gorm.DB {
+func (sqs *StatisticsQueryService) applyTimeOfDayFilterWeekdaysOnly(query *gorm.DB, startTime, endTime, tz string) *gorm.DB {
 	startMinutes := parseTimeToMinutes(startTime)
 	endMinutes := parseTimeToMinutes(endTime)
 
@@ -277,33 +256,41 @@ func (sqs *StatisticsQueryService) applyTimeOfDayFilterWeekdaysOnly(query *gorm.
 		return query
 	}
 
-	isPostgres := sqs.db.IsPostgreSQL()
+	mins := sqs.minutesOfDayExpr(tz)
+	dow := sqs.dowExpr(tz)
 
 	if startMinutes <= endMinutes {
 		// Same-day range: weekends (any time) OR weekdays within time range
-		if isPostgres {
-			return query.Where(
-				"(EXTRACT(DOW FROM fired_at) IN (0, 6)) OR ((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) BETWEEN ? AND ?)",
-				startMinutes, endMinutes,
-			)
-		}
 		return query.Where(
-			"(CAST(strftime('%w', fired_at) AS INTEGER) IN (0, 6)) OR ((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) BETWEEN ? AND ?)",
+			fmt.Sprintf("(%s IN (0, 6)) OR (%s BETWEEN ? AND ?)", dow, mins),
 			startMinutes, endMinutes,
 		)
 	}
 
 	// Cross-midnight range: weekends (any time) OR weekdays within time range
-	if isPostgres {
-		return query.Where(
-			"(EXTRACT(DOW FROM fired_at) IN (0, 6)) OR ((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) >= ? OR (EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) <= ?)",
-			startMinutes, endMinutes,
-		)
-	}
 	return query.Where(
-		"(CAST(strftime('%w', fired_at) AS INTEGER) IN (0, 6)) OR ((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) >= ? OR (CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) <= ?)",
+		fmt.Sprintf("(%s IN (0, 6)) OR (%s >= ? OR %s <= ?)", dow, mins, mins),
 		startMinutes, endMinutes,
 	)
+}
+
+// minutesOfDayExpr returns the SQL expression computing minutes-since-midnight of fired_at,
+// in the user's timezone (PostgreSQL) or UTC (SQLite fallback).
+func (sqs *StatisticsQueryService) minutesOfDayExpr(tz string) string {
+	col := sqs.localFiredAt(tz)
+	if sqs.db.IsPostgreSQL() {
+		return fmt.Sprintf("(EXTRACT(HOUR FROM %s) * 60 + EXTRACT(MINUTE FROM %s))", col, col)
+	}
+	return "(CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER))"
+}
+
+// dowExpr returns the SQL expression for day-of-week of fired_at (0=Sunday..6=Saturday),
+// in the user's timezone (PostgreSQL) or UTC (SQLite fallback).
+func (sqs *StatisticsQueryService) dowExpr(tz string) string {
+	if sqs.db.IsPostgreSQL() {
+		return fmt.Sprintf("EXTRACT(DOW FROM %s)", sqs.localFiredAt(tz))
+	}
+	return "CAST(strftime('%w', fired_at) AS INTEGER)"
 }
 
 // parseTimeToMinutes parses "HH:MM" format to minutes since midnight
@@ -519,9 +506,9 @@ func (sqs *StatisticsQueryService) aggregateByAlertName(query *gorm.DB, limit in
 
 // aggregateByPeriod groups statistics by time periods using optimized single query
 // secondaryGroupBy determines what dimension to break down within each period: "severity", "team", "alert_name"
-func (sqs *StatisticsQueryService) aggregateByPeriod(query *gorm.DB, periodType string, secondaryGroupBy string, startDate, endDate time.Time) ([]*BreakdownItem, error) {
-	// Determine SQL date truncation function based on period type
-	dateTrunc := sqs.getDateTruncSQL(periodType)
+func (sqs *StatisticsQueryService) aggregateByPeriod(query *gorm.DB, periodType string, secondaryGroupBy string, startDate, endDate time.Time, tz string) ([]*BreakdownItem, error) {
+	// Determine SQL date truncation function based on period type (bucketed in the user's timezone)
+	dateTrunc := sqs.getDateTruncSQL(periodType, tz)
 
 	// Default to severity if not specified
 	if secondaryGroupBy == "" {
@@ -569,28 +556,39 @@ func (sqs *StatisticsQueryService) aggregateByPeriod(query *gorm.DB, periodType 
 	return breakdown, nil
 }
 
-// getDateTruncSQL returns the SQL date truncation expression based on database type
-func (sqs *StatisticsQueryService) getDateTruncSQL(periodType string) string {
-	// Get database dialect
-	dialect := sqs.db.GetDB().Dialector.Name()
+// localFiredAt returns the SQL expression for fired_at converted to the user's timezone.
+// tz must be a valid IANA name (validated upstream via time.LoadLocation, so safe to inline).
+// SQLite has no named-timezone support, so it falls back to UTC (dev-only). Empty/UTC tz also falls back.
+func (sqs *StatisticsQueryService) localFiredAt(tz string) string {
+	// Defense-in-depth: never inline a tz containing quotes/semicolons (IANA names never do).
+	if tz != "" && tz != "UTC" && !strings.ContainsAny(tz, "'\";") && sqs.db.IsPostgreSQL() {
+		return fmt.Sprintf("(fired_at AT TIME ZONE '%s')", tz)
+	}
+	return "fired_at"
+}
+
+// getDateTruncSQL returns the SQL date truncation expression based on database type,
+// bucketing in the user's timezone so periods align with the wall-clock the user sees.
+func (sqs *StatisticsQueryService) getDateTruncSQL(periodType, tz string) string {
+	col := sqs.localFiredAt(tz)
 
 	// PostgreSQL date_trunc syntax
-	if dialect == "postgres" {
+	if sqs.db.IsPostgreSQL() {
 		switch periodType {
 		case "hour":
-			return "date_trunc('hour', fired_at)"
+			return fmt.Sprintf("date_trunc('hour', %s)", col)
 		case "day":
-			return "date_trunc('day', fired_at)"
+			return fmt.Sprintf("date_trunc('day', %s)", col)
 		case "week":
-			return "date_trunc('week', fired_at)"
+			return fmt.Sprintf("date_trunc('week', %s)", col)
 		case "month":
-			return "date_trunc('month', fired_at)"
+			return fmt.Sprintf("date_trunc('month', %s)", col)
 		default:
-			return "date_trunc('day', fired_at)"
+			return fmt.Sprintf("date_trunc('day', %s)", col)
 		}
 	}
 
-	// SQLite datetime truncation (less elegant but works)
+	// SQLite datetime truncation (less elegant but works) - UTC only
 	switch periodType {
 	case "hour":
 		return "datetime(fired_at, 'start of hour')"

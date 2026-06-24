@@ -189,7 +189,7 @@ templ DashboardFilterPresetsMixin() {
 
 			// Apply column configurations
 			if (data.column_configs && Array.isArray(data.column_configs) && data.column_configs.length > 0) {
-				this.columns = data.column_configs;
+				this.columns = this.mergeSystemColumns(data.column_configs);
 				this.updateVisibleColumns();
 				console.log('Applied', data.column_configs.length, 'column configurations from preset');
 			}

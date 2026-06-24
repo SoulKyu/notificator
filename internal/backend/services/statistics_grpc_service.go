@@ -42,6 +42,18 @@ func (s *StatisticsServiceGorm) SetWorkerPool(pool *StatisticsWorkerPool) {
 // ==================== Query Statistics ====================
 
 // QueryStatistics implements the QueryStatistics RPC method
+// validateTimezone returns tz if it is a valid IANA timezone, otherwise "UTC".
+// This guards against invalid names producing SQL errors when inlined into queries.
+func validateTimezone(tz string) string {
+	if tz == "" {
+		return "UTC"
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		return "UTC"
+	}
+	return tz
+}
+
 func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertpb.QueryStatisticsRequest) (*alertpb.QueryStatisticsResponse, error) {
 	if req.SessionId == "" {
 		return &alertpb.QueryStatisticsResponse{
@@ -88,6 +100,8 @@ func (s *StatisticsServiceGorm) QueryStatistics(ctx context.Context, req *alertp
 		WeekendMode:       req.WeekendMode,
 		Severities:        req.Severities,
 		Teams:             req.Teams,
+		IncludeSilenced:   req.IncludeSilenced,
+		Timezone:          validateTimezone(req.Timezone),
 	}
 
 	// Execute query
@@ -267,11 +281,12 @@ func (s *StatisticsServiceGorm) CaptureAlertFired(ctx context.Context, req *aler
 
 	// Create alert statistic record
 	stat := &models.AlertStatistic{
-		Fingerprint: req.Fingerprint,
-		AlertName:   req.AlertName,
-		Severity:    req.Severity,
-		FiredAt:     req.StartsAt.AsTime(),
-		Metadata:    metadataJSON,
+		Fingerprint:    req.Fingerprint,
+		AlertName:      req.AlertName,
+		Severity:       req.Severity,
+		FiredAt:        req.StartsAt.AsTime(),
+		Metadata:       metadataJSON,
+		SilencedAtFire: req.SilencedAtFire,
 	}
 
 	// Save to database
@@ -612,14 +627,14 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		switch weekendMode {
 		case "exclude":
 			// Apply time filter to weekdays only, exclude weekends entirely
-			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
-			query = s.queryService.applyWeekendFilter(query)
+			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd, "")
+			query = s.queryService.applyWeekendFilter(query, "")
 		case "full_weekends":
 			// Apply time filter only to weekdays, include all of weekends
-			query = s.queryService.applyTimeOfDayFilterWeekdaysOnly(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+			query = s.queryService.applyTimeOfDayFilterWeekdaysOnly(query, req.TimeOfDayStart, req.TimeOfDayEnd, "")
 		default: // "same_hours"
 			// Apply same time filter to all days
-			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
+			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd, "")
 		}
 	}
 

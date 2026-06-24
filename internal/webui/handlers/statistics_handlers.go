@@ -49,6 +49,8 @@ func QueryStatistics(c *gin.Context) {
 		WeekendMode        string    `json:"weekend_mode"`           // "exclude", "same_hours", "full_weekends"
 		Severities         []string  `json:"severities"`             // Filter by severities (multi-select)
 		Teams              []string  `json:"teams"`                  // Filter by teams (multi-select)
+		IncludeSilenced    bool      `json:"include_silenced"`       // Include alerts silenced at fire time
+		Timezone           string    `json:"timezone"`               // IANA timezone for time-of-day/period bucketing
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -73,6 +75,8 @@ func QueryStatistics(c *gin.Context) {
 		WeekendMode:        request.WeekendMode,
 		Severities:         request.Severities,
 		Teams:              request.Teams,
+		IncludeSilenced:    request.IncludeSilenced,
+		Timezone:           request.Timezone,
 	}
 
 	// Query statistics
@@ -443,7 +447,8 @@ func GetResolvedAlertDetails(c *gin.Context) {
 		instance = i
 	}
 	generatorURL := ""
-	if g, ok := metadata["generatorURL"].(string); ok {
+	// Capture stores this under the snake_case key "generator_url" (see statistics_capture.go)
+	if g, ok := metadata["generator_url"].(string); ok {
 		generatorURL = g
 	}
 

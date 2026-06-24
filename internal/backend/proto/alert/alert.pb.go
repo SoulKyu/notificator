@@ -5255,6 +5255,8 @@ type QueryStatisticsRequest struct {
 	Severities        []string               `protobuf:"bytes,14,rep,name=severities,proto3" json:"severities,omitempty"`                                              // Filter by severities (multi-select, OR logic)
 	Teams             []string               `protobuf:"bytes,15,rep,name=teams,proto3" json:"teams,omitempty"`                                                        // Filter by teams (multi-select, OR logic)
 	WeekendMode       string                 `protobuf:"bytes,16,opt,name=weekend_mode,json=weekendMode,proto3" json:"weekend_mode,omitempty"`                         // "exclude", "same_hours", "full_weekends"
+	IncludeSilenced   bool                   `protobuf:"varint,17,opt,name=include_silenced,json=includeSilenced,proto3" json:"include_silenced,omitempty"`            // Include alerts silenced at fire time (default: false)
+	Timezone          string                 `protobuf:"bytes,18,opt,name=timezone,proto3" json:"timezone,omitempty"`                                                  // IANA timezone for time-of-day/weekend/period bucketing (e.g. "Europe/Paris"); empty = UTC
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -5397,6 +5399,20 @@ func (x *QueryStatisticsRequest) GetTeams() []string {
 func (x *QueryStatisticsRequest) GetWeekendMode() string {
 	if x != nil {
 		return x.WeekendMode
+	}
+	return ""
+}
+
+func (x *QueryStatisticsRequest) GetIncludeSilenced() bool {
+	if x != nil {
+		return x.IncludeSilenced
+	}
+	return false
+}
+
+func (x *QueryStatisticsRequest) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
 	}
 	return ""
 }
@@ -6906,14 +6922,15 @@ func (x *GetStatisticsSummaryResponse) GetMessage() string {
 }
 
 type CaptureAlertFiredRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	AlertName     string                 `protobuf:"bytes,2,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
-	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`
-	StartsAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`
-	Metadata      []byte                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"` // JSON metadata containing labels, annotations, etc.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint    string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	AlertName      string                 `protobuf:"bytes,2,opt,name=alert_name,json=alertName,proto3" json:"alert_name,omitempty"`
+	Severity       string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`
+	StartsAt       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`
+	Metadata       []byte                 `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`                                      // JSON metadata containing labels, annotations, etc.
+	SilencedAtFire bool                   `protobuf:"varint,6,opt,name=silenced_at_fire,json=silencedAtFire,proto3" json:"silenced_at_fire,omitempty"` // Whether the alert was silenced when it fired
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CaptureAlertFiredRequest) Reset() {
@@ -6979,6 +6996,13 @@ func (x *CaptureAlertFiredRequest) GetMetadata() []byte {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *CaptureAlertFiredRequest) GetSilencedAtFire() bool {
+	if x != nil {
+		return x.SilencedAtFire
+	}
+	return false
 }
 
 type CaptureAlertFiredResponse struct {
@@ -9785,7 +9809,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xea\x04\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb1\x05\n" +
 	"\x16QueryStatisticsRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x129\n" +
@@ -9809,7 +9833,9 @@ const file_proto_alert_proto_rawDesc = "" +
 	"severities\x18\x0e \x03(\tR\n" +
 	"severities\x12\x14\n" +
 	"\x05teams\x18\x0f \x03(\tR\x05teams\x12!\n" +
-	"\fweekend_mode\x18\x10 \x01(\tR\vweekendMode\"\xb1\x03\n" +
+	"\fweekend_mode\x18\x10 \x01(\tR\vweekendMode\x12)\n" +
+	"\x10include_silenced\x18\x11 \x01(\bR\x0fincludeSilenced\x12\x1a\n" +
+	"\btimezone\x18\x12 \x01(\tR\btimezone\"\xb1\x03\n" +
 	"\x17QueryStatisticsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12;\n" +
 	"\n" +
@@ -9959,14 +9985,15 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\amessage\x18\x06 \x01(\tR\amessage\x1af\n" +
 	"\x0fBySeverityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12=\n" +
-	"\x05value\x18\x02 \x01(\v2'.notificator.alert.AggregatedStatisticsR\x05value:\x028\x01\"\xcc\x01\n" +
+	"\x05value\x18\x02 \x01(\v2'.notificator.alert.AggregatedStatisticsR\x05value:\x028\x01\"\xf6\x01\n" +
 	"\x18CaptureAlertFiredRequest\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12\x1d\n" +
 	"\n" +
 	"alert_name\x18\x02 \x01(\tR\talertName\x12\x1a\n" +
 	"\bseverity\x18\x03 \x01(\tR\bseverity\x127\n" +
 	"\tstarts_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x12\x1a\n" +
-	"\bmetadata\x18\x05 \x01(\fR\bmetadata\"O\n" +
+	"\bmetadata\x18\x05 \x01(\fR\bmetadata\x12(\n" +
+	"\x10silenced_at_fire\x18\x06 \x01(\bR\x0esilencedAtFire\"O\n" +
 	"\x19CaptureAlertFiredResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"{\n" +

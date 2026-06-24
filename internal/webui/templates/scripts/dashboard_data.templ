@@ -401,6 +401,10 @@ templ DashboardData() {
 							aVal = (a.labels.team || '').toLowerCase();
 							bVal = (b.labels.team || '').toLowerCase();
 							break;
+						case 'startsAt':
+							aVal = new Date(a.startsAt).getTime();
+							bVal = new Date(b.startsAt).getTime();
+							break;
 						case 'duration':
 						default:
 							aVal = a.duration;

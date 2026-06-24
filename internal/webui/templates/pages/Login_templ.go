@@ -96,7 +96,7 @@ func LoginContent(oauthConfig *OAuthConfig) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8\"><div class=\"sm:mx-auto sm:w-full sm:max-w-sm\"><h2 class=\"mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900 dark:text-white\">Sign in to Notificator</h2></div><div class=\"mt-10 sm:mx-auto sm:w-full sm:max-w-sm\"><!-- OAuth Providers -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8\"><div class=\"sm:mx-auto sm:w-full sm:max-w-sm\"><img src=\"/static/images/numberly.png\" alt=\"Numberly\" class=\"mx-auto h-12 w-auto\"><h2 class=\"mt-6 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900 dark:text-white\">Sign in to Notificator</h2></div><div class=\"mt-10 sm:mx-auto sm:w-full sm:max-w-sm\"><!-- OAuth Providers -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -668,6 +668,8 @@ message QueryStatisticsRequest {
   repeated string severities = 14; // Filter by severities (multi-select, OR logic)
   repeated string teams = 15;      // Filter by teams (multi-select, OR logic)
   string weekend_mode = 16;        // "exclude", "same_hours", "full_weekends"
+  bool include_silenced = 17;      // Include alerts silenced at fire time (default: false)
+  string timezone = 18;            // IANA timezone for time-of-day/weekend/period bucketing (e.g. "Europe/Paris"); empty = UTC
 }
 
 message QueryStatisticsResponse {
@@ -837,6 +839,7 @@ message CaptureAlertFiredRequest {
   string severity = 3;
   google.protobuf.Timestamp starts_at = 4;
   bytes metadata = 5; // JSON metadata containing labels, annotations, etc.
+  bool silenced_at_fire = 6; // Whether the alert was silenced when it fired
 }
 
 message CaptureAlertFiredResponse {

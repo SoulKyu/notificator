@@ -34,6 +34,9 @@ type AlertStatistic struct {
 	MTTASeconds    *int `gorm:"index" json:"mtta_seconds,omitempty"`     // acknowledged_at - fired_at (Mean Time To Acknowledge)
 	FixTimeSeconds *int `gorm:"index" json:"fix_time_seconds,omitempty"` // resolved_at - acknowledged_at (Fix Time after acknowledgment)
 
+	// Whether the alert was silenced at the moment it fired (captured from Alertmanager status)
+	SilencedAtFire bool `gorm:"index;default:false" json:"silenced_at_fire"`
+
 	// Housekeeping
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

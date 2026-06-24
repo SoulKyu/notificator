@@ -571,6 +571,15 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					</div>
 				</div>
 
+				<!-- Include Silenced Toggle -->
+				<button @click="filters.includeSilenced = !filters.includeSilenced; onFilterChange()" type="button"
+					:title="filters.includeSilenced ? 'Silenced alerts are shown' : 'Silenced alerts are hidden'"
+					class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors border"
+					:class="filters.includeSilenced ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700/50' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'">
+					<span x-text="filters.includeSilenced ? '🔔' : '🔇'"></span>
+					<span x-text="filters.includeSilenced ? 'Including silenced' : 'Silenced hidden'"></span>
+				</button>
+
 				<!-- Divider -->
 				<div class="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
 
@@ -1709,6 +1718,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					activePreset: 'oncall', // null | 'oncall' | 'noon' | 'night' | 'business' | 'morning' | 'evening'
 					severities: ['critical', 'critical-daytime'], // Multi-select: ['critical', 'warning', 'info']
 					teams: [],       // Multi-select: ['team1', 'team2', ...]
+					includeSilenced: false, // Include alerts silenced at fire time (default: excluded)
 
 					// New - time range picker UI state
 					timeRangeMode: 'relative', // 'relative' | 'absolute'
@@ -1933,9 +1943,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							filter_by_time_of_day: this.isTimeFilterActive(),
 							time_of_day_start: this.filters.timeOfDayStart,
 							time_of_day_end: this.filters.timeOfDayEnd,
+							timezone: window.__USER_TIMEZONE__ || 'UTC',
 							weekend_mode: this.filters.weekendMode,
 							severities: this.filters.severities,
-							teams: this.filters.teams
+							teams: this.filters.teams,
+							include_silenced: this.filters.includeSilenced
 						};
 
 						const response = await fetch('/api/v1/statistics/query', {
@@ -2663,9 +2675,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							filter_by_time_of_day: this.isTimeFilterActive(),
 							time_of_day_start: this.filters.timeOfDayStart,
 							time_of_day_end: this.filters.timeOfDayEnd,
+							timezone: window.__USER_TIMEZONE__ || 'UTC',
 							weekend_mode: this.filters.weekendMode,
 							severities: this.filters.severities,
-							teams: this.filters.teams
+							teams: this.filters.teams,
+							include_silenced: this.filters.includeSilenced
 						};
 
 						const response = await fetch('/api/v1/statistics/query', {
@@ -2695,9 +2709,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							filter_by_time_of_day: this.isTimeFilterActive(),
 							time_of_day_start: this.filters.timeOfDayStart,
 							time_of_day_end: this.filters.timeOfDayEnd,
+							timezone: window.__USER_TIMEZONE__ || 'UTC',
 							weekend_mode: this.filters.weekendMode,
 							severities: this.filters.severities,
-							teams: this.filters.teams
+							teams: this.filters.teams,
+							include_silenced: this.filters.includeSilenced
 						};
 
 						const response = await fetch('/api/v1/statistics/query', {
@@ -2730,9 +2746,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							filter_by_time_of_day: this.isTimeFilterActive(),
 							time_of_day_start: this.filters.timeOfDayStart,
 							time_of_day_end: this.filters.timeOfDayEnd,
+							timezone: window.__USER_TIMEZONE__ || 'UTC',
 							weekend_mode: this.filters.weekendMode,
 							severities: this.filters.severities,
-							teams: this.filters.teams
+							teams: this.filters.teams,
+							include_silenced: this.filters.includeSilenced
 						};
 
 						const response = await fetch('/api/v1/statistics/query', {
@@ -3564,9 +3582,11 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							filter_by_time_of_day: this.isTimeFilterActive(),
 							time_of_day_start: this.filters.timeOfDayStart,
 							time_of_day_end: this.filters.timeOfDayEnd,
+							timezone: window.__USER_TIMEZONE__ || 'UTC',
 							weekend_mode: this.filters.weekendMode,
 							severities: this.filters.severities,
-							teams: this.filters.teams
+							teams: this.filters.teams,
+							include_silenced: this.filters.includeSilenced
 						};
 
 						const response = await fetch('/api/v1/statistics/query', {
@@ -3657,6 +3677,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 							filter_by_time_of_day: this.isTimeFilterActive(),
 							time_of_day_start: this.filters.timeOfDayStart,
 							time_of_day_end: this.filters.timeOfDayEnd,
+							timezone: window.__USER_TIMEZONE__ || 'UTC',
 							weekend_mode: this.filters.weekendMode,
 							severities: this.filters.severities,
 							teams: this.filters.teams,
@@ -4173,6 +4194,46 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 					}).catch(err => {
 						console.error('Failed to copy:', err);
 					});
+				},
+
+				// Build a markdown issue from the opened statistics alert and copy it to the clipboard.
+				// Mirrors the dashboard's copyAlertAsIssue, sourced from individualAlertData.
+				copyIndividualAlertAsIssue() {
+					if (!this.individualAlertData?.alert) {
+						console.error('No alert data available');
+						return;
+					}
+					const alert = this.individualAlertData.alert;
+					const comments = this.individualAlertData.comments || [];
+					const fmt = (d) => this.formatAlertDate(d);
+
+					let md = `# Alert: ${alert.alertName || alert.labels?.alertname || 'Unknown'}\n\n`;
+					if (alert.summary) md += `## Summary\n${alert.summary}\n\n`;
+					md += `## Details\n`;
+					md += `- **Status**: ${(alert.status?.state || 'unknown').toUpperCase()}\n`;
+					md += `- **Severity**: ${(alert.severity || 'unknown').toUpperCase()}\n`;
+					if (alert.instance) md += `- **Instance**: ${alert.instance}\n`;
+					md += `- **Started**: ${fmt(alert.startsAt)}\n`;
+					if (alert.endsAt) md += `- **Ended**: ${fmt(alert.endsAt)}\n`;
+					if (alert.duration) md += `- **Duration**: ${this.formatDuration(alert.duration)}\n`;
+					md += `\n`;
+					if (alert.labels && Object.keys(alert.labels).length > 0) {
+						md += `## Labels\n`;
+						Object.entries(alert.labels).forEach(([k, v]) => { md += `- **${k}**: ${v}\n`; });
+						md += `\n`;
+					}
+					if (alert.annotations && Object.keys(alert.annotations).length > 0) {
+						md += `## Annotations\n`;
+						Object.entries(alert.annotations).forEach(([k, v]) => { md += `- **${k}**: ${v}\n`; });
+						md += `\n`;
+					}
+					if (comments.length > 0) {
+						md += `## Comments\n`;
+						comments.forEach(c => { md += `**${c.username}** (${fmt(c.createdAt)}):\n${c.content}\n\n`; });
+					}
+					md += `## Alert ID\n\`${alert.fingerprint}\`\n`;
+
+					this.copyToClipboard(md);
 				},
 
 				// Format alert date, handling Go zero dates

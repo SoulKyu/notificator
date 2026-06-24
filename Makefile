@@ -208,7 +208,7 @@ docker: docker-build-all docker-push-all ## Build and push all Docker images
 # Test command - build all images and restart docker-compose
 test: webui-full-rebuild docker-build-all ## Build all Docker images and restart docker-compose
 	@echo "Stopping docker-compose services..."
-	docker-compose down
+	docker compose down
 	@echo "Starting docker-compose services..."
-	docker-compose up -d
+	docker compose up -d
 	@echo "Test environment is ready!"

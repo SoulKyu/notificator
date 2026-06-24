@@ -1621,11 +1621,12 @@ func (c *BackendClient) CaptureAlertFired(alert *models.DashboardAlert) error {
 	}
 
 	req := &alertpb.CaptureAlertFiredRequest{
-		Fingerprint: alert.Fingerprint,
-		AlertName:   alert.AlertName,
-		Severity:    alert.Severity,
-		StartsAt:    timestamppb.New(alert.StartsAt),
-		Metadata:    metadataBytes,
+		Fingerprint:    alert.Fingerprint,
+		AlertName:      alert.AlertName,
+		Severity:       alert.Severity,
+		StartsAt:       timestamppb.New(alert.StartsAt),
+		Metadata:       metadataBytes,
+		SilencedAtFire: alert.Status.State == "silenced" || len(alert.Status.SilencedBy) > 0,
 	}
 
 	_, err = c.statisticsClient.CaptureAlertFired(ctx, req)
