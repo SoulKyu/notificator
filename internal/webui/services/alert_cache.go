@@ -97,7 +97,9 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 func (ac *AlertCache) Start() {
 	ac.refreshAlerts()
 
+	ac.tickerMu.Lock()
 	ac.refreshTicker = time.NewTicker(ac.refreshInterval)
+	ac.tickerMu.Unlock()
 	go ac.backgroundRefresh()
 }
 
@@ -105,9 +107,11 @@ func (ac *AlertCache) Stop() {
 	if ac.cancel != nil {
 		ac.cancel()
 	}
+	ac.tickerMu.Lock()
 	if ac.refreshTicker != nil {
 		ac.refreshTicker.Stop()
 	}
+	ac.tickerMu.Unlock()
 }
 
 func (ac *AlertCache) SetRefreshInterval(interval time.Duration) {
