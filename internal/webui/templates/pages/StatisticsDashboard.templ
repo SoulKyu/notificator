@@ -1422,6 +1422,85 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						</div>
 					</div>
 
+					<!-- Alert Noise Heatmap -->
+					<div x-show="hasData" class="mt-6">
+						<div class="bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+							<!-- Header -->
+							<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
+								<div>
+									<h3 class="text-base font-semibold text-slate-900 dark:text-white">Alert Noise Heatmap</h3>
+									<p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Alert volume by day of week and hour — local timezone</p>
+								</div>
+								<!-- Metric toggle -->
+								<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+									<button
+										@click="heatmapMetric = 'count'"
+										:class="heatmapMetric === 'count' ? 'bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
+										class="px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+									>Volume</button>
+									<button
+										@click="heatmapMetric = 'mttr'"
+										:class="heatmapMetric === 'mttr' ? 'bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
+										class="px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+									>MTTR</button>
+								</div>
+							</div>
+
+							<div class="p-6">
+								<!-- Empty state -->
+								<div x-show="heatmapData.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
+									<svg class="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 9a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm9-9a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zm0 9a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+									</svg>
+									<p class="text-sm text-slate-500 dark:text-slate-400">No heatmap data for the selected period</p>
+								</div>
+
+								<!-- Heatmap grid -->
+								<div x-show="heatmapData.length > 0">
+									<!-- Hour labels row -->
+									<div class="flex mb-1 pl-10">
+										<template x-for="h in 24" :key="h">
+											<div class="flex-1 text-center text-xs text-slate-400 dark:text-slate-500" x-text="(h-1) % 6 === 0 ? String(h-1).padStart(2,'0') + 'h' : ''"></div>
+										</template>
+									</div>
+
+									<!-- Day rows: Mon(1)..Sun(0) -->
+									<div class="space-y-1">
+										<template x-for="(dowVal, ri) in [1,2,3,4,5,6,0]" :key="dowVal">
+											<div class="flex items-center gap-1">
+												<!-- Day label -->
+												<div class="w-9 flex-shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400 text-right pr-1"
+													x-text="['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dowVal]"></div>
+												<!-- 24 hour cells -->
+												<template x-for="h in 24" :key="h">
+													<div
+														class="flex-1 h-6 rounded-sm cursor-default transition-opacity hover:opacity-80"
+														:style="heatmapCellStyle(dowVal, h-1)"
+														:title="['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dowVal] + ' ' + String(h-1).padStart(2,'0') + ':00 — ' + (heatmapMetric === 'count' ? heatmapValue(dowVal, h-1) + ' alerts' : formatDuration(heatmapValue(dowVal, h-1)) + ' avg MTTR')"
+													></div>
+												</template>
+											</div>
+										</template>
+									</div>
+
+									<!-- Legend -->
+									<div class="mt-4 flex items-center justify-end gap-2">
+										<span class="text-xs text-slate-400 dark:text-slate-500">Low</span>
+										<div class="flex h-3 rounded overflow-hidden w-32">
+											<div class="flex-1" style="background-color: rgb(30,41,59)"></div>
+											<div class="flex-1" style="background-color: rgb(100,107,86)"></div>
+											<div class="flex-1" style="background-color: rgb(170,173,113)"></div>
+											<div class="flex-1" style="background-color: rgb(220,160,70)"></div>
+											<div class="flex-1" style="background-color: rgb(236,99,54)"></div>
+											<div class="flex-1" style="background-color: rgb(220,38,38)"></div>
+										</div>
+										<span class="text-xs text-slate-400 dark:text-slate-500">High</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
 				</div>
 			</div>
 		</div>
@@ -1703,6 +1782,10 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 				individualAlertLoading: false,
 				individualAlertOccurrences: [],
 
+				// Heatmap
+				heatmapData: [],
+				heatmapMetric: 'count',
+
 				filters: {
 					startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
 					endDate: new Date().toISOString().split('T')[0], // Today
@@ -1983,7 +2066,8 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						await Promise.all([
 							this.loadTimeSeriesData(),
 							this.loadTopItemsData(),
-							this.loadDistributionData()
+							this.loadDistributionData(),
+							this.loadHeatmap()
 						]);
 
 						// Build stable color mapping from all unique keys
@@ -2671,6 +2755,53 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 						return this.chartColors.team[colorIndex % 10];
 					}
 					return this.chartColors.default[colorIndex % 10];
+				},
+
+				async loadHeatmap() {
+					try {
+						const start_date = this.filters.timeRangeMode === 'absolute'
+							? this.filters.startDate + 'T' + (this.filters.absoluteFromTime || '00:00') + ':00Z'
+							: this.filters.startDate + 'T00:00:00Z';
+						const end_date = this.filters.timeRangeMode === 'absolute' && !this.filters.relativeUntil.now
+							? this.filters.endDate + 'T' + (this.filters.absoluteUntilTime || '23:59') + ':00Z'
+							: (this.filters.relativeUntil.now ? new Date().toISOString() : this.filters.endDate + 'T23:59:59Z');
+						const payload = {
+							start_date,
+							end_date,
+							severities: this.filters.severities,
+							teams: this.filters.teams,
+							include_silenced: this.filters.includeSilenced,
+							timezone: window.__USER_TIMEZONE__ || 'UTC'
+						};
+						const response = await fetch('/api/v1/statistics/heatmap', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload)
+						});
+						if (response.ok) {
+							const data = await response.json();
+							this.heatmapData = data.data?.cells || [];
+						}
+					} catch (error) {
+						console.error('Failed to load heatmap data:', error);
+					}
+				},
+
+				heatmapValue(dow, hour) {
+					const c = this.heatmapData.find(x => x.dow === dow && x.hour === hour);
+					return c ? (this.heatmapMetric === 'count' ? c.count : c.avg_mttr_seconds) : 0;
+				},
+
+				heatmapMax() {
+					if (!this.heatmapData.length) return 1;
+					return Math.max(1, ...this.heatmapData.map(c => this.heatmapMetric === 'count' ? c.count : c.avg_mttr_seconds));
+				},
+
+				heatmapCellStyle(dow, hour) {
+					const v = this.heatmapValue(dow, hour), t = v / this.heatmapMax();
+					const lerp = (a, b, u) => a.map((x, i) => Math.round(x + (b[i] - x) * u));
+					const rgb = t < 0.5 ? lerp([30, 41, 59], [252, 211, 77], t / 0.5) : lerp([252, 211, 77], [220, 38, 38], (t - 0.5) / 0.5);
+					return `background-color: rgb(${rgb.join(',')})`;
 				},
 
 				async loadTimeSeriesData() {
