@@ -596,31 +596,9 @@ func (s *StatisticsServiceGorm) GetAlertsByName(ctx context.Context, req *alertp
 		Where("alert_name = ?", req.AlertName).
 		Where("fired_at >= ? AND fired_at <= ?", startDate, endDate)
 
-	// Apply time of day filter if requested
+	// Apply on-call / time of day filter if requested
 	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
-		// Determine weekend mode (use WeekendMode if set, otherwise fall back to IncludeWeekends)
-		weekendMode := req.WeekendMode
-		if weekendMode == "" {
-			if req.IncludeWeekends {
-				weekendMode = "same_hours"
-			} else {
-				weekendMode = "exclude"
-			}
-		}
-
-		// Apply weekend mode logic
-		switch weekendMode {
-		case "exclude":
-			// Apply time filter to weekdays only, exclude weekends entirely
-			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
-			query = s.queryService.applyWeekendFilter(query)
-		case "full_weekends":
-			// Apply time filter only to weekdays, include all of weekends
-			query = s.queryService.applyTimeOfDayFilterWeekdaysOnly(query, req.TimeOfDayStart, req.TimeOfDayEnd)
-		default: // "same_hours"
-			// Apply same time filter to all days
-			query = s.queryService.applyTimeOfDayFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd)
-		}
+		query = s.queryService.applyOnCallFilter(query, req.TimeOfDayStart, req.TimeOfDayEnd, resolveWeekendMode(req.WeekendMode, req.IncludeWeekends))
 	}
 
 	// Apply severity filter if specified (multi-select, OR logic)

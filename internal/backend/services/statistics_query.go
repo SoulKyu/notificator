@@ -79,31 +79,9 @@ func (sqs *StatisticsQueryService) QueryStatistics(req *QueryRequest) (*QueryRes
 		Where("fired_at >= ?", req.StartDate).
 		Where("fired_at <= ?", req.EndDate)
 
-	// Apply time-of-day filter if enabled
+	// Apply on-call / time-of-day filter if enabled
 	if req.FilterByTimeOfDay && req.TimeOfDayStart != "" && req.TimeOfDayEnd != "" {
-		// Determine weekend mode (use WeekendMode if set, otherwise fall back to IncludeWeekends)
-		weekendMode := req.WeekendMode
-		if weekendMode == "" {
-			if req.IncludeWeekends {
-				weekendMode = "same_hours"
-			} else {
-				weekendMode = "exclude"
-			}
-		}
-
-		// Apply weekend mode logic
-		switch weekendMode {
-		case "exclude":
-			// Apply time filter to weekdays only, exclude weekends entirely
-			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
-			baseQuery = sqs.applyWeekendFilter(baseQuery)
-		case "full_weekends":
-			// Apply time filter only to weekdays, include all of weekends
-			baseQuery = sqs.applyTimeOfDayFilterWeekdaysOnly(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
-		default: // "same_hours"
-			// Apply same time filter to all days
-			baseQuery = sqs.applyTimeOfDayFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd)
-		}
+		baseQuery = sqs.applyOnCallFilter(baseQuery, req.TimeOfDayStart, req.TimeOfDayEnd, resolveWeekendMode(req.WeekendMode, req.IncludeWeekends))
 	}
 
 	// Apply severity filter if specified (multi-select, OR logic)
@@ -210,100 +188,101 @@ func (sqs *StatisticsQueryService) validateQueryRequest(req *QueryRequest) error
 	return nil
 }
 
-// applyTimeOfDayFilter adds a WHERE clause to filter by time of day
-// Supports cross-midnight ranges (e.g., 22:00 to 06:00 means "night hours")
-func (sqs *StatisticsQueryService) applyTimeOfDayFilter(query *gorm.DB, startTime, endTime string) *gorm.DB {
-	// Parse HH:MM to minutes since midnight
+// resolveWeekendMode normalizes the weekend mode, falling back to the deprecated
+// IncludeWeekends flag when WeekendMode is not set.
+func resolveWeekendMode(weekendMode string, includeWeekends bool) string {
+	if weekendMode != "" {
+		return weekendMode
+	}
+	if includeWeekends {
+		return "same_hours"
+	}
+	return "exclude"
+}
+
+// applyOnCallFilter restricts results to alerts whose ACTIVE interval
+// [fired_at, COALESCE(resolved_at, now)] overlaps the on-call window, instead of
+// only looking at the fired_at clock time. A daytime alert that keeps firing into
+// the night therefore correctly counts as on-call. Supports cross-midnight windows
+// (e.g. 18:00 -> 08:00). weekendMode controls how weekends are treated:
+//   - "same_hours":    apply the window every day
+//   - "full_weekends": treat the whole weekend as on-call
+//   - "exclude":       drop alerts that fired on a weekend
+func (sqs *StatisticsQueryService) applyOnCallFilter(query *gorm.DB, startTime, endTime, weekendMode string) *gorm.DB {
 	startMinutes := parseTimeToMinutes(startTime)
 	endMinutes := parseTimeToMinutes(endTime)
-
 	if startMinutes < 0 || endMinutes < 0 {
 		// Invalid time format, return query unchanged
 		return query
 	}
 
-	// Determine if we're using PostgreSQL or SQLite
-	isPostgres := sqs.db.IsPostgreSQL()
+	overlap := sqs.onCallOverlapClause(startMinutes, endMinutes)
 
-	if startMinutes <= endMinutes {
-		// Same-day range (e.g., 09:00 to 18:00)
-		// Filter: time_of_day BETWEEN start AND end
-		if isPostgres {
-			return query.Where(
-				"(EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) BETWEEN ? AND ?",
-				startMinutes, endMinutes,
-			)
-		}
-		// SQLite
-		return query.Where(
-			"(CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) BETWEEN ? AND ?",
-			startMinutes, endMinutes,
-		)
+	switch weekendMode {
+	case "exclude":
+		return query.Where(overlap).Where(sqs.weekdayClause())
+	case "full_weekends":
+		return query.Where("(" + overlap + ") OR (" + sqs.weekendTouchClause() + ")")
+	default: // "same_hours"
+		return query.Where(overlap)
+	}
+}
+
+// onCallOverlapClause builds a boolean SQL expression that is true when the alert's
+// active interval [fired_at, COALESCE(resolved_at, now)] overlaps at least one daily
+// occurrence of the window [startMinutes, endMinutes] (minutes since midnight;
+// supports cross-midnight windows).
+//
+// Trick: let rr = COALESCE(resolved_at, now) and WS = the latest window occurrence
+// that starts at or before rr. The interval always ends at/after WS, so it overlaps
+// that occurrence — and therefore any earlier one it might also touch — iff fired_at
+// is before the END of that occurrence (WS + windowLen). windowLen is safe from user
+// input (parsed HH:MM -> 0..1439), so it is inlined without SQL-injection risk.
+func (sqs *StatisticsQueryService) onCallOverlapClause(startMinutes, endMinutes int) string {
+	windowLen := endMinutes - startMinutes
+	if startMinutes > endMinutes {
+		windowLen = 1440 - startMinutes + endMinutes
 	}
 
-	// Cross-midnight range (e.g., 22:00 to 06:00)
-	// Filter: time_of_day >= start OR time_of_day <= end
-	if isPostgres {
-		return query.Where(
-			"((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) >= ? OR (EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) <= ?)",
-			startMinutes, endMinutes,
+	if sqs.db.IsPostgreSQL() {
+		rr := "COALESCE(resolved_at, NOW())"
+		return fmt.Sprintf(
+			"fired_at < (date_trunc('day', %[1]s) "+
+				"+ make_interval(mins => %[2]d) "+
+				"- make_interval(days => CASE WHEN (EXTRACT(HOUR FROM %[1]s)*60 + EXTRACT(MINUTE FROM %[1]s)) >= %[2]d THEN 0 ELSE 1 END) "+
+				"+ make_interval(mins => %[3]d))",
+			rr, startMinutes, windowLen,
 		)
 	}
-	// SQLite
-	return query.Where(
-		"((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) >= ? OR (CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) <= ?)",
-		startMinutes, endMinutes,
+	// SQLite: compare via julianday so stored timezone offsets are normalized.
+	rr := "COALESCE(resolved_at, datetime('now'))"
+	return fmt.Sprintf(
+		"julianday(fired_at) < julianday(datetime(date(%[1]s), '+%[2]d minutes', "+
+			"CASE WHEN (CAST(strftime('%%H', %[1]s) AS INTEGER)*60 + CAST(strftime('%%M', %[1]s) AS INTEGER)) >= %[2]d THEN '+0 days' ELSE '-1 days' END, "+
+			"'+%[3]d minutes'))",
+		rr, startMinutes, windowLen,
 	)
 }
 
-// applyWeekendFilter adds a WHERE clause to exclude weekends (Saturday and Sunday)
-func (sqs *StatisticsQueryService) applyWeekendFilter(query *gorm.DB) *gorm.DB {
-	isPostgres := sqs.db.IsPostgreSQL()
-
-	if isPostgres {
-		// PostgreSQL: EXTRACT(DOW FROM timestamp) returns 0 for Sunday, 6 for Saturday
-		return query.Where("EXTRACT(DOW FROM fired_at) NOT IN (0, 6)")
+// weekdayClause is true when the alert fired on a weekday (Mon–Fri).
+func (sqs *StatisticsQueryService) weekdayClause() string {
+	if sqs.db.IsPostgreSQL() {
+		return "EXTRACT(DOW FROM fired_at) NOT IN (0, 6)"
 	}
-	// SQLite: strftime('%w', timestamp) returns 0 for Sunday, 6 for Saturday
-	return query.Where("CAST(strftime('%w', fired_at) AS INTEGER) NOT IN (0, 6)")
+	return "CAST(strftime('%w', fired_at) AS INTEGER) NOT IN (0, 6)"
 }
 
-// applyTimeOfDayFilterWeekdaysOnly applies time filter only to weekdays, includes full weekends
-func (sqs *StatisticsQueryService) applyTimeOfDayFilterWeekdaysOnly(query *gorm.DB, startTime, endTime string) *gorm.DB {
-	startMinutes := parseTimeToMinutes(startTime)
-	endMinutes := parseTimeToMinutes(endTime)
-
-	if startMinutes < 0 || endMinutes < 0 {
-		return query
+// weekendTouchClause is true when the alert's active interval covers any part of a
+// weekend (used by "full_weekends" mode, where the whole weekend counts as on-call).
+// It is true if the alert fired on a Sunday, or if the next Saturday on/after the
+// fired date falls on or before the resolved date.
+func (sqs *StatisticsQueryService) weekendTouchClause() string {
+	if sqs.db.IsPostgreSQL() {
+		return "EXTRACT(DOW FROM fired_at) = 0 " +
+			"OR (fired_at::date + ((6 - EXTRACT(DOW FROM fired_at)::int + 7) % 7)) <= COALESCE(resolved_at, NOW())::date"
 	}
-
-	isPostgres := sqs.db.IsPostgreSQL()
-
-	if startMinutes <= endMinutes {
-		// Same-day range: weekends (any time) OR weekdays within time range
-		if isPostgres {
-			return query.Where(
-				"(EXTRACT(DOW FROM fired_at) IN (0, 6)) OR ((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) BETWEEN ? AND ?)",
-				startMinutes, endMinutes,
-			)
-		}
-		return query.Where(
-			"(CAST(strftime('%w', fired_at) AS INTEGER) IN (0, 6)) OR ((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) BETWEEN ? AND ?)",
-			startMinutes, endMinutes,
-		)
-	}
-
-	// Cross-midnight range: weekends (any time) OR weekdays within time range
-	if isPostgres {
-		return query.Where(
-			"(EXTRACT(DOW FROM fired_at) IN (0, 6)) OR ((EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) >= ? OR (EXTRACT(HOUR FROM fired_at) * 60 + EXTRACT(MINUTE FROM fired_at)) <= ?)",
-			startMinutes, endMinutes,
-		)
-	}
-	return query.Where(
-		"(CAST(strftime('%w', fired_at) AS INTEGER) IN (0, 6)) OR ((CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) >= ? OR (CAST(strftime('%H', fired_at) AS INTEGER) * 60 + CAST(strftime('%M', fired_at) AS INTEGER)) <= ?)",
-		startMinutes, endMinutes,
-	)
+	return "CAST(strftime('%w', fired_at) AS INTEGER) = 0 " +
+		"OR julianday(date(fired_at), '+' || ((6 - CAST(strftime('%w', fired_at) AS INTEGER) + 7) % 7) || ' days') <= julianday(date(COALESCE(resolved_at, datetime('now'))))"
 }
 
 // parseTimeToMinutes parses "HH:MM" format to minutes since midnight
