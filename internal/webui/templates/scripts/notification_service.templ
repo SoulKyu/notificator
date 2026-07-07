@@ -185,7 +185,10 @@ templ NotificationService() {
 					}
 				});
 
-				localStorage.setItem(storageKey, JSON.stringify(Array.from(fingerprintMap.values())));
+				// Apply 24h TTL before persisting to bound storage growth
+				const twentyFourHours = 24 * 60 * 60 * 1000;
+				const now2 = Date.now();
+				localStorage.setItem(storageKey, JSON.stringify(Array.from(fingerprintMap.values()).filter(item => (now2 - item.timestamp) < twentyFourHours)));
 			},
 
 			// Detect new alerts (not in seen set)
