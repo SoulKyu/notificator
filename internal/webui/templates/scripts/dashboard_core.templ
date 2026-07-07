@@ -309,7 +309,7 @@ templ DashboardCore() {
 					this.loadColumnWidths();
 					this.initializeColumns();
 					await this.loadUserColumnPreferences(); // Load user column preferences
-					this.loadCurrentUser();
+					await this.loadCurrentUser();
 					this.loadAnnotationButtonConfigs();
 
 					// Check if URL has filter parameters

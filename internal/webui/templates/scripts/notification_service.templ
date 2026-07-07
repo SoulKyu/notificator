@@ -383,9 +383,6 @@ templ NotificationService() {
 				// before the dashboard has initialized the seen alerts set
 				if (!this.seenAlertsInitialized) {
 					console.log('[NotificationService.processNewAlerts] Skipping - seenAlerts not yet initialized from dashboard');
-					// Still mark alerts as seen to prevent notifications after init
-					const fingerprints = allAlerts.map(a => a.fingerprint);
-					this.markAsSeen(fingerprints, userID);
 					return;
 				}
 
