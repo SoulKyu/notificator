@@ -1,8 +1,11 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"log"
+
+	"gorm.io/gorm"
 
 	"notificator/internal/backend/models"
 )
@@ -14,7 +17,7 @@ func (gdb *GormDB) GetUserNotificationPreference(userID string) (*models.Notific
 	result := gdb.db.Where("user_id = ?", userID).First(&pref)
 	if result.Error != nil {
 		// If not found, return default preferences (but don't save them yet)
-		if result.Error.Error() == "record not found" {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			log.Printf("No notification preference found for user %s, returning defaults", userID)
 			return models.DefaultNotificationPreference(userID), nil
 		}
@@ -32,7 +35,7 @@ func (gdb *GormDB) SaveUserNotificationPreference(pref *models.NotificationPrefe
 
 	if result.Error != nil {
 		// If not found, create new
-		if result.Error.Error() == "record not found" {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			log.Printf("Creating new notification preference for user %s", pref.UserID)
 			if err := gdb.db.Create(pref).Error; err != nil {
 				return fmt.Errorf("failed to create notification preference: %w", err)
