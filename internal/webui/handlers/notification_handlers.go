@@ -29,12 +29,7 @@ func GetNotificationPreferences(c *gin.Context) {
 	prefs, err := backendClient.GetNotificationPreferences(sessionID)
 	if err != nil {
 		log.Printf("Failed to get notification preferences: %v", err)
-		// Return default preferences if failed
-		c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
-			"browser_notifications_enabled": false,
-			"enabled_severities":            []string{"critical", "warning"},
-			"sound_notifications_enabled":   true,
-		}))
+		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Failed to load notification preferences"))
 		return
 	}
 
