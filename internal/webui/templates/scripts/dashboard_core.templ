@@ -462,7 +462,7 @@ templ DashboardCore() {
 					this.sseConnection.addEventListener('update', (event) => {
 						try {
 							const update = JSON.parse(event.data);
-							this.applyIncrementalUpdate(update);
+							this.applyIncrementalUpdate(update, 'sse');
 						} catch (error) {
 							console.error('Error parsing SSE update:', error);
 						}
