@@ -862,6 +862,20 @@ templ DashboardSettings() {
 
 				// Notification preference methods
 				async loadNotificationPreferences() {
+					// Single source of truth: NotificationService already fetches these
+					// preferences on page init. Copy its field values instead of issuing
+					// a second, independent fetch (which could drift out of sync).
+					if (window.notificationService) {
+						const svcPreferences = window.notificationService.preferences || {};
+						this.notificationPreferences = {
+							browserNotificationsEnabled: svcPreferences.browserNotificationsEnabled || false,
+							enabledSeverities: svcPreferences.enabledSeverities || ['critical', 'warning'],
+							soundNotificationsEnabled: svcPreferences.soundNotificationsEnabled !== undefined ? svcPreferences.soundNotificationsEnabled : true
+						};
+						return;
+					}
+
+					// Fallback: notification service not available, fetch directly
 					try {
 						const response = await fetch('/api/v1/notifications/preferences', {
 							credentials: 'include'
@@ -874,11 +888,6 @@ templ DashboardSettings() {
 									enabledSeverities: result.data.enabled_severities || ['critical', 'warning'],
 									soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
 								};
-
-								// Sync with notification service
-								if (window.notificationService) {
-									window.notificationService.preferences = this.notificationPreferences;
-								}
 							}
 						}
 					} catch (error) {
