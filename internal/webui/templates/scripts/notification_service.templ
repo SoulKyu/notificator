@@ -446,19 +446,6 @@ templ NotificationService() {
 				this.markAsSeen(newFingerprints, userID);
 			},
 
-			// Get severity color for notification icons
-			getSeverityColor(severity) {
-				const colors = {
-					critical: '#dc2626',      // red-600
-					'critical-daytime': '#7c3aed', // violet-600
-					warning: '#d97706',       // amber-600
-					info: '#2563eb',          // blue-600
-					information: '#2563eb',   // blue-600
-					default: '#6b7280'        // gray-500
-				};
-				return colors[severity.toLowerCase()] || colors.default;
-			},
-
 			// Check if we can show a notification (rate limiting: max 5 per minute)
 			canShowNotification() {
 				const now = Date.now();

@@ -81,21 +81,6 @@ func (n *NotificationPreference) IsSeverityEnabled(severity string) bool {
 	return false
 }
 
-// SetEnabledSeverities sets the enabled severities with validation
-func (n *NotificationPreference) SetEnabledSeverities(severities []string) {
-	// Validate severities
-	validSeverities := []string{}
-	validValues := map[string]bool{"critical": true, "warning": true, "info": true, "information": true}
-
-	for _, s := range severities {
-		if validValues[s] {
-			validSeverities = append(validSeverities, s)
-		}
-	}
-
-	n.EnabledSeverities = SeverityList(validSeverities)
-}
-
 // BeforeCreate generates a UUID for the ID field before creating a new record
 func (n *NotificationPreference) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
