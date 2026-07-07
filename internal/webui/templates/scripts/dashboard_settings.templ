@@ -865,7 +865,7 @@ templ DashboardSettings() {
 					// Single source of truth: NotificationService already fetches these
 					// preferences on page init. Copy its field values instead of issuing
 					// a second, independent fetch (which could drift out of sync).
-					if (window.notificationService) {
+					if (window.notificationService && window.notificationService.preferencesLoaded) {
 						const svcPreferences = window.notificationService.preferences || {};
 						this.notificationPreferences = {
 							browserNotificationsEnabled: svcPreferences.browserNotificationsEnabled || false,

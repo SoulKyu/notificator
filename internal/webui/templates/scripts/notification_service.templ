@@ -96,6 +96,7 @@ templ NotificationService() {
 								soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
 							};
 							console.log('Loaded notification preferences:', this.preferences);
+							this.preferencesLoaded = true;
 						}
 					}
 				} catch (error) {
