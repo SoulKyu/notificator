@@ -293,6 +293,17 @@ templ NotificationService() {
 				}
 			},
 
+			// Check if an alert is in the user's GLOBAL Hidden Alerts list (settings modal, not a
+			// preset-scoped filterHiddenAlerts). That list is loaded client-side into the settings
+			// modal's Alpine component (window.currentSettingsModal.hiddenAlerts) on page init.
+			isGloballyHidden(alert) {
+				const hiddenAlerts = window.currentSettingsModal?.hiddenAlerts;
+				if (!hiddenAlerts || hiddenAlerts.length === 0) {
+					return false;
+				}
+				return hiddenAlerts.some(hidden => hidden.fingerprint === alert.fingerprint);
+			},
+
 			// Check if an alert matches the current filters
 			alertMatchesFilters(alert, filters) {
 				console.log('[NotificationService.alertMatchesFilters] Checking alert:', alert.alertName, 'fingerprint:', alert.fingerprint);
@@ -400,6 +411,10 @@ templ NotificationService() {
 				// Filter alerts based on user's current filters
 				console.log('[NotificationService.processNewAlerts] Starting filter process...');
 				const filteredNewAlerts = newAlerts.filter(alert => {
+					if (this.isGloballyHidden(alert)) {
+						console.log('[NotificationService.processNewAlerts] Alert', alert.alertName, 'is globally hidden, skipping notification');
+						return false;
+					}
 					const matches = this.alertMatchesFilters(alert, currentFilters);
 					console.log('[NotificationService.processNewAlerts] Alert', alert.alertName, 'matches filters:', matches);
 					return matches;
