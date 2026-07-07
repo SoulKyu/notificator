@@ -23,7 +23,7 @@ templ NotificationService() {
 
 				// Dedupe notifications across tabs via BroadcastChannel, if supported
 				if ('BroadcastChannel' in window) {
-					this.seenChannel = new BroadcastChannel('notificator_seen_alerts');
+					this.seenChannel = new BroadcastChannel('notificator_seen_alerts_' + userID);
 					this.seenChannel.onmessage = (event) => {
 						const fingerprints = event.data;
 						if (Array.isArray(fingerprints)) {
