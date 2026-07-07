@@ -302,8 +302,9 @@ templ DashboardCore() {
 						this.initResolvedAutoLoad();
 					}
 
-					// Load notification banner dismissed state from localStorage
-					this.notificationBannerDismissed = localStorage.getItem('notificator_banner_dismissed') === 'true';
+					// Notification banner dismissed state is checked per-user in
+					// shouldShowNotificationBanner() once currentUser is loaded below.
+					this.notificationBannerDismissed = false;
 
 					this.loadSettings();
 					this.loadColumnWidths();
@@ -535,8 +536,15 @@ templ DashboardCore() {
 				},
 				// Notification banner functions
 				shouldShowNotificationBanner() {
-					// Don't show if dismissed
+					// Don't show if dismissed this session
 					if (this.notificationBannerDismissed) return false;
+
+					// Don't show if dismissed previously (scoped per user; falls back to the
+					// unscoped key if currentUser hasn't loaded yet)
+					const bannerKey = (this.currentUser && this.currentUser.id)
+						? 'notificator_banner_dismissed_' + this.currentUser.id
+						: 'notificator_banner_dismissed';
+					if (localStorage.getItem(bannerKey) === 'true') return false;
 
 					// Don't show if notification service not loaded
 					if (!window.notificationService) return false;
@@ -580,8 +588,12 @@ templ DashboardCore() {
 
 				dismissNotificationBanner() {
 					this.notificationBannerDismissed = true;
-					// Save to localStorage
-					localStorage.setItem('notificator_banner_dismissed', 'true');
+					// Save to localStorage, scoped per user (falls back to the unscoped
+					// key if currentUser hasn't loaded yet)
+					const bannerKey = (this.currentUser && this.currentUser.id)
+						? 'notificator_banner_dismissed_' + this.currentUser.id
+						: 'notificator_banner_dismissed';
+					localStorage.setItem(bannerKey, 'true');
 				}
 			}
 		}
