@@ -355,6 +355,11 @@ templ DashboardCore() {
 							} else {
 								// If SSE is enabled but not connected, try to reconnect
 								if (this.useSSE && typeof EventSource !== 'undefined' && !this.sseConnection) {
+									// Catch up on any alerts that fired while the tab was hidden
+									// and SSE was disconnected, then re-establish the stream. A new
+									// SSE connection only delivers events going forward, so without
+									// this the gap window's alerts would never reach processNewAlerts.
+									this.loadDashboardIncremental();
 									this.initSSE();
 								} else if (!this.sseConnection) {
 									// Do one incremental fetch to catch any missed updates (polling mode)
