@@ -140,17 +140,14 @@ templ NotificationService() {
 				}
 			},
 
-			// Initialize seen alerts (call on dashboard load)
+			// Initialize seen alerts (call once per session on dashboard load)
 			initializeSeenAlerts(alerts, userID) {
 				const fingerprints = alerts.map(a => a.fingerprint);
-				this.seenAlerts = new Set(fingerprints);
+				fingerprints.forEach(fp => this.seenAlerts.add(fp));
 				this.seenAlertsInitialized = true; // Mark as properly initialized
 
-				// Save to localStorage with timestamps
-				const storageKey = 'notificator_seen_alerts_' + userID;
-				const now = Date.now();
-				const seenData = fingerprints.map(fp => ({ fingerprint: fp, timestamp: now }));
-				localStorage.setItem(storageKey, JSON.stringify(seenData));
+				// Persist via the existing merge logic (union, with TTL bookkeeping)
+				this.markAsSeen(fingerprints, userID);
 
 				console.log('Initialized', this.seenAlerts.size, 'seen alerts (seenAlertsInitialized=true)');
 			},

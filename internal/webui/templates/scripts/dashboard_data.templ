@@ -73,8 +73,8 @@ templ DashboardData() {
 							await this.loadAlertColors();
 						}
 
-						// Initialize notification service with seen alerts on first load
-						if (window.notificationService && this.currentUser) {
+						// Initialize notification service with seen alerts, only once per session
+						if (window.notificationService && this.currentUser && !window.notificationService.seenAlertsInitialized) {
 							window.notificationService.initializeSeenAlerts(this.alerts, this.currentUser.id);
 						}
 
