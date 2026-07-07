@@ -15,10 +15,22 @@ templ NotificationService() {
 			seenAlertsInitialized: false, // Track if seenAlerts has been properly initialized from dashboard
 			notificationTimestamps: [], // Track recent notification times for rate limiting
 			notificationQueue: [], // Queue for notifications when rate limited
+			seenChannel: null, // BroadcastChannel to dedupe seen alerts across tabs (best-effort)
 
 			// Initialize the notification service
 			async init(userID) {
 				console.log('Initializing NotificationService...');
+
+				// Dedupe notifications across tabs via BroadcastChannel, if supported
+				if ('BroadcastChannel' in window) {
+					this.seenChannel = new BroadcastChannel('notificator_seen_alerts');
+					this.seenChannel.onmessage = (event) => {
+						const fingerprints = event.data;
+						if (Array.isArray(fingerprints)) {
+							fingerprints.forEach(fp => this.seenAlerts.add(fp));
+						}
+					};
+				}
 
 				// Load preferences from backend
 				await this.loadPreferences();
@@ -186,6 +198,11 @@ templ NotificationService() {
 				const twentyFourHours = 24 * 60 * 60 * 1000;
 				const now2 = Date.now();
 				localStorage.setItem(storageKey, JSON.stringify(Array.from(fingerprintMap.values()).filter(item => (now2 - item.timestamp) < twentyFourHours)));
+
+				// Notify other tabs so they don't re-notify for the same alerts
+				if (this.seenChannel) {
+					this.seenChannel.postMessage(fingerprints);
+				}
 			},
 
 			// Forget alerts that have genuinely resolved (SSE-confirmed) so that if the
