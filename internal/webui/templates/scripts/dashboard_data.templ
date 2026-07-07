@@ -73,8 +73,8 @@ templ DashboardData() {
 							await this.loadAlertColors();
 						}
 
-						// Initialize notification service with seen alerts on first load
-						if (window.notificationService && this.currentUser) {
+						// Initialize notification service with seen alerts, only once per session
+						if (window.notificationService && this.currentUser && !window.notificationService.seenAlertsInitialized) {
 							window.notificationService.initializeSeenAlerts(this.alerts, this.currentUser.id);
 						}
 
@@ -158,7 +158,7 @@ templ DashboardData() {
 					const result = await response.json();
 					
 					if (result.success) {
-						this.applyIncrementalUpdate(result.data);
+						this.applyIncrementalUpdate(result.data, 'poll');
 					} else {
 						// Fallback to full refresh if incremental fails
 						console.warn('Incremental update failed, falling back to full refresh');
@@ -259,7 +259,9 @@ templ DashboardData() {
 			},
 
 			// Apply incremental changes to the dashboard
-			applyIncrementalUpdate(update) {
+			// source: 'sse' (Alertmanager-diff push, removedAlerts are genuinely resolved)
+			//         or 'poll' (default; removedAlerts may just be filtered/silenced/paginated out)
+			applyIncrementalUpdate(update, source = 'poll') {
 				// Track if this update has changes (for adaptive polling)
 				const hasChanges = (update.newAlerts?.length > 0 ||
 				                    update.updatedAlerts?.length > 0 ||
@@ -279,13 +281,22 @@ templ DashboardData() {
 				
 				// Remove alerts that are no longer present
 				if (update.removedAlerts && update.removedAlerts.length > 0) {
-					this.alerts = this.alerts.filter(alert => 
+					this.alerts = this.alerts.filter(alert =>
 						!update.removedAlerts.includes(alert.fingerprint)
 					);
 					// Update selection to remove deleted alerts
-					this.selectedAlerts = this.selectedAlerts.filter(fingerprint => 
+					this.selectedAlerts = this.selectedAlerts.filter(fingerprint =>
 						!update.removedAlerts.includes(fingerprint)
 					);
+
+					// Only the SSE stream's removedAlerts reflect genuinely resolved alerts
+					// (diffed against the live Alertmanager cache). The poll path's
+					// removedAlerts also include alerts that were merely filtered/silenced/
+					// acked/paginated out, so evicting the seen-set there would cause
+					// still-firing alerts to re-notify spuriously.
+					if (source === 'sse' && window.notificationService && this.currentUser) {
+						window.notificationService.forgetAlerts(update.removedAlerts, this.currentUser.id);
+					}
 				}
 				
 				// Update existing alerts (and remove those that no longer match filters)

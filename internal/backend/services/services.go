@@ -2252,18 +2252,9 @@ func (s *AlertServiceGorm) GetNotificationPreferences(ctx context.Context, req *
 	prefs, err := s.db.GetUserNotificationPreference(user.ID)
 	if err != nil {
 		log.Printf("Failed to get notification preferences for user %s: %v", user.ID, err)
-		// Return default preferences if not found
-		defaultPrefs := models.DefaultNotificationPreference(user.ID)
 		return &alertpb.GetNotificationPreferencesResponse{
-			Success: true,
-			Preferences: &alertpb.NotificationPreference{
-				Id:                          defaultPrefs.ID,
-				UserId:                      defaultPrefs.UserID,
-				BrowserNotificationsEnabled: defaultPrefs.BrowserNotificationsEnabled,
-				EnabledSeverities:           defaultPrefs.EnabledSeverities,
-				SoundNotificationsEnabled:   defaultPrefs.SoundNotificationsEnabled,
-			},
-			Message: "Using default notification preferences",
+			Success: false,
+			Message: "could not load notification preferences",
 		}, nil
 	}
 
