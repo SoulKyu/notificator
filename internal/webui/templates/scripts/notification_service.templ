@@ -210,7 +210,12 @@ templ NotificationService() {
 				const normalizedSeverity = severity.toLowerCase();
 
 				// Handle 'information' as 'info'
-				const severityToCheck = normalizedSeverity === 'information' ? 'info' : normalizedSeverity;
+				let severityToCheck = normalizedSeverity === 'information' ? 'info' : normalizedSeverity;
+
+				// Handle 'critical-daytime' as 'critical'
+				if (severityToCheck === 'critical-daytime') {
+					severityToCheck = 'critical';
+				}
 
 				if (!this.preferences.enabledSeverities.includes(severityToCheck)) {
 					return false;
@@ -509,7 +514,7 @@ templ NotificationService() {
 					icon: this.getNotificationIcon(severity),
 					badge: '/static/images/default-icon.png',
 					tag: fingerprint,
-					requireInteraction: severity.toLowerCase() === 'critical',
+					requireInteraction: ['critical', 'critical-daytime'].includes(severity.toLowerCase()),
 					data: {
 						fingerprint: fingerprint,
 						alertName: alertName
