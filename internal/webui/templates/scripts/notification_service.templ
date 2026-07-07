@@ -102,7 +102,8 @@ templ NotificationService() {
 						},
 						body: JSON.stringify({
 							browser_notifications_enabled: preferences.browserNotificationsEnabled,
-							enabled_severities: preferences.enabledSeverities
+							enabled_severities: preferences.enabledSeverities,
+							sound_notifications_enabled: preferences.soundNotificationsEnabled
 						})
 					});
 
