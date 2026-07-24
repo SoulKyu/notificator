@@ -8,7 +8,7 @@ timers/services, `gh` (PRs/issues), newest agent log as chatter ticker.
 
 Run:      python3 factory-tui.py
 Test:     python3 factory-tui.py --once     (one frame, no curses)
-Keys:     q quit
+Keys:     arrows select desk · Enter zoom · l follow log · s summon · Esc back · q quit
 """
 import calendar
 import curses
@@ -49,6 +49,9 @@ TIMER_OF = {
     "promoter": "notificator-promoter.timer", "groomer": "notificator-groomer.timer",
     "docagent": "notificator-docagent.timer", "reporter": "notificator-reporter.timer",
 }
+SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
+SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
+ZOOM_TAIL = 15
 
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
          "mail_pending": {}, "intercom": [], "score": None, "events": []}
@@ -113,7 +116,7 @@ def poll_fast():
             loops.append({"type": parts[1], "target": parts[2], "step": parts[3], "status": parts[6]})
     svc = {}
     units = " ".join(k.split(":")[1] + ".service" for _, _, _, k in ROSTER if k.startswith("svc:"))
-    out = sh(f"systemctl --user show {units} -p Id,ActiveState,Result 2>/dev/null")
+    out = sh(f"systemctl --user show {units} -p Id,ActiveState,Result,ExecMainStartTimestamp 2>/dev/null")
     cur = {}
     for line in out.splitlines() + [""]:
         if not line.strip():
@@ -414,7 +417,7 @@ def agent_state(key, kind):
 CELL_W = 20  # inner width of a desk cell
 
 
-def desk_cell(emoji, name, key, state3, tick, seed, coffee_on):
+def desk_cell(emoji, name, key, state3, tick, seed, coffee_on, selected=False):
     """-> (8 display lines of width CELL_W+2, color)"""
     state, status, detail = state3
     if state == "break" and coffee_on:
@@ -423,11 +426,12 @@ def desk_cell(emoji, name, key, state3, tick, seed, coffee_on):
     with LOCK:
         mail = STATE["mail_pending"].get(key, 0)
     title = f" {emoji} {name} 📬 " if mail else f" {emoji} {name} "
-    lines = ["┌" + dpad(title, CELL_W, center=True, fill="─") + "┐"]
+    tl, tr, bl, br, hz, vt = ("╔", "╗", "╚", "╝", "═", "║") if selected else ("┌", "┐", "└", "┘", "─", "│")
+    lines = [tl + dpad(title, CELL_W, center=True, fill=hz) + tr]
     for l in inner:
-        lines.append("│" + dpad(l, CELL_W) + "│")
-    lines.append("│" + dpad(" " + (status + " " + detail).strip(), CELL_W) + "│")
-    lines.append("└" + "─" * CELL_W + "┘")
+        lines.append(vt + dpad(l, CELL_W) + vt)
+    lines.append(vt + dpad(" " + (status + " " + detail).strip(), CELL_W) + vt)
+    lines.append(bl + hz * CELL_W + br)
     return lines, color
 
 
@@ -472,14 +476,20 @@ def apply_overlays(rows, tick, width, pos, board_pos, party_y):
         rows[y] = ("│" + dpad(msg, width - 2, center=True) + "│", 6)
 
 
-def render_frame(tick, width=92):
+def grid_per_row(width):
+    """Desk columns per row — single source of truth for renderer AND navigation."""
+    per_row = max(1, (width - 4) // (CELL_W + 3))
+    if per_row > 2 and (width - 4) - per_row * (CELL_W + 3) < 16:
+        per_row -= 1  # give up one desk column so the coffee corner fits
+    return per_row
+
+
+def render_frame(tick, width=92, sel=None):
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
     rows.append(("┌" + dpad(title, width - 13, fill="─") + f" {t} ─┐", 0))
-    per_row = max(1, (width - 4) // (CELL_W + 3))
-    if per_row > 2 and (width - 4) - per_row * (CELL_W + 3) < 16:
-        per_row -= 1  # give up one desk column so the coffee corner fits
+    per_row = grid_per_row(width)
     used = 2 + per_row * (CELL_W + 3)
     coffee_on = width - used - 2 >= 14
     states = {k: agent_state(k, kind) for k, _, _, kind in ROSTER}
@@ -489,7 +499,8 @@ def render_frame(tick, width=92):
     coffee = coffee_corner(tick, breakers, width - used - 2) if coffee_on else None
     for start in range(0, len(ROSTER), per_row):
         chunk = ROSTER[start:start + per_row]
-        cells = [desk_cell(e, n, k, states[k], tick, start + i, coffee_on) for i, (k, e, n, _) in enumerate(chunk)]
+        cells = [desk_cell(e, n, k, states[k], tick, start + i, coffee_on, selected=(start + i == sel))
+                 for i, (k, e, n, _) in enumerate(chunk)]
         for li in range(8):
             line = "│ "
             for cl, _ in cells:
@@ -530,6 +541,89 @@ def render_frame(tick, width=92):
     return rows
 
 
+# ── control room: zoom, log tail, summon ───────────────────────────────────
+
+def log_tail(key, n=ZOOM_TAIL):
+    """Newest log file of an agent -> (basename, last n non-empty lines)."""
+    try:
+        logs = [os.path.join(LOG_DIR, f) for f in os.listdir(LOG_DIR) if f.startswith(key)]
+        if not logs:
+            return None, []
+        newest = max(logs, key=os.path.getmtime)
+        with open(newest, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 16384))
+            data = f.read().decode(errors="replace")
+        return os.path.basename(newest), [l for l in data.splitlines() if l.strip()][-n:]
+    except Exception:
+        return None, []
+
+
+def zoom_lines(idx, tail_name, tail, follow, note, width=80):
+    """Zoom panel over one desk -> lines at exact display width."""
+    key, emoji, name, kind = ROSTER[idx]
+    state, status, detail = agent_state(key, kind)
+    with LOCK:
+        svc, timers, loops = dict(STATE["svc"]), dict(STATE["timers"]), list(STATE["loops"])
+    unit = ("notificator-scout" if kind == "virtual:scout-log"
+            else kind.split(":")[1] if kind.startswith("svc:") else None)
+    if unit:
+        s = svc.get(unit, {})
+        last = f"{s.get('Result') or '—'} · {s.get('ExecMainStartTimestamp') or '—'}"
+    else:  # ponytail: looper roles have no systemd unit — show the live loop instead
+        lp = next((l for l in loops if l["type"] == kind.split(":")[1]), None)
+        last = f"{lp['status']} · {lp['target']}" if lp else "—"
+    inner = width - 2
+    lines = ["╔" + dpad(f" ZOOM — {emoji} {name} ", inner, center=True, fill="═") + "╗"]
+    for b in (f" état : {state} · {status} {detail}".rstrip(),
+              f" dernier run : {last}",
+              f" prochain réveil : {timers.get(TIMER_OF.get(key, ''), '') or '—'}",
+              f" log : {tail_name or '(aucun)'}  [{'follow' if follow else 'figé'}]"):
+        lines.append("║" + dpad(b, inner) + "║")
+    lines.append("╠" + "═" * inner + "╣")
+    rows = (tail or ["(aucun log)"])[-ZOOM_TAIL:]
+    for l in rows + [""] * (ZOOM_TAIL - len(rows)):
+        lines.append("║" + dpad(" " + l, inner) + "║")
+    summon = "s summon" if key in SUMMONABLE else "s summon (indispo)"
+    foot = f" {note} · " if note else " "
+    lines.append("╚" + dpad(foot + f"l follow · {summon} · Esc fermer ", inner, center=True, fill="═") + "╝")
+    return lines
+
+
+def prompt_summon(scr, key):
+    """One-line textbox at the bottom; Enter sends, Esc cancels. -> msg or None."""
+    from curses.textpad import Textbox
+    h, w = scr.getmaxyx()
+    if h < 6 or w < 24:
+        return None
+    ww = min(76, w - 4)
+    win = curses.newwin(3, ww, h - 4, 2)
+    win.border()
+    win.addstr(0, 2, dpad(f" ✉ {key} — Enter envoie · Esc annule ", ww - 4))
+    edit = win.derwin(1, ww - 4, 1, 2)
+    win.refresh()
+    curses.curs_set(1)
+    cancelled = []
+
+    def keyfilter(ch):
+        if ch == 27:
+            cancelled.append(True)
+            return 7  # Ctrl-G ends Textbox.edit
+        return 7 if ch in (10, 13) else ch
+
+    msg = Textbox(edit).edit(keyfilter).strip()
+    curses.curs_set(0)
+    return None if cancelled else (msg or None)
+
+
+def send_summon(key, msg):
+    try:
+        r = subprocess.run([SUMMON_SH, key, msg], capture_output=True, text=True, timeout=15)
+        return "✉ envoyé" if r.returncode == 0 else "✗ " + (r.stderr or r.stdout or "échec").strip()[:50]
+    except Exception as e:
+        return "✗ " + str(e)[:50]
+
+
 def main_curses(scr):
     curses.curs_set(0)
     scr.nodelay(True)
@@ -538,19 +632,56 @@ def main_curses(scr):
     for i, fg in ((1, curses.COLOR_GREEN), (2, curses.COLOR_YELLOW), (3, curses.COLOR_BLUE),
                   (4, curses.COLOR_RED), (5, curses.COLOR_CYAN), (6, curses.COLOR_MAGENTA)):
         curses.init_pair(i, fg, -1)
-    tick = 0
+    tick, sel, zoom, follow, frozen, note = 0, 0, None, True, (None, []), ""
     while True:
-        if scr.getch() in (ord("q"), 27):
-            return
+        ch = scr.getch()
         h, w = scr.getmaxyx()
+        width = min(w - 1, 120)
+        per_row = grid_per_row(width)  # must match render_frame's column count or Up/Down drifts
+        if ch == ord("q"):
+            return
+        if zoom is None:
+            if ch == 27:
+                return
+            if ch == curses.KEY_LEFT:
+                sel = (sel - 1) % len(ROSTER)
+            elif ch == curses.KEY_RIGHT:
+                sel = (sel + 1) % len(ROSTER)
+            elif ch == curses.KEY_UP:
+                sel = (sel - per_row) % len(ROSTER)
+            elif ch == curses.KEY_DOWN:
+                sel = (sel + per_row) % len(ROSTER)
+            elif ch in (curses.KEY_ENTER, 10, 13):
+                zoom, follow, note = sel, True, ""
+        else:
+            if ch == 27:
+                zoom = None
+            elif ch == ord("l"):
+                follow = not follow
+                if not follow:
+                    frozen = log_tail(ROSTER[zoom][0])
+            elif ch == ord("s") and ROSTER[zoom][0] in SUMMONABLE:
+                msg = prompt_summon(scr, ROSTER[zoom][0])
+                if msg:
+                    note = send_summon(ROSTER[zoom][0], msg)
         scr.erase()
-        for y, (line, color) in enumerate(render_frame(tick, min(w - 1, 120))):
+        for y, (line, color) in enumerate(render_frame(tick, width, sel)):
             if y >= h - 1:
                 break
             try:
                 scr.addstr(y, 0, line, curses.color_pair(color) if color else 0)
             except curses.error:
                 pass
+        if zoom is not None:
+            # ponytail: re-read the tail every frame in follow mode — small seek'd read, dev tool
+            tail_name, tail = log_tail(ROSTER[zoom][0]) if follow else frozen
+            zl = zoom_lines(zoom, tail_name, tail, follow, note, min(80, max(24, w - 4)))
+            y0, x0 = max(0, (h - len(zl)) // 2), max(0, (w - dwidth(zl[0])) // 2)
+            for i, line in enumerate(zl):
+                try:
+                    scr.addstr(y0 + i, x0, line, curses.color_pair(5))
+                except curses.error:
+                    pass
         scr.refresh()
         time.sleep(0.25)
         tick += 1
@@ -596,6 +727,25 @@ def selfcheck():
                 if dwidth(line) != w:
                     print(f"FAIL row {dwidth(line)} cols (want {w}): {line!r}")
                     fails += 1
+    # control room: selected border and zoom panel keep every row at exact width
+    for line, _ in render_frame(3, 92, sel=5):
+        if dwidth(line) != 92:
+            print(f"FAIL sel row {dwidth(line)} cols: {line!r}")
+            fails += 1
+    for idx, follow, note in ((0, True, "✉ envoyé"), (1, False, ""), (2, True, "")):
+        zl = zoom_lines(idx, "scout-1.log", ["x" * 200, "ok ✓"], follow, note, 80)
+        if len(zl) != 7 + ZOOM_TAIL:  # top + 4 info + sep + 15 tail + bottom
+            print(f"FAIL zoom height {len(zl)}")
+            fails += 1
+        for line in zl:
+            if dwidth(line) != 80:
+                print(f"FAIL zoom row {dwidth(line)} cols: {line!r}")
+                fails += 1
+    # navigation stride == renderer column count (coffee-corner decrement included)
+    for w, want in ((92, 3), (113, 4), (120, 4)):
+        if grid_per_row(w) != want:
+            print(f"FAIL grid_per_row({w}) = {grid_per_row(w)} (want {want})")
+            fails += 1
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 
