@@ -41,6 +41,20 @@ python3 devtools/factory-tui/factory-tui.py --check  # alignment self-check, exi
 | newest file in the agents log dir | the 📻 chatter ticker | 10 s |
 | agent inboxes (`inbox/<agent>/`, `inbox/archive/`) | 📬 pending-mail badge on desks + the 💬 INTERCOM panel (last agent-to-agent messages) | 10 s |
 
+## Animated events
+
+Observable transitions feed a render-side event queue (no extra pollers):
+
+- **✉ mail in flight** — a new file in `inbox/<agent>/` sends an envelope flying
+  from the sender's desk (parsed from the message `From:` header) to the
+  recipient's desk over ~1 s; unknown senders launch from the team board
+- **🎉 merge party** — a PR that disappears from `gh pr list` and turns out
+  `MERGED` (one `gh pr view` check) throws a full-width celebration banner
+  naming the PR for ~3 s
+- **☕ coffee corner** — when the terminal leaves enough spare width, a coffee
+  machine is drawn beside the desks; agents on break queue there and their desk
+  shows an empty chair (narrow terminals fall back to the plain desk rendering)
+
 ## Configuration (env)
 
 | Variable | Default | Purpose |
