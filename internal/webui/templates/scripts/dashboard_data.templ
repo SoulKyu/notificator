@@ -250,6 +250,53 @@ templ DashboardData() {
 				}
 			},
 
+			// Fetch colors for only the pending changed alerts (SSE path) via the
+			// bulk-colors endpoint, merging results into the existing color map.
+			// Payload scales with changed alerts, not the full filtered set.
+			async loadBulkAlertColors() {
+				const pending = this._pendingColorAlerts || {};
+				this._pendingColorAlerts = {};
+				const alerts = Object.entries(pending).map(([fingerprint, labels]) => ({ fingerprint, labels }));
+				if (alerts.length === 0) {
+					return;
+				}
+				if (alerts.length > 1000) {
+					// Server caps bulk requests at 1000 alerts; churn this large is a
+					// full refresh anyway
+					await this.loadAlertColors(true);
+					return;
+				}
+
+				try {
+					const response = await fetch('/api/v1/dashboard/alerts/bulk-colors', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						credentials: 'include',
+						body: JSON.stringify({ alerts })
+					});
+
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
+					const result = await response.json();
+
+					if (result.success && result.data.colors) {
+						this.alertColors = { ...this.alertColors, ...result.data.colors };
+						this.alertColorsTimestamp = result.data.timestamp || Date.now();
+						console.log(`Loaded colors for ${alerts.length} changed alerts via bulk endpoint`);
+					} else if (!result.success) {
+						console.warn('Failed to load bulk alert colors:', result.error);
+						// Re-queue the batch (without clobbering newer entries) so the
+						// next debounced flush retries it
+						this._pendingColorAlerts = { ...pending, ...this._pendingColorAlerts };
+					}
+				} catch (error) {
+					console.error('Error loading bulk alert colors:', error);
+					this._pendingColorAlerts = { ...pending, ...this._pendingColorAlerts };
+				}
+			},
+
 			// Invalidate and reload alert colors when preferences change
 			async refreshAlertColors() {
 				console.log('Refreshing alert colors due to preference changes...');
@@ -288,6 +335,15 @@ templ DashboardData() {
 					this.selectedAlerts = this.selectedAlerts.filter(fingerprint =>
 						!update.removedAlerts.includes(fingerprint)
 					);
+
+					// Prune color entries (and any pending color fetches) for removed
+					// alerts so the maps stay bounded over long-lived SSE sessions
+					update.removedAlerts.forEach(fingerprint => {
+						delete this.alertColors[fingerprint];
+						if (this._pendingColorAlerts) {
+							delete this._pendingColorAlerts[fingerprint];
+						}
+					});
 
 					// Only the SSE stream's removedAlerts reflect genuinely resolved alerts
 					// (diffed against the live Alertmanager cache). The poll path's
@@ -365,12 +421,18 @@ templ DashboardData() {
 					console.log(`Updated colors for ${Object.keys(update.colors).length} alerts from incremental update`);
 				} else if (this.sseConnection && (update.newAlerts?.length > 0 || update.updatedAlerts?.length > 0)) {
 					// SSE doesn't include colors (they're user-specific), so fetch them
-					// Debounce to prevent multiple rapid calls
+					// for just the changed alerts via the bulk endpoint.
+					// Debounce to prevent multiple rapid calls; pending alerts
+					// accumulate across debounced updates so none are dropped.
+					this._pendingColorAlerts = this._pendingColorAlerts || {};
+					[...(update.newAlerts || []), ...(update.updatedAlerts || [])].forEach(alert => {
+						this._pendingColorAlerts[alert.fingerprint] = alert.labels || {};
+					});
 					if (this._colorLoadTimeout) {
 						clearTimeout(this._colorLoadTimeout);
 					}
 					this._colorLoadTimeout = setTimeout(() => {
-						this.loadAlertColors(true);
+						this.loadBulkAlertColors();
 					}, 500);
 				}
 				

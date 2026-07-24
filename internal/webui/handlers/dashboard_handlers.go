@@ -1724,6 +1724,8 @@ func GetAlertColors(c *gin.Context) {
 
 	// Parse filters from query parameters (same as dashboard data)
 	filters := parseDashboardFilters(c)
+	sorting := parseDashboardSorting(c)
+	pagination := parsePagination(c)
 
 	// Get alerts based on display mode (same logic as dashboard data)
 	var allAlerts []*webuimodels.DashboardAlert
@@ -1760,7 +1762,12 @@ func GetAlertColors(c *gin.Context) {
 		return
 	}
 
-	finalResults := computeAlertColorsMap(filteredAlerts, sessionID)
+	// Only compute colors for the page actually rendered by the client —
+	// same sort + pagination as GetDashboardData, so response size scales
+	// with the page size, not the total alert count
+	paginatedAlerts := applyPagination(applySorting(filteredAlerts, sorting), pagination)
+
+	finalResults := computeAlertColorsMap(paginatedAlerts, sessionID)
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
 		"colors":     finalResults,
