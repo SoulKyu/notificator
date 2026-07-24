@@ -861,12 +861,19 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 			}
 		}
 
-		// Update local cache
-		alert.IsAcknowledged = true
-		alert.AcknowledgedBy = userID
-		alert.AcknowledgedAt = time.Now()
-		// Always increment comment count since we add an acknowledgment comment
-		alert.CommentCount++
+		// Update local cache under the cache lock (GetAlert returns a snapshot).
+		// Mirror the change on the snapshot so the statistics goroutine below
+		// sees the acknowledged state without touching cache-resident memory.
+		ackAt := time.Now()
+		applyAck := func(a *webuimodels.DashboardAlert) {
+			a.IsAcknowledged = true
+			a.AcknowledgedBy = userID
+			a.AcknowledgedAt = ackAt
+			// Always increment comment count since we add an acknowledgment comment
+			a.CommentCount++
+		}
+		alertCache.MutateAlert(fingerprint, applyAck)
+		applyAck(alert)
 
 		// Capture acknowledgment statistics
 		if backendClient != nil && backendClient.IsConnected() {
@@ -897,19 +904,24 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 			}
 		}
 
-		// Update local cache
-		alert.IsAcknowledged = false
-		alert.AcknowledgedBy = ""
-		alert.AcknowledgedAt = time.Time{}
-		// Increment comment count for unacknowledgment comment
-		alert.CommentCount++
+		// Update local cache under the cache lock (GetAlert returns a snapshot)
+		alertCache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+			a.IsAcknowledged = false
+			a.AcknowledgedBy = ""
+			a.AcknowledgedAt = time.Time{}
+			// Increment comment count for unacknowledgment comment
+			a.CommentCount++
+		})
 
 	case "resolve":
 		// Mark alert as resolved (this is more of a UI state than backend)
-		alert.Status.State = "resolved"
-		alert.EndsAt = time.Now()
-		alert.IsResolved = true
-		alert.ResolvedAt = time.Now()
+		resolvedAt := time.Now()
+		alertCache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+			a.Status.State = "resolved"
+			a.EndsAt = resolvedAt
+			a.IsResolved = true
+			a.ResolvedAt = resolvedAt
+		})
 
 		// Add a comment about resolution for audit trail
 		if backendClient != nil && backendClient.IsConnected() {
@@ -924,7 +936,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				fmt.Printf("Warning: failed to add resolution comment: %v\n", err)
 			} else {
 				// Increment comment count if comment was added successfully
-				alert.CommentCount++
+				alertCache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) { a.CommentCount++ })
 			}
 		}
 
@@ -1412,9 +1424,11 @@ func AddAlertComment(c *gin.Context) {
 		return
 	}
 
-	// Update comment count in alert cache
-	alert.CommentCount++
-	alert.LastCommentAt = time.Now()
+	// Update comment count in alert cache (the lookup above returned a snapshot)
+	alertCache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+		a.CommentCount++
+		a.LastCommentAt = time.Now()
+	})
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
 		"message": "Comment added successfully",
@@ -1984,7 +1998,7 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 			fmt.Printf("Warning: failed to add silence comment: %v\n", err)
 		} else {
 			// Increment comment count in cache only if comment was added successfully
-			alert.CommentCount++
+			alertCache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) { a.CommentCount++ })
 		}
 	}
 
