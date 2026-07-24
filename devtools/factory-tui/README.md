@@ -30,6 +30,20 @@ python3 devtools/factory-tui/factory-tui.py --once   # one frame to stdout (test
 python3 devtools/factory-tui/factory-tui.py --check  # alignment self-check, exit 0/1
 ```
 
+## Control room (keys)
+
+| Key | Action |
+|---|---|
+| arrows | select a desk (double-line border) |
+| Enter | zoom panel: state, last run result + start time, next wake-up, live tail (last 15 lines) of the agent's newest log |
+| `l` (in zoom) | toggle follow mode for the log tail (live ↔ frozen) |
+| `s` (in zoom) | prompt a one-line message and send it via `~/.claude-agents/notificator/summon.sh <agent> "<msg>"` — summonable agents only (scout, roast, qa, rebaser, groomer); shown as `(indispo)` elsewhere |
+| Esc | close the zoom (quits from the office view) |
+| `q` | quit, always |
+
+Summoning is the single write path (delegated to `summon.sh`); everything else
+stays read-only.
+
 ## Data sources (all read-only, polled)
 
 | Source | What it feeds | Interval |
