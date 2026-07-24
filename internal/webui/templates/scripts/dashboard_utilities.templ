@@ -78,8 +78,8 @@ templ DashboardUtilities() {
 
 			// Filtering utilities
 			applyFilters() {
-				// Debounced filter application happens automatically via data loading
-				this.loadDashboardData();
+				// Return the promise so callers like the search box can chain .finally()
+				return this.loadDashboardData();
 			},
 
 			clearAllFilters() {
