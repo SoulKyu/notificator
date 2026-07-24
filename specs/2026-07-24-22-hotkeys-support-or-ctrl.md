@@ -49,8 +49,9 @@ and a small helper in the dashboard Alpine component
 focusSearch(event) {
     // All shortcuts are inert while a modal is open — the search input is
     // hidden behind the overlay, so focusing it would be invisible/confusing.
-    if (this.showAckModal || this.showSilenceModal || this.showAlertModal ||
-        this.showFilterPresetsModal || this.showColumnConfigModal) {
+    if (this.showSettings || this.showAckModal || this.showSilenceModal ||
+        this.showAlertModal || this.showFilterPresetsModal ||
+        this.showColumnConfigModal) {
         return;
     }
     // '/' must not fire while typing elsewhere; Ctrl/Cmd+F always wins.
@@ -68,9 +69,12 @@ The modal guard covers both `/` and `Ctrl+F`/`Cmd+F`: with a modal open,
 neither shortcut fires (the `.prevent` modifier on the `Ctrl+F` bindings
 still stops the native find bar, which is acceptable while our modal owns
 the screen). The component already tracks every modal flag
-(`showAckModal`, `showSilenceModal`, `showAlertModal`,
+(`showSettings`, `showAckModal`, `showSilenceModal`, `showAlertModal`,
 `showFilterPresetsModal`, `showColumnConfigModal`), so no new state is
-needed.
+needed. The hidden-rule sub-modal (`showHiddenRuleModal`, scoped to
+`settingsModalData()`) only opens from inside the settings modal, so
+`showSettings` covers it transitively; `showSaveViewModal` lives on the
+statistics page, which is out of scope per Non-goals.
 
 After editing the `.templ` files, regenerate with `make webui-templates`
 (never edit `*_templ.go` by hand).
