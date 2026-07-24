@@ -198,6 +198,7 @@ templ DashboardFilterPresetsMixin() {
 			console.log('Applied', this.filterHiddenAlerts.length, 'filter hidden alerts and', this.filterHiddenRules.length, 'filter hidden rules');
 
 			// Reload dashboard data with new filters
+			this.currentPage = 1;
 			await this.loadDashboardData();
 
 			// Close modal

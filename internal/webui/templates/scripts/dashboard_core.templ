@@ -444,6 +444,7 @@ templ DashboardCore() {
 						const previousMode = this.displayMode;
 						this.displayMode = mode;
 						this.clearSelection();
+						this.currentPage = 1; // Each mode has its own result set size
 
 						// Always reload when switching back from resolved to other views
 						if (previousMode === 'resolved' && mode !== 'resolved') {
@@ -469,6 +470,7 @@ templ DashboardCore() {
 					if (this.viewMode !== mode) {
 						this.viewMode = mode;
 						this.clearSelection();
+						this.currentPage = 1;
 						if (mode === 'group') {
 							this.expandedGroups = this.groups.map(g => g.groupName);
 						}
