@@ -1863,13 +1863,20 @@ func GetBulkAlertColors(c *gin.Context) {
 }
 
 func RemoveAllResolvedAlerts(c *gin.Context) {
+	if !canImpersonate(c) {
+		c.JSON(http.StatusForbidden, webuimodels.ErrorResponse("You are not allowed to remove resolved alerts"))
+		return
+	}
+
 	if alertCache == nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse("Alert cache not available"))
 		return
 	}
 
+	sessionID := middleware.GetSessionIDFromContext(c)
+
 	// Call alert cache to remove all resolved alerts
-	if err := alertCache.RemoveAllResolvedAlerts(); err != nil {
+	if err := alertCache.RemoveAllResolvedAlerts(sessionID); err != nil {
 		c.JSON(http.StatusInternalServerError, webuimodels.ErrorResponse(fmt.Sprintf("Failed to remove resolved alerts: %v", err)))
 		return
 	}

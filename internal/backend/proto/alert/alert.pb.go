@@ -2130,6 +2130,7 @@ func (x *GetResolvedAlertResponse) GetMessage() string {
 
 type RemoveAllResolvedAlertsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2162,6 +2163,13 @@ func (x *RemoveAllResolvedAlertsRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RemoveAllResolvedAlertsRequest.ProtoReflect.Descriptor instead.
 func (*RemoveAllResolvedAlertsRequest) Descriptor() ([]byte, []int) {
 	return file_proto_alert_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *RemoveAllResolvedAlertsRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
 }
 
 type RemoveAllResolvedAlertsResponse struct {
@@ -10037,8 +10045,10 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\x18GetResolvedAlertResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12K\n" +
 	"\x0eresolved_alert\x18\x02 \x01(\v2$.notificator.alert.ResolvedAlertInfoR\rresolvedAlert\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\" \n" +
-	"\x1eRemoveAllResolvedAlertsRequest\"z\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"?\n" +
+	"\x1eRemoveAllResolvedAlertsRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"z\n" +
 	"\x1fRemoveAllResolvedAlertsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
 	"\rremoved_count\x18\x02 \x01(\x05R\fremovedCount\x12\x18\n" +

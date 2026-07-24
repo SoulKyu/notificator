@@ -903,14 +903,14 @@ func (ac *AlertCache) storeResolvedAlertInBackend(alert *webuimodels.DashboardAl
 	}
 }
 
-func (ac *AlertCache) RemoveAllResolvedAlerts() error {
+func (ac *AlertCache) RemoveAllResolvedAlerts(sessionID string) error {
 	if ac.backendClient == nil || !ac.backendClient.IsConnected() {
 		return fmt.Errorf("backend client not available")
 	}
 
 	log.Printf("Removing all resolved alerts from backend")
 
-	if err := ac.backendClient.RemoveAllResolvedAlerts(); err != nil {
+	if err := ac.backendClient.RemoveAllResolvedAlerts(sessionID); err != nil {
 		log.Printf("Error removing all resolved alerts from backend: %v", err)
 		return err
 	}

@@ -145,8 +145,11 @@ templ SettingsModal() {
 									</p>
 								</div>
 
-								<!-- Remove All Resolved Alerts -->
-								<div>
+								<!-- Remove All Resolved Alerts (admin only) -->
+								<div x-data="{ canAdmin: false }"
+									x-init="if (window.impersonationState?.initialized) { canAdmin = window.impersonationState.canImpersonate } else { window.addEventListener('impersonationStateReady', () => { canAdmin = window.impersonationState.canImpersonate }, { once: true }) }">
+									<template x-if="canAdmin">
+										<div>
 									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 										Alert Management
 									</label>
@@ -167,6 +170,8 @@ templ SettingsModal() {
 									<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
 										Permanently removes all resolved alerts from the backend storage. This action cannot be undone.
 									</p>
+										</div>
+									</template>
 								</div>
 							</div>
 							

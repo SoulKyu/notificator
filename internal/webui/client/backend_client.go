@@ -529,7 +529,7 @@ func (c *BackendClient) GetResolvedAlert(fingerprint string) (*alertpb.ResolvedA
 }
 
 // RemoveAllResolvedAlerts removes all resolved alerts from the backend
-func (c *BackendClient) RemoveAllResolvedAlerts() error {
+func (c *BackendClient) RemoveAllResolvedAlerts(sessionID string) error {
 	if !c.IsConnected() {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -537,7 +537,9 @@ func (c *BackendClient) RemoveAllResolvedAlerts() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req := &alertpb.RemoveAllResolvedAlertsRequest{}
+	req := &alertpb.RemoveAllResolvedAlertsRequest{
+		SessionId: sessionID,
+	}
 
 	resp, err := c.alertClient.RemoveAllResolvedAlerts(ctx, req)
 	if err != nil {
