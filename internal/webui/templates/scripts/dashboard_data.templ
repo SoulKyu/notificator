@@ -497,8 +497,16 @@ templ DashboardData() {
 				// Check hidden-ness (global + filter-preset), mirroring the server's
 				// applyDashboardFilters: hidden mode shows only hidden alerts, every
 				// other mode drops them
-				const isGlobalHidden = (window.currentSettingsModal?.hiddenAlerts || [])
-					.some(hidden => hidden.fingerprint === alert.fingerprint);
+				// Global rules serialize camelCase (labelKey/labelValue/isRegex/enabled),
+				// unlike preset rules — normalize before reusing the matcher
+				const isGlobalHidden =
+					(window.currentSettingsModal?.hiddenAlerts || []).some(hidden => hidden.fingerprint === alert.fingerprint) ||
+					(window.currentSettingsModal?.hiddenRules || []).some(rule => this.alertMatchesHiddenRule(alert, {
+						is_enabled: rule.enabled,
+						label_key: rule.labelKey,
+						label_value: rule.labelValue,
+						is_regex: rule.isRegex
+					}));
 				const isFilterHidden =
 					(this.filterHiddenAlerts || []).some(hidden => hidden.fingerprint === alert.fingerprint) ||
 					(this.filterHiddenRules || []).some(rule => this.alertMatchesHiddenRule(alert, rule));
@@ -532,6 +540,9 @@ templ DashboardData() {
 				if (labelValue === undefined) return false;
 
 				if (rule.is_regex) {
+					// Server only compiles regexes with a non-empty value
+					// (CompileFilterRules); new RegExp('') would match everything
+					if (rule.label_value === '') return false;
 					try {
 						return new RegExp(rule.label_value).test(labelValue);
 					} catch (e) {
