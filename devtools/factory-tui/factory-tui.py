@@ -127,6 +127,11 @@ def poll_med():
 def poll_slow():
     prs = []
     out = sh(f"gh pr list -R {shlex.quote(REPO)} --state open --json number,title,labels,mergeable 2>/dev/null", 30)
+    if not out.strip():
+        # `gh` returns "[]" for zero PRs — an empty string means GitHub is unreachable
+        with LOCK:
+            STATE["prs"], STATE["issues"] = ["(github injoignable)"], "(github injoignable)"
+        return
     try:
         for p in json.loads(out or "[]"):
             labels = {l["name"] for l in p["labels"]}
@@ -194,7 +199,7 @@ def person_cell(state, tick, seed, status, detail):
         steam = ["  ~", " ~ ", "~  ", " ~ "][t % 4]
         return [
             " ┌────────┐",
-            " │  zZ off │".replace("zZ", "  "),
+            " │" + dpad("off", 8, center=True) + "│",
             " └────────┘" + steam,
             "   (u_u)☕",
             "   /|    |\\",
@@ -278,7 +283,6 @@ def desk_cell(emoji, name, key, kind, tick, seed):
 
 
 def render_frame(tick, width=92):
-    row = lambda s: "│ " + dpad(s, width - 4) + " │"  # all content-row border math lives here
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
@@ -288,16 +292,19 @@ def render_frame(tick, width=92):
         chunk = ROSTER[start:start + per_row]
         cells = [desk_cell(e, n, k, kind, tick, start + i) for i, (k, e, n, kind) in enumerate(chunk)]
         for li in range(8):
-            rows.append((row(" ".join(cl[li] for cl, _ in cells)), 0))
+            line = "│ "
+            for cl, _ in cells:
+                line += cl[li] + " "
+            rows.append((dpad(line, width - 1) + "│", 0))
     with LOCK:
         prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
     rows.append(("│" + dpad(" ═══ 📌 TABLEAU DU MUR ", width - 2, fill="═") + "│", 0))
-    rows.append((row("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉"), 5))
-    rows.append((row(issues or "…"), 5))
+    rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
+    rows.append(("│ " + dpad(issues or "…", width - 4) + " │", 5))
     off = tick % max(1, len(ticker)) if len(ticker) > width - 12 else 0
-    rows.append((row("📻 " + (ticker[off:] or "silence radio")), 6))
+    rows.append(("│ 📻 " + dpad(ticker[off:off + width - 8] or "silence radio", width - 6) + "│", 6))
     if err:
-        rows.append((row("⚠ " + err), 4))
+        rows.append(("│ ⚠ " + dpad(err, width - 5) + "│", 4))
     rows.append(("└" + "─" * (width - 2) + "┘", 0))
     return rows
 
@@ -328,7 +335,32 @@ def main_curses(scr):
         tick += 1
 
 
+def selfcheck():
+    """Alignment invariants: monitor segment = 11 cols in every state, frame rows all equal."""
+    fails = 0
+    for state in ("work", "break", "sleep", "error", "wait"):
+        for tick in range(8):
+            inner, _ = person_cell(state, tick, 3, "s", "d")
+            row = inner[1]
+            seg = row[:row.index("│", row.index("│") + 1) + 1]
+            if dwidth(seg) != 11:
+                print(f"FAIL {state} t{tick}: monitor segment {dwidth(seg)} cols: {seg!r}")
+                fails += 1
+            fails += sum(1 for l in inner if dwidth(l) > CELL_W)
+    with LOCK:
+        STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300)
+    for tick in range(6):
+        for line, _ in render_frame(tick, 92):
+            if dwidth(line) != 92:
+                print(f"FAIL row {dwidth(line)} cols: {line!r}")
+                fails += 1
+    print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
+    return fails
+
+
 if __name__ == "__main__":
+    if "--check" in sys.argv:
+        sys.exit(1 if selfcheck() else 0)
     threading.Thread(target=poller, daemon=True).start()
     if "--once" in sys.argv:
         time.sleep(8)  # let pollers fill (gh calls can be slow)
@@ -336,4 +368,7 @@ if __name__ == "__main__":
             print(line)
         sys.exit(0)
     time.sleep(1)
-    curses.wrapper(main_curses)
+    try:
+        curses.wrapper(main_curses)
+    except KeyboardInterrupt:
+        pass

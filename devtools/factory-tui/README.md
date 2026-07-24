@@ -27,6 +27,7 @@ break, who is asleep until their next timer, and what is on the team board
 ```bash
 python3 devtools/factory-tui/factory-tui.py          # live TUI (q to quit)
 python3 devtools/factory-tui/factory-tui.py --once   # one frame to stdout (tests/CI)
+python3 devtools/factory-tui/factory-tui.py --check  # alignment self-check, exit 0/1
 ```
 
 ## Data sources (all read-only, polled)
@@ -56,4 +57,6 @@ python3 devtools/factory-tui/factory-tui.py --once   # one frame to stdout (test
 Keep it **stdlib-only** and **read-only** (this dashboard must never mutate GitHub,
 looper state, or files outside its own process). Preserve the `--once` mode — it is
 the testable path (`python3 factory-tui.py --once` must always print a frame and
-exit 0). Emoji are double-width: any new cell rendering must go through `dpad()`.
+exit 0). Emoji are double-width: any new cell rendering must go through `dpad()`,
+and `--check` must stay green — it asserts the alignment invariants (11-col monitor
+segment in every state, all frame rows at identical display width).
