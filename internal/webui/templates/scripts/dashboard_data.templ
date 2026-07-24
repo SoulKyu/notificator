@@ -287,9 +287,13 @@ templ DashboardData() {
 						console.log(`Loaded colors for ${alerts.length} changed alerts via bulk endpoint`);
 					} else if (!result.success) {
 						console.warn('Failed to load bulk alert colors:', result.error);
+						// Re-queue the batch (without clobbering newer entries) so the
+						// next debounced flush retries it
+						this._pendingColorAlerts = { ...pending, ...this._pendingColorAlerts };
 					}
 				} catch (error) {
 					console.error('Error loading bulk alert colors:', error);
+					this._pendingColorAlerts = { ...pending, ...this._pendingColorAlerts };
 				}
 			},
 
@@ -331,6 +335,15 @@ templ DashboardData() {
 					this.selectedAlerts = this.selectedAlerts.filter(fingerprint =>
 						!update.removedAlerts.includes(fingerprint)
 					);
+
+					// Prune color entries (and any pending color fetches) for removed
+					// alerts so the maps stay bounded over long-lived SSE sessions
+					update.removedAlerts.forEach(fingerprint => {
+						delete this.alertColors[fingerprint];
+						if (this._pendingColorAlerts) {
+							delete this._pendingColorAlerts[fingerprint];
+						}
+					});
 
 					// Only the SSE stream's removedAlerts reflect genuinely resolved alerts
 					// (diffed against the live Alertmanager cache). The poll path's
