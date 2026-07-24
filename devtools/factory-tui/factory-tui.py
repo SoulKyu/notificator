@@ -10,6 +10,7 @@ Run:      python3 factory-tui.py
 Test:     python3 factory-tui.py --once     (one frame, no curses)
 Keys:     q quit
 """
+import calendar
 import curses
 import json
 import os
@@ -50,7 +51,7 @@ TIMER_OF = {
 }
 
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
-         "mail_pending": {}, "intercom": []}
+         "mail_pending": {}, "intercom": [], "score": None}
 LOCK = threading.Lock()
 
 
@@ -145,6 +146,63 @@ def poll_med():
         STATE["timers"], STATE["mail_pending"], STATE["intercom"] = timers, pending, intercom
 
 
+def compute_score(issues, prs, now):
+    """24h team stats from raw gh JSON. -> dict, or None when nothing happened."""
+    cutoff = now - 86400
+
+    def ts(s):
+        try:
+            return calendar.timegm(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+        except Exception:
+            return None
+
+    sc = {"scout": 0, "scout_ok": 0, "roast": 0, "kills": 0,
+          "prs": 0, "merged": 0, "qa_ok": 0, "qa_ko": 0}
+    events = []
+    for i in issues:
+        labels = {l["name"] for l in i.get("labels", [])}
+        t = ts(i.get("createdAt"))
+        if t is None or t < cutoff:
+            continue
+        events.append(t)
+        if "agent:proposed" in labels:
+            sc["scout"] += 1
+            if "roast:approved" in labels:
+                sc["scout_ok"] += 1
+        if any(l.startswith("roast:") for l in labels):
+            sc["roast"] += 1
+        if "roast:rejected" in labels:
+            sc["kills"] += 1
+    for p in prs:
+        labels = {l["name"] for l in p.get("labels", [])}
+        created, merged = ts(p.get("createdAt")), ts(p.get("mergedAt"))
+        from_looper = (p.get("headRefName") or "").startswith("looper/")
+        if created is not None and created >= cutoff:
+            events.append(created)
+            if from_looper:
+                sc["prs"] += 1
+        if merged is not None and merged >= cutoff:
+            events.append(merged)
+            if from_looper:
+                sc["merged"] += 1
+        if "qa:passed" in labels:
+            sc["qa_ok"] += 1
+        elif "qa:failed" in labels:
+            sc["qa_ko"] += 1
+    if not events and not any(sc.values()):
+        return None
+    hours = [0] * 24
+    for t in events:
+        hours[min(23, int((t - cutoff) // 3600))] += 1
+    top = max(hours) or 1
+    blocks = "▁▂▃▄▅▆▇█"
+    sc["spark"] = "".join("▁" if n == 0 else blocks[1 + n * 6 // top] for n in hours)
+    outcomes = {"scout": sc["scout_ok"], "roast": sc["roast"], "worker": sc["merged"], "qa": sc["qa_ok"]}
+    best = max(outcomes, key=lambda a: (outcomes[a], sc["merged"] if a == "worker" else 0))
+    sc["star"] = best if outcomes[best] else None
+    return sc
+
+
 def poll_slow():
     prs = []
     out = sh(f"gh pr list -R {shlex.quote(REPO)} --state open --json number,title,labels,mergeable 2>/dev/null", 30)
@@ -152,6 +210,7 @@ def poll_slow():
         # `gh` returns "[]" for zero PRs — an empty string means GitHub is unreachable
         with LOCK:
             STATE["prs"], STATE["issues"] = ["(github injoignable)"], "(github injoignable)"
+            STATE["score"] = "err"
         return
     try:
         for p in json.loads(out or "[]"):
@@ -172,8 +231,21 @@ def poll_slow():
             STATE["issues"] = f"issues: {len(iss)} open · {agent} agents · {held} hold"
     except Exception:
         pass
+    since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 86400))
+    i_out = sh(f"gh issue list -R {shlex.quote(REPO)} --state all --limit 200 "
+               f"--search {shlex.quote(f'created:>{since}')} --json labels,createdAt 2>/dev/null", 30)
+    p_out = sh(f"gh pr list -R {shlex.quote(REPO)} --state all --limit 200 "
+               f"--search {shlex.quote(f'updated:>{since}')} "
+               f"--json labels,createdAt,mergedAt,headRefName 2>/dev/null", 30)
+    if not i_out.strip() or not p_out.strip():
+        score = "err"
+    else:
+        try:
+            score = compute_score(json.loads(i_out), json.loads(p_out), time.time())
+        except Exception:
+            score = None
     with LOCK:
-        STATE["prs"] = prs
+        STATE["prs"], STATE["score"] = prs, score
 
 
 def poller():
@@ -321,11 +393,23 @@ def render_frame(tick, width=92):
             rows.append((dpad(line, width - 1) + "│", 0))
     with LOCK:
         prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
-        intercom = list(STATE["intercom"])
+        intercom, score = list(STATE["intercom"]), STATE["score"]
     if intercom:
         rows.append(("│" + dpad(" ═══ 💬 INTERCOM ", width - 2, fill="═") + "│", 0))
         for msg in intercom:
             rows.append(("│ " + dpad(msg, width - 4) + " │", 6))
+    if score:  # None (no data) → no panel
+        rows.append(("│" + dpad(" ═══ 🏆 SCOREBOARD 24h ", width - 2, fill="═") + "│", 0))
+        if score == "err":
+            rows.append(("│ " + dpad("(github injoignable)", width - 4) + " │", 4))
+        else:
+            half = (width - 4) // 2
+            rows.append(("│ " + dpad(f"🔍 scout  {score['scout']} issues · {score['scout_ok']} approuvées", half)
+                         + dpad(f"🔥 roast  {score['roast']} verdicts · {score['kills']} kills", width - 4 - half) + " │", 5))
+            rows.append(("│ " + dpad(f"🚢 worker {score['prs']} PRs · {score['merged']} mergées", half)
+                         + dpad(f"🧪 qa     {score['qa_ok']} ✓ · {score['qa_ko']} ✗", width - 4 - half) + " │", 5))
+            star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
+            rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
     rows.append(("│" + dpad(" ═══ 📌 TABLEAU DU MUR ", width - 2, fill="═") + "│", 0))
     rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
     rows.append(("│ " + dpad(issues or "…", width - 4) + " │", 5))
@@ -375,14 +459,31 @@ def selfcheck():
                 print(f"FAIL {state} t{tick}: monitor segment {dwidth(seg)} cols: {seg!r}")
                 fails += 1
             fails += sum(1 for l in inner if dwidth(l) > CELL_W)
+    now = calendar.timegm(time.strptime("2026-01-02T00:00:00", "%Y-%m-%dT%H:%M:%S"))
+    demo_issues = [{"labels": [{"name": "agent:proposed"}, {"name": "roast:approved"}],
+                    "createdAt": "2026-01-01T12:00:00Z"}]
+    demo_prs = [{"labels": [{"name": "qa:passed"}], "createdAt": "2026-01-01T13:00:00Z",
+                 "mergedAt": "2026-01-01T20:00:00Z", "headRefName": "looper/x"}]
+    s = compute_score(demo_issues, demo_prs, now)
+    if not (s and s["scout"] == s["scout_ok"] == s["roast"] == 1 and s["kills"] == 0
+            and s["prs"] == s["merged"] == s["qa_ok"] == 1 and len(s["spark"]) == 24
+            and set(s["spark"]) <= set("▁▂▃▄▅▆▇█") and s["star"] == "worker"):
+        print(f"FAIL compute_score: {s}")
+        fails += 1
+    if compute_score([], [], now) is not None:
+        print("FAIL compute_score: empty input should be None")
+        fails += 1
     with LOCK:
         STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300,
                      mail_pending={"scout": 2}, intercom=["roast → scout: amend #1 📬", "scout → roast: done"])
-    for tick in range(6):
-        for line, _ in render_frame(tick, 92):
-            if dwidth(line) != 92:
-                print(f"FAIL row {dwidth(line)} cols: {line!r}")
-                fails += 1
+    for score in (s, "err", None):
+        with LOCK:
+            STATE["score"] = score
+        for tick in range(6):
+            for line, _ in render_frame(tick, 92):
+                if dwidth(line) != 92:
+                    print(f"FAIL row {dwidth(line)} cols: {line!r}")
+                    fails += 1
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 

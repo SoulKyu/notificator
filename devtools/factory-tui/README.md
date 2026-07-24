@@ -37,6 +37,7 @@ python3 devtools/factory-tui/factory-tui.py --check  # alignment self-check, exi
 | `looper ps` | looper roles: coordinator, planner, reviewer, fixer, worker | 3 s |
 | `systemctl --user` (services + timers `notificator-*`) | custom agents: scout, roast, qa, rebaser, promoter, groomer, doc, reporter — running / next wake-up / failure | 3–10 s |
 | `gh pr list` / `gh issue list` | the team board | 45 s |
+| `gh pr list` / `gh issue list` (last-24h search, one batched query set) | the 🏆 SCOREBOARD panel: per-agent stats (scout issues/approved, roast verdicts/kills, worker PRs/merged, qa pass/fail), hourly activity sparkline, ⭐ employé du jour — hidden when there is no data, "(github injoignable)" when GitHub is down | 45 s |
 | newest file in the agents log dir | the 📻 chatter ticker | 10 s |
 | agent inboxes (`inbox/<agent>/`, `inbox/archive/`) | 📬 pending-mail badge on desks + the 💬 INTERCOM panel (last agent-to-agent messages) | 10 s |
 
