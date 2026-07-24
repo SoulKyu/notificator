@@ -23,8 +23,9 @@ stays a toy.
   `s` prompts for a one-line message and sends it via
   `summon.sh <agent> "<msg>"` — only for the 5 summonable agents
   (scout, roast, qa, rebaser, groomer); other desks show `s` greyed/disabled.
-- `q` keeps quitting globally; `--once` and `--check` keep their exact
-  semantics (exit 0, non-interactive paths untouched).
+- `q` keeps quitting globally; `Esc` no longer quits at office level (it is
+  reserved for closing the zoom — see Risks); `--once` and `--check` keep
+  their exact semantics (exit 0, non-interactive paths untouched).
 - Still stdlib-only; the TUI stays read-only except writing summon messages
   through `summon.sh`.
 
@@ -52,7 +53,7 @@ dispatcher:
 
 - office mode: arrows move `sel` (left/right ±1, up/down ±`per_row`, clamped
   to `0..12`); `Enter` (`10`, `13`, `curses.KEY_ENTER`) opens zoom;
-  `q`/`Esc` quit (unchanged).
+  `q` quits; a bare `Esc` (27) is ignored (it no longer quits — see Risks).
 - zoom mode: `Esc` closes zoom, `l` toggles `follow`, `s` opens the summon
   prompt (summonable desks only), `q` still quits.
 
@@ -83,7 +84,11 @@ top, centered box ~70×22, clamped to the terminal). Content, all through
   status/target from `STATE["loops"]`; for the virtual roast desk fall back
   to the scout unit. Timestamps are displayed as systemd returns them — no
   parsing.
-- next wake-up: `STATE["timers"][TIMER_OF[key]]` (already polled)
+- next wake-up: `STATE["timers"].get(TIMER_OF.get(key, ""), "")` (already
+  polled) — the double fallback matches the existing footer code; the looper
+  desks (coordinator, planner, worker, reviewer, fixer) have no `TIMER_OF`
+  entry, so an empty/absent value renders as "no timer" instead of raising
+  `KeyError`.
 - log tail: newest file in `LOG_DIR` whose basename starts with the agent
   key (same naming the ticker relies on:
   `basename.rsplit("-", 1)[0]`); read the last ~8 KB with `seek`, keep the
@@ -116,11 +121,17 @@ threads keep updating `STATE` meanwhile.
 
 ### `--check` additions
 
+The panel renderer takes its log-tail lines as a parameter (the interactive
+path reads them from `LOG_DIR`; the check never touches the filesystem).
 `selfcheck()` gains one loop: render the zoom panel lines for every desk in
-every state and assert each row has the panel's exact display width (same
+every state, passing synthetic tail lines that cover the classic breakage —
+`["ok", "🔥 échec du run 🧪", "日本語ログ行", "x" * 300]` (emoji, CJK,
+overlong) — and assert each row has the panel's exact display width (same
 `dwidth` discipline as the frame check), plus one frame render with
-`sel=0` asserting rows are still 92 cols. `--check` stays exit 0/1 with the
-same meaning.
+`sel=0` asserting rows are still 92 cols. Injecting the lines directly keeps
+`--check` deterministic and environment-independent (CI has no `LOG_DIR`),
+mirroring how the frame check already injects synthetic emoji state into
+`STATE`. `--check` stays exit 0/1 with the same meaning.
 
 ### Files touched
 
@@ -131,10 +142,15 @@ same meaning.
 
 ## Risks & trade-offs
 
-- **Esc double duty**: `Esc` quits at office level (existing behavior, kept)
-  but closes the panel in zoom. `ESCDELAY=25` avoids the sluggish Esc;
-  arrow keys are unaffected because `keypad(True)` decodes their escape
-  sequences before we see them.
+- **Esc vs. arrow keys**: `keypad(True)` only decodes an arrow's `ESC [ A`
+  sequence when all its bytes arrive within `ESCDELAY`; on a laggy SSH link
+  (the normal way one watches the factory host) a single arrow press can
+  straddle the 25 ms window and be delivered as a bare `27`. That is why
+  office-level `Esc`-quits is dropped (a behavior change from the current
+  TUI): a mis-decoded arrow then at worst does nothing in office mode and at
+  worst closes the panel in zoom — both recoverable — instead of terminating
+  the whole session. Quit is reserved for `q`; `ESCDELAY=25` stays for a
+  snappy zoom close.
 - **Alignment regressions**: emoji in log lines and titles are the classic
   breakage — every zoom row goes through `dpad()` and `--check` now asserts
   the panel, so CI catches it.
