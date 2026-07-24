@@ -47,6 +47,12 @@ and a small helper in the dashboard Alpine component
 
 ```js
 focusSearch(event) {
+    // All shortcuts are inert while a modal is open — the search input is
+    // hidden behind the overlay, so focusing it would be invisible/confusing.
+    if (this.showAckModal || this.showSilenceModal || this.showAlertModal ||
+        this.showFilterPresetsModal || this.showColumnConfigModal) {
+        return;
+    }
     // '/' must not fire while typing elsewhere; Ctrl/Cmd+F always wins.
     const t = event.target;
     if (event.key === '/' &&
@@ -57,6 +63,14 @@ focusSearch(event) {
     document.getElementById('dashboard-search')?.focus();
 }
 ```
+
+The modal guard covers both `/` and `Ctrl+F`/`Cmd+F`: with a modal open,
+neither shortcut fires (the `.prevent` modifier on the `Ctrl+F` bindings
+still stops the native find bar, which is acceptable while our modal owns
+the screen). The component already tracks every modal flag
+(`showAckModal`, `showSilenceModal`, `showAlertModal`,
+`showFilterPresetsModal`, `showColumnConfigModal`), so no new state is
+needed.
 
 After editing the `.templ` files, regenerate with `make webui-templates`
 (never edit `*_templ.go` by hand).
@@ -76,9 +90,11 @@ After editing the `.templ` files, regenerate with `make webui-templates`
   If it proves annoying we can drop the `prevent` and keep only `/`.
 - **`/` while typing**: guarded by the target check above; dropdown filter
   inputs (team/severity search) keep normal typing.
-- **Modals**: window-level listeners still fire with a modal open. The
-  ack/silence textareas are covered by the input guard; `Ctrl+F` focusing a
-  background input behind a modal is a minor cosmetic edge, acceptable.
+- **Modals**: window-level listeners still fire with a modal open, so
+  `focusSearch` checks the component's modal flags first and returns early —
+  neither `/` nor `Ctrl+F` can focus the hidden search input behind an
+  overlay. The ack/silence textareas are additionally covered by the input
+  guard.
 - Templ entity-escaping gotcha: keep the helper in the Alpine component script
   (`dashboard_core.templ`), not inline in attribute JS, to avoid `&&`
   escaping issues in `.templ` attributes.
@@ -90,5 +106,6 @@ After editing the `.templ` files, regenerate with `make webui-templates`
   - `/` on the dashboard focuses the search box; typing then filters alerts.
   - `/` pressed inside the team-filter search box types a literal `/`.
   - `Ctrl+F` (and `Cmd+F` on macOS) focuses the search box, no native find bar.
-  - `Ctrl+F` inside a textarea (ack comment) still focuses dashboard search
-    without inserting text.
+  - `/` pressed with the ack modal open (focus on a modal button, the
+    comment textarea, or the backdrop) does nothing; same for `Ctrl+F`
+    (native find bar stays suppressed, search input stays untouched).
