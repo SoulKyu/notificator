@@ -22,6 +22,7 @@ import time
 import unicodedata
 
 LOG_DIR = os.environ.get("FACTORY_LOG_DIR", os.path.expanduser("~/.claude-agents/notificator/logs"))
+INBOX_DIR = os.environ.get("FACTORY_INBOX_DIR", os.path.expanduser("~/.claude-agents/notificator/inbox"))
 REPO = os.environ.get("FACTORY_REPO", "SoulKyu/notificator")
 POLL_FAST, POLL_MED, POLL_SLOW = 3, 10, 45
 
@@ -48,7 +49,8 @@ TIMER_OF = {
     "docagent": "notificator-docagent.timer", "reporter": "notificator-reporter.timer",
 }
 
-STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": ""}
+STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
+         "mail_pending": {}, "intercom": []}
 LOCK = threading.Lock()
 
 
@@ -120,8 +122,27 @@ def poll_med():
                 STATE["ticker"] = f"[{name}] {line.strip()[:200]}"
     except Exception:
         pass
+    # agent-to-agent mail: pending inboxes + recent archived conversations
+    pending, intercom = {}, []
+    try:
+        for box in os.listdir(INBOX_DIR):
+            if box == "archive":
+                continue
+            n = len([f for f in os.listdir(os.path.join(INBOX_DIR, box)) if f.startswith("msg-")])
+            if n:
+                pending[box] = n
+        arch = os.path.join(INBOX_DIR, "archive")
+        for f in sorted(os.listdir(arch), reverse=True)[:3]:
+            to = f.rsplit(".", 1)[-1]
+            head, _, body = open(os.path.join(arch, f), errors="replace").read().partition("\n\n")
+            frm = next((l[6:] for l in head.splitlines() if l.startswith("From: ")), "?")
+            first = body.strip().splitlines()[0] if body.strip() else ""
+            intercom.append(f"{frm} → {to}: {first[:120]}")
+        intercom.reverse()
+    except Exception:
+        pass
     with LOCK:
-        STATE["timers"] = timers
+        STATE["timers"], STATE["mail_pending"], STATE["intercom"] = timers, pending, intercom
 
 
 def poll_slow():
@@ -273,7 +294,9 @@ def desk_cell(emoji, name, key, kind, tick, seed):
     """-> (8 display lines of width CELL_W+2, color)"""
     state, status, detail = agent_state(key, kind)
     inner, color = person_cell(state, tick, seed, status, detail)
-    title = f" {emoji} {name} "
+    with LOCK:
+        mail = STATE["mail_pending"].get(key, 0)
+    title = f" {emoji} {name} 📬 " if mail else f" {emoji} {name} "
     lines = ["┌" + dpad(title, CELL_W, center=True, fill="─") + "┐"]
     for l in inner:
         lines.append("│" + dpad(l, CELL_W) + "│")
@@ -298,6 +321,11 @@ def render_frame(tick, width=92):
             rows.append((dpad(line, width - 1) + "│", 0))
     with LOCK:
         prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
+        intercom = list(STATE["intercom"])
+    if intercom:
+        rows.append(("│" + dpad(" ═══ 💬 INTERCOM ", width - 2, fill="═") + "│", 0))
+        for msg in intercom:
+            rows.append(("│ " + dpad(msg, width - 4) + " │", 6))
     rows.append(("│" + dpad(" ═══ 📌 TABLEAU DU MUR ", width - 2, fill="═") + "│", 0))
     rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
     rows.append(("│ " + dpad(issues or "…", width - 4) + " │", 5))
@@ -348,7 +376,8 @@ def selfcheck():
                 fails += 1
             fails += sum(1 for l in inner if dwidth(l) > CELL_W)
     with LOCK:
-        STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300)
+        STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300,
+                     mail_pending={"scout": 2}, intercom=["roast → scout: amend #1 📬", "scout → roast: done"])
     for tick in range(6):
         for line, _ in render_frame(tick, 92):
             if dwidth(line) != 92:

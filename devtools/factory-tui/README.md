@@ -38,6 +38,7 @@ python3 devtools/factory-tui/factory-tui.py --check  # alignment self-check, exi
 | `systemctl --user` (services + timers `notificator-*`) | custom agents: scout, roast, qa, rebaser, promoter, groomer, doc, reporter — running / next wake-up / failure | 3–10 s |
 | `gh pr list` / `gh issue list` | the team board | 45 s |
 | newest file in the agents log dir | the 📻 chatter ticker | 10 s |
+| agent inboxes (`inbox/<agent>/`, `inbox/archive/`) | 📬 pending-mail badge on desks + the 💬 INTERCOM panel (last agent-to-agent messages) | 10 s |
 
 ## Configuration (env)
 
@@ -45,6 +46,7 @@ python3 devtools/factory-tui/factory-tui.py --check  # alignment self-check, exi
 |---|---|---|
 | `FACTORY_REPO` | `SoulKyu/notificator` | GitHub repo for the board |
 | `FACTORY_LOG_DIR` | `~/.claude-agents/notificator/logs` | agent logs to feed the ticker |
+| `FACTORY_INBOX_DIR` | `~/.claude-agents/notificator/inbox` | agent mailboxes for 📬 badges + 💬 INTERCOM |
 
 ## Requirements
 
