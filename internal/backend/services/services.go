@@ -1143,7 +1143,23 @@ func (s *AlertServiceGorm) GetResolvedAlerts(ctx context.Context, req *alertpb.G
 
 // RemoveAllResolvedAlerts implements the RemoveAllResolvedAlerts RPC method
 func (s *AlertServiceGorm) RemoveAllResolvedAlerts(ctx context.Context, req *alertpb.RemoveAllResolvedAlertsRequest) (*alertpb.RemoveAllResolvedAlertsResponse, error) {
-	log.Printf("RemoveAllResolvedAlerts: Attempting to remove all resolved alerts")
+	if req.SessionId == "" {
+		return &alertpb.RemoveAllResolvedAlertsResponse{
+			Success: false,
+			Message: "Session ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		log.Printf("RemoveAllResolvedAlerts: Invalid session: %v", err)
+		return &alertpb.RemoveAllResolvedAlertsResponse{
+			Success: false,
+			Message: "Invalid session",
+		}, nil
+	}
+
+	log.Printf("RemoveAllResolvedAlerts: User %s (ID: %s) requested removal of all resolved alerts", user.Username, user.ID)
 
 	removedCount, err := s.db.RemoveAllResolvedAlerts()
 	if err != nil {
@@ -1154,7 +1170,7 @@ func (s *AlertServiceGorm) RemoveAllResolvedAlerts(ctx context.Context, req *ale
 		}, nil
 	}
 
-	log.Printf("RemoveAllResolvedAlerts: Successfully removed %d resolved alerts", removedCount)
+	log.Printf("RemoveAllResolvedAlerts: User %s (ID: %s) removed %d resolved alerts", user.Username, user.ID, removedCount)
 
 	return &alertpb.RemoveAllResolvedAlertsResponse{
 		Success:      true,

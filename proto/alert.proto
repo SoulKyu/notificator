@@ -282,7 +282,7 @@ message GetResolvedAlertResponse {
 }
 
 message RemoveAllResolvedAlertsRequest {
-  // No parameters needed - removes all resolved alerts
+  string session_id = 1;
 }
 
 message RemoveAllResolvedAlertsResponse {
