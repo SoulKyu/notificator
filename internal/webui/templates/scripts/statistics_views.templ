@@ -2,32 +2,6 @@ package scripts
 
 templ StatisticsViews() {
 	<script>
-		// Convert local time (HH:MM) to UTC time using user's timezone
-		function convertTimeToUTC(localTime, timezone) {
-			if (!localTime || !timezone || typeof dayjs === 'undefined') return localTime;
-
-			// Ensure plugins are extended (safe to call multiple times)
-			if (typeof dayjs_plugin_utc !== 'undefined') dayjs.extend(dayjs_plugin_utc);
-			if (typeof dayjs_plugin_timezone !== 'undefined') dayjs.extend(dayjs_plugin_timezone);
-
-			const today = dayjs().format('YYYY-MM-DD');
-			const localDateTime = dayjs.tz(`${today} ${localTime}`, timezone);
-			return localDateTime.utc().format('HH:mm');
-		}
-
-		// Convert UTC time (HH:MM) to local time for display
-		function convertTimeFromUTC(utcTime, timezone) {
-			if (!utcTime || !timezone || typeof dayjs === 'undefined') return utcTime;
-
-			// Ensure plugins are extended (safe to call multiple times)
-			if (typeof dayjs_plugin_utc !== 'undefined') dayjs.extend(dayjs_plugin_utc);
-			if (typeof dayjs_plugin_timezone !== 'undefined') dayjs.extend(dayjs_plugin_timezone);
-
-			const today = dayjs().format('YYYY-MM-DD');
-			const utcDateTime = dayjs.utc(`${today} ${utcTime}`);
-			return utcDateTime.tz(timezone).format('HH:mm');
-		}
-
 		// Statistics Views Mixin - provides saved views functionality with backend persistence
 		function statisticsViewsMixin() {
 			return {
@@ -73,8 +47,9 @@ templ StatisticsViews() {
 					this.$watch('filters.timeRangeMode', clearViewIfNeeded);
 					this.$watch('filters.timeOfDayStart', clearViewIfNeeded);
 					this.$watch('filters.timeOfDayEnd', clearViewIfNeeded);
-					this.$watch('filters.filterByTimeOfDay', clearViewIfNeeded);
-					this.$watch('filters.includeWeekends', clearViewIfNeeded);
+					this.$watch('filters.weekendMode', clearViewIfNeeded);
+					this.$watch('filters.includeSilenced', clearViewIfNeeded);
+					this.$watch('filters.activePreset', clearViewIfNeeded);
 					this.$watch('filters.limit', clearViewIfNeeded);
 
 					// Watch array lengths using getter functions (Alpine.js supports this)
@@ -152,15 +127,13 @@ templ StatisticsViews() {
 						absolute_from_time: this.filters.absoluteFromTime,
 						absolute_until_time: this.filters.absoluteUntilTime,
 
-						// Time of day filtering (convert to UTC before sending)
-						filter_by_time_of_day: this.filters.filterByTimeOfDay,
-						time_of_day_start: this.filters.filterByTimeOfDay
-							? convertTimeToUTC(this.filters.timeOfDayStart, window.__USER_TIMEZONE__)
-							: this.filters.timeOfDayStart,
-						time_of_day_end: this.filters.filterByTimeOfDay
-							? convertTimeToUTC(this.filters.timeOfDayEnd, window.__USER_TIMEZONE__)
-							: this.filters.timeOfDayEnd,
-						include_weekends: this.filters.includeWeekends !== false,
+						// Time of day filtering (stored as local HH:MM; the query path
+						// sends timezone alongside, so no UTC conversion is needed)
+						time_of_day_start: this.filters.timeOfDayStart,
+						time_of_day_end: this.filters.timeOfDayEnd,
+						weekend_mode: this.filters.weekendMode,
+						active_preset: this.filters.activePreset,
+						include_silenced: this.filters.includeSilenced,
 
 						// Grouping
 						group_by: this.filters.groupBy,
@@ -171,7 +144,6 @@ templ StatisticsViews() {
 						teams: this.filters.teams || [],
 
 						// Options
-						apply_rules: this.filters.applyRules,
 						limit: this.filters.limit
 					};
 				},
@@ -300,13 +272,17 @@ templ StatisticsViews() {
 					if (data.absolute_until_time) this.filters.absoluteUntilTime = data.absolute_until_time;
 
 					// Time of day filtering
-					this.filters.filterByTimeOfDay = data.filter_by_time_of_day || false;
 					if (data.time_of_day_start) this.filters.timeOfDayStart = data.time_of_day_start;
 					if (data.time_of_day_end) this.filters.timeOfDayEnd = data.time_of_day_end;
 					// Sync raw values for text input display
 					this.timeOfDayStartRaw = this.filters.timeOfDayStart;
 					this.timeOfDayEndRaw = this.filters.timeOfDayEnd;
-					this.filters.includeWeekends = data.include_weekends !== false;
+					// Legacy fallback: old views stored a boolean include_weekends
+					// (false → exclude weekends); default to 'full_weekends'
+					this.filters.weekendMode = data.weekend_mode
+						|| (data.include_weekends === false ? 'exclude' : 'full_weekends');
+					this.filters.activePreset = data.active_preset !== undefined ? data.active_preset : null;
+					this.filters.includeSilenced = data.include_silenced === true;
 
 					// Grouping
 					if (data.group_by !== undefined) this.filters.groupBy = data.group_by;
@@ -317,7 +293,6 @@ templ StatisticsViews() {
 					this.filters.teams = data.teams || [];
 
 					// Options
-					this.filters.applyRules = data.apply_rules || false;
 					if (data.limit) this.filters.limit = data.limit;
 
 					this.currentViewId = view.id;
