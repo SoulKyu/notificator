@@ -51,8 +51,14 @@ TIMER_OF = {
 }
 
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
-         "mail_pending": {}, "intercom": [], "score": None}
+         "mail_pending": {}, "intercom": [], "score": None, "events": []}
 LOCK = threading.Lock()
+
+# one-shot animations, consumed by the render loop (render-side state only)
+ANIM = {"mail": [], "party": []}
+MAIL_TICKS, PARTY_TICKS = 4, 12  # ~1 s flight, ~3 s banner at 4 fps
+MAIL_SEEN = None   # (box, filename) pairs already counted — None until first poll
+PR_PREV = None     # {number: title} of open PRs at previous poll
 
 
 def sh(cmd, timeout=20):
@@ -79,6 +85,21 @@ def dpad(s, width, center=False, fill=" "):
         left = gap // 2
         return fill * left + out + fill * (gap - left)
     return out + fill * gap
+
+
+def dslice(s, start):
+    """Drop the first `start` display columns (space-pads if a wide char is split)."""
+    w = 0
+    for i, c in enumerate(s):
+        if w >= start:
+            return " " * (w - start) + s[i:]
+        w += dwidth(c)
+    return ""
+
+
+def overlay(line, col, s):
+    """Paint `s` at display column `col`, preserving total display width."""
+    return dpad(line, col) + s + dslice(line, col + dwidth(s))
 
 
 # ── data pollers ────────────────────────────────────────────────────────────
@@ -124,14 +145,22 @@ def poll_med():
     except Exception:
         pass
     # agent-to-agent mail: pending inboxes + recent archived conversations
-    pending, intercom = {}, []
+    global MAIL_SEEN
+    pending, intercom, events, seen = {}, [], [], set()
     try:
         for box in os.listdir(INBOX_DIR):
             if box == "archive":
                 continue
-            n = len([f for f in os.listdir(os.path.join(INBOX_DIR, box)) if f.startswith("msg-")])
-            if n:
-                pending[box] = n
+            msgs = [f for f in os.listdir(os.path.join(INBOX_DIR, box)) if f.startswith("msg-")]
+            if msgs:
+                pending[box] = len(msgs)
+            for f in msgs:
+                seen.add((box, f))
+                if MAIL_SEEN is not None and (box, f) not in MAIL_SEEN:
+                    head = open(os.path.join(INBOX_DIR, box, f), errors="replace").read(2048)
+                    m = re.search(r"^From: (\S+)", head, re.M)
+                    events.append({"kind": "mail", "frm": m.group(1) if m else None, "to": box})
+        MAIL_SEEN = seen
         arch = os.path.join(INBOX_DIR, "archive")
         for f in sorted(os.listdir(arch), reverse=True)[:3]:
             to = f.rsplit(".", 1)[-1]
@@ -144,6 +173,7 @@ def poll_med():
         pass
     with LOCK:
         STATE["timers"], STATE["mail_pending"], STATE["intercom"] = timers, pending, intercom
+        STATE["events"].extend(events[:6])
 
 
 def compute_score(issues, prs, now):
@@ -204,7 +234,8 @@ def compute_score(issues, prs, now):
 
 
 def poll_slow():
-    prs = []
+    global PR_PREV
+    prs, events = [], []
     out = sh(f"gh pr list -R {shlex.quote(REPO)} --state open --json number,title,labels,mergeable 2>/dev/null", 30)
     if not out.strip():
         # `gh` returns "[]" for zero PRs — an empty string means GitHub is unreachable
@@ -213,13 +244,25 @@ def poll_slow():
             STATE["score"] = "err"
         return
     try:
-        for p in json.loads(out or "[]"):
+        data = json.loads(out or "[]")
+        for p in data:
             labels = {l["name"] for l in p["labels"]}
             tag = ("💥conflit" if p.get("mergeable") == "CONFLICTING" else
                    "🧪qa✗" if "qa:failed" in labels else
                    "✅qa" if "qa:passed" in labels else
                    "📐spec" if any("spec" in l for l in labels) else "👀review")
             prs.append(f"PR#{p['number']} {tag}")
+        now_open = {p["number"]: p.get("title", "") for p in data}
+        # a PR gone from the open list may just have been merged → party
+        if PR_PREV is not None:
+            for n in sorted(set(PR_PREV) - set(now_open))[:3]:
+                st = sh(f"gh pr view {n} -R {shlex.quote(REPO)} --json state 2>/dev/null", 30)
+                try:
+                    if json.loads(st).get("state") == "MERGED":
+                        events.append({"kind": "party", "pr": f"PR#{n} {PR_PREV[n][:50]}"})
+                except Exception:
+                    pass
+        PR_PREV = now_open
     except Exception:
         pass
     out = sh(f"gh issue list -R {shlex.quote(REPO)} --state open --json labels 2>/dev/null", 30)
@@ -246,6 +289,7 @@ def poll_slow():
             score = None
     with LOCK:
         STATE["prs"], STATE["score"] = prs, score
+        STATE["events"].extend(events)
 
 
 def poller():
@@ -306,6 +350,14 @@ def person_cell(state, tick, seed, status, detail):
             "   (-_-)",
             "   =====  ",
         ], 3
+    if state == "away":  # on break, gone to the coffee corner — empty chair
+        return [
+            " ┌────────┐",
+            " │" + dpad("off", 8, center=True) + "│",
+            " └────────┘",
+            "",
+            "   ╰────╯",
+        ], 2
     if state == "error":
         flash = ["!ERROR!", "       "][t % 2]
         return [
@@ -362,9 +414,11 @@ def agent_state(key, kind):
 CELL_W = 20  # inner width of a desk cell
 
 
-def desk_cell(emoji, name, key, kind, tick, seed):
+def desk_cell(emoji, name, key, state3, tick, seed, coffee_on):
     """-> (8 display lines of width CELL_W+2, color)"""
-    state, status, detail = agent_state(key, kind)
+    state, status, detail = state3
+    if state == "break" and coffee_on:
+        state, status, detail = "away", "au café", "☕"
     inner, color = person_cell(state, tick, seed, status, detail)
     with LOCK:
         mail = STATE["mail_pending"].get(key, 0)
@@ -377,20 +431,73 @@ def desk_cell(emoji, name, key, kind, tick, seed):
     return lines, color
 
 
+def coffee_corner(tick, breakers, w):
+    """-> 8 lines (width w) of coffee machine, with break-state agents queuing."""
+    steam = ["~ ", " ~", "· ", " ·"][tick % 4]
+    face = ["(u_u)☕", "(^o^)☕"][(tick // 2) % 2] if breakers else ""
+    queue = "".join(e for _, e in breakers[:5])
+    return [
+        dpad(" ☕ COIN CAFÉ", w),
+        dpad("  ┌──────┐", w),
+        dpad("  │ ████ │ " + steam, w),
+        dpad("  │ ●──● │", w),
+        dpad("  │ [══] │", w),
+        dpad("  └──────┘", w),
+        dpad("   " + face, w),
+        dpad("   " + queue, w),
+    ]
+
+
+def apply_overlays(rows, tick, width, pos, board_pos, party_y):
+    """Consume queued events, then paint mail flights and the merge banner."""
+    with LOCK:
+        fresh, STATE["events"] = STATE["events"], []
+    for e in fresh:
+        e["start"] = tick
+        ANIM["mail" if e["kind"] == "mail" else "party"].append(e)
+    ANIM["mail"] = [m for m in ANIM["mail"] if tick - m["start"] < MAIL_TICKS]
+    ANIM["party"] = [p for p in ANIM["party"] if tick - p["start"] < PARTY_TICKS]
+    for m in ANIM["mail"]:
+        p = (tick - m["start"]) / (MAIL_TICKS - 1)
+        x0, y0 = pos.get(m["frm"], board_pos)
+        x1, y1 = pos.get(m["to"], board_pos)
+        x = max(1, min(width - 3, round(x0 + (x1 - x0) * p)))
+        y = max(1, min(len(rows) - 2, round(y0 + (y1 - y0) * p)))
+        line, color = rows[y]
+        rows[y] = (overlay(line, x, "✉"), color)
+    if ANIM["party"]:
+        deco = ["🎉", "✨"][tick % 2]
+        msg = f" {deco} MERGÉ: {ANIM['party'][-1]['pr']} {deco} "
+        y = max(1, min(len(rows) - 2, party_y))
+        rows[y] = ("│" + dpad(msg, width - 2, center=True) + "│", 6)
+
+
 def render_frame(tick, width=92):
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
     rows.append(("┌" + dpad(title, width - 13, fill="─") + f" {t} ─┐", 0))
     per_row = max(1, (width - 4) // (CELL_W + 3))
+    if per_row > 2 and (width - 4) - per_row * (CELL_W + 3) < 16:
+        per_row -= 1  # give up one desk column so the coffee corner fits
+    used = 2 + per_row * (CELL_W + 3)
+    coffee_on = width - used - 2 >= 14
+    states = {k: agent_state(k, kind) for k, _, _, kind in ROSTER}
+    breakers = [(k, e) for k, e, _, _ in ROSTER if states[k][0] == "break"]
+    pos = {k: (2 + (i % per_row) * (CELL_W + 3) + 11, 1 + (i // per_row) * 8 + 4)
+           for i, (k, _, _, _) in enumerate(ROSTER)}
+    coffee = coffee_corner(tick, breakers, width - used - 2) if coffee_on else None
     for start in range(0, len(ROSTER), per_row):
         chunk = ROSTER[start:start + per_row]
-        cells = [desk_cell(e, n, k, kind, tick, start + i) for i, (k, e, n, kind) in enumerate(chunk)]
+        cells = [desk_cell(e, n, k, states[k], tick, start + i, coffee_on) for i, (k, e, n, _) in enumerate(chunk)]
         for li in range(8):
             line = "│ "
             for cl, _ in cells:
                 line += cl[li] + " "
+            if start == 0 and coffee:
+                line = dpad(line, used) + coffee[li]
             rows.append((dpad(line, width - 1) + "│", 0))
+    office_rows = (len(ROSTER) + per_row - 1) // per_row
     with LOCK:
         prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
         intercom, score = list(STATE["intercom"]), STATE["score"]
@@ -411,6 +518,7 @@ def render_frame(tick, width=92):
             star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
             rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
     rows.append(("│" + dpad(" ═══ 📌 TABLEAU DU MUR ", width - 2, fill="═") + "│", 0))
+    board_pos = (width // 2, len(rows) - 1)
     rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
     rows.append(("│ " + dpad(issues or "…", width - 4) + " │", 5))
     off = tick % max(1, len(ticker)) if len(ticker) > width - 12 else 0
@@ -418,6 +526,7 @@ def render_frame(tick, width=92):
     if err:
         rows.append(("│ ⚠ " + dpad(err, width - 5) + "│", 4))
     rows.append(("└" + "─" * (width - 2) + "┘", 0))
+    apply_overlays(rows, tick, width, pos, board_pos, 1 + office_rows * 8 // 2)
     return rows
 
 
@@ -450,7 +559,7 @@ def main_curses(scr):
 def selfcheck():
     """Alignment invariants: monitor segment = 11 cols in every state, frame rows all equal."""
     fails = 0
-    for state in ("work", "break", "sleep", "error", "wait"):
+    for state in ("work", "break", "sleep", "error", "wait", "away"):
         for tick in range(8):
             inner, _ = person_cell(state, tick, 3, "s", "d")
             row = inner[1]
@@ -475,14 +584,17 @@ def selfcheck():
         fails += 1
     with LOCK:
         STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300,
-                     mail_pending={"scout": 2}, intercom=["roast → scout: amend #1 📬", "scout → roast: done"])
-    for score in (s, "err", None):
+                     mail_pending={"scout": 2}, intercom=["roast → scout: amend #1 📬", "scout → roast: done"],
+                     events=[{"kind": "mail", "frm": "scout", "to": "worker"},
+                             {"kind": "mail", "frm": "inconnu", "to": "qa"},
+                             {"kind": "party", "pr": "PR#7 grand merge 🎉"}])
+    for score, w in ((s, 92), ("err", 92), (None, 60)):  # 92 → coffee corner on, 60 → fallback desks
         with LOCK:
             STATE["score"] = score
         for tick in range(6):
-            for line, _ in render_frame(tick, 92):
-                if dwidth(line) != 92:
-                    print(f"FAIL row {dwidth(line)} cols: {line!r}")
+            for line, _ in render_frame(tick, w):
+                if dwidth(line) != w:
+                    print(f"FAIL row {dwidth(line)} cols (want {w}): {line!r}")
                     fails += 1
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
