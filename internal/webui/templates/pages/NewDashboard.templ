@@ -11,7 +11,10 @@ templ NewDashboard() {
 }
 
 templ NewDashboardContent() {
-	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary" x-data="newDashboard()">
+	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary" x-data="newDashboard()"
+		@keydown.slash.window="focusSearch($event)"
+		@keydown.ctrl.f.window.prevent="focusSearch($event)"
+		@keydown.meta.f.window.prevent="focusSearch($event)">
 		<!-- Header -->
 		<header class="bg-white dark:bg-dark-bg-secondary shadow-sm border-b border-gray-200 dark:border-dark-border-subtle">
 			<div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
