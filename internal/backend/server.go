@@ -66,6 +66,7 @@ func (s *Server) Start() error {
 
 	s.startResolvedAlertCleanup()
 	s.startStatisticsCleanup()
+	s.startSessionCleanup()
 
 	shutdownChan := make(chan struct{})
 	s.setupGracefulShutdown(shutdownChan)
@@ -390,6 +391,43 @@ func (s *Server) performStatisticsCleanup() {
 	} else {
 		log.Printf("✅ No old alert statistics to clean up")
 	}
+}
+
+// startSessionCleanup starts a background job to remove expired sessions
+func (s *Server) startSessionCleanup() {
+	log.Println("🧹 Starting expired session cleanup job (runs every hour)")
+
+	go func() {
+		s.performSessionCleanup()
+
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.performSessionCleanup()
+			case <-s.cleanupDone:
+				log.Println("🛑 Stopping expired session cleanup job")
+				return
+			}
+		}
+	}()
+}
+
+// performSessionCleanup removes sessions whose expires_at is in the past
+func (s *Server) performSessionCleanup() {
+	if s.db == nil {
+		log.Println("⚠️  Database not initialized, skipping session cleanup")
+		return
+	}
+
+	if err := s.db.CleanupExpiredSessions(); err != nil {
+		log.Printf("❌ Error during expired session cleanup: %v", err)
+		return
+	}
+
+	log.Println("✅ Expired sessions cleaned up")
 }
 
 func (s *Server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {

@@ -5,12 +5,17 @@ import (
 	"log"
 	"regexp"
 	"sync"
+	"time"
 
 	"notificator/internal/backend/models"
 	alertpb "notificator/internal/backend/proto/alert"
 	"notificator/internal/webui/client"
 	webuimodels "notificator/internal/webui/models"
 )
+
+// sessionIdleTTL matches the backend session TTL: cache entries for sessions
+// idle longer than this are unreachable (session expired) and can be dropped.
+const sessionIdleTTL = 7 * 24 * time.Hour
 
 // HiddenAlertsService manages hidden alerts and rules for users
 type HiddenAlertsService struct {
@@ -19,6 +24,7 @@ type HiddenAlertsService struct {
 	userHiddenAlerts    map[string]map[string]bool             // userID -> fingerprint -> hidden
 	userHiddenRules     map[string][]models.UserHiddenRule     // userID -> rules
 	compiledRegexRules  map[string]map[string]*regexp.Regexp   // userID -> ruleID -> compiled regex
+	lastAccess          map[string]time.Time                   // userID -> last LoadUserData call
 }
 
 // NewHiddenAlertsService creates a new hidden alerts service
@@ -28,6 +34,7 @@ func NewHiddenAlertsService(backendClient *client.BackendClient) *HiddenAlertsSe
 		userHiddenAlerts:   make(map[string]map[string]bool),
 		userHiddenRules:    make(map[string][]models.UserHiddenRule),
 		compiledRegexRules: make(map[string]map[string]*regexp.Regexp),
+		lastAccess:         make(map[string]time.Time),
 	}
 	
 	// Load initial data
@@ -84,35 +91,49 @@ func (s *HiddenAlertsService) LoadUserData(sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Initialize maps if needed
-	if s.userHiddenAlerts[sessionID] == nil {
+	// Replace cached hidden alerts wholesale so entries removed in the backend
+	// (or stale regexes for deleted rules) do not accumulate.
+	if hiddenAlertsErr == nil {
+		freshAlerts := make(map[string]bool, len(hiddenAlerts))
+		for _, alert := range hiddenAlerts {
+			freshAlerts[alert.Fingerprint] = true
+		}
+		s.userHiddenAlerts[sessionID] = freshAlerts
+	} else if s.userHiddenAlerts[sessionID] == nil {
 		s.userHiddenAlerts[sessionID] = make(map[string]bool)
 	}
 
-	if s.userHiddenRules[sessionID] == nil {
-		s.userHiddenRules[sessionID] = []models.UserHiddenRule{}
-	}
-
-	if s.compiledRegexRules[sessionID] == nil {
-		s.compiledRegexRules[sessionID] = make(map[string]*regexp.Regexp)
-	}
-
-	// Populate cache with hidden alerts
-	if hiddenAlertsErr == nil {
-		for _, alert := range hiddenAlerts {
-			s.userHiddenAlerts[sessionID][alert.Fingerprint] = true
-		}
-	}
-
-	// Populate cache with rules and compiled regexes
 	if hiddenRulesErr == nil {
 		s.userHiddenRules[sessionID] = rules
-		for id, regex := range compiledRegexes {
-			s.compiledRegexRules[sessionID][id] = regex
+		s.compiledRegexRules[sessionID] = compiledRegexes
+	} else {
+		if s.userHiddenRules[sessionID] == nil {
+			s.userHiddenRules[sessionID] = []models.UserHiddenRule{}
+		}
+		if s.compiledRegexRules[sessionID] == nil {
+			s.compiledRegexRules[sessionID] = make(map[string]*regexp.Regexp)
 		}
 	}
 
+	s.lastAccess[sessionID] = time.Now()
+	// ponytail: opportunistic sweep instead of a janitor goroutine — sessions
+	// idle past the backend session TTL are dropped on the next load by anyone.
+	s.sweepIdleSessionsLocked()
+
 	return nil
+}
+
+// sweepIdleSessionsLocked drops cache entries for sessions with no LoadUserData
+// call within sessionIdleTTL. Caller must hold s.mu.
+func (s *HiddenAlertsService) sweepIdleSessionsLocked() {
+	for sessionID, last := range s.lastAccess {
+		if time.Since(last) >= sessionIdleTTL {
+			delete(s.userHiddenAlerts, sessionID)
+			delete(s.userHiddenRules, sessionID)
+			delete(s.compiledRegexRules, sessionID)
+			delete(s.lastAccess, sessionID)
+		}
+	}
 }
 
 // IsAlertHidden checks if an alert is hidden for a user using sessionID
@@ -355,6 +376,7 @@ func (s *HiddenAlertsService) InvalidateCache(sessionID string) {
 	delete(s.userHiddenAlerts, sessionID)
 	delete(s.userHiddenRules, sessionID)
 	delete(s.compiledRegexRules, sessionID)
+	delete(s.lastAccess, sessionID)
 }
 
 // GetUserHiddenRules gets all hidden rules for a user
