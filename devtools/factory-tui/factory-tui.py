@@ -278,6 +278,7 @@ def desk_cell(emoji, name, key, kind, tick, seed):
 
 
 def render_frame(tick, width=92):
+    row = lambda s: "│ " + dpad(s, width - 4) + " │"  # all content-row border math lives here
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
@@ -287,19 +288,16 @@ def render_frame(tick, width=92):
         chunk = ROSTER[start:start + per_row]
         cells = [desk_cell(e, n, k, kind, tick, start + i) for i, (k, e, n, kind) in enumerate(chunk)]
         for li in range(8):
-            line = "│ "
-            for cl, _ in cells:
-                line += cl[li] + " "
-            rows.append((dpad(line, width - 1) + "│", 0))
+            rows.append((row(" ".join(cl[li] for cl, _ in cells)), 0))
     with LOCK:
         prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
     rows.append(("│" + dpad(" ═══ 📌 TABLEAU DU MUR ", width - 2, fill="═") + "│", 0))
-    rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
-    rows.append(("│ " + dpad(issues or "…", width - 4) + " │", 5))
+    rows.append((row("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉"), 5))
+    rows.append((row(issues or "…"), 5))
     off = tick % max(1, len(ticker)) if len(ticker) > width - 12 else 0
-    rows.append(("│ 📻 " + dpad(ticker[off:off + width - 8] or "silence radio", width - 8) + "│", 6))
+    rows.append((row("📻 " + (ticker[off:] or "silence radio")), 6))
     if err:
-        rows.append(("│ ⚠ " + dpad(err, width - 6) + "│", 4))
+        rows.append((row("⚠ " + err), 4))
     rows.append(("└" + "─" * (width - 2) + "┘", 0))
     return rows
 
