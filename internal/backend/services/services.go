@@ -662,7 +662,7 @@ func (s *AlertServiceGorm) GetAcknowledgments(ctx context.Context, req *alertpb.
 
 // GetAllAcknowledgedAlerts implements the GetAllAcknowledgedAlerts RPC method
 func (s *AlertServiceGorm) GetAllAcknowledgedAlerts(ctx context.Context, req *alertpb.GetAllAcknowledgedAlertsRequest) (*alertpb.GetAllAcknowledgedAlertsResponse, error) {
-	acknowledgedAlerts, err := s.db.GetAllAcknowledgedAlerts()
+	acknowledgedAlerts, err := s.db.GetAllAcknowledgedAlerts(req.AlertKeys)
 	if err != nil {
 		log.Printf("Error getting all acknowledged alerts: %v", err)
 		return &alertpb.GetAllAcknowledgedAlertsResponse{

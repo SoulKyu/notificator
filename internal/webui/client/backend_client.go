@@ -336,8 +336,9 @@ func (c *BackendClient) GetAcknowledgments(alertKey string) ([]*alertpb.Acknowle
 	return resp.Acknowledgments, nil
 }
 
-// GetAllAcknowledgedAlerts retrieves all acknowledged alerts from the backend
-func (c *BackendClient) GetAllAcknowledgedAlerts() (map[string]*alertpb.Acknowledgment, error) {
+// GetAllAcknowledgedAlerts retrieves the latest acknowledgment for each of the
+// given alert keys from the backend
+func (c *BackendClient) GetAllAcknowledgedAlerts(alertKeys []string) (map[string]*alertpb.Acknowledgment, error) {
 	if c.alertClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -345,7 +346,7 @@ func (c *BackendClient) GetAllAcknowledgedAlerts() (map[string]*alertpb.Acknowle
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req := &alertpb.GetAllAcknowledgedAlertsRequest{}
+	req := &alertpb.GetAllAcknowledgedAlertsRequest{AlertKeys: alertKeys}
 
 	resp, err := c.alertClient.GetAllAcknowledgedAlerts(ctx, req)
 	if err != nil {

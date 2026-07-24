@@ -474,20 +474,34 @@ func (gdb *GormDB) DeleteAcknowledgment(alertKey, userID string) error {
 	return nil
 }
 
-func (gdb *GormDB) GetAllAcknowledgedAlerts() (map[string]models.AcknowledgmentWithUser, error) {
+// GetAllAcknowledgedAlerts retrieves the latest acknowledgment for each of the
+// given alert keys in a single query, mirroring GetCommentCountsBatch so the
+// scan is bounded by the number of live alerts instead of the whole table.
+func (gdb *GormDB) GetAllAcknowledgedAlerts(alertKeys []string) (map[string]models.AcknowledgmentWithUser, error) {
+	result := make(map[string]models.AcknowledgmentWithUser)
+
+	if len(alertKeys) == 0 {
+		return result, nil
+	}
+
 	var acks []models.AcknowledgmentWithUser
+
+	latest := gdb.db.Table("acknowledgments").
+		Select("alert_key, MAX(created_at) as max_created").
+		Where("alert_key IN ?", alertKeys).
+		Group("alert_key")
 
 	err := gdb.db.Table("acknowledgments").
 		Select("acknowledgments.*, users.username").
 		Joins("JOIN users ON users.id = acknowledgments.user_id").
-		Joins("JOIN (SELECT alert_key, MAX(created_at) as max_created FROM acknowledgments GROUP BY alert_key) latest ON acknowledgments.alert_key = latest.alert_key AND acknowledgments.created_at = latest.max_created").
+		Joins("JOIN (?) latest ON acknowledgments.alert_key = latest.alert_key AND acknowledgments.created_at = latest.max_created", latest).
+		Where("acknowledgments.alert_key IN ?", alertKeys).
 		Find(&acks).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]models.AcknowledgmentWithUser)
 	for _, ack := range acks {
 		result[ack.AlertKey] = ack
 	}
