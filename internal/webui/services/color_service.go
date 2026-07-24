@@ -8,13 +8,25 @@ import (
 	"sync"
 	"time"
 
+	alertpb "notificator/internal/backend/proto/alert"
 	"notificator/internal/models"
 	"notificator/internal/webui/client"
 	webuimodels "notificator/internal/webui/models"
 )
 
+// colorPreferencesFetcher is the slice of *client.BackendClient the color
+// cache needs; it exists so tests can stub the backend RPC.
+type colorPreferencesFetcher interface {
+	GetUserColorPreferences(sessionID string, impersonateUserID ...string) ([]*alertpb.UserColorPreference, error)
+}
+
+// colorFetchErrTTL is the negative-cache window: after a failed backend
+// fetch, callers get the cached error (and degrade to severity colors)
+// instead of paying the RPC timeout on every request.
+const colorFetchErrTTL = 15 * time.Second
+
 type ColorService struct {
-	backendClient *client.BackendClient
+	backendClient colorPreferencesFetcher
 	colorCache    map[string]*ColorPreferenceCache // userID -> cache
 	cacheMutex    sync.RWMutex
 	defaultColors map[string]string
@@ -27,6 +39,7 @@ type ColorPreferenceCache struct {
 	LookupMap   map[string]*ColorMatch            `json:"-"` // Pre-computed lookups for performance
 	CachedAt    time.Time                         `json:"cachedAt"`
 	TTL         time.Duration                     `json:"ttl"`
+	FetchErr    error                             `json:"-"` // non-nil marks a negative-cache entry
 }
 
 type ColorMatch struct {
@@ -113,23 +126,44 @@ func (cs *ColorService) getUserColorCache(sessionID string) (*ColorPreferenceCac
 	cs.cacheMutex.RUnlock()
 
 	if exists && time.Since(cache.CachedAt) < cache.TTL {
+		if cache.FetchErr != nil {
+			return nil, cache.FetchErr
+		}
 		return cache, nil
 	}
+
+	// Fetch with NO lock held (issue #53): holding the write lock across this
+	// RPC (10s timeout) would stall every dashboard request in the process.
+	// Concurrent misses for the same session fetch in parallel; last store wins.
+	preferences, fetchErr := cs.backendClient.GetUserColorPreferences(sessionID)
 
 	cs.cacheMutex.Lock()
 	defer cs.cacheMutex.Unlock()
 
-	if cache, exists := cs.colorCache[sessionID]; exists && time.Since(cache.CachedAt) < cache.TTL {
-		return cache, nil
+	// Re-check: a concurrent caller may have stored a result while we fetched.
+	if existing, ok := cs.colorCache[sessionID]; ok && time.Since(existing.CachedAt) < existing.TTL {
+		if existing.FetchErr == nil {
+			return existing, nil
+		}
+		if fetchErr != nil {
+			return nil, existing.FetchErr
+		}
+		// Our fetch succeeded; overwrite the failure marker below.
 	}
 
 	// ponytail: opportunistic sweep instead of a janitor goroutine — expired
 	// entries for idle sessions are dropped whenever any entry is refreshed.
 	cs.sweepExpiredLocked()
 
-	preferences, err := cs.backendClient.GetUserColorPreferences(sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user color preferences: %w", err)
+	if fetchErr != nil {
+		err := fmt.Errorf("failed to get user color preferences: %w", fetchErr)
+		cs.colorCache[sessionID] = &ColorPreferenceCache{
+			UserID:   sessionID,
+			CachedAt: time.Now(),
+			TTL:      colorFetchErrTTL,
+			FetchErr: err,
+		}
+		return nil, err
 	}
 
 	var webuiPrefs []webuimodels.UserColorPreference
