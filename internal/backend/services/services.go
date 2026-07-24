@@ -190,7 +190,7 @@ func (s *AuthServiceGorm) ValidateSession(ctx context.Context, req *authpb.Valid
 		}, nil
 	}
 
-	return &authpb.ValidateSessionResponse{
+	resp := &authpb.ValidateSessionResponse{
 		Valid:   true,
 		Message: "Session is valid",
 		User: &authpb.User{
@@ -199,7 +199,11 @@ func (s *AuthServiceGorm) ValidateSession(ctx context.Context, req *authpb.Valid
 			Email:     user.Email,
 			CreatedAt: timestamppb.New(user.CreatedAt),
 		},
-	}, nil
+	}
+	if user.Timezone != nil {
+		resp.User.Timezone = *user.Timezone
+	}
+	return resp, nil
 }
 
 // GetProfile implements the GetProfile RPC method
@@ -217,13 +221,62 @@ func (s *AuthServiceGorm) GetProfile(ctx context.Context, req *authpb.GetProfile
 		}, nil
 	}
 
-	return &authpb.GetProfileResponse{
+	resp := &authpb.GetProfileResponse{
 		User: &authpb.User{
 			Id:        user.ID,
 			Username:  user.Username,
 			Email:     user.Email,
 			CreatedAt: timestamppb.New(user.CreatedAt),
 		},
+	}
+	if user.Timezone != nil {
+		resp.User.Timezone = *user.Timezone
+	}
+	return resp, nil
+}
+
+// UpdateTimezone implements the UpdateTimezone RPC method
+func (s *AuthServiceGorm) UpdateTimezone(ctx context.Context, req *authpb.UpdateTimezoneRequest) (*authpb.UpdateTimezoneResponse, error) {
+	if req.SessionId == "" {
+		return &authpb.UpdateTimezoneResponse{
+			Success: false,
+			Error:   "Session ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.UpdateTimezoneResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	if req.Timezone == "" {
+		return &authpb.UpdateTimezoneResponse{
+			Success: false,
+			Error:   "Timezone is required",
+		}, nil
+	}
+
+	// Validate here too: this RPC is reachable without going through the WebUI handler
+	if _, err := time.LoadLocation(req.Timezone); err != nil {
+		return &authpb.UpdateTimezoneResponse{
+			Success: false,
+			Error:   "Invalid timezone: " + req.Timezone,
+		}, nil
+	}
+
+	if err := s.db.UpdateUserTimezone(user.ID, req.Timezone); err != nil {
+		log.Printf("Error updating timezone for user %s: %v", user.ID, err)
+		return &authpb.UpdateTimezoneResponse{
+			Success: false,
+			Error:   "Failed to update timezone",
+		}, nil
+	}
+
+	return &authpb.UpdateTimezoneResponse{
+		Success: true,
 	}, nil
 }
 

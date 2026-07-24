@@ -7,7 +7,6 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"notificator/internal/webui/middleware"
 	"notificator/internal/webui/models"
@@ -122,9 +121,12 @@ func UpdateTimezone(c *gin.Context) {
 		return
 	}
 
-	// Update user timezone in database
-	db := c.MustGet("db").(*gorm.DB)
-	if err := db.Model(user).Update("timezone", req.Timezone).Error; err != nil {
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, models.ErrorResponse("Backend not available"))
+		return
+	}
+
+	if err := backendClient.UpdateTimezone(middleware.GetSessionID(c), req.Timezone); err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse("Failed to update timezone"))
 		return
 	}
