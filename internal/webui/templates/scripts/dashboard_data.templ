@@ -494,20 +494,22 @@ templ DashboardData() {
 					}
 				}
 
-				// Check hidden alerts (user-specific)
-				if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
-					if (this.filterHiddenAlerts.includes(alert.fingerprint)) {
+				// Check hidden-ness (global + filter-preset), mirroring the server's
+				// applyDashboardFilters: hidden mode shows only hidden alerts, every
+				// other mode drops them
+				const isGlobalHidden = (window.currentSettingsModal?.hiddenAlerts || [])
+					.some(hidden => hidden.fingerprint === alert.fingerprint);
+				const isFilterHidden =
+					(this.filterHiddenAlerts || []).some(hidden => hidden.fingerprint === alert.fingerprint) ||
+					(this.filterHiddenRules || []).some(rule => this.alertMatchesHiddenRule(alert, rule));
+				const isHidden = isGlobalHidden || isFilterHidden;
+
+				if (this.displayMode === 'hidden') {
+					if (!isHidden) {
 						return false;
 					}
-				}
-
-				// Check hidden rules (user-specific label-based rules)
-				if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
-					for (const rule of this.filterHiddenRules) {
-						if (this.alertMatchesHiddenRule(alert, rule)) {
-							return false;
-						}
-					}
+				} else if (isHidden) {
+					return false;
 				}
 
 				// Check display mode - don't show resolved in classic mode
@@ -521,20 +523,24 @@ templ DashboardData() {
 				return true;
 			},
 
-			// Check if an alert matches a hidden rule
+			// Check if an alert matches a filter-preset hidden rule
+			// Mirrors HiddenAlertsService.IsAlertHiddenByFilter on the server
 			alertMatchesHiddenRule(alert, rule) {
-				if (!rule || !rule.matchers) return false;
+				if (!rule || !rule.is_enabled) return false;
 
-				for (const matcher of rule.matchers) {
-					const labelValue = alert.labels?.[matcher.name] || '';
-					const matches = matcher.isRegex
-						? new RegExp(matcher.value).test(labelValue)
-						: labelValue === matcher.value;
+				const labelValue = alert.labels?.[rule.label_key];
+				if (labelValue === undefined) return false;
 
-					if (matcher.isEqual && !matches) return false;
-					if (!matcher.isEqual && matches) return false;
+				if (rule.is_regex) {
+					try {
+						return new RegExp(rule.label_value).test(labelValue);
+					} catch (e) {
+						// Invalid user-supplied regex must not break the SSE merge
+						return false;
+					}
 				}
-				return true;
+				// Exact match or empty value (match all alerts carrying the label)
+				return rule.label_value === '' || rule.label_value === labelValue;
 			}
 		};
 	</script>
