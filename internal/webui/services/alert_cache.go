@@ -33,13 +33,23 @@ func transformSeverity(severity string) string {
 	}
 }
 
+// alertFetcher abstracts alertmanager.MultiClient so tests can fake fetches.
+type alertFetcher interface {
+	FetchAllAlertsDetailed() ([]alertmanager.AlertWithSource, map[string]error)
+}
+
+// maxBackendWorkers bounds concurrent backend calls spawned by a refresh cycle,
+// so a large diff cannot stampede the backend with thousands of gRPC calls.
+const maxBackendWorkers = 8
+
 type AlertCache struct {
 	mu                 sync.RWMutex
 	alerts             map[string]*webuimodels.DashboardAlert // fingerprint -> alert
 	userHiddenAlerts   map[string]map[string]bool             // userID -> fingerprint -> hidden
-	alertmanagerClient *alertmanager.MultiClient
+	alertmanagerClient alertFetcher
 	backendClient      *client.BackendClient
 	colorService       *ColorService
+	backendSem         chan struct{} // semaphore bounding refresh-triggered backend calls
 
 	// Color caching - keyed by userID then fingerprint
 	colorsMutex  sync.RWMutex
@@ -77,13 +87,21 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 		syncInterval = 10 * time.Second
 	}
 
+	// Avoid storing a typed-nil *MultiClient in the interface field, which would
+	// defeat the nil check in refreshAlerts.
+	var fetcher alertFetcher
+	if amClient != nil {
+		fetcher = amClient
+	}
+
 	return &AlertCache{
 		alerts:                make(map[string]*webuimodels.DashboardAlert),
 		userHiddenAlerts:      make(map[string]map[string]bool),
-		alertmanagerClient:    amClient,
+		alertmanagerClient:    fetcher,
 		backendClient:         backendClient,
 		colorService:          NewColorService(backendClient),
 		cachedColors:          make(map[string]map[string]*AlertColorResult),
+		backendSem:            make(chan struct{}, maxBackendWorkers),
 		refreshInterval:       syncInterval,
 		resolvedRetentionDays: resolvedRetentionDays,
 		newAlerts:             make([]string, 0),
@@ -142,14 +160,27 @@ func (ac *AlertCache) backgroundRefresh() {
 	}
 }
 
+// runBounded runs fn on a goroutine while holding a slot in backendSem, so at
+// most maxBackendWorkers refresh-triggered backend calls run concurrently.
+func (ac *AlertCache) runBounded(fn func()) {
+	go func() {
+		ac.backendSem <- struct{}{}
+		defer func() { <-ac.backendSem }()
+		fn()
+	}()
+}
+
 func (ac *AlertCache) refreshAlerts() {
 	if ac.alertmanagerClient == nil {
 		return
 	}
 
-	alertsWithSource, err := ac.alertmanagerClient.FetchAllAlerts()
-	if err != nil {
-		log.Printf("Failed to fetch alerts: %v", err)
+	alertsWithSource, fetchErrors := ac.alertmanagerClient.FetchAllAlertsDetailed()
+	for source, fetchErr := range fetchErrors {
+		log.Printf("Alert cache refresh: failed to fetch alerts from %s, keeping its cached alerts untouched: %v", source, fetchErr)
+	}
+	if len(alertsWithSource) == 0 && len(fetchErrors) > 0 {
+		// No source returned anything usable; leave the cache as-is.
 		return
 	}
 
@@ -178,13 +209,13 @@ func (ac *AlertCache) refreshAlerts() {
 			newAlertsForSSE = append(newAlertsForSSE, dashAlert)
 
 			// Capture alert fired event for statistics
-			go func(alert *webuimodels.DashboardAlert) {
+			ac.runBounded(func() {
 				if ac.backendClient != nil && ac.backendClient.IsConnected() {
-					if err := ac.backendClient.CaptureAlertFired(alert); err != nil {
-						log.Printf("Failed to capture alert fired statistics for %s: %v", alert.Fingerprint, err)
+					if err := ac.backendClient.CaptureAlertFired(dashAlert); err != nil {
+						log.Printf("Failed to capture alert fired statistics for %s: %v", dashAlert.Fingerprint, err)
 					}
 				}
-			}(dashAlert)
+			})
 
 		} else {
 			// Check if alert changed before updating
@@ -199,6 +230,13 @@ func (ac *AlertCache) refreshAlerts() {
 	var removedFingerprints []string
 	for fingerprint, alert := range ac.alerts {
 		if !currentFingerprints[fingerprint] {
+			// A fingerprint missing from a source that failed to answer this cycle
+			// says nothing about the alert's state: keep it untouched instead of
+			// mass-resolving an entire unreachable Alertmanager.
+			if _, sourceFailed := fetchErrors[alert.Source]; sourceFailed {
+				continue
+			}
+
 			log.Printf("Alert cache: marking alert %s as resolved (not found in current fetch)", fingerprint)
 			alert.IsResolved = true
 			alert.ResolvedAt = time.Now()
@@ -206,19 +244,19 @@ func (ac *AlertCache) refreshAlerts() {
 			alert.EndsAt = alert.ResolvedAt
 
 			// Update alert resolved event for statistics
-			go func(resolvedAlert *webuimodels.DashboardAlert) {
+			ac.runBounded(func() {
 				if ac.backendClient != nil && ac.backendClient.IsConnected() {
-					if err := ac.backendClient.UpdateAlertResolved(resolvedAlert); err != nil {
-						log.Printf("Failed to update alert resolved statistics for %s: %v", resolvedAlert.Fingerprint, err)
+					if err := ac.backendClient.UpdateAlertResolved(alert); err != nil {
+						log.Printf("Failed to update alert resolved statistics for %s: %v", alert.Fingerprint, err)
 					}
 				}
-			}(alert)
+			})
 
 			// Capture complete alert data with comments and acknowledgments for backend storage.
 			// Copy the struct before spawning the goroutine so it operates on a snapshot,
 			// not the cache-resident pointer which may be mutated by concurrent writers.
 			alertCopy := *alert
-			go ac.storeResolvedAlertInBackend(&alertCopy)
+			ac.runBounded(func() { ac.storeResolvedAlertInBackend(&alertCopy) })
 
 			delete(ac.alerts, fingerprint)
 
