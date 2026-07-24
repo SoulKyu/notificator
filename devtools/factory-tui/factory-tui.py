@@ -476,14 +476,20 @@ def apply_overlays(rows, tick, width, pos, board_pos, party_y):
         rows[y] = ("│" + dpad(msg, width - 2, center=True) + "│", 6)
 
 
+def grid_per_row(width):
+    """Desk columns per row — single source of truth for renderer AND navigation."""
+    per_row = max(1, (width - 4) // (CELL_W + 3))
+    if per_row > 2 and (width - 4) - per_row * (CELL_W + 3) < 16:
+        per_row -= 1  # give up one desk column so the coffee corner fits
+    return per_row
+
+
 def render_frame(tick, width=92, sel=None):
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
     rows.append(("┌" + dpad(title, width - 13, fill="─") + f" {t} ─┐", 0))
-    per_row = max(1, (width - 4) // (CELL_W + 3))
-    if per_row > 2 and (width - 4) - per_row * (CELL_W + 3) < 16:
-        per_row -= 1  # give up one desk column so the coffee corner fits
+    per_row = grid_per_row(width)
     used = 2 + per_row * (CELL_W + 3)
     coffee_on = width - used - 2 >= 14
     states = {k: agent_state(k, kind) for k, _, _, kind in ROSTER}
@@ -631,7 +637,7 @@ def main_curses(scr):
         ch = scr.getch()
         h, w = scr.getmaxyx()
         width = min(w - 1, 120)
-        per_row = max(1, (width - 4) // (CELL_W + 3))
+        per_row = grid_per_row(width)  # must match render_frame's column count or Up/Down drifts
         if ch == ord("q"):
             return
         if zoom is None:
@@ -735,6 +741,11 @@ def selfcheck():
             if dwidth(line) != 80:
                 print(f"FAIL zoom row {dwidth(line)} cols: {line!r}")
                 fails += 1
+    # navigation stride == renderer column count (coffee-corner decrement included)
+    for w, want in ((92, 3), (113, 4), (120, 4)):
+        if grid_per_row(w) != want:
+            print(f"FAIL grid_per_row({w}) = {grid_per_row(w)} (want {want})")
+            fails += 1
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 
