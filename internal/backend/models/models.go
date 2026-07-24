@@ -91,10 +91,10 @@ func (c *Comment) BeforeCreate(tx *gorm.DB) error {
 
 type Acknowledgment struct {
 	ID        string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	AlertKey  string    `gorm:"not null;size:500;index" json:"alert_key"`
+	AlertKey  string    `gorm:"not null;size:500;index;index:idx_acknowledgments_alert_key_created_at,priority:1" json:"alert_key"`
 	UserID    string    `gorm:"not null;size:32" json:"user_id"`
 	Reason    string    `gorm:"not null;type:text" json:"reason"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `gorm:"index:idx_acknowledgments_alert_key_created_at,priority:2" json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`

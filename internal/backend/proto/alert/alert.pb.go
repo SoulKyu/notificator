@@ -841,6 +841,7 @@ func (x *GetAcknowledgmentsResponse) GetCount() int32 {
 
 type GetAllAcknowledgedAlertsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	AlertKeys     []string               `protobuf:"bytes,1,rep,name=alert_keys,json=alertKeys,proto3" json:"alert_keys,omitempty"` // Only return acknowledgments for these alert keys
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -873,6 +874,13 @@ func (x *GetAllAcknowledgedAlertsRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetAllAcknowledgedAlertsRequest.ProtoReflect.Descriptor instead.
 func (*GetAllAcknowledgedAlertsRequest) Descriptor() ([]byte, []int) {
 	return file_proto_alert_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetAllAcknowledgedAlertsRequest) GetAlertKeys() []string {
+	if x != nil {
+		return x.AlertKeys
+	}
+	return nil
 }
 
 type GetAllAcknowledgedAlertsResponse struct {
@@ -9940,8 +9948,10 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\talert_key\x18\x01 \x01(\tR\balertKey\"\x7f\n" +
 	"\x1aGetAcknowledgmentsResponse\x12K\n" +
 	"\x0facknowledgments\x18\x01 \x03(\v2!.notificator.alert.AcknowledgmentR\x0facknowledgments\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x05R\x05count\"!\n" +
-	"\x1fGetAllAcknowledgedAlertsRequest\"\xa0\x02\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\"@\n" +
+	"\x1fGetAllAcknowledgedAlertsRequest\x12\x1d\n" +
+	"\n" +
+	"alert_keys\x18\x01 \x03(\tR\talertKeys\"\xa0\x02\n" +
 	" GetAllAcknowledgedAlertsResponse\x12|\n" +
 	"\x13acknowledged_alerts\x18\x01 \x03(\v2K.notificator.alert.GetAllAcknowledgedAlertsResponse.AcknowledgedAlertsEntryR\x12acknowledgedAlerts\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\x05R\x05count\x1ah\n" +

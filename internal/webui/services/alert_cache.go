@@ -447,9 +447,24 @@ func (ac *AlertCache) loadBackendData() {
 }
 
 func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
-	log.Printf("Loading all acknowledged alerts from backend...")
+	log.Printf("Loading acknowledgments for cached alerts from backend...")
 
-	acknowledgedAlerts, err := ac.backendClient.GetAllAcknowledgedAlerts()
+	// Step 1: collect fingerprints under RLock (no write needed)
+	ac.mu.RLock()
+	fingerprints := make([]string, 0, len(ac.alerts))
+	for fingerprint := range ac.alerts {
+		fingerprints = append(fingerprints, fingerprint)
+	}
+	ac.mu.RUnlock()
+
+	// Handle empty case without a backend round-trip
+	if len(fingerprints) == 0 {
+		log.Printf("No alerts to load acknowledgments for")
+		return
+	}
+
+	// Step 2: call gRPC with NO lock held
+	acknowledgedAlerts, err := ac.backendClient.GetAllAcknowledgedAlerts(fingerprints)
 	if err != nil {
 		log.Printf("Failed to load acknowledged alerts from backend: %v", err)
 		return
