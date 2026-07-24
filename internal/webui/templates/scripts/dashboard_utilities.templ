@@ -78,6 +78,7 @@ templ DashboardUtilities() {
 
 			// Filtering utilities
 			applyFilters() {
+				this.currentPage = 1; // Result set changes, stale page would be out of range
 				// Return the promise so callers like the search box can chain .finally()
 				return this.loadDashboardData();
 			},
@@ -92,6 +93,7 @@ templ DashboardUtilities() {
 					alertNames: []
 				};
 				this.activePresetName = null; // Clear active preset indicator
+				this.currentPage = 1;
 				this.loadDashboardData();
 			},
 
@@ -175,6 +177,7 @@ templ DashboardUtilities() {
 					this.sortField = field;
 					this.sortDirection = 'asc';
 				}
+				this.currentPage = 1; // Re-sorted set makes the current page meaningless
 				this.loadDashboardData();
 			},
 
@@ -525,6 +528,7 @@ templ DashboardUtilities() {
 			// Group-by selector
 			setGroupByLabel(label) {
 				this.groupByLabel = label;
+				this.currentPage = 1;
 				this.loadDashboardData();
 			},
 
