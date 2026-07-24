@@ -26,6 +26,7 @@ const (
 	AuthService_Logout_FullMethodName                 = "/notificator.auth.AuthService/Logout"
 	AuthService_ValidateSession_FullMethodName        = "/notificator.auth.AuthService/ValidateSession"
 	AuthService_GetProfile_FullMethodName             = "/notificator.auth.AuthService/GetProfile"
+	AuthService_UpdateTimezone_FullMethodName         = "/notificator.auth.AuthService/UpdateTimezone"
 	AuthService_SearchUsers_FullMethodName            = "/notificator.auth.AuthService/SearchUsers"
 	AuthService_ListUsers_FullMethodName              = "/notificator.auth.AuthService/ListUsers"
 	AuthService_GetOAuthAuthURL_FullMethodName        = "/notificator.auth.AuthService/GetOAuthAuthURL"
@@ -52,6 +53,7 @@ type AuthServiceClient interface {
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 	ValidateSession(ctx context.Context, in *ValidateSessionRequest, opts ...grpc.CallOption) (*ValidateSessionResponse, error)
 	GetProfile(ctx context.Context, in *GetProfileRequest, opts ...grpc.CallOption) (*GetProfileResponse, error)
+	UpdateTimezone(ctx context.Context, in *UpdateTimezoneRequest, opts ...grpc.CallOption) (*UpdateTimezoneResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	// OAuth Methods
@@ -123,6 +125,16 @@ func (c *authServiceClient) GetProfile(ctx context.Context, in *GetProfileReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetProfileResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) UpdateTimezone(ctx context.Context, in *UpdateTimezoneRequest, opts ...grpc.CallOption) (*UpdateTimezoneResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateTimezoneResponse)
+	err := c.cc.Invoke(ctx, AuthService_UpdateTimezone_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -270,6 +282,7 @@ type AuthServiceServer interface {
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	ValidateSession(context.Context, *ValidateSessionRequest) (*ValidateSessionResponse, error)
 	GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error)
+	UpdateTimezone(context.Context, *UpdateTimezoneRequest) (*UpdateTimezoneResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	// OAuth Methods
@@ -311,6 +324,9 @@ func (UnimplementedAuthServiceServer) ValidateSession(context.Context, *Validate
 }
 func (UnimplementedAuthServiceServer) GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProfile not implemented")
+}
+func (UnimplementedAuthServiceServer) UpdateTimezone(context.Context, *UpdateTimezoneRequest) (*UpdateTimezoneResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateTimezone not implemented")
 }
 func (UnimplementedAuthServiceServer) SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchUsers not implemented")
@@ -458,6 +474,24 @@ func _AuthService_GetProfile_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetProfile(ctx, req.(*GetProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_UpdateTimezone_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTimezoneRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UpdateTimezone(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_UpdateTimezone_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UpdateTimezone(ctx, req.(*UpdateTimezoneRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -722,6 +756,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProfile",
 			Handler:    _AuthService_GetProfile_Handler,
+		},
+		{
+			MethodName: "UpdateTimezone",
+			Handler:    _AuthService_UpdateTimezone_Handler,
 		},
 		{
 			MethodName: "SearchUsers",

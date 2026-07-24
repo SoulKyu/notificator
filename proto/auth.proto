@@ -14,6 +14,7 @@ service AuthService {
   rpc Logout(LogoutRequest) returns (LogoutResponse);
   rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
   rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc UpdateTimezone(UpdateTimezoneRequest) returns (UpdateTimezoneResponse);
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
 
@@ -93,6 +94,16 @@ message GetProfileRequest {
 message GetProfileResponse {
   User user = 1;
   int64 comment_count = 2;
+}
+
+message UpdateTimezoneRequest {
+  string session_id = 1;
+  string timezone = 2;                                              // IANA timezone (e.g., "Europe/Paris")
+}
+
+message UpdateTimezoneResponse {
+  bool success = 1;
+  string error = 2;
 }
 
 message User {
