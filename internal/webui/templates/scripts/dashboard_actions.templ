@@ -3,6 +3,34 @@ package scripts
 templ DashboardActions() {
 	<script>
 		window.dashboardActionsMixin = {
+			showActionError(message) {
+				this.actionError = message;
+				clearTimeout(this._actionErrorTimer);
+				this._actionErrorTimer = setTimeout(() => { this.actionError = ''; }, 8000);
+			},
+
+			bulkActionErrorMessage(result, fallback) {
+				const failures = (result.data && result.data.failures) || [];
+				let message = result.error || fallback;
+				const details = failures.slice(0, 3).map(f => f.error).filter(Boolean);
+				if (details.length > 0) {
+					message += ': ' + details.join('; ');
+				}
+				return message;
+			},
+
+			// On partial failure, keep exactly the failed targets selected so the
+			// operator can retry them; leave the selection untouched otherwise.
+			selectOnlyFailedTargets(result) {
+				const failures = (result.data && result.data.failures) || [];
+				const failedAlerts = failures.filter(f => f.kind === 'alert').map(f => f.target);
+				const failedGroups = failures.filter(f => f.kind === 'group').map(f => f.target);
+				if (failedAlerts.length > 0 || failedGroups.length > 0) {
+					this.selectedAlerts = failedAlerts;
+					this.selectedGroups = failedGroups;
+				}
+			},
+
 			cancelAcknowledgment() {
 				this.showAckModal = false;
 				this.ackReason = '';
@@ -77,17 +105,23 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
+
+					if (result.success === true) {
 						this.showAckModal = false;
-						
+
 						if (this.ackAction === 'bulk') {
 							this.clearSelection();
 						}
-						
+
 						this.loadDashboardData();
 					} else {
-						this.ackError = result.error || 'Failed to acknowledge';
+						if (this.ackAction === 'bulk') {
+							this.selectOnlyFailedTargets(result);
+						}
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
+						this.ackError = this.bulkActionErrorMessage(result, 'Failed to acknowledge');
 					}
 				} catch (error) {
 					console.error('Error submitting acknowledgment:', error);
@@ -104,6 +138,7 @@ templ DashboardActions() {
 
 				try {
 					let hiddenCount = 0;
+					const failedFingerprints = [];
 
 					// Hide individual alerts
 					for (const fingerprint of this.selectedAlerts) {
@@ -125,23 +160,27 @@ templ DashboardActions() {
 						}
 
 						const result = await response.json();
-						if (result.success) {
+						if (result.success === true) {
 							hiddenCount++;
+						} else {
+							failedFingerprints.push(fingerprint);
 						}
 					}
 
 					// TODO: Handle group hiding when groups are supported
 
-					if (hiddenCount > 0) {
-
-						this.clearSelection();
-						this.loadDashboardData();
+					if (failedFingerprints.length > 0) {
+						this.selectedAlerts = failedFingerprints;
+						this.showActionError(`${failedFingerprints.length} of ${hiddenCount + failedFingerprints.length} alerts could not be hidden`);
 					} else {
-
+						this.clearSelection();
+					}
+					if (hiddenCount > 0) {
+						this.loadDashboardData();
 					}
 				} catch (error) {
 					console.error('Error hiding alerts:', error);
-
+					this.showActionError('Network error: failed to hide alerts');
 				}
 			},
 
@@ -257,17 +296,21 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						
+						this.selectOnlyFailedTargets(result);
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unacknowledge selected items'));
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
 					}
 				} catch (error) {
 					console.error('Error unacknowledging alerts:', error);
-					
+					this.showActionError('Network error: failed to unacknowledge alerts');
 				}
 			},
 
@@ -294,16 +337,16 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unacknowledge alert'));
 					}
 				} catch (error) {
 					console.error('Error unacknowledging alert:', error);
-					
+					this.showActionError('Network error: failed to unacknowledge alert');
 				}
 			},
 
@@ -331,17 +374,21 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						
+						this.selectOnlyFailedTargets(result);
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to resolve selected items'));
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
 					}
 				} catch (error) {
 					console.error('Error resolving alerts:', error);
-					
+					this.showActionError('Network error: failed to resolve alerts');
 				}
 			},
 
@@ -368,16 +415,16 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to resolve alert'));
 					}
 				} catch (error) {
 					console.error('Error resolving alert:', error);
-					
+					this.showActionError('Network error: failed to resolve alert');
 				}
 			},
 
@@ -402,18 +449,18 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						if (this.displayMode === 'resolved') {
 							await this.loadDashboardData();
 						}
 					} else {
-						
+						this.showActionError(result.error || 'Failed to remove resolved alerts');
 					}
 				} catch (error) {
 					console.error('Error removing resolved alerts:', error);
-					
+					this.showActionError('Network error: failed to remove resolved alerts');
 				} finally {
 					this.isRemovingResolvedAlerts = false;
 				}
@@ -513,17 +560,23 @@ templ DashboardActions() {
 
 					const result = await response.json();
 					
-					if (result.success) {
-						
+					if (result.success === true) {
+
 						this.showSilenceModal = false;
-						
+
 						if (this.silenceAction === 'bulk') {
 							this.clearSelection();
 						}
-						
+
 						this.loadDashboardData();
 					} else {
-						this.silenceError = result.error || 'Failed to silence alert(s)';
+						if (this.silenceAction === 'bulk') {
+							this.selectOnlyFailedTargets(result);
+						}
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
+						this.silenceError = this.bulkActionErrorMessage(result, 'Failed to silence alert(s)');
 					}
 				} catch (error) {
 					console.error('Error submitting silence:', error);
@@ -690,17 +743,21 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						
+						this.selectOnlyFailedTargets(result);
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence selected items'));
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
 					}
 				} catch (error) {
 					console.error('Error unsilencing selected items:', error);
-					
+					this.showActionError('Network error: failed to unsilence selected items');
 				}
 			},
 
@@ -746,16 +803,16 @@ templ DashboardActions() {
 					});
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence alert'));
 					}
 				} catch (error) {
 					console.error('Error unsilencing alert:', error);
-					
+					this.showActionError('Network error: failed to unsilence alert');
 				}
 			},
 
@@ -775,16 +832,16 @@ templ DashboardActions() {
 					});
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence group'));
 					}
 				} catch (error) {
 					console.error('Error unsilencing group:', error);
-					
+					this.showActionError('Network error: failed to unsilence group');
 				}
 			},
 
