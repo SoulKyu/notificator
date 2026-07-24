@@ -1,9 +1,12 @@
 package services
 
 import (
+	"errors"
 	"testing"
 	"time"
 
+	"notificator/internal/alertmanager"
+	"notificator/internal/models"
 	webuimodels "notificator/internal/webui/models"
 )
 
@@ -121,8 +124,8 @@ func TestAlertCache_UpdatedAtTracking(t *testing.T) {
 			Status: webuimodels.AlertStatus{
 				State: "firing", // Same state
 			},
-			IsAcknowledged: false,           // Same
-			CommentCount:   0,               // Same
+			IsAcknowledged: false,                // Same
+			CommentCount:   0,                    // Same
 			Summary:        "Test alert summary", // Same
 		}
 
@@ -804,6 +807,103 @@ func TestAlertCache_SSEPubSub(t *testing.T) {
 
 		if cache.GetSubscriberCount() != 0 {
 			t.Errorf("Expected 0 subscribers, got %d", cache.GetSubscriberCount())
+		}
+	})
+}
+
+// fakeAlertFetcher lets tests control what a refresh cycle sees per source.
+type fakeAlertFetcher struct {
+	alerts      []alertmanager.AlertWithSource
+	fetchErrors map[string]error
+}
+
+func (f *fakeAlertFetcher) FetchAllAlertsDetailed() ([]alertmanager.AlertWithSource, map[string]error) {
+	return f.alerts, f.fetchErrors
+}
+
+func TestAlertCache_RefreshWithPartialFetchFailure(t *testing.T) {
+	newAlert := func(name, source string) alertmanager.AlertWithSource {
+		return alertmanager.AlertWithSource{
+			Alert: models.Alert{
+				Labels:   map[string]string{"alertname": name},
+				Status:   models.AlertStatus{State: "firing"},
+				StartsAt: time.Now().Add(-time.Hour),
+			},
+			Source: source,
+		}
+	}
+
+	prodAlert := newAlert("ProdAlert", "prod")
+	stagingAlert := newAlert("StagingAlert", "staging")
+
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+	prodFingerprint := cache.convertToDashboardAlert(prodAlert.Alert, prodAlert.Source).Fingerprint
+	stagingFingerprint := cache.convertToDashboardAlert(stagingAlert.Alert, stagingAlert.Source).Fingerprint
+
+	// Seed the cache with one alert per source via a healthy fetch.
+	fetcher := &fakeAlertFetcher{alerts: []alertmanager.AlertWithSource{prodAlert, stagingAlert}}
+	cache.alertmanagerClient = fetcher
+	cache.refreshAlerts()
+
+	if _, ok := cache.GetAlert(prodFingerprint); !ok {
+		t.Fatal("prod alert should be cached after healthy refresh")
+	}
+	if _, ok := cache.GetAlert(stagingFingerprint); !ok {
+		t.Fatal("staging alert should be cached after healthy refresh")
+	}
+
+	t.Run("Alerts from a failed source survive the cycle", func(t *testing.T) {
+		fetcher.alerts = []alertmanager.AlertWithSource{stagingAlert}
+		fetcher.fetchErrors = map[string]error{"prod": errors.New("connection refused")}
+		cache.refreshAlerts()
+
+		prodCached, ok := cache.GetAlert(prodFingerprint)
+		if !ok {
+			t.Fatal("prod alert must not be removed when its source failed to answer")
+		}
+		if prodCached.IsResolved || prodCached.Status.State == "resolved" {
+			t.Error("prod alert must not be marked resolved when its source failed to answer")
+		}
+		if _, ok := cache.GetAlert(stagingFingerprint); !ok {
+			t.Error("staging alert should still be cached")
+		}
+	})
+
+	t.Run("Alerts from a healthy source still resolve normally", func(t *testing.T) {
+		// staging no longer reports its original alert while prod is still down.
+		fetcher.alerts = []alertmanager.AlertWithSource{newAlert("StagingAlert2", "staging")}
+		fetcher.fetchErrors = map[string]error{"prod": errors.New("connection refused")}
+		cache.refreshAlerts()
+
+		if _, ok := cache.GetAlert(stagingFingerprint); ok {
+			t.Error("staging alert should resolve when its healthy source no longer reports it")
+		}
+		if _, ok := cache.GetAlert(prodFingerprint); !ok {
+			t.Error("prod alert must survive while its source is still failing")
+		}
+	})
+
+	t.Run("All sources failing leaves the cache untouched", func(t *testing.T) {
+		fetcher.alerts = nil
+		fetcher.fetchErrors = map[string]error{
+			"prod":    errors.New("connection refused"),
+			"staging": errors.New("connection refused"),
+		}
+		cache.refreshAlerts()
+
+		if _, ok := cache.GetAlert(prodFingerprint); !ok {
+			t.Error("prod alert must survive a total fetch failure")
+		}
+	})
+
+	t.Run("Recovered source reconciles again", func(t *testing.T) {
+		// prod comes back with no alerts: its cached alert now genuinely resolved.
+		fetcher.alerts = []alertmanager.AlertWithSource{}
+		fetcher.fetchErrors = nil
+		cache.refreshAlerts()
+
+		if _, ok := cache.GetAlert(prodFingerprint); ok {
+			t.Error("prod alert should resolve once its source answers without it")
 		}
 	})
 }

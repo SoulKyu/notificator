@@ -668,17 +668,20 @@ type SilenceWithSource struct {
 	Source  string // Name of the Alertmanager instance
 }
 
-func (mc *MultiClient) FetchAllAlerts() ([]AlertWithSource, error) {
+// FetchAllAlertsDetailed fetches alerts from every configured Alertmanager and
+// reports per-source failures instead of collapsing them into a single error,
+// so callers can tell a partial fetch from a genuinely empty one.
+func (mc *MultiClient) FetchAllAlertsDetailed() ([]AlertWithSource, map[string]error) {
 	mc.mutex.RLock()
 	defer mc.mutex.RUnlock()
 
 	var allAlerts []AlertWithSource
-	var errors []error
+	failedSources := make(map[string]error)
 
 	for name, client := range mc.clients {
 		alerts, err := client.FetchAlerts()
 		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to fetch alerts from %s: %w", name, err))
+			failedSources[name] = err
 			continue
 		}
 
@@ -690,8 +693,16 @@ func (mc *MultiClient) FetchAllAlerts() ([]AlertWithSource, error) {
 		}
 	}
 
-	if len(errors) > 0 && len(allAlerts) == 0 { // If all clients failed, return the first error
-		return nil, errors[0]
+	return allAlerts, failedSources
+}
+
+func (mc *MultiClient) FetchAllAlerts() ([]AlertWithSource, error) {
+	allAlerts, failedSources := mc.FetchAllAlertsDetailed()
+
+	if len(failedSources) > 0 && len(allAlerts) == 0 { // If all clients failed, return the first error
+		for name, err := range failedSources {
+			return nil, fmt.Errorf("failed to fetch alerts from %s: %w", name, err)
+		}
 	}
 
 	return allAlerts, nil
