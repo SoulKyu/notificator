@@ -781,8 +781,8 @@ func BulkActionAlerts(c *gin.Context) {
 
 	userID := getCurrentUserID(c)
 	response := webuimodels.BulkActionResponse{
-		Success: true,
-		Errors:  []string{},
+		Success:  true,
+		Failures: []webuimodels.BulkActionFailure{},
 	}
 
 	// Store silence duration in context for silence actions
@@ -810,7 +810,11 @@ func BulkActionAlerts(c *gin.Context) {
 	for _, fingerprint := range request.AlertFingerprints {
 		if err := processAlertAction(c, fingerprint, request.Action, request.Comment, userID); err != nil {
 			response.FailedCount++
-			response.Errors = append(response.Errors, err.Error())
+			response.Failures = append(response.Failures, webuimodels.BulkActionFailure{
+				Target: fingerprint,
+				Kind:   "alert",
+				Error:  err.Error(),
+			})
 		} else {
 			response.ProcessedCount++
 		}
@@ -820,17 +824,29 @@ func BulkActionAlerts(c *gin.Context) {
 	for _, groupName := range request.GroupNames {
 		if err := processGroupAction(c, groupName, request.Action, request.Comment, userID); err != nil {
 			response.FailedCount++
-			response.Errors = append(response.Errors, err.Error())
+			response.Failures = append(response.Failures, webuimodels.BulkActionFailure{
+				Target: groupName,
+				Kind:   "group",
+				Error:  err.Error(),
+			})
 		} else {
 			response.ProcessedCount++
 		}
 	}
 
+	var summary string
 	if response.FailedCount > 0 {
 		response.Success = false
+		summary = fmt.Sprintf("%d of %d actions failed", response.FailedCount, response.FailedCount+response.ProcessedCount)
 	}
 
-	c.JSON(http.StatusOK, webuimodels.SuccessResponse(response))
+	// Partial success is not a transport error: keep HTTP 200, report the real
+	// verdict in the envelope so clients can stop trusting a hardcoded true.
+	c.JSON(http.StatusOK, webuimodels.APIResponse{
+		Success: response.FailedCount == 0,
+		Data:    response,
+		Error:   summary,
+	})
 }
 
 func processAlertAction(c *gin.Context, fingerprint, action, comment, userID string) error {

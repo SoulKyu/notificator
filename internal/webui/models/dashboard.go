@@ -201,12 +201,19 @@ type BulkActionRequest struct {
 	CustomSilenceDuration string        `json:"customSilenceDuration,omitempty"` // Custom duration string (e.g., "1h30m")
 }
 
+// BulkActionFailure identifies a single target that failed during a bulk action
+type BulkActionFailure struct {
+	Target string `json:"target"` // alert fingerprint, or group name
+	Kind   string `json:"kind"`   // "alert" | "group"
+	Error  string `json:"error"`
+}
+
 // BulkActionResponse represents the response to a bulk action
 type BulkActionResponse struct {
-	Success        bool     `json:"success"`
-	ProcessedCount int      `json:"processedCount"`
-	FailedCount    int      `json:"failedCount"`
-	Errors         []string `json:"errors,omitempty"`
+	Success        bool                `json:"success"`
+	ProcessedCount int                 `json:"processedCount"`
+	FailedCount    int                 `json:"failedCount"`
+	Failures       []BulkActionFailure `json:"failures,omitempty"`
 }
 
 // AlertDetails represents detailed information about an alert for the modal
