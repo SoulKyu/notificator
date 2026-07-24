@@ -94,7 +94,12 @@ auth interceptor, so the check is mandatory here.
 
 Validate the timezone in the backend with `time.LoadLocation` and return
 `success=false` with an error for unknown zones — the RPC is reachable
-without the WebUI, so the WebUI's check is not a trust boundary.
+without the WebUI, so the WebUI's check is not a trust boundary. Reject
+`timezone == ""` and `timezone == "Local"` explicitly **before** calling
+`time.LoadLocation`: both pass `LoadLocation` without error, but empty is
+not a clear-preference API (it would silently reset the stored value to the
+browser-fallback path), and `Local` is not a portable IANA name — its
+meaning depends on whichever binary later interprets it.
 
 Persist via a new `GormDB` method in
 `internal/backend/database/gorm_db.go`, modelled on `UpdateLastLogin`
@@ -124,12 +129,17 @@ func (gdb *GormDB) UpdateUserTimezone(userID, timezone string) error {
 Rewrite `UpdateTimezone` (`profile_handlers.go:103-135`):
 
 - Keep the auth check, JSON binding, and the `time.LoadLocation` 400 guard
-  (`:119-123`) — a cheap reject before the gRPC round-trip.
+  (`:119-123`) — a cheap reject before the gRPC round-trip. Extend the
+  guard to also 400 on `"Local"` (empty is already caught by
+  `binding:"required"`), mirroring the backend's explicit rejects.
 - Replace the GORM block (`:125-130`) with a call to a new
   `BackendClient.UpdateTimezone(sessionID, timezone string) error` method
   (session ID via `middleware.GetSessionID(c)`, same as `ProfilePage`).
-  Backend `success=false` → 500 (or 400 if the backend reports an invalid
-  timezone) with the backend error message.
+  Backend `success=false` → always 500 with the backend error message.
+  `UpdateTimezoneResponse` carries no machine-readable error code, and the
+  invalid-timezone case is effectively unreachable from the WebUI because
+  the handler runs the same guard first — so a 400 mapping would require
+  string-matching backend error text; don't.
 - Remove the `gorm.io/gorm` import (`:10`). After this, `internal/webui/`
   is GORM-free again.
 
@@ -179,4 +189,6 @@ No `.templ` changes: the picker already PUTs on select and loads via
   - `PUT` with `Mars/Olympus` → 400, value not persisted.
 - Direct RPC check (e.g. `grpcurl`): `UpdateTimezone` with missing/invalid
   `session_id` → error; valid session with `Mars/Olympus` → error, row
-  unchanged.
+  unchanged; valid session with `timezone: ""` → error, row unchanged
+  (empty is not a clear-preference API); valid session with
+  `timezone: "Local"` → error, row unchanged.
