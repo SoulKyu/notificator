@@ -216,11 +216,25 @@ func Register(c *gin.Context) {
 	}))
 }
 
+// purgeSessionCaches drops all in-memory state keyed by the session ID
+func purgeSessionCaches(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	if colorService != nil {
+		colorService.InvalidateUserCache(sessionID)
+	}
+	if hiddenAlertsService != nil {
+		hiddenAlertsService.InvalidateCache(sessionID)
+	}
+}
+
 func Logout(c *gin.Context) {
 	sessionID := middleware.GetSessionID(c)
 	if sessionID != "" {
 		backendClient.Logout(sessionID)
 	}
+	purgeSessionCaches(sessionID)
 
 	err := middleware.ClearSession(c)
 	if err != nil {

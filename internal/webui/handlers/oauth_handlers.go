@@ -202,6 +202,7 @@ func OAuthLogout(c *gin.Context) {
 	if sessionID != "" && backendClient != nil {
 		backendClient.Logout(sessionID)
 	}
+	purgeSessionCaches(sessionID)
 
 	if userIDStr, ok := userID.(string); ok && userIDStr != "" {
 		logOAuthActivity(&userIDStr, provider, "logout", true, "", getClientIP(c), c.GetHeader("User-Agent"))

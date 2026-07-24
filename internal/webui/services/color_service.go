@@ -123,6 +123,10 @@ func (cs *ColorService) getUserColorCache(sessionID string) (*ColorPreferenceCac
 		return cache, nil
 	}
 
+	// ponytail: opportunistic sweep instead of a janitor goroutine — expired
+	// entries for idle sessions are dropped whenever any entry is refreshed.
+	cs.sweepExpiredLocked()
+
 	preferences, err := cs.backendClient.GetUserColorPreferences(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user color preferences: %w", err)
@@ -155,6 +159,15 @@ func (cs *ColorService) getUserColorCache(sessionID string) (*ColorPreferenceCac
 
 	cs.colorCache[sessionID] = cache
 	return cache, nil
+}
+
+// sweepExpiredLocked deletes all expired cache entries. Caller must hold cacheMutex.
+func (cs *ColorService) sweepExpiredLocked() {
+	for sessionID, cache := range cs.colorCache {
+		if time.Since(cache.CachedAt) >= cache.TTL {
+			delete(cs.colorCache, sessionID)
+		}
+	}
 }
 
 func (cs *ColorService) buildLookupMap(preferences []webuimodels.UserColorPreference) map[string]*ColorMatch {
