@@ -534,6 +534,32 @@ func (s *HiddenAlertsService) FilterHiddenAlerts(sessionID string, alerts []*web
 	}
 }
 
+// HasHiddenEntries reports whether the session hides anything at all (a pinned
+// fingerprint or an enabled rule). Callers use it to skip work that only matters
+// when hiding can actually remove alerts.
+func (s *HiddenAlertsService) HasHiddenEntries(sessionID string) bool {
+	s.mu.RLock()
+	loaded := s.userHiddenAlerts[sessionID] != nil
+	s.mu.RUnlock()
+
+	if !loaded {
+		_ = s.LoadUserData(sessionID)
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(s.userHiddenAlerts[sessionID]) > 0 {
+		return true
+	}
+	for _, rule := range s.userHiddenRules[sessionID] {
+		if rule.IsEnabled {
+			return true
+		}
+	}
+	return false
+}
+
 // GetHiddenAlertsCount returns the count of hidden alerts for a user
 func (s *HiddenAlertsService) GetHiddenAlertsCount(userID string) int {
 	s.mu.RLock()

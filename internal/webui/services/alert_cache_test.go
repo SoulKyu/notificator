@@ -1015,3 +1015,46 @@ func TestAlertCache_MutateAlert(t *testing.T) {
 		t.Errorf("accessor returned a cache-resident pointer: CommentCount = %d, want 1", again.CommentCount)
 	}
 }
+
+func TestAlertCache_ResolvedCountInvalidationDuringFetch(t *testing.T) {
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+
+	// An invalidation that lands mid-fetch must discard the pre-mutation count,
+	// otherwise the cleared counter is served as fresh for resolvedCountTTL.
+	gen := cache.resolvedCountGen
+	cache.InvalidateResolvedAlertsCount()
+	cache.publishResolvedCount(gen, 2500)
+
+	if cache.resolvedCount != 0 || !cache.resolvedCountFetched.IsZero() {
+		t.Errorf("stale count published: count = %d, fetched = %v", cache.resolvedCount, cache.resolvedCountFetched)
+	}
+
+	// A fetch with no invalidation in flight publishes normally.
+	gen = cache.resolvedCountGen
+	cache.publishResolvedCount(gen, 2500)
+
+	if cache.resolvedCount != 2500 || cache.resolvedCountFetched.IsZero() {
+		t.Errorf("fresh count not published: count = %d, fetched = %v", cache.resolvedCount, cache.resolvedCountFetched)
+	}
+}
+
+func TestAlertCache_ResolvedCountCacheAndFallback(t *testing.T) {
+	// Both branches return before touching the backend client, so a nil one is
+	// enough to exercise them.
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+
+	// A fresh count is served from the cache - that skipped query is the whole
+	// point of the counter cache.
+	cache.resolvedCount = 42
+	cache.resolvedCountFetched = time.Now()
+	if got := cache.GetResolvedAlertsCount(); got != 42 {
+		t.Errorf("cache hit: got %d, want 42", got)
+	}
+
+	// Stale with no reachable backend must serve the last known value, not 0:
+	// returning 0 would blank the Resolved tile on every backend blip.
+	cache.InvalidateResolvedAlertsCount()
+	if got := cache.GetResolvedAlertsCount(); got != 42 {
+		t.Errorf("stale, no backend: got %d, want 42", got)
+	}
+}
