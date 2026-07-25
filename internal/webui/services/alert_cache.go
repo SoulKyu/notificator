@@ -65,6 +65,7 @@ type AlertCache struct {
 	resolvedCountMu      sync.RWMutex
 	resolvedCount        int
 	resolvedCountFetched time.Time
+	resolvedCountGen     uint64 // bumped by every invalidation, so an in-flight fetch can tell its result is stale
 
 	// Configuration
 	refreshInterval       time.Duration
@@ -603,6 +604,7 @@ func (ac *AlertCache) GetResolvedAlertsWithLimit(limit int) []*webuimodels.Dashb
 func (ac *AlertCache) GetResolvedAlertsCount() int {
 	ac.resolvedCountMu.RLock()
 	count := ac.resolvedCount
+	gen := ac.resolvedCountGen
 	fresh := !ac.resolvedCountFetched.IsZero() && time.Since(ac.resolvedCountFetched) < resolvedCountTTL
 	ac.resolvedCountMu.RUnlock()
 
@@ -622,19 +624,33 @@ func (ac *AlertCache) GetResolvedAlertsCount() int {
 		return count
 	}
 
-	ac.resolvedCountMu.Lock()
-	ac.resolvedCount = fetched
-	ac.resolvedCountFetched = time.Now()
-	ac.resolvedCountMu.Unlock()
+	ac.publishResolvedCount(gen, fetched)
 
 	return fetched
 }
 
+// publishResolvedCount caches fetched unless an invalidation landed while the
+// fetch was in flight. Without the generation check, a count read before
+// RemoveAllResolvedAlerts would be published after it and served as fresh for a
+// full resolvedCountTTL. Same pattern as HiddenAlertsService.LoadUserData.
+func (ac *AlertCache) publishResolvedCount(gen uint64, fetched int) {
+	ac.resolvedCountMu.Lock()
+	defer ac.resolvedCountMu.Unlock()
+
+	if ac.resolvedCountGen != gen {
+		return
+	}
+
+	ac.resolvedCount = fetched
+	ac.resolvedCountFetched = time.Now()
+}
+
 // InvalidateResolvedAlertsCount forces the next GetResolvedAlertsCount call to
-// re-query the backend.
+// re-query the backend, and marks any in-flight fetch as pre-mutation.
 func (ac *AlertCache) InvalidateResolvedAlertsCount() {
 	ac.resolvedCountMu.Lock()
 	ac.resolvedCountFetched = time.Time{}
+	ac.resolvedCountGen++
 	ac.resolvedCountMu.Unlock()
 }
 

@@ -1,10 +1,37 @@
 package handlers
 
 import (
+	"reflect"
 	"testing"
 
+	alertpb "notificator/internal/backend/proto/alert"
 	webuimodels "notificator/internal/webui/models"
+	"notificator/internal/webui/services"
 )
+
+// stubHiddenBackend feeds HiddenAlertsService without a backend connection. Only
+// the two read calls LoadUserData makes are ever exercised.
+type stubHiddenBackend struct {
+	rules []*alertpb.UserHiddenRule
+}
+
+func (s stubHiddenBackend) GetUserHiddenAlerts(string, ...string) ([]*alertpb.UserHiddenAlert, error) {
+	return nil, nil
+}
+
+func (s stubHiddenBackend) GetUserHiddenRules(string, ...string) ([]*alertpb.UserHiddenRule, error) {
+	return s.rules, nil
+}
+
+func (s stubHiddenBackend) HideAlert(string, string, string, string, string, ...string) error {
+	return nil
+}
+func (s stubHiddenBackend) UnhideAlert(string, string, ...string) error { return nil }
+func (s stubHiddenBackend) SaveHiddenRule(string, *alertpb.UserHiddenRule, ...string) (*alertpb.UserHiddenRule, error) {
+	return nil, nil
+}
+func (s stubHiddenBackend) RemoveHiddenRule(string, string, ...string) error { return nil }
+func (s stubHiddenBackend) ClearAllHiddenAlerts(string, ...string) error     { return nil }
 
 // filtersAffectResolvedCount gates the cheap backend-count path against the
 // expensive fetch-and-filter path: a filter it fails to recognize would silently
@@ -42,5 +69,56 @@ func TestFiltersAffectResolvedCount(t *testing.T) {
 				t.Errorf("filtersAffectResolvedCount() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// The table above is hand-written per field, so it stays green when
+// DashboardFilters grows a field that applyDashboardFilters rejects on and
+// filtersAffectResolvedCount ignores. This forces the decision at compile-test
+// time instead.
+func TestFiltersAffectResolvedCountCoversEveryFilterField(t *testing.T) {
+	known := map[string]bool{
+		"Search": true, "Alertmanagers": true, "Severities": true,
+		"Statuses": true, "Teams": true, "AlertNames": true,
+		"Acknowledged": true, "HasComments": true,
+		"FilterHiddenAlerts": true, "FilterHiddenRules": true,
+		// Not filtering predicates in applyDashboardFilters:
+		"DisplayMode": true, "ViewMode": true, "ResolvedAlertsLimit": true,
+	}
+
+	typ := reflect.TypeOf(webuimodels.DashboardFilters{})
+	for i := 0; i < typ.NumField(); i++ {
+		if name := typ.Field(i).Name; !known[name] {
+			t.Fatalf("DashboardFilters.%s is new: decide whether it can exclude a resolved alert, then update filtersAffectResolvedCount and this list", name)
+		}
+	}
+}
+
+// The global hidden-alerts branch is the one filtersAffectResolvedCount case
+// that does not come from the filters struct: a session hiding anything at all
+// must take the fetch-and-filter path.
+func TestFiltersAffectResolvedCountGlobalHiddenRules(t *testing.T) {
+	previous := hiddenAlertsService
+	t.Cleanup(func() { hiddenAlertsService = previous })
+
+	const sessionID = "session-with-hidden-rule"
+
+	hiddenAlertsService = services.NewHiddenAlertsService(stubHiddenBackend{})
+	if filtersAffectResolvedCount(webuimodels.DashboardFilters{}, sessionID) {
+		t.Error("no hidden entries: want false")
+	}
+
+	hiddenAlertsService = services.NewHiddenAlertsService(stubHiddenBackend{
+		rules: []*alertpb.UserHiddenRule{{Id: "r1", LabelKey: "team", LabelValue: "sre", IsEnabled: true}},
+	})
+	if !filtersAffectResolvedCount(webuimodels.DashboardFilters{}, sessionID) {
+		t.Error("one enabled hidden rule: want true")
+	}
+
+	hiddenAlertsService = services.NewHiddenAlertsService(stubHiddenBackend{
+		rules: []*alertpb.UserHiddenRule{{Id: "r1", LabelKey: "team", LabelValue: "sre", IsEnabled: false}},
+	})
+	if filtersAffectResolvedCount(webuimodels.DashboardFilters{}, sessionID) {
+		t.Error("only a disabled hidden rule: want false")
 	}
 }

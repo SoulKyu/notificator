@@ -1162,11 +1162,17 @@ func (s *AlertServiceGorm) GetResolvedAlerts(ctx context.Context, req *alertpb.G
 		}, nil
 	}
 
-	// Get total count
+	// Get total count. Falling back to len(resolvedAlerts) here would be
+	// indistinguishable from a genuine count for callers that only read
+	// total_count (a limit=1 count request would silently get 1), so a count
+	// failure fails the whole response instead.
 	totalCount, err := s.db.GetResolvedAlertsCount()
 	if err != nil {
 		log.Printf("Error getting resolved alerts count: %v", err)
-		totalCount = int64(len(resolvedAlerts))
+		return &alertpb.GetResolvedAlertsResponse{
+			Success: false,
+			Message: "Failed to count resolved alerts",
+		}, nil
 	}
 
 	// Convert to protobuf messages
