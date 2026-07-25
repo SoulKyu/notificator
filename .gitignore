@@ -40,3 +40,7 @@ fake_alertmanager.log
 node_modules
 bin
 CLAUDE.md
+
+# Python bytecode (devtools/factory-tui)
+__pycache__/
+*.pyc
