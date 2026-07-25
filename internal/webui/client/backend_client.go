@@ -553,6 +553,11 @@ func (c *BackendClient) GetResolvedAlertsCount() (int, error) {
 		return 0, fmt.Errorf("failed to get resolved alerts count: %s", resp.Message)
 	}
 
+	// The backend sends -1 when the rows are good but the count query failed.
+	if resp.TotalCount < 0 {
+		return 0, fmt.Errorf("backend could not count resolved alerts")
+	}
+
 	return int(resp.TotalCount), nil
 }
 

@@ -735,6 +735,12 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 			// at ResolvedAlertsLimit. No alert blobs travel over gRPC for this.
 			counters.Resolved = alertCache.GetResolvedAlertsCount()
 		} else {
+			// Same contract as the fast path: this tile is the resolved store, not
+			// resolved rows that happened to survive into filteredAlerts. A no-op on
+			// today's inputs, but it stops the two branches from disagreeing if an
+			// alert ever reaches the active cache already carrying a resolved state.
+			counters.Resolved = 0
+
 			var resolvedAlerts []*webuimodels.DashboardAlert
 			if filters.ResolvedAlertsLimit > 0 {
 				resolvedAlerts = alertCache.GetResolvedAlertsWithLimit(filters.ResolvedAlertsLimit)

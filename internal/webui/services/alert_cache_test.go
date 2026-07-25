@@ -1037,3 +1037,24 @@ func TestAlertCache_ResolvedCountInvalidationDuringFetch(t *testing.T) {
 		t.Errorf("fresh count not published: count = %d, fetched = %v", cache.resolvedCount, cache.resolvedCountFetched)
 	}
 }
+
+func TestAlertCache_ResolvedCountCacheAndFallback(t *testing.T) {
+	// Both branches return before touching the backend client, so a nil one is
+	// enough to exercise them.
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+
+	// A fresh count is served from the cache - that skipped query is the whole
+	// point of the counter cache.
+	cache.resolvedCount = 42
+	cache.resolvedCountFetched = time.Now()
+	if got := cache.GetResolvedAlertsCount(); got != 42 {
+		t.Errorf("cache hit: got %d, want 42", got)
+	}
+
+	// Stale with no reachable backend must serve the last known value, not 0:
+	// returning 0 would blank the Resolved tile on every backend blip.
+	cache.InvalidateResolvedAlertsCount()
+	if got := cache.GetResolvedAlertsCount(); got != 42 {
+		t.Errorf("stale, no backend: got %d, want 42", got)
+	}
+}
