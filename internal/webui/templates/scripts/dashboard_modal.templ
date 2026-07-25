@@ -4,15 +4,22 @@ templ DashboardModal() {
 	<script>
 		window.dashboardModalMixin = {
 			// Pushes /dashboard/alert/<fp> while keeping the current query string so the
-			// shareable filter state survives the modal. Returns true if an entry was added.
+			// shareable filter state survives the modal.
 			pushAlertHistoryEntry(fingerprint) {
 				const newPath = `/dashboard/alert/${fingerprint}`;
 				if (window.location.pathname === newPath) {
-					return false;
+					return;
 				}
-				window.history.pushState({ alertId: fingerprint }, '', newPath + window.location.search);
+				const url = newPath + window.location.search;
+				if (this.alertModalPushedHistory) {
+					// Chained open (e.g. a notification click while the modal is up): we
+					// already own the current entry, so swap it instead of stacking one
+					// the close would never pop.
+					window.history.replaceState({ alertId: fingerprint }, '', url);
+					return;
+				}
+				window.history.pushState({ alertId: fingerprint }, '', url);
 				this.alertModalPushedHistory = true;
-				return true;
 			},
 
 			// Single popstate entry point: the URL is the source of truth for the modal.
@@ -68,12 +75,12 @@ templ DashboardModal() {
 						this.alertDetails = result.data;
 					} else {
 						console.error('Failed to load alert details: ' + result.error);
-						this.closeAlertModal();
+						this.closeAlertModal(options);
 					}
 				} catch (error) {
 					console.error('Error loading alert details:', error);
 					console.error('Failed to load alert details');
-					this.closeAlertModal();
+					this.closeAlertModal(options);
 				} finally {
 					this.alertDetailsLoading = false;
 				}
@@ -88,9 +95,14 @@ templ DashboardModal() {
 				this.commentSubmitting = false;
 				this.commentDeleting = {};
 
-				// Called from popstate: the browser already moved us off the alert URL.
+				// Called from popstate: the browser has usually already moved us off the
+				// alert URL. A failed popstate-driven open has not, so rewrite in place
+				// rather than driving history against the user's Back/Forward press.
 				if (options?.skipHistory) {
 					this.alertModalPushedHistory = false;
+					if (window.location.pathname.includes('/alert/')) {
+						window.history.replaceState({}, '', '/dashboard' + window.location.search);
+					}
 					return;
 				}
 
