@@ -599,9 +599,12 @@ def agent_state(key, kind):
 
 
 def loop_order(lp):
-    """Sort key giving desks a stable order — `looper ps` row order is not guaranteed."""
-    tail = loop_num(lp)
-    return (0, int(tail), "") if tail.isdigit() else (1, 0, lp["target"])
+    """Sort key giving desks a stable order — `looper ps` row order is not guaranteed.
+    The loopId tiebreak matters most for targetless rows: parse_ps defaults them all to
+    target "?", so without it every queued loop of a role shares one key and `sorted()`
+    just replays whatever order `looper ps` printed."""
+    tail, tie = loop_num(lp), lp.get("loopId") or ""
+    return (0, int(tail), tie) if tail.isdigit() else (1, 0, lp["target"] + tie)
 
 
 def build_desks(max_desks=None, keep=None):
@@ -629,8 +632,12 @@ def build_desks(max_desks=None, keep=None):
                        "name": f"{name}·{i + 1}", "kind": kind,
                        "state": loop_state(lp), "loop": lp} for i, lp in enumerate(mine)]
         else:
+            # state comes from the same `loops` snapshot as `loop` — agent_state() re-reads
+            # STATE under LOCK, so a poll landing in between would let the two halves of one
+            # desk describe different frames (idle desk still tailing a reaped run, or vice versa).
             desks.append({"key": key, "id": key, "emoji": emoji, "name": name, "kind": kind,
-                          "state": agent_state(key, kind), "loop": mine[0] if mine else None})
+                          "state": loop_state(mine[0]) if mine else agent_state(key, kind),
+                          "loop": mine[0] if mine else None})
     if max_desks is None or len(desks) <= max_desks:
         return desks
     # Trim the widest role first, highest rank first; the roster itself is never trimmed.
@@ -1411,6 +1418,27 @@ def selfcheck():
     if len(solo) != len(ROSTER) or solo_workers != ["WORKER"]:
         print(f"FAIL single loop duplicated the desk: {solo_workers}")
         fails += 1
+    # a desk's state and its loop must come from one snapshot: reading STATE twice lets a poll
+    # land between them and render an idle desk that still tails a reaped run. Standing in for
+    # that poll: STATE empties itself after the first read, so a second read is visible as a split.
+    class ReapAfterFirstRead(dict):
+        reads = 0
+
+        def __getitem__(self, k):
+            if k != "loops":
+                return super().__getitem__(k)
+            ReapAfterFirstRead.reads += 1
+            return super().__getitem__(k) if ReapAfterFirstRead.reads == 1 else []
+
+    real, sys.modules[__name__].STATE = STATE, ReapAfterFirstRead(STATE)
+    try:
+        raced = build_desks()
+    finally:
+        sys.modules[__name__].STATE = real
+    for d in raced:
+        if d["kind"].startswith("looper:") and (d["state"][0] == "work") != (d["loop"] is not None):
+            print(f"FAIL desk state/loop split: {d['name']} state={d['state'][0]} loop={d['loop']}")
+            fails += 1
     # targetless loops (queued, the common case) all carry target "?" — the id must come from
     # loopId or two of them collide and desk_index silently resolves both to the first desk
     with LOCK:
@@ -1421,6 +1449,15 @@ def selfcheck():
         if d["key"] == "worker" and desk_index(queued, d["id"]) != i:
             print(f"FAIL desk id collision: {d['name']} resolves to index {desk_index(queued, d['id'])}")
             fails += 1
+    # …and their grid position must not follow `looper ps` row order: same loops, reversed rows,
+    # same desks. Without a loopId tiebreak in loop_order they all share one sort key and swap.
+    order_a = [d["id"] for d in queued if d["key"] == "worker"]
+    with LOCK:
+        STATE["loops"] = list(reversed(STATE["loops"]))
+    order_b = [d["id"] for d in build_desks() if d["key"] == "worker"]
+    if order_a != order_b:
+        print(f"FAIL desk order follows ps row order: {order_a} → {order_b}")
+        fails += 1
     # …and with no loopId at all (older looper CLI) the rank fallback must still be unique
     with LOCK:
         STATE["loops"] = [{"type": "worker", "target": "?", "step": "—", "status": "queued"}
