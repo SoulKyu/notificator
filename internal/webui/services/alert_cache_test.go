@@ -1058,3 +1058,31 @@ func TestAlertCache_ResolvedCountCacheAndFallback(t *testing.T) {
 		t.Errorf("stale, no backend: got %d, want 42", got)
 	}
 }
+
+func TestAlertCache_GetLiveAlert(t *testing.T) {
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+
+	const fingerprint = "live-fingerprint"
+	cache.UpdateAlert(&webuimodels.DashboardAlert{
+		Fingerprint: fingerprint,
+		Status:      webuimodels.AlertStatus{State: "suppressed", SilencedBy: []string{"silence-1"}},
+	})
+
+	if got := cache.GetLiveAlert("missing"); got != nil {
+		t.Errorf("GetLiveAlert should return nil for a fingerprint absent from the live cache, got %+v", got)
+	}
+
+	live := cache.GetLiveAlert(fingerprint)
+	if live == nil {
+		t.Fatal("GetLiveAlert should return the cached alert")
+	}
+	if live.Status.State != "suppressed" || len(live.Status.SilencedBy) != 1 {
+		t.Errorf("unexpected live status: %+v", live.Status)
+	}
+
+	// Snapshot semantics: writing through the result must not touch the cache.
+	live.Status.State = "firing"
+	if again := cache.GetLiveAlert(fingerprint); again.Status.State != "suppressed" {
+		t.Errorf("GetLiveAlert returned a cache-resident pointer: State = %q, want \"suppressed\"", again.Status.State)
+	}
+}

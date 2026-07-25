@@ -773,6 +773,25 @@ func (ac *AlertCache) GetAlertByFingerprint(fingerprint string) *webuimodels.Das
 	return nil
 }
 
+// GetLiveAlert looks the fingerprint up in the live cache only, never falling
+// back to the backend's resolved_alerts table. Callers that only need "is this
+// alert firing/silenced right now" must use this: GetAlert costs a gRPC round
+// trip plus a JSONB point query per miss.
+func (ac *AlertCache) GetLiveAlert(fingerprint string) *webuimodels.DashboardAlert {
+	ac.mu.RLock()
+	defer ac.mu.RUnlock()
+
+	alert, exists := ac.alerts[fingerprint]
+	if !exists {
+		return nil
+	}
+
+	// Copy under the lock: the background refresher keeps mutating the cached
+	// struct after RUnlock.
+	alertCopy := *alert
+	return &alertCopy
+}
+
 func (ac *AlertCache) GetAlertColors(fingerprint, userID string) *AlertColorResult {
 	alert := ac.GetAlertByFingerprint(fingerprint)
 	if alert == nil {
