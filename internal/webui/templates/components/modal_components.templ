@@ -653,6 +653,10 @@ templ SettingsModal() {
 							:class="{ 'opacity-50 cursor-not-allowed': settingsSaving }">
 						Cancel
 					</button>
+					<p x-show="settingsSaveResult"
+					   class="mt-3 text-sm sm:mt-0 sm:mr-auto sm:self-center"
+					   :class="settingsSaveResult && settingsSaveResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+					   x-text="settingsSaveResult ? settingsSaveResult.message : ''"></p>
 				</div>
 			</div>
 		</div>

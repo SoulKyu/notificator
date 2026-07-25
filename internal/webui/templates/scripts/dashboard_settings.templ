@@ -42,7 +42,8 @@ templ DashboardSettings() {
 					hasToken: false,
 					baseUrl: 'https://sentry.io',
 					authStatus: 'none',
-					connectionTesting: false
+					connectionTesting: false,
+					testResult: null
 				},
 				sentryForm: {
 					token: '',
@@ -50,6 +51,7 @@ templ DashboardSettings() {
 				},
 				sentrySaving: false,
 				settingsSaving: false,
+				settingsSaveResult: null,
 
 				// Notification preferences
 				notificationPreferences: {
@@ -62,6 +64,13 @@ templ DashboardSettings() {
 
 				async init() {
 					console.log('Settings modal initializing...');
+					// Drop stale feedback so a reopened modal never shows the previous outcome
+					this.$watch('showSettings', (open) => {
+						if (open) {
+							this.settingsSaveResult = null;
+							this.sentryConfig.testResult = null;
+						}
+					});
 					await this.loadSettings();
 					await this.loadColorPreferences();
 					await this.loadAvailableLabels();
@@ -441,7 +450,8 @@ templ DashboardSettings() {
 				async saveSettings() {
 					console.log('Starting unified settings save...');
 					this.settingsSaving = true;
-					
+					this.settingsSaveResult = null;
+
 					try {
 						// Save general settings to localStorage
 						localStorage.setItem('dashboardSettings', JSON.stringify(this.settings));
@@ -477,10 +487,10 @@ templ DashboardSettings() {
 							throw new Error('Failed to save annotation button configs');
 						}
 
-						console.log('All settings saved successfully');
-						
+						this.settingsSaveResult = { success: true, message: 'All settings saved' };
+
 					} catch (error) {
-						console.error('Error saving settings:', error);
+						this.settingsSaveResult = { success: false, message: error.message || 'Failed to save settings' };
 					} finally {
 						this.settingsSaving = false;
 					}
@@ -752,7 +762,8 @@ templ DashboardSettings() {
 								hasToken: result.has_token || false,
 								baseUrl: result.base_url || 'https://sentry.io',
 								authStatus: result.auth_status || 'none',
-								connectionTesting: false
+								connectionTesting: false,
+								testResult: this.sentryConfig.testResult
 							};
 							this.sentryForm.baseUrl = this.sentryConfig.baseUrl;
 							console.log('Loaded Sentry config:', this.sentryConfig);
@@ -768,6 +779,7 @@ templ DashboardSettings() {
 					}
 
 					this.sentrySaving = true;
+					this.sentryConfig.testResult = null;
 					try {
 						const response = await fetch('/api/v1/dashboard/sentry-token', {
 							method: 'POST',
@@ -788,11 +800,13 @@ templ DashboardSettings() {
 							this.sentryConfig.hasToken = true;
 							this.sentryConfig.authStatus = 'personal_token';
 							this.sentryForm.token = '';  // Clear form after saving
-							
+							this.sentryConfig.testResult = { success: true, message: result.message || 'Token saved' };
 						} else {
+							// Keep the token in the form so the user can fix it
+							this.sentryConfig.testResult = { success: false, message: 'Failed to save token: ' + (result.error || result.message || 'unknown error') };
 						}
 					} catch (error) {
-						console.error('Error saving Sentry token:', error);
+						this.sentryConfig.testResult = { success: false, message: 'Failed to save token: ' + error.message };
 					} finally {
 						this.sentrySaving = false;
 					}
@@ -808,6 +822,7 @@ templ DashboardSettings() {
 					}
 
 					this.sentryConfig.connectionTesting = true;
+					this.sentryConfig.testResult = null;
 					try {
 						const response = await fetch('/api/v1/dashboard/sentry/test-connection', {
 							method: 'POST',
@@ -824,12 +839,12 @@ templ DashboardSettings() {
 						const result = await response.json();
 						
 						if (result.valid) {
-							console.log('Connection Successful')
+							this.sentryConfig.testResult = { success: true, message: result.message || 'Connection successful' };
 						} else {
-							console.error('Connection Failed')
+							this.sentryConfig.testResult = { success: false, message: result.message || result.error || 'Connection failed' };
 						}
 					} catch (error) {
-						console.error('Error testing Sentry connection:', error);
+						this.sentryConfig.testResult = { success: false, message: 'Connection failed: ' + error.message };
 					} finally {
 						this.sentryConfig.connectionTesting = false;
 					}
