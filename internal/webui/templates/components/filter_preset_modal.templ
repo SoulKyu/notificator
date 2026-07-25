@@ -127,7 +127,19 @@ templ FilterPresetsModal() {
 									</label>
 								</div>
 
-								<div class="flex items-center">
+								<div x-show="editingPreset" class="flex items-start p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+									<input type="checkbox" id="recapture-filters" name="recapture-filters"
+										   x-model="recaptureFilters"
+										   class="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
+									<label for="recapture-filters" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+										Replace saved filters with my current dashboard filters
+										<span class="block text-xs text-gray-500 dark:text-gray-400">
+											Leave unchecked to only edit the name, description and sharing — this filter's saved criteria stay untouched.
+										</span>
+									</label>
+								</div>
+
+								<div x-show="!editingPreset || recaptureFilters" class="flex items-center">
 									<input type="checkbox" id="include-columns" name="include-columns"
 										   x-model="includeColumnConfig"
 										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
@@ -137,7 +149,8 @@ templ FilterPresetsModal() {
 								</div>
 
 								<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-md p-3">
-									<p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Current filters to be saved:</p>
+									<p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2"
+									   x-text="!editingPreset || recaptureFilters ? 'Current filters to be saved:' : 'Saved filters for this preset (kept as-is):'"></p>
 									<div class="text-xs text-gray-600 dark:text-gray-400 space-y-1" x-html="getFilterSummary()"></div>
 								</div>
 

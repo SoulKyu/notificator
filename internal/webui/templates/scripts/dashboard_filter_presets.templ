@@ -12,6 +12,9 @@ templ DashboardFilterPresetsMixin() {
 			is_shared: false
 		},
 		editingPreset: null,
+		// When editing, the preset's saved filters are only replaced by the live
+		// dashboard state if the user explicitly opts in
+		recaptureFilters: false,
 		activeTab: 'list',
 
 		// Filter-specific hidden alerts state
@@ -115,7 +118,7 @@ templ DashboardFilterPresetsMixin() {
 			}
 
 			try {
-				const filterData = this.captureCurrentFilterState();
+				const filterData = this.buildPresetFilterData();
 				const payload = {
 					name: this.newPreset.name.trim(),
 					description: this.newPreset.description.trim(),
@@ -214,14 +217,16 @@ templ DashboardFilterPresetsMixin() {
 		// Load preset for editing
 		editPreset(preset) {
 			this.editingPreset = preset;
+			this.recaptureFilters = false;
 			this.newPreset.name = preset.name;
 			this.newPreset.description = preset.description;
 			this.newPreset.is_shared = preset.is_shared;
 
 			// Load filter-specific hidden alerts from the preset's filter_data
+			// (copies, so editing the form never mutates the stored preset)
 			if (preset.filter_data) {
-				this.filterHiddenAlerts = preset.filter_data.hidden_alerts || [];
-				this.filterHiddenRules = preset.filter_data.hidden_rules || [];
+				this.filterHiddenAlerts = [...(preset.filter_data.hidden_alerts || [])];
+				this.filterHiddenRules = [...(preset.filter_data.hidden_rules || [])];
 				console.log('Loaded', this.filterHiddenAlerts.length, 'hidden alerts and', this.filterHiddenRules.length, 'hidden rules for editing');
 			} else {
 				this.filterHiddenAlerts = [];
@@ -294,6 +299,22 @@ templ DashboardFilterPresetsMixin() {
 				items_per_page: this.itemsPerPage,
 				column_configs: this.includeColumnConfig ? (this.columns || []) : [],
 				// Filter-specific hidden alerts
+				hidden_alerts: this.filterHiddenAlerts || [],
+				hidden_rules: this.filterHiddenRules || []
+			};
+		},
+
+		// Filter data the save/update form will persist: the preset's own saved
+		// filters while editing, the live dashboard state otherwise (or when the
+		// user explicitly asked to re-capture it)
+		buildPresetFilterData() {
+			if (!this.editingPreset || this.recaptureFilters) {
+				return this.captureCurrentFilterState();
+			}
+
+			return {
+				...(this.editingPreset.filter_data || {}),
+				// Hidden alerts/rules stay editable from the form
 				hidden_alerts: this.filterHiddenAlerts || [],
 				hidden_rules: this.filterHiddenRules || []
 			};
@@ -415,41 +436,45 @@ templ DashboardFilterPresetsMixin() {
 			const esc = s => String(s).replace(/[\x26\x3C\x3E\x22\x27]/g, c => _esc[c]);
 			const parts = [];
 
-			if (this.searchQuery) {
-				parts.push(`<div><strong>Search:</strong> ${esc(this.searchQuery)}</div>`);
+			// Summarize what will actually be persisted, not what is on screen
+			const data = this.buildPresetFilterData();
+			const list = key => data[key] || [];
+
+			if (data.search) {
+				parts.push(`<div><strong>Search:</strong> ${esc(data.search)}</div>`);
 			}
-			if (this.filters.alertmanagers.length > 0) {
-				parts.push(`<div><strong>Alertmanagers:</strong> ${this.filters.alertmanagers.map(esc).join(', ')}</div>`);
+			if (list('alertmanagers').length > 0) {
+				parts.push(`<div><strong>Alertmanagers:</strong> ${list('alertmanagers').map(esc).join(', ')}</div>`);
 			}
-			if (this.filters.severities.length > 0) {
-				parts.push(`<div><strong>Severities:</strong> ${this.filters.severities.map(esc).join(', ')}</div>`);
+			if (list('severities').length > 0) {
+				parts.push(`<div><strong>Severities:</strong> ${list('severities').map(esc).join(', ')}</div>`);
 			}
-			if (this.filters.statuses.length > 0) {
-				parts.push(`<div><strong>Statuses:</strong> ${this.filters.statuses.map(esc).join(', ')}</div>`);
+			if (list('statuses').length > 0) {
+				parts.push(`<div><strong>Statuses:</strong> ${list('statuses').map(esc).join(', ')}</div>`);
 			}
-			if (this.filters.teams.length > 0) {
-				parts.push(`<div><strong>Teams:</strong> ${this.filters.teams.map(esc).join(', ')}</div>`);
+			if (list('teams').length > 0) {
+				parts.push(`<div><strong>Teams:</strong> ${list('teams').map(esc).join(', ')}</div>`);
 			}
-			if (this.filters.alertNames.length > 0) {
-				parts.push(`<div><strong>Alert Names:</strong> ${this.filters.alertNames.map(esc).join(', ')}</div>`);
+			if (list('alert_names').length > 0) {
+				parts.push(`<div><strong>Alert Names:</strong> ${list('alert_names').map(esc).join(', ')}</div>`);
 			}
 
-			parts.push(`<div><strong>Display Mode:</strong> ${esc(this.displayMode)}</div>`);
-			parts.push(`<div><strong>View Mode:</strong> ${esc(this.viewMode)}</div>`);
+			parts.push(`<div><strong>Display Mode:</strong> ${esc(data.display_mode || '')}</div>`);
+			parts.push(`<div><strong>View Mode:</strong> ${esc(data.view_mode || '')}</div>`);
 
-			if (this.viewMode === 'group') {
-				parts.push(`<div><strong>Group By:</strong> ${esc(this.groupByLabel)}</div>`);
+			if (data.view_mode === 'group') {
+				parts.push(`<div><strong>Group By:</strong> ${esc(data.group_by || '')}</div>`);
 			}
 
-			parts.push(`<div><strong>Sort:</strong> ${esc(this.sortField)} (${esc(this.sortDirection)})</div>`);
-			parts.push(`<div><strong>Items Per Page:</strong> ${this.itemsPerPage}</div>`);
+			parts.push(`<div><strong>Sort:</strong> ${esc(data.sort_by || '')} (${esc(data.sort_direction || '')})</div>`);
+			parts.push(`<div><strong>Items Per Page:</strong> ${esc(data.items_per_page || '')}</div>`);
 
 			// Show filter-specific hidden alerts count
-			if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
-				parts.push(`<div><strong>Filter Hidden Alerts:</strong> ${this.filterHiddenAlerts.length}</div>`);
+			if (list('hidden_alerts').length > 0) {
+				parts.push(`<div><strong>Filter Hidden Alerts:</strong> ${list('hidden_alerts').length}</div>`);
 			}
-			if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
-				parts.push(`<div><strong>Filter Hidden Rules:</strong> ${this.filterHiddenRules.length}</div>`);
+			if (list('hidden_rules').length > 0) {
+				parts.push(`<div><strong>Filter Hidden Rules:</strong> ${list('hidden_rules').length}</div>`);
 			}
 
 			return parts.length > 0 ? parts.join('') : '<div>No filters applied</div>';
@@ -463,6 +488,7 @@ templ DashboardFilterPresetsMixin() {
 				is_shared: false
 			};
 			this.editingPreset = null;
+			this.recaptureFilters = false;
 			// Reset filter-specific hidden state when creating a new preset
 			// Note: we don't clear filterHiddenAlerts/filterHiddenRules here
 			// because the user may want to keep their current hidden state
