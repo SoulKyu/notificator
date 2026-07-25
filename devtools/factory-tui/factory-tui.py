@@ -139,11 +139,11 @@ def track_loops(loops, now, prune=True):
 
 
 def poll_fast():
-    out = sh("looper ps --json 2>/dev/null")
-    try:
-        items = json.loads(out)["items"]
+    ps_out = sh("looper ps --json 2>/dev/null")
+    try:  # parse success, not emptiness: sh() hands back stdout even on a non-zero exit
+        items, ps_ok = json.loads(ps_out)["items"], True
     except Exception:
-        items = []
+        items, ps_ok = [], False
     loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
               "step": i.get("currentStep") or "-", "status": i.get("status") or "-",
               "since": iso_ts((i.get("agent") or {}).get("startedAt"))} for i in items]
@@ -160,7 +160,7 @@ def poll_fast():
         elif "=" in line:
             k, v = line.split("=", 1)
             cur[k] = v
-    track_loops(loops, time.time(), prune=bool(out.strip()))
+    track_loops(loops, time.time(), prune=ps_ok)
     with LOCK:
         STATE["loops"], STATE["svc"] = loops, svc
 
@@ -943,15 +943,38 @@ def selfcheck():
             "status": "running", "since": now - 2820}
     LOOP_SINCE.clear()
     track_loops([lp57], now)
-    track_loops([], now + 3, prune=False)  # empty poll ≠ loop gone
-    track_loops([lp57], now + 6)
-    if LOOP_SINCE.get(k57) != ("implement", now - 2820):
-        print(f"FAIL track_loops: stall clock not preserved: {LOOP_SINCE}")
+    track_loops([dict(lp57, step="review")], now + 3)  # step change → clock restarts
+    if LOOP_SINCE.get(k57) != ("review", now + 3):
+        print(f"FAIL track_loops: step change did not restart the clock: {LOOP_SINCE}")
         fails += 1
-    track_loops([], now + 9)  # genuinely gone → pruned
-    if LOOP_SINCE:
-        print(f"FAIL track_loops: stale entry not pruned: {LOOP_SINCE}")
+    # poll_fast() is where `prune` is derived, so drive it — a failed `looper ps` must
+    # keep the clocks, an honestly empty one must prune.
+    PS_OK = json.dumps({"items": [{"type": "worker", "status": "running", "currentStep": "implement",
+                                   "target": {"label": "SoulKyu/notificator#57"},
+                                   "agent": {"startedAt": "2026-01-02T00:00:00Z"}}]})
+    SYSD = "Id=notificator-qa.service\nActiveState=active\nResult=success\n\n"
+    real_sh = sh
+    def stub(ps):
+        globals()["sh"] = lambda cmd, timeout=20: ps if cmd.startswith("looper ps") else SYSD
+    for name, ps, keep in (("present", PS_OK, True),
+                           ("timeout", "", True),                             # sh() failure path
+                           ("garbage", "looper: daemon unreachable\n", True),  # non-JSON stdout
+                           ("gone", '{"items": []}', False)):                  # really gone → prune
+        stub(ps)
+        LOOP_SINCE.clear()
+        LOOP_SINCE[k57] = ("implement", now - 2820)
+        poll_fast()
+        if (LOOP_SINCE.get(k57) == ("implement", now - 2820)) != keep:
+            print(f"FAIL poll_fast/{name}: LOOP_SINCE = {LOOP_SINCE}")
+            fails += 1
+    stub(PS_OK)
+    LOOP_SINCE.clear()
+    poll_fast()  # first sighting seeds from looper's agent.startedAt, not from now
+    if LOOP_SINCE.get(k57) != ("implement", iso_ts("2026-01-02T00:00:00Z")):
+        print(f"FAIL poll_fast: first sighting not seeded from agent.startedAt: {LOOP_SINCE}")
         fails += 1
+    globals()["sh"] = real_sh
+    LOOP_SINCE.clear()
     track_loops([lp57], now)
     # alarm panel: one failed unit + one stalled loop, both widths, flashing title
     with LOCK:
