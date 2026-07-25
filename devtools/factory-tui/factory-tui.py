@@ -172,15 +172,16 @@ def poll_fast():
         STATE["loops"], STATE["svc"], STATE["ps_ok"] = loops, svc, ps_ok
 
 
-def ago(seconds):
-    """Compact French age: 42s · 47min · 3h12 · 2j."""
+def ago(seconds, fine=False):
+    """Compact French age. Rounded (42min · 4h · 3j) for GitHub ages; fine=True
+    (42s · 47min · 3h12 · 2j) where the exact duration is the signal — a stall clock."""
     s = max(0, int(seconds))
     if s < 60:
-        return f"{s}s"
+        return f"{s}s" if fine else "0min"
     if s < 3600:
         return f"{s // 60}min"
     if s < 86400:
-        return f"{s // 3600}h{s % 3600 // 60:02d}"
+        return f"{s // 3600}h{s % 3600 // 60:02d}" if fine else f"{s // 3600}h"
     return f"{s // 86400}j"
 
 
@@ -207,7 +208,7 @@ def alarms(now=None):
         if s.get("Result") in ("success", "", None):
             continue
         t = systemd_ts(s.get("ExecMainExitTimestamp"))
-        age = f" il y a {ago(now - t)}" if t else ""
+        age = f" il y a {ago(now - t, fine=True)}" if t else ""
         restarts = f" · {s['NRestarts']} restarts" if (s.get("NRestarts") or "0") != "0" else ""
         code = "signal" if s.get("ExecMainCode") == "2" else "exit"  # si_code 2 = killed, not exited
         out.append((f"unit:{unit}",
@@ -218,7 +219,7 @@ def alarms(now=None):
         if not lp or lp["status"] != "running" or now - since < STALL_MIN * 60:
             continue
         out.append((f"loop:{typ}:{target}",
-                    f"⏳ {typ} {target.split('/')[-1]} bloqué sur {step} depuis {ago(now - since)}"))
+                    f"⏳ {typ} {target.split('/')[-1]} bloqué sur {step} depuis {ago(now - since, fine=True)}"))
     return out
 
 
@@ -271,23 +272,6 @@ def poll_med():
         STATE["events"].extend(events[:6])
 
 
-def ts(s):
-    """GitHub timestamp -> epoch seconds, or None."""
-    try:
-        return calendar.timegm(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
-    except Exception:
-        return None
-
-
-def ago(sec):
-    """Compact age: 42min · 4h · 3j."""
-    if sec < 3600:
-        return f"{max(0, int(sec // 60))}min"
-    if sec < 86400:
-        return f"{int(sec // 3600)}h"
-    return f"{int(sec // 86400)}j"
-
-
 def compute_pending(prs, issues, now):
     """Ball-in-your-court items from raw gh JSON, oldest first. -> [str]
 
@@ -304,12 +288,12 @@ def compute_pending(prs, issues, now):
                 or "ready-to-merge" not in labels or "qa:failed" in labels
                 or "looper:spec-reviewing" in labels):
             continue
-        t = ts(p.get("updatedAt")) or now
+        t = iso_ts(p.get("updatedAt")) or now
         rows.append((t, f"🚢 PR#{p['number']} prête à merger — {ago(now - t)}"))
     for i in issues:
         if not any(l["name"] == "looper:hold" for l in i.get("labels", [])):
             continue
-        t = ts(i.get("updatedAt")) or now
+        t = iso_ts(i.get("updatedAt")) or now
         rows.append((t, f"⛔ #{i['number']} {i.get('title', '')[:50]} — attend ton go"))
     return [r for _, r in sorted(rows, key=lambda x: x[0])]
 
@@ -322,7 +306,7 @@ def compute_score(issues, prs, now):
     events = []
     for i in issues:
         labels = {l["name"] for l in i.get("labels", [])}
-        t = ts(i.get("createdAt"))
+        t = iso_ts(i.get("createdAt"))
         if t is None or t < cutoff:
             continue
         events.append(t)
@@ -336,7 +320,7 @@ def compute_score(issues, prs, now):
             sc["kills"] += 1
     for p in prs:
         labels = {l["name"] for l in p.get("labels", [])}
-        created, merged = ts(p.get("createdAt")), ts(p.get("mergedAt"))
+        created, merged = iso_ts(p.get("createdAt")), iso_ts(p.get("mergedAt"))
         from_looper = (p.get("headRefName") or "").startswith("looper/")
         if created is not None and created >= cutoff:
             events.append(created)
