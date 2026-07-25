@@ -52,7 +52,18 @@ TIMER_OF = {
 SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
 SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
 ZOOM_TAIL = 15
-STALL_MIN = int(os.environ.get("FACTORY_STALL_MIN") or 30)
+
+
+def stall_min(v):
+    """FACTORY_STALL_MIN in minutes. A typo'd tuning knob ('45m') must not take the
+    whole dashboard down at import time; 0 would flag every fresh loop as stalled."""
+    try:
+        return max(1, int(v or 30))
+    except ValueError:
+        return 30
+
+
+STALL_MIN = stall_min(os.environ.get("FACTORY_STALL_MIN"))
 
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
@@ -851,6 +862,9 @@ def selfcheck():
     global STALL_MIN
     STALL_MIN = 30  # pin the knob: alarms() and render_frame() both read it, fixtures assume 30
     fails = 0
+    if (stall_min("45m"), stall_min(None), stall_min("0"), stall_min("45")) != (30, 30, 1, 45):
+        print(f"FAIL stall_min: junk knob must fall back, not crash: {stall_min('45m')}")
+        fails += 1
     for state in ("work", "break", "sleep", "error", "wait", "away"):
         for tick in range(8):
             inner, _ = person_cell(state, tick, 3, "s", "d")
@@ -962,7 +976,15 @@ def selfcheck():
     SYSD = "Id=notificator-qa.service\nActiveState=active\nResult=success\n\n"
     real_sh = sh
     def stub(ps):
-        globals()["sh"] = lambda cmd, timeout=20: ps if cmd.startswith("looper ps") else SYSD
+        def fake(cmd, timeout=20):
+            if cmd.startswith("looper ps"):
+                return ps
+            # mimic `systemctl show -p`: only the requested properties come back, so dropping
+            # one from the -p list breaks this fixture instead of quietly changing a row
+            want = set(re.search(r"-p ([\w,]+)", cmd).group(1).split(","))
+            return "".join(l + "\n" for l in SYSD.splitlines()
+                           if not l.strip() or l.split("=", 1)[0] in want)
+        globals()["sh"] = fake
     PS_QUEUED = json.dumps({"items": [{"type": "worker", "status": "queued", "currentStep": "implement",
                                        "target": {"label": "SoulKyu/notificator#57"}, "agent": None}]})
     PS_SCHEMA = json.dumps({"items": [{"kind": "worker", "status": "running",  # `type` renamed upstream
@@ -1006,12 +1028,28 @@ def selfcheck():
     if LOOP_SINCE.get(k57) != ("implement", iso_ts("2026-01-02T00:00:00Z")):
         print(f"FAIL poll_fast: first sighting not seeded from agent.startedAt: {LOOP_SINCE}")
         fails += 1
+    exited = time.strftime("%a %Y-%m-%d %H:%M:%S %Z", time.localtime(now - 11520))
+    # the `-p` property list in poll_fast() and the keys alarms() reads are a stringly-typed
+    # contract ~800 lines apart: drive a failed unit through the real parser so trimming the
+    # list fails loudly instead of quietly downgrading `signal 11` back to `exit 11`
+    SYSD = ("Id=notificator-qa.service\nActiveState=active\nResult=success\n"
+            "ExecMainExitTimestamp=\nExecMainStatus=0\nExecMainCode=0\nNRestarts=0\n\n"
+            "Id=notificator-reporter.service\nActiveState=failed\nResult=core-dump\n"
+            f"ExecMainExitTimestamp={exited}\nExecMainStatus=11\nExecMainCode=3\nNRestarts=2\n\n")
+    stub('{"items": []}')  # no loops: the only alarm left is the failed unit
+    poll_fast()
+    row = next((r for k, r in alarms(now) if k == "unit:notificator-reporter"), "")
+    if not all(x in row for x in ("core-dump", "signal 11", "2 restarts", "il y a")):
+        print(f"FAIL alarms: systemctl -p list drifted from what alarms() reads: {row!r}")
+        fails += 1
+    if any(k == "unit:notificator-qa" for k, _ in alarms(now)):
+        print("FAIL alarms: a healthy unit must not alarm")
+        fails += 1
     globals()["sh"] = real_sh
     LOOP_SINCE.clear()
     track_loops([lp57], now)
     # alarm panel: machine-wide breakage (7 failed units) + one stalled loop, both widths,
     # flashing title — more alarms than ALARM_ROWS, so the overflow row renders too
-    exited = time.strftime("%a %Y-%m-%d %H:%M:%S %Z", time.localtime(now - 11520))
     with LOCK:
         STATE["svc"] = {f"notificator-{n}": {
             "Id": f"notificator-{n}.service", "ActiveState": "failed", "Result": "exit-code",
