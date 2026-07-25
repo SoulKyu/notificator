@@ -225,16 +225,23 @@ def alarms(now=None):
         age = f" il y a {ago(now - t, fine=True)}" if t else ""
         n = int(s.get("NRestarts") or "0")
         restarts = f" · {n} redémarrage{'s' if n > 1 else ''}" if n else ""
-        code = "signal" if s.get("ExecMainCode") in ("2", "3") else "exit"  # si_code 2/3 = killed/dumped
+        # ExecMainCode is si_code: 0 (or unset) means no main process ever exited, so
+        # ExecMainStatus carries nothing and Result is the whole story; 2/3 = killed/dumped,
+        # and then the number is a signal, not an exit code
+        raw = s.get("ExecMainStatus") or ""
+        detail = "" if not raw or s.get("ExecMainCode") == "0" else \
+            f" ({'signal' if s.get('ExecMainCode') in ('2', '3') else 'exit'} {raw})"
         out.append((f"unit:{unit}",
-                    f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']} "
-                    f"({code} {s.get('ExecMainStatus') or '?'}){age}{restarts}"))
+                    f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']}"
+                    f"{detail}{age}{restarts}"))
     for (typ, target), (step, since) in sorted(since_of.items()):
         lp = next((l for l in loops if l["type"] == typ and l["target"] == target), None)
         if not lp or lp["status"] != "running" or now - since < STALL_MIN * 60:
             continue
+        # clock first: dpad() truncates from the right, and the age is the one number
+        # this alarm exists for — the step name is what a narrow frame may safely eat
         out.append((f"loop:{typ}:{target}",
-                    f"⏳ {typ} {target.split('/')[-1]} bloqué sur {step} depuis {ago(now - since, fine=True)}"))
+                    f"⏳ {ago(now - since, fine=True)} — {typ} {target.split('/')[-1]} bloqué sur {step}"))
     return out
 
 
@@ -672,10 +679,14 @@ def render_frame(tick, width=92, sel=None, flash=False):
         on = flash and tick % 2 == 0
         rows.append(("│" + dpad(" ═══ 🚨 ALARMES " + ("‼ " if on else ""), width - 2, fill="═") + "│",
                      4 if on else 0))
-        for _, msg in alrm[:ALARM_ROWS]:  # capped: a machine-wide breakage must not
+        # capped: a machine-wide breakage must not push the board and the ⚠ err line
+        # off-screen. At exactly one row over the cap the tail would occupy the row it
+        # displaced and say strictly less, so summarise only when it buys space back.
+        shown = ALARM_ROWS if len(alrm) > ALARM_ROWS + 1 else len(alrm)
+        for _, msg in alrm[:shown]:
             rows.append(("│ " + dpad(msg, width - 4) + " │", 4))
-        if len(alrm) > ALARM_ROWS:        # push the board and the ⚠ err line off-screen
-            hid = alrm[ALARM_ROWS:]       # say *what* was swallowed: stall rows always sort last
+        if len(alrm) > shown:
+            hid = alrm[shown:]            # say *what* was swallowed: stall rows always sort last
             n_u = sum(1 for k, _ in hid if k.startswith("unit:"))
             n_l = sum(1 for k, _ in hid if k.startswith("loop:"))
             s_u, s_l = "s" if n_u > 1 else "", "s" if n_l > 1 else ""
@@ -1036,12 +1047,19 @@ def selfcheck():
     SYSD = ("Id=notificator-qa.service\nActiveState=active\nResult=success\n"
             "ExecMainExitTimestamp=\nExecMainStatus=0\nExecMainCode=0\nNRestarts=0\n\n"
             "Id=notificator-reporter.service\nActiveState=failed\nResult=core-dump\n"
-            f"ExecMainExitTimestamp={exited}\nExecMainStatus=11\nExecMainCode=3\nNRestarts=2\n\n")
-    stub('{"items": []}')  # no loops: the only alarm left is the failed unit
+            f"ExecMainExitTimestamp={exited}\nExecMainStatus=11\nExecMainCode=3\nNRestarts=2\n\n"
+            # ExecStartPre failed: the unit is dead but ExecMain* never got set
+            "Id=notificator-groomer.service\nActiveState=failed\nResult=exit-code\n"
+            "ExecMainExitTimestamp=\nExecMainStatus=0\nExecMainCode=0\nNRestarts=0\n\n")
+    stub('{"items": []}')  # no loops: the only alarms left are the failed units
     poll_fast()
     row = next((r for k, r in alarms(now) if k == "unit:notificator-reporter"), "")
     if not all(x in row for x in ("core-dump", "signal 11", "2 redémarrages", "il y a")):
         print(f"FAIL alarms: systemctl -p list drifted from what alarms() reads: {row!r}")
+        fails += 1
+    row = next((r for k, r in alarms(now) if k == "unit:notificator-groomer"), "")
+    if "échec exit-code" not in row or "(exit" in row:
+        print(f"FAIL alarms: no main process exited, so there is no status to report: {row!r}")
         fails += 1
     if any(k == "unit:notificator-qa" for k, _ in alarms(now)):
         print("FAIL alarms: a healthy unit must not alarm")
@@ -1054,7 +1072,8 @@ def selfcheck():
     with LOCK:
         STATE["svc"] = {f"notificator-{n}": {
             "Id": f"notificator-{n}.service", "ActiveState": "failed", "Result": "exit-code",
-            "ExecMainStatus": "2", "NRestarts": "3", "ExecMainExitTimestamp": exited}
+            "ExecMainStatus": "2", "ExecMainCode": "1", "NRestarts": "3",
+            "ExecMainExitTimestamp": exited}
             for n in ("qa", "scout", "worker", "rebaser", "promoter", "docagent", "reporter")}
         STATE["svc"]["notificator-worker"].update(  # ExecMainStatus is a signal when si_code is 2
             Result="oom-kill", ExecMainStatus="9", ExecMainCode="2")
@@ -1089,6 +1108,25 @@ def selfcheck():
             if sum(1 for l, _ in frame if tail in l) != 1:
                 print(f"FAIL alarm panel not capped at {ALARM_ROWS} rows with a typed tail (w={w})")
                 fails += 1
+    # exactly ALARM_ROWS + 1 alarms: the tail would occupy the row it displaced, so all
+    # six render — and the stall row, which sorts last, is the one that proves it
+    with LOCK:
+        for n in ("scout", "rebaser"):
+            STATE["svc"][f"notificator-{n}"]["Result"] = "success"
+    for w in (92, 60):
+        frame = render_frame(1, w)
+        top = next(i for i, (l, _) in enumerate(frame) if "ALARMES" in l)
+        body = 0
+        for l, _ in frame[top + 1:]:
+            if "═══" in l:
+                break
+            body += 1
+        if body != ALARM_ROWS + 1 or any("autres alarmes" in l for l, _ in frame):
+            print(f"FAIL alarm panel summarised a single hidden row ({body} rows, w={w})")
+            fails += 1
+        if not any("47min" in l for l, _ in frame):  # the clock leads, so dpad() cannot eat it
+            print(f"FAIL alarm panel: stall clock truncated away at w={w}")
+            fails += 1
     with LOCK:  # units back to success + loop step moved on → alarms gone, panel gone
         for s in STATE["svc"].values():
             s["Result"] = "success"
