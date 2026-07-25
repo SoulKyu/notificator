@@ -146,16 +146,18 @@ def track_loops(loops, now, prune=True):
 def poll_fast():
     ps_out = sh("looper ps --json 2>/dev/null")
     try:  # parse success, not emptiness: sh() hands back stdout even on a non-zero exit
-        items, ps_ok = json.loads(ps_out)["items"], True
+        loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
+                  "step": i.get("currentStep") or "-", "status": i.get("status") or "-",
+                  "since": iso_ts((i.get("agent") or {}).get("startedAt"))}
+                 for i in json.loads(ps_out)["items"]]  # a loop with no `type` is not renderable:
+        ps_ok = True                                    # a schema drift means "injoignable", not "frozen"
     except Exception:
-        items, ps_ok = [], False
-    loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
-              "step": i.get("currentStep") or "-", "status": i.get("status") or "-",
-              "since": iso_ts((i.get("agent") or {}).get("startedAt"))} for i in items]
+        loops, ps_ok = [], False
     svc = {}
     units = " ".join(k.split(":")[1] + ".service" for _, _, _, k in ROSTER if k.startswith("svc:"))
     out = sh(f"systemctl --user show {units} "
-             "-p Id,ActiveState,Result,ExecMainStartTimestamp,ExecMainExitTimestamp,ExecMainStatus,NRestarts 2>/dev/null")
+             "-p Id,ActiveState,Result,ExecMainStartTimestamp,ExecMainExitTimestamp,"
+             "ExecMainStatus,ExecMainCode,NRestarts 2>/dev/null")
     cur = {}
     for line in out.splitlines() + [""]:
         if not line.strip():
@@ -207,9 +209,10 @@ def alarms(now=None):
         t = systemd_ts(s.get("ExecMainExitTimestamp"))
         age = f" il y a {ago(now - t)}" if t else ""
         restarts = f" · {s['NRestarts']} restarts" if (s.get("NRestarts") or "0") != "0" else ""
+        code = "signal" if s.get("ExecMainCode") == "2" else "exit"  # si_code 2 = killed, not exited
         out.append((f"unit:{unit}",
                     f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']} "
-                    f"(exit {s.get('ExecMainStatus') or '?'}){age}{restarts}"))
+                    f"({code} {s.get('ExecMainStatus') or '?'}){age}{restarts}"))
     for (typ, target), (step, since) in sorted(since_of.items()):
         lp = next((l for l in loops if l["type"] == typ and l["target"] == target), None)
         if not lp or lp["status"] != "running" or now - since < STALL_MIN * 60:
@@ -673,7 +676,13 @@ def render_frame(tick, width=92, sel=None, flash=False):
         for _, msg in alrm[:ALARM_ROWS]:  # capped: a machine-wide breakage must not
             rows.append(("│ " + dpad(msg, width - 4) + " │", 4))
         if len(alrm) > ALARM_ROWS:        # push the board and the ⚠ err line off-screen
-            rows.append(("│ " + dpad(f"… +{len(alrm) - ALARM_ROWS} autres alarmes", width - 4) + " │", 4))
+            hid = alrm[ALARM_ROWS:]       # say *what* was swallowed: stall rows always sort last
+            n_u = sum(1 for k, _ in hid if k.startswith("unit:"))
+            n_l = sum(1 for k, _ in hid if k.startswith("loop:"))
+            s_u, s_l = "s" if n_u > 1 else "", "s" if n_l > 1 else ""
+            tail = " · ".join(p for p in (f"{n_u} unité{s_u} en échec" if n_u else "",
+                                          f"{n_l} loop{s_l} bloquée{s_l}" if n_l else "") if p)
+            rows.append(("│ " + dpad(f"… +{len(hid)} autres alarmes ({tail})", width - 4) + " │", 4))
     if pending:  # rien en attente → pas de panneau
         rows.append(("│" + dpad(" ═══ 🙋 EN ATTENTE DE TOI ", width - 2, fill="═") + "│", 0))
         for row in pending[:PENDING_MAX]:
@@ -969,9 +978,12 @@ def selfcheck():
         globals()["sh"] = lambda cmd, timeout=20: ps if cmd.startswith("looper ps") else SYSD
     PS_QUEUED = json.dumps({"items": [{"type": "worker", "status": "queued", "currentStep": "implement",
                                        "target": {"label": "SoulKyu/notificator#57"}, "agent": None}]})
+    PS_SCHEMA = json.dumps({"items": [{"kind": "worker", "status": "running",  # `type` renamed upstream
+                                       "currentStep": "implement"}]})
     for name, ps, keep, ps_ok in (("present", PS_OK, True, True),
                                   ("timeout", "", True, False),                             # sh() failure path
                                   ("garbage", "looper: daemon unreachable\n", True, False),  # non-JSON stdout
+                                  ("schema", PS_SCHEMA, True, False),                        # valid JSON, no `type`
                                   ("gone", '{"items": []}', False, True),                    # really gone → prune
                                   ("queued", PS_QUEUED, False, True)):  # waiting in the queue is not stalling
         stub(ps)
@@ -1010,9 +1022,12 @@ def selfcheck():
             "Id": f"notificator-{n}.service", "ActiveState": "failed", "Result": "exit-code",
             "ExecMainStatus": "2", "NRestarts": "3", "ExecMainExitTimestamp": exited}
             for n in ("qa", "scout", "worker", "rebaser", "promoter", "docagent", "reporter")}
+        STATE["svc"]["notificator-worker"].update(  # ExecMainStatus is a signal when si_code is 2
+            Result="oom-kill", ExecMainStatus="9", ExecMainCode="2")
         STATE["loops"] = [lp57]
     a = alarms(now)
     if not (len(a) == 8 and "qa" in a[2][1] and "exit 2" in a[2][1] and "3h12" in a[2][1]
+            and "signal 9" in a[-2][1] and "oom-kill" in a[-2][1]
             and "#57" in a[-1][1] and "implement" in a[-1][1] and "47min" in a[-1][1]):
         print(f"FAIL alarms: {a}")
         fails += 1
@@ -1023,8 +1038,10 @@ def selfcheck():
                 if dwidth(line) != w:
                     print(f"FAIL alarm row {dwidth(line)} cols (want {w}): {line!r}")
                     fails += 1
-            if sum(1 for l, _ in frame if f"+{len(a) - ALARM_ROWS} autres alarmes" in l) != 1:
-                print(f"FAIL alarm panel not capped at {ALARM_ROWS} rows (w={w})")
+            # the hidden tail names its categories, so a swallowed stall row is still visible
+            tail = f"+{len(a) - ALARM_ROWS} autres alarmes (2 unités en échec · 1 loop bloquée)"
+            if sum(1 for l, _ in frame if tail in l) != 1:
+                print(f"FAIL alarm panel not capped at {ALARM_ROWS} rows with a typed tail (w={w})")
                 fails += 1
     with LOCK:  # units back to success + loop step moved on → alarms gone, panel gone
         for s in STATE["svc"].values():

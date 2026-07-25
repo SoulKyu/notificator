@@ -67,16 +67,19 @@ Observable transitions feed a render-side event queue (no extra pollers):
   naming the PR for ~3 s
 - **🚨 alarm board** — breakage accumulates in a panel above the 📌 TABLEAU
   instead of scrolling past: an unreachable looper daemon (`looper ps --json`
-  unparseable — every desk would otherwise render a calm `veille`), a
+  unparseable, or parseable but of an unknown shape — every desk would
+  otherwise render a calm `veille`), a
   `notificator-*` unit whose `Result` is not
-  `success` (name, result, exit code, age since `ExecMainExitTimestamp`) and a
+  `success` (name, result, exit code — or signal number when `ExecMainCode` says
+  the unit was killed — age since `ExecMainExitTimestamp`) and a
   `running` looper loop stuck on the same step past `FACTORY_STALL_MIN`
   (default 30 min), aged from `looper ps --json`'s `agent.startedAt` so a
   restarted TUI does not reset the clock (a `queued` loop has no clock — waiting
   for a free slot is not stalling). Rows clear on the unit's next
   successful run or when the step moves on; no alarm → no panel. The panel is
-  capped at 5 rows plus a `… +N autres alarmes` tail so a machine-wide breakage
-  cannot push the 📌 TABLEAU off-screen. Each *new*
+  capped at 5 rows plus a `… +N autres alarmes (2 unités en échec · 1 loop
+  bloquée)` tail so a machine-wide breakage cannot push the 📌 TABLEAU
+  off-screen nor silently swallow a whole alarm category. Each *new*
   alarm rings one
   `curses.beep()` and flashes the panel title for ~3 s (live TUI only —
   `--once` and `--check` never beep)
