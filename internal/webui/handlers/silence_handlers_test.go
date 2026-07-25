@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"notificator/internal/models"
+	webuimodels "notificator/internal/webui/models"
 )
 
 func TestSilenceMatchesAlert(t *testing.T) {
@@ -95,6 +96,30 @@ func TestSilenceMatchesAlert(t *testing.T) {
 				t.Errorf("silenceMatchesAlert() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// A silence lives on one Alertmanager and must never claim identically-labelled alerts
+// scraped from another — that guard drives both the matched count and the
+// "Suppressing nothing" marker in a multi-Alertmanager setup.
+func TestCountMatchedAlertsIsScopedToSource(t *testing.T) {
+	silence := models.Silence{Matchers: []models.SilenceMatcher{
+		{Name: "alertname", Value: "KafkaLagHigh", IsEqual: true},
+	}}
+	alerts := []*webuimodels.DashboardAlert{
+		{Source: "prod-am", Labels: map[string]string{"alertname": "KafkaLagHigh"}},
+		{Source: "staging-am", Labels: map[string]string{"alertname": "KafkaLagHigh"}},
+		{Source: "prod-am", Labels: map[string]string{"alertname": "DiskFull"}},
+	}
+
+	if got := countMatchedAlerts(silence, "prod-am", alerts); got != 1 {
+		t.Errorf("countMatchedAlerts(prod-am) = %d, want 1", got)
+	}
+	if got := countMatchedAlerts(silence, "staging-am", alerts); got != 1 {
+		t.Errorf("countMatchedAlerts(staging-am) = %d, want 1", got)
+	}
+	if got := countMatchedAlerts(silence, "unknown-am", alerts); got != 0 {
+		t.Errorf("countMatchedAlerts(unknown-am) = %d, want 0", got)
 	}
 }
 

@@ -19,50 +19,91 @@ import (
 // maxSilenceExtension caps how far a single extend request can push the end time.
 const maxSilenceExtension = 30 * 24 * time.Hour
 
-// silenceMatcherMatches reports whether a single matcher holds for a label value.
-// An absent label is matched as the empty string, which is how Alertmanager evaluates it.
-func silenceMatcherMatches(matcher models.SilenceMatcher, value string) bool {
+// silenceStateExpired is the Alertmanager state of a silence whose end time has passed.
+const silenceStateExpired = "expired"
+
+// compiledMatcher is a silence matcher whose regex has been compiled once, so matching a
+// silence against a whole alert cache does not recompile the pattern for every alert.
+type compiledMatcher struct {
+	name    string
+	value   string
+	isEqual bool
+	re      *regexp.Regexp // nil for plain equality matchers
+}
+
+// matches reports whether the matcher holds for a label value. An absent label is matched
+// as the empty string, which is how Alertmanager evaluates it.
+func (cm compiledMatcher) matches(value string) bool {
 	matched := false
-	if matcher.IsRegex {
-		// Alertmanager anchors silence regexes on both ends.
-		re, err := regexp.Compile("^(?:" + matcher.Value + ")$")
-		if err != nil {
-			return false
-		}
-		matched = re.MatchString(value)
+	if cm.re != nil {
+		matched = cm.re.MatchString(value)
 	} else {
-		matched = matcher.Value == value
+		matched = cm.value == value
 	}
 
-	if matcher.IsEqual {
+	if cm.isEqual {
 		return matched
 	}
 	return !matched
 }
 
-// silenceMatchesAlert reports whether every matcher of the silence holds for the alert
-// labels. A silence with no matchers matches nothing (Alertmanager rejects those anyway).
-func silenceMatchesAlert(silence models.Silence, labels map[string]string) bool {
+// compileMatchers compiles every matcher of a silence up front. It reports false when a
+// matcher carries an invalid regex, in which case the silence matches nothing. A silence
+// with no matchers also matches nothing (Alertmanager rejects those anyway).
+func compileMatchers(silence models.Silence) ([]compiledMatcher, bool) {
 	if len(silence.Matchers) == 0 {
-		return false
+		return nil, false
 	}
 
+	compiled := make([]compiledMatcher, 0, len(silence.Matchers))
 	for _, matcher := range silence.Matchers {
-		if !silenceMatcherMatches(matcher, labels[matcher.Name]) {
+		cm := compiledMatcher{name: matcher.Name, value: matcher.Value, isEqual: matcher.IsEqual}
+		if matcher.IsRegex {
+			// Alertmanager anchors silence regexes on both ends.
+			re, err := regexp.Compile("^(?:" + matcher.Value + ")$")
+			if err != nil {
+				return nil, false
+			}
+			cm.re = re
+		}
+		compiled = append(compiled, cm)
+	}
+	return compiled, true
+}
+
+// matchLabels reports whether every compiled matcher holds for the given labels.
+func matchLabels(matchers []compiledMatcher, labels map[string]string) bool {
+	for _, matcher := range matchers {
+		if !matcher.matches(labels[matcher.name]) {
 			return false
 		}
 	}
 	return true
 }
 
-// countMatchedAlerts counts cached alerts from the same Alertmanager that the silence matches.
+// silenceMatchesAlert reports whether every matcher of the silence holds for the alert labels.
+func silenceMatchesAlert(silence models.Silence, labels map[string]string) bool {
+	matchers, ok := compileMatchers(silence)
+	if !ok {
+		return false
+	}
+	return matchLabels(matchers, labels)
+}
+
+// countMatchedAlerts counts cached alerts from the same Alertmanager that the silence
+// matches. Matchers are compiled once for the whole scan rather than once per alert.
 func countMatchedAlerts(silence models.Silence, source string, alerts []*webuimodels.DashboardAlert) int {
+	matchers, ok := compileMatchers(silence)
+	if !ok {
+		return 0
+	}
+
 	count := 0
 	for _, alert := range alerts {
 		if alert.Source != source {
 			continue
 		}
-		if silenceMatchesAlert(silence, alert.Labels) {
+		if matchLabels(matchers, alert.Labels) {
 			count++
 		}
 	}
@@ -133,11 +174,25 @@ func GetSilences(c *gin.Context) {
 
 	silences := make([]webuimodels.Silence, 0, len(silencesWithSource))
 	for _, item := range silencesWithSource {
-		matched := countMatchedAlerts(item.Silence, item.Source, alerts)
+		// Expired silences never show a matched count, so don't pay for the scan.
+		// Alertmanager retains them for --data.retention (120h by default).
+		matched := 0
+		if item.Silence.Status.State != silenceStateExpired {
+			matched = countMatchedAlerts(item.Silence, item.Source, alerts)
+		}
 		silences = append(silences, toWebuiSilence(item.Silence, item.Source, matched))
 	}
 
+	// Live silences first, soonest expiry first; expired ones last, most recent first.
 	sort.SliceStable(silences, func(i, j int) bool {
+		iExpired := silences[i].Status.State == silenceStateExpired
+		jExpired := silences[j].Status.State == silenceStateExpired
+		if iExpired != jExpired {
+			return !iExpired
+		}
+		if iExpired {
+			return silences[i].EndsAt.After(silences[j].EndsAt)
+		}
 		return silences[i].EndsAt.Before(silences[j].EndsAt)
 	})
 
@@ -146,15 +201,21 @@ func GetSilences(c *gin.Context) {
 		failed[name] = err.Error()
 	}
 
+	// GetClientNames ranges over a map, so sort to keep the source dropdown stable.
+	sources := alertmanagerClient.GetClientNames()
+	sort.Strings(sources)
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
 		"silences":      silences,
-		"sources":       alertmanagerClient.GetClientNames(),
+		"sources":       sources,
 		"failedSources": failed,
 	}))
 }
 
 // ExtendSilence pushes the end time of an existing silence further out. Alertmanager
-// upserts on the silence ID, so re-posting the same silence keeps its identity.
+// upserts on the silence ID for active and pending silences, so re-posting one keeps its
+// identity. An expired silence cannot be revived that way — Alertmanager's canUpdate
+// refuses it and mints a brand-new silence instead — so extending one is rejected.
 func ExtendSilence(c *gin.Context) {
 	if alertmanagerClient == nil {
 		c.JSON(http.StatusServiceUnavailable, webuimodels.ErrorResponse("Alertmanager client not available"))
@@ -192,12 +253,14 @@ func ExtendSilence(c *gin.Context) {
 		return
 	}
 
-	// Extend from the current end time, or from now if the silence already lapsed.
-	base := silence.EndsAt
-	if now := time.Now(); base.Before(now) {
-		base = now
+	// A lapsed silence cannot be moved: Alertmanager would create a different silence
+	// under a new ID and leave this one expired. Say so instead of silently duplicating.
+	if silence.Status.State == silenceStateExpired {
+		c.JSON(http.StatusConflict, webuimodels.ErrorResponse("Silence has already expired and cannot be extended; recreate it instead"))
+		return
 	}
-	silence.EndsAt = base.Add(duration)
+
+	silence.EndsAt = silence.EndsAt.Add(duration)
 
 	updated, err := alertmanagerClient.CreateSilenceOnAlertmanager(request.Source, *silence)
 	if err != nil {

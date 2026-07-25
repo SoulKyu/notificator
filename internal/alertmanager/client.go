@@ -752,18 +752,6 @@ func (mc *MultiClient) FetchAllSilencesDetailed() ([]SilenceWithSource, map[stri
 	return allSilences, failedSources
 }
 
-func (mc *MultiClient) FetchAllSilences() ([]SilenceWithSource, error) {
-	allSilences, failedSources := mc.FetchAllSilencesDetailed()
-
-	if len(failedSources) > 0 && len(allSilences) == 0 { // If all clients failed, return the first error
-		for name, err := range failedSources {
-			return nil, fmt.Errorf("failed to fetch silences from %s: %w", name, err)
-		}
-	}
-
-	return allSilences, nil
-}
-
 func (mc *MultiClient) TestAllConnections() map[string]error {
 	mc.mutex.RLock()
 	defer mc.mutex.RUnlock()
