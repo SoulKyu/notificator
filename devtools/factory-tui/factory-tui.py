@@ -160,22 +160,29 @@ def track_loops(loops, now, prune=True):
                 del LOOP_SINCE[k]
 
 
+def parse_ps(out):
+    """`looper ps --json` rows → (loop dicts, parsed?). An older CLI, or one writing a
+    diagnostic to stdout, must cost the loop desks only — never the systemd half of
+    poll_fast. Parse success is the signal, not emptiness: sh() hands back stdout even on
+    a non-zero exit, and a loop with no `type` is not renderable, so a schema drift reads
+    as "injoignable" rather than as a calm, frozen factory."""
+    try:
+        return [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
+                 "step": i.get("currentStep") or "-",
+                 # displayStatus refines `status`: a loop parked on manual_intervention
+                 # is merely `paused` in `status`, and that is the one state a human owes work to
+                 "status": i.get("displayStatus") or i.get("status") or "-",
+                 "since": iso_ts((i.get("agent") or {}).get("startedAt")),
+                 "loopId": i.get("loopId"), "runId": i.get("runId")}
+                for i in json.loads(out)["items"]], True
+    except Exception:
+        return [], False
+
+
 def poll_fast():
     # --json over the table: no positional column parsing, and it carries loopId/runId,
     # which is the only way to find a looper role's own log (see loop_tail).
-    ps_out = sh("looper ps --json 2>/dev/null")
-    try:  # parse success, not emptiness: sh() hands back stdout even on a non-zero exit
-        loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
-                  "step": i.get("currentStep") or "-",
-                  # displayStatus refines `status`: a loop parked on manual_intervention
-                  # is merely `paused` in `status`, and that is the one state a human owes work to
-                  "status": i.get("displayStatus") or i.get("status") or "-",
-                  "since": iso_ts((i.get("agent") or {}).get("startedAt")),
-                  "loopId": i.get("loopId"), "runId": i.get("runId")}
-                 for i in json.loads(ps_out)["items"]]  # a loop with no `type` is not renderable:
-        ps_ok = True                                    # a schema drift means "injoignable", not "frozen"
-    except Exception:
-        loops, ps_ok = [], False
+    loops, ps_ok = parse_ps(sh("looper ps --json 2>/dev/null"))
     svc = {}
     units = " ".join(k.split(":")[1] + ".service" for _, _, _, k in ROSTER if k.startswith("svc:"))
     out = sh(f"systemctl --user show {units} "
@@ -1424,6 +1431,40 @@ def selfcheck():
             print(f"FAIL log prefix: REBASE got {desk_tail(reb)[0]}")
             fails += 1
     LOG_DIR, LOOPER_LOG_DIR = real_log_dir, real_looper_dir
+    # the loop dict shape everything downstream keys off (loop_state on status, loop_order/
+    # loop_num on target, loop_tail on loopId/runId), straight out of `looper ps --json`
+    ps = json.dumps({"items": [
+        {"type": "worker", "target": {"label": "SoulKyu/notificator#81"}, "currentStep": "code",
+         "displayStatus": "running", "loopId": "lp1", "runId": "rn1"},
+        {"type": "reviewer", "target": {"label": "SoulKyu/notificator#82"}, "currentStep": None,
+         "status": "queued", "loopId": "lp2", "runId": None},
+        {"type": "fixer", "target": None, "status": "running", "loopId": "lp3", "runId": "rn3"},
+    ]})
+    want = [("worker", "SoulKyu/notificator#81", "code", "running", "rn1"),
+            ("reviewer", "SoulKyu/notificator#82", "-", "queued", None),
+            ("fixer", "?", "-", "running", "rn3")]
+    loops, ok = parse_ps(ps)
+    got = [(l["type"], l["target"], l["step"], l["status"], l["runId"]) for l in loops]
+    if got != want or not ok:
+        print(f"FAIL ps parse: {got} (ok={ok})")
+        fails += 1
+    # a row with no `type` is not renderable: schema drift reads as "injoignable", not as a calm desk
+    if parse_ps(json.dumps({"items": [{"target": {"label": "x#1"}}]})) != ([], False):
+        print("FAIL ps parse: a typeless row should read as unreachable")
+        fails += 1
+    # an older CLI, or one printing a diagnostic to stdout, costs the loop desks and nothing else
+    real_sh = sh
+    globals()["sh"] = lambda cmd, timeout=20: ("error: unknown flag --json\n" if "looper ps" in cmd
+                                               else "Id=notificator-qa.service\nActiveState=active\n")
+    try:
+        poll_fast()
+    finally:
+        globals()["sh"] = real_sh
+    if STATE["loops"] or "notificator-qa" not in STATE["svc"]:
+        print(f"FAIL ps parse: bad looper stdout froze the service poll: {STATE['svc']}")
+        fails += 1
+    with LOCK:
+        STATE["loops"], STATE["svc"] = [], {}
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 
