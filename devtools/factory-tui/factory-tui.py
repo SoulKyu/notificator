@@ -604,11 +604,13 @@ def loop_order(lp):
     return (0, int(tail), "") if tail.isdigit() else (1, 0, lp["target"])
 
 
-def build_desks(max_desks=None):
+def build_desks(max_desks=None, keep=None):
     """ROSTER expanded for the current frame: a looper role running N>1 loops
     concurrently gets one desk per loop (WORKER·1, WORKER·2…). N<=1 → one desk.
     `max_desks` caps the grid so a busy office can't push the panels below it off
-    screen; desks that don't fit fold into the last desk of their role (`WORKER·2+3`)."""
+    screen; desks that don't fit fold into the last desk of their role (`WORKER·2+3`).
+    `keep` is a desk id the cap must never trim — the zoom panel is a centred overlay
+    that needs no grid slot, so running out of grid rows must not close it mid-read."""
     with LOCK:
         loops = list(STATE["loops"])
     desks = []
@@ -638,8 +640,12 @@ def build_desks(max_desks=None):
         key = max(counts, key=lambda k: counts[k])  # ties → ROSTER order, so it stays deterministic
         if counts[key] < 2:
             break
+        victim = max((j for j, d in enumerate(desks) if d["key"] == key and d["id"] != keep),
+                     default=None)
+        if victim is None:
+            break
         hidden[key] = hidden.get(key, 0) + 1
-        desks.pop(max(j for j, d in enumerate(desks) if d["key"] == key))
+        desks.pop(victim)
     for key, n in hidden.items():
         last = max(j for j, d in enumerate(desks) if d["key"] == key)
         desks[last]["name"] += f"+{n}"
@@ -650,7 +656,8 @@ CELL_W = 20  # inner width of a desk cell
 
 
 def desk_cell(emoji, name, key, state3, tick, seed, coffee_on, selected=False):
-    """-> (8 display lines of width CELL_W+2, color)"""
+    """-> (8 display lines of width CELL_W+2, color). `key` None → no 📬 badge: mail_pending
+    counts a role, not a desk, so only a role's first desk carries it (see render_frame)."""
     state, status, detail = state3
     if state == "break" and coffee_on:
         state, status, detail = "away", "au café", "☕"
@@ -716,16 +723,28 @@ def grid_per_row(width):
     return per_row
 
 
-# worst-case non-office frame rows: title + intercom(1+3) + score(1+3) + pending(1+PENDING_MAX+1)
-#                                   + board(1+2) + radio + err + bottom
-PANEL_ROWS = 15 + PENDING_MAX + 2
+def panel_rows():
+    """Non-office rows of the frame about to be drawn. Four of the five panels are conditional in
+    render_frame, so a worst-case constant charges ~16 rows that are usually not drawn and pins the
+    cap at len(ROSTER) below a 55-row terminal — the dynamic desks would never appear."""
+    n = 1 + 3 + 1 + 1  # title + wall board (header + PRs + issues) + radio + bottom border
+    with LOCK:
+        if STATE["intercom"]:
+            n += 1 + len(STATE["intercom"])
+        if STATE["score"]:
+            n += 2 if STATE["score"] == "err" else 4
+        if STATE["pending"]:
+            n += 1 + min(len(STATE["pending"]), PENDING_MAX) + (len(STATE["pending"]) > PENDING_MAX)
+        if STATE["err"]:
+            n += 1
+    return n
 
 
 def desk_cap(h, per_row):
     """Desks that still leave room for the panels below the office — an unbounded grid silently
     swallows the wall board and the radio. Budget is h-1: main_curses stops drawing at h-1, so
-    on `h - PANEL_ROWS` landing on a multiple of 8 an h-row frame loses its closing border."""
-    return max(len(ROSTER), max(1, (h - 1 - PANEL_ROWS) // 8) * per_row)
+    on `h - panels` landing on a multiple of 8 an h-row frame loses its closing border."""
+    return max(len(ROSTER), max(1, (h - 1 - panel_rows()) // 8) * per_row)
 
 
 def render_frame(tick, width=92, sel=None, desks=None, flash=False):
@@ -738,14 +757,16 @@ def render_frame(tick, width=92, sel=None, desks=None, flash=False):
     used = 2 + per_row * (CELL_W + 3)
     coffee_on = width - used - 2 >= 14
     breakers = [(d["key"], d["emoji"]) for d in desks if d["state"][0] == "break"]
-    pos = {}
-    for i, d in enumerate(desks):  # mail flies to a role's first desk
+    pos, badge, seen = {}, [], set()
+    for i, d in enumerate(desks):  # mail flies to a role's first desk — the badge follows it there,
         pos.setdefault(d["key"], (2 + (i % per_row) * (CELL_W + 3) + 11, 1 + (i // per_row) * 8 + 4))
+        badge.append(None if d["key"] in seen else d["key"])  # …not onto all N desks of the role,
+        seen.add(d["key"])  # which would read as N queued messages. `seen` spans grid rows.
     coffee = coffee_corner(tick, breakers, width - used - 2) if coffee_on else None
     for start in range(0, len(desks), per_row):
         chunk = desks[start:start + per_row]
-        cells = [desk_cell(d["emoji"], d["name"], d["key"], d["state"], tick, start + i, coffee_on,
-                           selected=(start + i == sel)) for i, d in enumerate(chunk)]
+        cells = [desk_cell(d["emoji"], d["name"], badge[start + i], d["state"], tick, start + i,
+                           coffee_on, selected=(start + i == sel)) for i, d in enumerate(chunk)]
         for li in range(8):
             line = "│ "
             for cl, _ in cells:
@@ -964,7 +985,7 @@ def main_curses(scr):
         # desks appear/disappear mid-list with concurrent loops — re-resolve by id, not position.
         # A desk vanishing auto-closes the zoom and swallows this frame's keystroke, so an Esc
         # meaning "close the panel" can't fall through to the navigation branch and quit the TUI.
-        desks = build_desks(desk_cap(h, per_row))
+        desks = build_desks(desk_cap(h, per_row), keep=zoom_id)
         sel = desk_resolve(desks, sel_id, sel)
         zoom = desk_index(desks, zoom_id) if zoom_id else None
         if zoom is None and zoom_id:
@@ -1377,7 +1398,7 @@ def selfcheck():
         STATE["loops"] = [{"type": r, "target": f"SoulKyu/notificator#{i}", "step": "code", "status": "running"}
                           for r in ("worker", "reviewer", "fixer", "coordinator", "planner")
                           for i in range(5)]
-        # every panel populated: PANEL_ROWS is a worst-case budget, so the cap must hold there.
+        # every panel populated: this is panel_rows()' worst case, so the cap must hold there.
         # Pending in particular is the normal state of the factory, not an edge case.
         STATE["pending"] = [f"attente {i}" for i in range(PENDING_MAX + 4)]  # header + 5 + "+N autres"
         STATE["score"] = s
@@ -1386,7 +1407,7 @@ def selfcheck():
     term_w = 120
     # sweep the heights: the budget boundary only shows up when (h - PANEL_ROWS) % 8 == 0,
     # so a single height silently passes an off-by-one that eats the closing border.
-    # 55 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + PANEL_ROWS = 54 frame
+    # 55 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 22 panel rows = 54 frame
     # rows, and main_curses draws h-1 of them. Below that no cap fits the panels, so nothing to assert.
     for term_h in range(55, 70):
         cap = desk_cap(term_h, grid_per_row(term_w))
@@ -1413,8 +1434,30 @@ def selfcheck():
             if dwidth(line) != term_w:
                 print(f"FAIL capped row {dwidth(line)} cols at h={term_h}: {line!r}")
                 fails += 1
+    # the zoomed desk is a centred overlay, not a grid slot: the cap must never trim it out from
+    # under the operator. h=50 with every panel up caps at the len(ROSTER) floor, so without `keep`
+    # every WORKER·N but the first is gone and desk_index returns None → the panel closes mid-read.
+    top_worker = max((d for d in build_desks() if d["key"] == "worker"), key=lambda d: d["name"])["id"]
+    kept = build_desks(desk_cap(50, grid_per_row(term_w)), keep=top_worker)
+    if desk_index(kept, top_worker) is None:
+        print(f"FAIL desk cap: zoomed desk trimmed away: {[d['name'] for d in kept]}")
+        fails += 1
+    with LOCK:  # …and with no optional panel drawn the budget must hand the extra rows back out:
+        STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
+    if desk_cap(50, grid_per_row(term_w)) <= len(ROSTER):  # a worst-case constant pins this at 13
+        print(f"FAIL desk cap: no panels drawn still caps at {desk_cap(50, grid_per_row(term_w))}")
+        fails += 1
+    # 📬 counts a role's inbox, so it belongs on the desk the mail flight lands on — one badge,
+    # not one per concurrent loop, which would read as three messages queued for three people
+    with LOCK:
+        STATE["mail_pending"] = {"worker": 1}
+    badged = sum(l.count("📬") for l, _ in render_frame(1, term_w, desks=build_desks()))
+    if badged != 1:
+        print(f"FAIL mail badge painted on {badged} desks")
+        fails += 1
     with LOCK:  # leave no injected loop behind for later checks
         STATE["loops"], STATE["pending"], STATE["intercom"], STATE["err"] = [], [], [], ""
+        STATE["mail_pending"] = {}
     # a looper desk tails its own run under LOOPER_LOG_DIR/<loopId>/<runId>/; a desk off a loop
     # tails its role in LOG_DIR, under the file prefix (REBASE writes `rebase-*`, not `rebaser-*`)
     global LOG_DIR, LOOPER_LOG_DIR
@@ -1470,16 +1513,33 @@ def selfcheck():
         if parse_ps(bad) != ([], False):
             print(f"FAIL ps parse: unshaped JSON {bad} → {parse_ps(bad)}")
             fails += 1
+    # an idle factory parses fine — it must not read as unreachable (that is the looper:down alarm)
+    if parse_ps('{"items": []}') != ([], True):
+        print(f"FAIL ps parse: idle factory → {parse_ps('{\"items\": []}')}")
+        fails += 1
     # an older CLI, or one printing a diagnostic to stdout, costs the loop desks and nothing else
     real_sh = sh
     globals()["sh"] = lambda cmd, timeout=20: ("error: unknown flag --json\n" if "looper ps" in cmd
                                                else "Id=notificator-qa.service\nActiveState=active\n")
+    globals()["PS_FAIL"] = 0
     try:
-        poll_fast()
+        for _ in range(PS_FAIL_MIN):  # ... and must say so once debounced: stderr is dropped
+            poll_fast()
     finally:
         globals()["sh"] = real_sh
     if STATE["loops"] or "notificator-qa" not in STATE["svc"]:
         print(f"FAIL ps parse: bad looper stdout froze the service poll: {STATE['svc']}")
+        fails += 1
+    if STATE["ps_ok"]:
+        print("FAIL ps parse: unreadable looper stdout reported nothing")
+        fails += 1
+    globals()["sh"] = lambda cmd, timeout=20: ('{"items": []}' if "looper ps" in cmd else "")
+    try:
+        poll_fast()
+    finally:
+        globals()["sh"] = real_sh
+    if not STATE["ps_ok"]:  # looper answered again: the alarm must not stick
+        print("FAIL ps parse: looper:down survived a good poll")
         fails += 1
     with LOCK:
         STATE["loops"], STATE["svc"] = [], {}
