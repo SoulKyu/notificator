@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -23,6 +24,24 @@ type SilenceMatcher struct {
 	Value   string `json:"value"`
 	IsRegex bool   `json:"isRegex"`
 	IsEqual bool   `json:"isEqual"`
+}
+
+// UnmarshalJSON defaults IsEqual to true. Alertmanager versions before 0.22 omit the
+// field entirely, and a missing "isEqual" means an equality matcher — decoding it as
+// false would silently negate every matcher.
+func (m *SilenceMatcher) UnmarshalJSON(data []byte) error {
+	type alias SilenceMatcher
+	aux := struct {
+		IsEqual *bool `json:"isEqual"`
+		*alias
+	}{alias: (*alias)(m)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	m.IsEqual = aux.IsEqual == nil || *aux.IsEqual
+	return nil
 }
 
 // SilenceStatus represents the status of a silence

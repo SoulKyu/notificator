@@ -536,6 +536,64 @@ templ AlertModalAcknowledgmentsReadonly(dataVar string) {
 }
 
 // =============================================================================
+// SILENCES
+// =============================================================================
+
+// AlertModalSilences displays the silences currently suppressing the alert, with
+// creator, comment, absolute end time and a relative countdown.
+// dataVar: the silences array variable (e.g., "alertDetails?.silences")
+templ AlertModalSilences(dataVar string) {
+	<div x-show={ dataVar + " && " + dataVar + ".length > 0" } class="space-y-3">
+		<h4 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+			<svg class="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l4-4m0 4l-4-4"/>
+			</svg>
+			Silences
+		</h4>
+		<template x-for={ "silence in " + dataVar } :key="silence.id">
+			<div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-100 dark:border-purple-800/50">
+				<div class="flex items-center justify-between mb-2">
+					<span class="text-sm font-semibold text-gray-900 dark:text-white" x-text="silence.createdBy || 'unknown'"></span>
+					<span class="text-xs text-gray-500 dark:text-gray-400" x-text="silence.source"></span>
+				</div>
+				<p x-show="silence.comment" class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words mb-2" x-text="silence.comment"></p>
+				<div class="flex flex-wrap gap-1 mb-2">
+					<template x-for="matcher in (silence.matchers || [])" :key="matcher.name + matcher.value">
+						<span class="inline-flex px-2 py-0.5 rounded font-mono text-xs bg-white/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300"
+							x-text="matcher.name + (matcher.isEqual === false ? '!=' : '=') + (matcher.isRegex ? '~' : '') + matcher.value"></span>
+					</template>
+				</div>
+				<p class="text-xs text-gray-500 dark:text-gray-400">
+					Ends <span x-text="silence.endsAt ? new Date(silence.endsAt).toLocaleString() : 'unknown'"></span>
+					<span x-text="silence.endsAt ? '(' + formatSilenceCountdown(silence.endsAt) + ')' : ''"></span>
+				</p>
+			</div>
+		</template>
+	</div>
+	<div x-show={ "!" + dataVar + " || " + dataVar + ".length === 0" }
+		 class="text-sm text-gray-500 dark:text-gray-400">
+		No silences affecting this alert
+	</div>
+	<script>
+		// Relative countdown for silence end times, shared by every alert modal.
+		function formatSilenceCountdown(endsAt) {
+			const delta = new Date(endsAt).getTime() - Date.now();
+			const prefix = delta >= 0 ? 'in ' : '';
+			const suffix = delta >= 0 ? '' : ' ago';
+			const minutes = Math.floor(Math.abs(delta) / 60000);
+			if (minutes < 60) {
+				return prefix + minutes + 'm' + suffix;
+			}
+			const hours = Math.floor(minutes / 60);
+			if (hours < 24) {
+				return prefix + hours + 'h ' + (minutes % 60) + 'm' + suffix;
+			}
+			return prefix + Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h' + suffix;
+		}
+	</script>
+}
+
+// =============================================================================
 // COMPOSED READONLY MODAL FOR STATISTICS
 // =============================================================================
 

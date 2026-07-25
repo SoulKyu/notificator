@@ -286,6 +286,11 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.DELETE("/filter-presets/:id", handlers.DeleteFilterPreset)
 			dashboard.POST("/filter-presets/:id/default", handlers.SetDefaultFilterPreset)
 
+			// Silence inventory routes
+			dashboard.GET("/silences", handlers.GetSilences)
+			dashboard.POST("/silences/:id/extend", handlers.ExtendSilence)
+			dashboard.DELETE("/silences/:id", handlers.ExpireSilence)
+
 			// Sentry integration routes
 			dashboard.POST("/sentry/test-connection", handlers.TestSentryConnection)
 			dashboard.GET("/sentry/:fingerprint", handlers.GetSentryDataForAlert)
@@ -356,6 +361,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		protectedPages.GET("/dashboard/alert/:id", handlers.DashboardPage) // Show dashboard with modal
 		protectedPages.GET("/profile", handlers.ProfilePage)
 		protectedPages.GET("/statistics", handlers.StatisticsDashboardPage)
+		protectedPages.GET("/silences", handlers.SilencesPage)
 	}
 
 	return r

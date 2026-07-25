@@ -3,6 +3,7 @@ package alertmanager
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,10 @@ import (
 	"notificator/internal/auth"
 	"notificator/internal/models"
 )
+
+// ErrSilenceNotFound is returned when Alertmanager answers 404 for a silence ID, so callers
+// can tell a stale ID apart from an upstream fault instead of matching on the error text.
+var ErrSilenceNotFound = errors.New("silence not found")
 
 type customHeaderRoundTripper struct {
 	headers map[string]string
@@ -426,7 +431,7 @@ func (c *Client) FetchSilence(silenceID string) (*models.Silence, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("silence with ID %s not found", silenceID)
+		return nil, fmt.Errorf("silence with ID %s: %w", silenceID, ErrSilenceNotFound)
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -563,7 +568,7 @@ func (c *Client) DeleteSilence(silenceID string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("silence with ID %s not found", silenceID)
+		return fmt.Errorf("silence with ID %s: %w", silenceID, ErrSilenceNotFound)
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -724,17 +729,20 @@ func (mc *MultiClient) FetchAllActiveAlerts() ([]AlertWithSource, error) {
 	return activeAlerts, nil
 }
 
-func (mc *MultiClient) FetchAllSilences() ([]SilenceWithSource, error) {
+// FetchAllSilencesDetailed fetches silences from every configured Alertmanager and
+// reports per-source failures instead of collapsing them into a single error, so an
+// unreachable Alertmanager degrades that source instead of blanking the inventory.
+func (mc *MultiClient) FetchAllSilencesDetailed() ([]SilenceWithSource, map[string]error) {
 	mc.mutex.RLock()
 	defer mc.mutex.RUnlock()
 
 	var allSilences []SilenceWithSource
-	var errors []error
+	failedSources := make(map[string]error)
 
 	for name, client := range mc.clients {
 		silences, err := client.FetchSilences()
 		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to fetch silences from %s: %w", name, err))
+			failedSources[name] = err
 			continue
 		}
 
@@ -746,11 +754,7 @@ func (mc *MultiClient) FetchAllSilences() ([]SilenceWithSource, error) {
 		}
 	}
 
-	if len(errors) > 0 && len(allSilences) == 0 { // If all clients failed, return the first error
-		return nil, errors[0]
-	}
-
-	return allSilences, nil
+	return allSilences, failedSources
 }
 
 func (mc *MultiClient) TestAllConnections() map[string]error {

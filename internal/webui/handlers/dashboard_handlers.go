@@ -1293,11 +1293,9 @@ func GetAlertDetails(c *gin.Context) {
 		} else {
 			details.Comments = []webuimodels.Comment{}
 		}
-
-		// Note: Silences would need to be implemented in backend client
-		// For now, initialize empty slice
-		details.Silences = []webuimodels.Silence{}
 	}
+
+	details.Silences = fetchAlertSilences(alert)
 
 	// Get additional metadata
 	if alert.GeneratorURL != "" {
