@@ -132,7 +132,7 @@ templ FilterPresetsModal() {
 										   x-model="recaptureFilters"
 										   class="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
 									<label for="recapture-filters" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-										Replace this preset's saved view (filters, display and sort options, and column layout) with my current dashboard
+										Replace this preset's saved view (filters, display and sort options) with my current dashboard
 										<span class="block text-xs text-gray-500 dark:text-gray-400">
 											Leave unchecked to keep the saved view as-is — only the name, description, sharing and the hidden alerts/rules below are updated.
 										</span>
@@ -143,9 +143,8 @@ templ FilterPresetsModal() {
 									<input type="checkbox" id="include-columns" name="include-columns"
 										   x-model="includeColumnConfig"
 										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
-									<label for="include-columns" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-										Include current column configuration
-									</label>
+									<label for="include-columns" class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+										   x-text="editingPreset ? 'Also replace the saved column layout with my current one' : 'Include current column configuration'"></label>
 								</div>
 
 								<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-md p-3">
