@@ -540,6 +540,16 @@ def person_cell(state, tick, seed, status, detail):
     ], 2
 
 
+def loop_state(lp):
+    """One `looper ps` row -> (state, status, detail)"""
+    tgt = lp["target"].split("/")[-1]
+    if lp["status"] == "running":
+        return "work", lp["step"], tgt
+    if lp["status"] == "queued":
+        return "wait", "en file", tgt
+    return "wait", lp["status"], tgt
+
+
 def agent_state(key, kind):
     """-> (state, status, detail)"""
     with LOCK:
@@ -549,12 +559,7 @@ def agent_state(key, kind):
         role = kind.split(":")[1]
         for lp in loops:
             if lp["type"] == role:
-                tgt = lp["target"].split("/")[-1]
-                if lp["status"] == "running":
-                    return "work", lp["step"], tgt
-                if lp["status"] == "queued":
-                    return "wait", "en file", tgt
-                return "wait", lp["status"], tgt
+                return loop_state(lp)
         return "break", "veille", "poll 30s"
     if kind == "virtual:scout-log":
         s = svc.get("notificator-scout", {})
@@ -572,6 +577,24 @@ def agent_state(key, kind):
     if nxt and any(u in nxt.split()[0] for u in ("h", "day", "week")) if nxt.split() else False:
         return "sleep", "dort", nxt
     return "break", "pause", nxt or "?"
+
+
+def build_desks():
+    """ROSTER expanded for the current frame: a looper role running N>1 loops
+    concurrently gets one desk per loop (WORKER·1, WORKER·2…). N<=1 → one desk."""
+    with LOCK:
+        loops = list(STATE["loops"])
+    desks = []
+    for key, emoji, name, kind in ROSTER:
+        role = kind.split(":")[1] if kind.startswith("looper:") else None
+        mine = [lp for lp in loops if lp["type"] == role] if role else []
+        if len(mine) > 1:
+            desks += [{"key": key, "emoji": emoji, "name": f"{name}·{i + 1}", "kind": kind,
+                       "state": loop_state(lp), "loop": lp} for i, lp in enumerate(mine)]
+        else:
+            desks.append({"key": key, "emoji": emoji, "name": name, "kind": kind,
+                          "state": agent_state(key, kind), "loop": mine[0] if mine else None})
+    return desks
 
 
 CELL_W = 20  # inner width of a desk cell
@@ -644,7 +667,8 @@ def grid_per_row(width):
     return per_row
 
 
-def render_frame(tick, width=92, sel=None, flash=False):
+def render_frame(tick, width=92, sel=None, desks=None, flash=False):
+    desks = build_desks() if desks is None else desks
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
@@ -652,15 +676,15 @@ def render_frame(tick, width=92, sel=None, flash=False):
     per_row = grid_per_row(width)
     used = 2 + per_row * (CELL_W + 3)
     coffee_on = width - used - 2 >= 14
-    states = {k: agent_state(k, kind) for k, _, _, kind in ROSTER}
-    breakers = [(k, e) for k, e, _, _ in ROSTER if states[k][0] == "break"]
-    pos = {k: (2 + (i % per_row) * (CELL_W + 3) + 11, 1 + (i // per_row) * 8 + 4)
-           for i, (k, _, _, _) in enumerate(ROSTER)}
+    breakers = [(d["key"], d["emoji"]) for d in desks if d["state"][0] == "break"]
+    pos = {}
+    for i, d in enumerate(desks):  # mail flies to a role's first desk
+        pos.setdefault(d["key"], (2 + (i % per_row) * (CELL_W + 3) + 11, 1 + (i // per_row) * 8 + 4))
     coffee = coffee_corner(tick, breakers, width - used - 2) if coffee_on else None
-    for start in range(0, len(ROSTER), per_row):
-        chunk = ROSTER[start:start + per_row]
-        cells = [desk_cell(e, n, k, states[k], tick, start + i, coffee_on, selected=(start + i == sel))
-                 for i, (k, e, n, _) in enumerate(chunk)]
+    for start in range(0, len(desks), per_row):
+        chunk = desks[start:start + per_row]
+        cells = [desk_cell(d["emoji"], d["name"], d["key"], d["state"], tick, start + i, coffee_on,
+                           selected=(start + i == sel)) for i, d in enumerate(chunk)]
         for li in range(8):
             line = "│ "
             for cl, _ in cells:
@@ -668,7 +692,7 @@ def render_frame(tick, width=92, sel=None, flash=False):
             if start == 0 and coffee:
                 line = dpad(line, used) + coffee[li]
             rows.append((dpad(line, width - 1) + "│", 0))
-    office_rows = (len(ROSTER) + per_row - 1) // per_row
+    office_rows = (len(desks) + per_row - 1) // per_row
     with LOCK:
         prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
         intercom, score, pending = list(STATE["intercom"]), STATE["score"], list(STATE["pending"])
@@ -746,19 +770,19 @@ def log_tail(key, n=ZOOM_TAIL):
         return None, []
 
 
-def zoom_lines(idx, tail_name, tail, follow, note, width=80):
+def zoom_lines(desk, tail_name, tail, follow, note, width=80):
     """Zoom panel over one desk -> lines at exact display width."""
-    key, emoji, name, kind = ROSTER[idx]
-    state, status, detail = agent_state(key, kind)
+    key, emoji, name, kind = desk["key"], desk["emoji"], desk["name"], desk["kind"]
+    state, status, detail = desk["state"]
     with LOCK:
-        svc, timers, loops = dict(STATE["svc"]), dict(STATE["timers"]), list(STATE["loops"])
+        svc, timers = dict(STATE["svc"]), dict(STATE["timers"])
     unit = ("notificator-scout" if kind == "virtual:scout-log"
             else kind.split(":")[1] if kind.startswith("svc:") else None)
     if unit:
         s = svc.get(unit, {})
         last = f"{s.get('Result') or '—'} · {s.get('ExecMainStartTimestamp') or '—'}"
-    else:  # ponytail: looper roles have no systemd unit — show the live loop instead
-        lp = next((l for l in loops if l["type"] == kind.split(":")[1]), None)
+    else:  # ponytail: looper roles have no systemd unit — show this desk's loop instead
+        lp = desk["loop"]
         last = f"{lp['status']} · {lp['target']}" if lp else "—"
     inner = width - 2
     lines = ["╔" + dpad(f" ZOOM — {emoji} {name} ", inner, center=True, fill="═") + "╗"]
@@ -836,19 +860,24 @@ def main_curses(scr):
         h, w = scr.getmaxyx()
         width = min(w - 1, 120)
         per_row = grid_per_row(width)  # must match render_frame's column count or Up/Down drifts
+        # ponytail: desk count varies with concurrent loops — clamp, indexes may shift under you
+        desks = build_desks()
+        sel = min(sel, len(desks) - 1)
+        if zoom is not None:
+            zoom = min(zoom, len(desks) - 1)
         if ch == ord("q"):
             return
         if zoom is None:
             if ch == 27:
                 return
             if ch == curses.KEY_LEFT:
-                sel = (sel - 1) % len(ROSTER)
+                sel = (sel - 1) % len(desks)
             elif ch == curses.KEY_RIGHT:
-                sel = (sel + 1) % len(ROSTER)
+                sel = (sel + 1) % len(desks)
             elif ch == curses.KEY_UP:
-                sel = (sel - per_row) % len(ROSTER)
+                sel = (sel - per_row) % len(desks)
             elif ch == curses.KEY_DOWN:
-                sel = (sel + per_row) % len(ROSTER)
+                sel = (sel + per_row) % len(desks)
             elif ch in (curses.KEY_ENTER, 10, 13):
                 zoom, follow, note = sel, True, ""
         else:
@@ -857,13 +886,13 @@ def main_curses(scr):
             elif ch == ord("l"):
                 follow = not follow
                 if not follow:
-                    frozen = log_tail(ROSTER[zoom][0])
-            elif ch == ord("s") and ROSTER[zoom][0] in SUMMONABLE:
-                msg = prompt_summon(scr, ROSTER[zoom][0])
+                    frozen = log_tail(desks[zoom]["key"])
+            elif ch == ord("s") and desks[zoom]["key"] in SUMMONABLE:
+                msg = prompt_summon(scr, desks[zoom]["key"])
                 if msg:
-                    note = send_summon(ROSTER[zoom][0], msg)
+                    note = send_summon(desks[zoom]["key"], msg)
         scr.erase()
-        for y, (line, color) in enumerate(render_frame(tick, width, sel, flash=klaxon(tick))):
+        for y, (line, color) in enumerate(render_frame(tick, width, sel, desks, flash=klaxon(tick))):
             if y >= h - 1:
                 break
             try:
@@ -872,8 +901,8 @@ def main_curses(scr):
                 pass
         if zoom is not None:
             # ponytail: re-read the tail every frame in follow mode — small seek'd read, dev tool
-            tail_name, tail = log_tail(ROSTER[zoom][0]) if follow else frozen
-            zl = zoom_lines(zoom, tail_name, tail, follow, note, min(80, max(24, w - 4)))
+            tail_name, tail = log_tail(desks[zoom]["key"]) if follow else frozen
+            zl = zoom_lines(desks[zoom], tail_name, tail, follow, note, min(80, max(24, w - 4)))
             y0, x0 = max(0, (h - len(zl)) // 2), max(0, (w - dwidth(zl[0])) // 2)
             for i, line in enumerate(zl):
                 try:
@@ -976,8 +1005,9 @@ def selfcheck():
         if dwidth(line) != 92:
             print(f"FAIL sel row {dwidth(line)} cols: {line!r}")
             fails += 1
+    desks = build_desks()
     for idx, follow, note in ((0, True, "✉ envoyé"), (1, False, ""), (2, True, "")):
-        zl = zoom_lines(idx, "scout-1.log", ["x" * 200, "ok ✓"], follow, note, 80)
+        zl = zoom_lines(desks[idx], "scout-1.log", ["x" * 200, "ok ✓"], follow, note, 80)
         if len(zl) != 7 + ZOOM_TAIL:  # top + 4 info + sep + 15 tail + bottom
             print(f"FAIL zoom height {len(zl)}")
             fails += 1
@@ -1172,6 +1202,35 @@ def selfcheck():
         if grid_per_row(w) != want:
             print(f"FAIL grid_per_row({w}) = {grid_per_row(w)} (want {want})")
             fails += 1
+    # dynamic desks: 3 concurrent worker loops → 3 worker desks, rows still exact width
+    with LOCK:
+        STATE["loops"] = [{"type": "worker", "target": f"SoulKyu/notificator/{n}", "step": "code",
+                           "status": "running"} for n in (49, 50, 55)]
+    desks = build_desks()
+    workers = [d for d in desks if d["key"] == "worker"]
+    if [d["name"] for d in workers] != ["WORKER·1", "WORKER·2", "WORKER·3"]:
+        print(f"FAIL dynamic desks: {[d['name'] for d in workers]}")
+        fails += 1
+    if [d["state"][2] for d in workers] != ["49", "50", "55"]:
+        print(f"FAIL dynamic targets: {[d['state'][2] for d in workers]}")
+        fails += 1
+    if len(desks) != len(ROSTER) + 2:
+        print(f"FAIL desk count {len(desks)} (want {len(ROSTER) + 2})")
+        fails += 1
+    for tick in range(4):
+        for line, _ in render_frame(tick, 92, sel=len(desks) - 1):
+            if dwidth(line) != 92:
+                print(f"FAIL dynamic row {dwidth(line)} cols: {line!r}")
+                fails += 1
+    for line in zoom_lines(workers[2], "worker-3.log", ["ok ✓"], True, "", 80):
+        if dwidth(line) != 80:
+            print(f"FAIL dynamic zoom row {dwidth(line)} cols: {line!r}")
+            fails += 1
+    with LOCK:  # single loop → single desk, unchanged from ROSTER
+        STATE["loops"] = [STATE["loops"][0]]
+    if len(build_desks()) != len(ROSTER) or build_desks()[5]["name"] != "WORKER":
+        print("FAIL single loop should not duplicate the desk")
+        fails += 1
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 
