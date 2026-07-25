@@ -58,6 +58,44 @@ func TestHiddenAlertsServiceSweepIdleSessions(t *testing.T) {
 	}
 }
 
+// The nil backend client is the assertion: any gRPC fetch dereferences it and
+// panics, so "did not panic" means the cached snapshot was served.
+func TestHiddenAlertsServiceLoadUserDataServesCacheWithinTTL(t *testing.T) {
+	s := NewHiddenAlertsService(nil)
+	s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
+	s.lastAccess["sess"] = time.Now()
+
+	if err := s.LoadUserData("sess"); err != nil {
+		t.Fatalf("LoadUserData: %v", err)
+	}
+}
+
+func TestHiddenAlertsServiceLoadUserDataRefetchesWhenStale(t *testing.T) {
+	for name, prime := range map[string]func(s *HiddenAlertsService){
+		"expired": func(s *HiddenAlertsService) {
+			s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
+			s.lastAccess["sess"] = time.Now().Add(-2 * s.cacheTTL)
+		},
+		"cold": func(s *HiddenAlertsService) {},
+		"invalidated": func(s *HiddenAlertsService) {
+			s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
+			s.lastAccess["sess"] = time.Now()
+			s.InvalidateCache("sess")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Error("expected a backend fetch attempt")
+				}
+			}()
+			s := NewHiddenAlertsService(nil)
+			prime(s)
+			_ = s.LoadUserData("sess")
+		})
+	}
+}
+
 func TestHiddenAlertsServiceInvalidateCacheRemovesAllMaps(t *testing.T) {
 	s := NewHiddenAlertsService(nil)
 	s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}

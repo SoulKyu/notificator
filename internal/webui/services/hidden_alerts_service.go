@@ -17,6 +17,11 @@ import (
 // idle longer than this are unreachable (session expired) and can be dropped.
 const sessionIdleTTL = 7 * 24 * time.Hour
 
+// cacheTTL bounds how long a cached hidden-alerts snapshot is served without
+// re-fetching. Mutations (hide/unhide/save/remove rule) update or invalidate the
+// cache in-process, so this only covers changes made by another webui replica.
+const cacheTTL = 30 * time.Second
+
 // HiddenAlertsService manages hidden alerts and rules for users
 type HiddenAlertsService struct {
 	backendClient       *client.BackendClient
@@ -24,7 +29,8 @@ type HiddenAlertsService struct {
 	userHiddenAlerts    map[string]map[string]bool             // userID -> fingerprint -> hidden
 	userHiddenRules     map[string][]models.UserHiddenRule     // userID -> rules
 	compiledRegexRules  map[string]map[string]*regexp.Regexp   // userID -> ruleID -> compiled regex
-	lastAccess          map[string]time.Time                   // userID -> last LoadUserData call
+	lastAccess          map[string]time.Time                   // userID -> last LoadUserData fetch
+	cacheTTL            time.Duration
 }
 
 // NewHiddenAlertsService creates a new hidden alerts service
@@ -35,6 +41,7 @@ func NewHiddenAlertsService(backendClient *client.BackendClient) *HiddenAlertsSe
 		userHiddenRules:    make(map[string][]models.UserHiddenRule),
 		compiledRegexRules: make(map[string]map[string]*regexp.Regexp),
 		lastAccess:         make(map[string]time.Time),
+		cacheTTL:           cacheTTL,
 	}
 	
 	// Load initial data
@@ -50,11 +57,22 @@ func (s *HiddenAlertsService) LoadAllUserData() {
 	log.Println("HiddenAlertsService initialized")
 }
 
-// LoadUserData loads hidden alerts and rules for a specific user using sessionID
+// LoadUserData loads hidden alerts and rules for a specific user using sessionID,
+// serving the cached snapshot when it is younger than cacheTTL.
 func (s *HiddenAlertsService) LoadUserData(sessionID string) error {
 	// Get userID from session for cache key
 	// Note: We'll need to pass userID separately or get it from session
 	// For now, we'll use sessionID as the cache key
+
+	s.mu.RLock()
+	fresh := s.userHiddenAlerts[sessionID] != nil && time.Since(s.lastAccess[sessionID]) < s.cacheTTL
+	s.mu.RUnlock()
+	if fresh {
+		return nil
+	}
+
+	// ponytail: no single-flight — concurrent misses for the same session just
+	// fetch twice and publish the same data; add one if that shows up in traces.
 
 	// C4 fix: perform gRPC calls BEFORE acquiring the write lock to avoid
 	// holding the lock across potentially long-running I/O operations.
