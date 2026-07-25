@@ -701,8 +701,9 @@ def grid_per_row(width):
     return per_row
 
 
-# worst-case non-office frame rows: title + intercom(1+3) + score(1+3) + board(1+2) + radio + err + bottom
-PANEL_ROWS = 15
+# worst-case non-office frame rows: title + intercom(1+3) + score(1+3) + pending(1+PENDING_MAX+1)
+#                                   + board(1+2) + radio + err + bottom
+PANEL_ROWS = 15 + PENDING_MAX + 2
 
 
 def desk_cap(h, per_row):
@@ -940,12 +941,14 @@ def main_curses(scr):
         h, w = scr.getmaxyx()
         width = min(w - 1, 120)
         per_row = grid_per_row(width)  # must match render_frame's column count or Up/Down drifts
-        # desks appear/disappear mid-list with concurrent loops — re-resolve by id, not position
+        # desks appear/disappear mid-list with concurrent loops — re-resolve by id, not position.
+        # A desk vanishing auto-closes the zoom and swallows this frame's keystroke, so an Esc
+        # meaning "close the panel" can't fall through to the navigation branch and quit the TUI.
         desks = build_desks(desk_cap(h, per_row))
         sel = desk_resolve(desks, sel_id, sel)
         zoom = desk_index(desks, zoom_id) if zoom_id else None
-        if zoom is None:
-            zoom_id = None  # zoomed desk gone → close the panel, never slide onto a neighbour
+        if zoom is None and zoom_id:
+            zoom_id, ch = None, -1  # -1 is getch()'s "no key" in nodelay mode → every branch no-ops
         if ch == ord("q"):
             return
         if zoom is None:
@@ -1344,7 +1347,11 @@ def selfcheck():
         STATE["loops"] = [{"type": r, "target": f"SoulKyu/notificator#{i}", "step": "code", "status": "running"}
                           for r in ("worker", "reviewer", "fixer", "coordinator", "planner")
                           for i in range(5)]
-    term_h, term_w = 50, 120
+        # every panel populated: PANEL_ROWS is a worst-case budget, so the cap must hold there.
+        # Pending in particular is the normal state of the factory, not an edge case.
+        STATE["pending"] = [f"attente {i}" for i in range(PENDING_MAX + 4)]  # header + 5 + "+N autres"
+        STATE["score"] = s
+    term_h, term_w = 55, 120  # below ~54 the len(ROSTER) floor wins and no cap can fit the panels
     cap = desk_cap(term_h, grid_per_row(term_w))
     capped = build_desks(cap)
     if not len(ROSTER) <= len(capped) <= cap:
@@ -1355,11 +1362,15 @@ def selfcheck():
     if board is None or board >= term_h - 1:
         print(f"FAIL desk cap: wall board at row {board} of a {term_h}-row terminal")
         fails += 1
+    radio = next((y for y, (l, _) in enumerate(frame) if "📻" in l), None)  # below the board → cut first
+    if radio is None or radio >= term_h - 1:
+        print(f"FAIL desk cap: radio ticker at row {radio} of a {term_h}-row terminal")
+        fails += 1
     if sum(1 for d in capped if "+" in d["name"]) < 1:
         print(f"FAIL desk cap: hidden loops not folded into a desk title: {[d['name'] for d in capped]}")
         fails += 1
     with LOCK:  # leave no injected loop behind for later checks
-        STATE["loops"] = []
+        STATE["loops"], STATE["pending"] = [], []
     # the per-loop log prefix is anchored: a desk on loop 9 must not claim `worker-95-*.log`
     global LOG_DIR
     real_log_dir = LOG_DIR
