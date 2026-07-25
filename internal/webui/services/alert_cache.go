@@ -42,6 +42,12 @@ type alertFetcher interface {
 // so a large diff cannot stampede the backend with thousands of gRPC calls.
 const maxBackendWorkers = 8
 
+// resolvedCountTTL bounds how long a resolved-alerts count is served without a
+// backend round-trip. The webui is the sole writer of resolved_alerts and
+// invalidates on every write, so the TTL only covers retention expiry and other
+// webui replicas.
+const resolvedCountTTL = 30 * time.Second
+
 type AlertCache struct {
 	mu                 sync.RWMutex
 	alerts             map[string]*webuimodels.DashboardAlert // fingerprint -> alert
@@ -54,6 +60,11 @@ type AlertCache struct {
 	// Color caching - keyed by userID then fingerprint
 	colorsMutex  sync.RWMutex
 	cachedColors map[string]map[string]*AlertColorResult // userID -> fingerprint -> color result
+
+	// Resolved-alerts count caching (dashboard counters only need the number)
+	resolvedCountMu      sync.RWMutex
+	resolvedCount        int
+	resolvedCountFetched time.Time
 
 	// Configuration
 	refreshInterval       time.Duration
@@ -585,6 +596,48 @@ func (ac *AlertCache) GetResolvedAlertsWithLimit(limit int) []*webuimodels.Dashb
 	return ac.GetResolvedAlertsWithPagination(limit, 0)
 }
 
+// GetResolvedAlertsCount returns the number of resolved alerts in the retention
+// window without shipping a single alert blob. The value is cached for
+// resolvedCountTTL and invalidated whenever this webui stores a resolved alert.
+// On backend failure the last known value is returned (0 if never fetched).
+func (ac *AlertCache) GetResolvedAlertsCount() int {
+	ac.resolvedCountMu.RLock()
+	count := ac.resolvedCount
+	fresh := !ac.resolvedCountFetched.IsZero() && time.Since(ac.resolvedCountFetched) < resolvedCountTTL
+	ac.resolvedCountMu.RUnlock()
+
+	if fresh {
+		return count
+	}
+
+	if ac.backendClient == nil || !ac.backendClient.IsConnected() {
+		return count
+	}
+
+	// ponytail: no single-flight, concurrent misses just issue a few cheap
+	// count queries; add one if the TTL ever gets short enough to matter.
+	fetched, err := ac.backendClient.GetResolvedAlertsCount()
+	if err != nil {
+		log.Printf("Error fetching resolved alerts count from backend: %v", err)
+		return count
+	}
+
+	ac.resolvedCountMu.Lock()
+	ac.resolvedCount = fetched
+	ac.resolvedCountFetched = time.Now()
+	ac.resolvedCountMu.Unlock()
+
+	return fetched
+}
+
+// InvalidateResolvedAlertsCount forces the next GetResolvedAlertsCount call to
+// re-query the backend.
+func (ac *AlertCache) InvalidateResolvedAlertsCount() {
+	ac.resolvedCountMu.Lock()
+	ac.resolvedCountFetched = time.Time{}
+	ac.resolvedCountMu.Unlock()
+}
+
 func (ac *AlertCache) GetResolvedAlertsWithPagination(limit, offset int) []*webuimodels.DashboardAlert {
 	if ac.backendClient == nil || !ac.backendClient.IsConnected() {
 		log.Printf("Backend client not available for fetching resolved alerts")
@@ -940,6 +993,7 @@ func (ac *AlertCache) storeResolvedAlertInBackend(alert *webuimodels.DashboardAl
 		log.Printf("Error storing resolved alert %s in backend: %v", alert.Fingerprint, err)
 	} else {
 		log.Printf("Successfully stored resolved alert %s in backend", alert.Fingerprint)
+		ac.InvalidateResolvedAlertsCount()
 	}
 }
 
@@ -956,6 +1010,7 @@ func (ac *AlertCache) RemoveAllResolvedAlerts(sessionID string) error {
 	}
 
 	log.Printf("Successfully removed all resolved alerts from backend")
+	ac.InvalidateResolvedAlertsCount()
 	return nil
 }
 

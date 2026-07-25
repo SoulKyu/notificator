@@ -533,6 +533,29 @@ func (c *BackendClient) GetResolvedAlerts(limit, offset int) ([]*alertpb.Resolve
 	return resp.ResolvedAlerts, nil
 }
 
+// GetResolvedAlertsCount returns the total number of resolved alerts kept in the
+// retention window. It asks for a single row and reads total_count from the
+// response, so no alert blobs travel over the wire.
+func (c *BackendClient) GetResolvedAlertsCount() (int, error) {
+	if c.alertClient == nil {
+		return 0, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.alertClient.GetResolvedAlerts(ctx, &alertpb.GetResolvedAlertsRequest{Limit: 1})
+	if err != nil {
+		return 0, err
+	}
+
+	if !resp.Success {
+		return 0, fmt.Errorf("failed to get resolved alerts count: %s", resp.Message)
+	}
+
+	return int(resp.TotalCount), nil
+}
+
 // GetResolvedAlert retrieves a specific resolved alert by fingerprint
 func (c *BackendClient) GetResolvedAlert(fingerprint string) (*alertpb.ResolvedAlertInfo, error) {
 	if c.alertClient == nil {

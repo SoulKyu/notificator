@@ -369,6 +369,27 @@ func getAcknowledgedAlerts() []*webuimodels.DashboardAlert {
 	return acknowledgedAlerts
 }
 
+// filtersAffectResolvedCount reports whether applyDashboardFilters could drop a
+// resolved alert for these filters. When it cannot, the Resolved counter is just
+// the backend's total and no resolved alert needs to be fetched at all.
+// Mirrors every rejection in applyDashboardFilters.
+func filtersAffectResolvedCount(filters webuimodels.DashboardFilters, sessionID string) bool {
+	if filters.Search != "" ||
+		len(filters.Alertmanagers) > 0 ||
+		len(filters.Severities) > 0 ||
+		len(filters.Statuses) > 0 ||
+		len(filters.Teams) > 0 ||
+		len(filters.AlertNames) > 0 ||
+		filters.Acknowledged != nil ||
+		filters.HasComments != nil ||
+		len(filters.FilterHiddenAlerts) > 0 ||
+		len(filters.FilterHiddenRules) > 0 {
+		return true
+	}
+
+	return hiddenAlertsService != nil && hiddenAlertsService.HasHiddenEntries(sessionID)
+}
+
 func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string) []*webuimodels.DashboardAlert {
 	var filtered []*webuimodels.DashboardAlert
 
@@ -708,20 +729,27 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 	// Always include resolved alerts in statistics, even if not displayed (for Classic view)
 	// Only do this if we're not already in DisplayModeResolved or DisplayModeFull to avoid double counting
 	if filters.DisplayMode == webuimodels.DisplayModeClassic || filters.DisplayMode == webuimodels.DisplayModeAcknowledge {
-		var resolvedAlerts []*webuimodels.DashboardAlert
-		if filters.ResolvedAlertsLimit > 0 {
-			resolvedAlerts = alertCache.GetResolvedAlertsWithLimit(filters.ResolvedAlertsLimit)
+		if !filtersAffectResolvedCount(filters, sessionID) {
+			// Nothing can exclude a resolved alert, so the backend count is the
+			// answer - and it is the true retention-window count, not one capped
+			// at ResolvedAlertsLimit. No alert blobs travel over gRPC for this.
+			counters.Resolved = alertCache.GetResolvedAlertsCount()
 		} else {
-			resolvedAlerts = alertCache.GetResolvedAlerts()
-		}
-		filteredResolvedAlerts := applyDashboardFilters(resolvedAlerts, filters, sessionID)
+			var resolvedAlerts []*webuimodels.DashboardAlert
+			if filters.ResolvedAlertsLimit > 0 {
+				resolvedAlerts = alertCache.GetResolvedAlertsWithLimit(filters.ResolvedAlertsLimit)
+			} else {
+				resolvedAlerts = alertCache.GetResolvedAlerts()
+			}
+			filteredResolvedAlerts := applyDashboardFilters(resolvedAlerts, filters, sessionID)
 
-		for _, alert := range filteredResolvedAlerts {
-			// Only count resolved alerts in the Resolved counter for Classic/Acknowledge views
-			// Exclude them from Critical, Warning, Info, Acknowledged, WithComments counters
-			// since these views don't display resolved alerts in their main lists
-			if alert.Status.State == "resolved" {
-				counters.Resolved++
+			for _, alert := range filteredResolvedAlerts {
+				// Only count resolved alerts in the Resolved counter for Classic/Acknowledge views
+				// Exclude them from Critical, Warning, Info, Acknowledged, WithComments counters
+				// since these views don't display resolved alerts in their main lists
+				if alert.Status.State == "resolved" {
+					counters.Resolved++
+				}
 			}
 		}
 	}
