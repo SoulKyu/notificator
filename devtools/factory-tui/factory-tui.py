@@ -55,7 +55,8 @@ ZOOM_TAIL = 15
 STALL_MIN = int(os.environ.get("FACTORY_STALL_MIN") or 30)
 
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
-         "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": []}
+         "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
+         "ps_ok": True}
 PENDING_MAX = 5
 LOCK = threading.Lock()
 
@@ -68,6 +69,7 @@ LOOP_SINCE = {}    # (type, target) -> (step, first_seen_ts) — stall detection
 ALARM_SEEN = None  # alarm keys already klaxonned — None until the first curses frame
 ALARM_FLASH = None # tick of the last new alarm; the title flashes for KLAXON_TICKS
 KLAXON_TICKS = 12  # ~3 s at 4 fps
+ALARM_ROWS = 5     # panel height cap; the tail is summarised in one extra row
 
 
 def sh(cmd, timeout=20):
@@ -129,6 +131,9 @@ def track_loops(loops, now, prune=True):
         for lp in loops:
             k = (lp["type"], lp["target"])
             live.add(k)
+            if lp["status"] != "running":  # queued/paused waiting is not stall time
+                LOOP_SINCE.pop(k, None)
+                continue
             if k not in LOOP_SINCE:  # first sighting: trust looper's clock, not ours
                 LOOP_SINCE[k] = (lp["step"], lp.get("since") or now)
             elif LOOP_SINCE[k][0] != lp["step"]:
@@ -162,7 +167,7 @@ def poll_fast():
             cur[k] = v
     track_loops(loops, time.time(), prune=ps_ok)
     with LOCK:
-        STATE["loops"], STATE["svc"] = loops, svc
+        STATE["loops"], STATE["svc"], STATE["ps_ok"] = loops, svc, ps_ok
 
 
 def ago(seconds):
@@ -187,11 +192,15 @@ def systemd_ts(s):
 
 
 def alarms(now=None):
-    """-> [(stable key, row)] for failed units and loops stalled past FACTORY_STALL_MIN."""
+    """-> [(stable key, row)] for a dead looper, failed units and loops stalled past
+    FACTORY_STALL_MIN."""
     now = now or time.time()
     with LOCK:
         svc, loops, since_of = dict(STATE["svc"]), list(STATE["loops"]), dict(LOOP_SINCE)
+        ps_ok = STATE["ps_ok"]
     out = []
+    if not ps_ok:  # otherwise every looper desk renders a calm "veille" and nothing alarms
+        out.append(("looper:down", "🚨 looper injoignable — état des loops inconnu"))
     for unit, s in sorted(svc.items()):
         if s.get("Result") in ("success", "", None):
             continue
@@ -661,8 +670,10 @@ def render_frame(tick, width=92, sel=None, flash=False):
         on = flash and tick % 2 == 0
         rows.append(("│" + dpad(" ═══ 🚨 ALARMES " + ("‼ " if on else ""), width - 2, fill="═") + "│",
                      4 if on else 0))
-        for _, msg in alrm:
+        for _, msg in alrm[:ALARM_ROWS]:  # capped: a machine-wide breakage must not
             rows.append(("│ " + dpad(msg, width - 4) + " │", 4))
+        if len(alrm) > ALARM_ROWS:        # push the board and the ⚠ err line off-screen
+            rows.append(("│ " + dpad(f"… +{len(alrm) - ALARM_ROWS} autres alarmes", width - 4) + " │", 4))
     if pending:  # rien en attente → pas de panneau
         rows.append(("│" + dpad(" ═══ 🙋 EN ATTENTE DE TOI ", width - 2, fill="═") + "│", 0))
         for row in pending[:PENDING_MAX]:
@@ -956,10 +967,13 @@ def selfcheck():
     real_sh = sh
     def stub(ps):
         globals()["sh"] = lambda cmd, timeout=20: ps if cmd.startswith("looper ps") else SYSD
-    for name, ps, keep in (("present", PS_OK, True),
-                           ("timeout", "", True),                             # sh() failure path
-                           ("garbage", "looper: daemon unreachable\n", True),  # non-JSON stdout
-                           ("gone", '{"items": []}', False)):                  # really gone → prune
+    PS_QUEUED = json.dumps({"items": [{"type": "worker", "status": "queued", "currentStep": "implement",
+                                       "target": {"label": "SoulKyu/notificator#57"}, "agent": None}]})
+    for name, ps, keep, ps_ok in (("present", PS_OK, True, True),
+                                  ("timeout", "", True, False),                             # sh() failure path
+                                  ("garbage", "looper: daemon unreachable\n", True, False),  # non-JSON stdout
+                                  ("gone", '{"items": []}', False, True),                    # really gone → prune
+                                  ("queued", PS_QUEUED, False, True)):  # waiting in the queue is not stalling
         stub(ps)
         LOOP_SINCE.clear()
         LOOP_SINCE[k57] = ("implement", now - 2820)
@@ -967,6 +981,18 @@ def selfcheck():
         if (LOOP_SINCE.get(k57) == ("implement", now - 2820)) != keep:
             print(f"FAIL poll_fast/{name}: LOOP_SINCE = {LOOP_SINCE}")
             fails += 1
+        if any(k == "looper:down" for k, _ in alarms(now)) == ps_ok:
+            print(f"FAIL poll_fast/{name}: looper:down alarm should be {not ps_ok}")
+            fails += 1
+    # the scheduler starts the loop that just waited 47 min: its clock is the agent's, not the queue's
+    fresh = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 5))
+    stub(json.dumps({"items": [{"type": "worker", "status": "running", "currentStep": "implement",
+                                "target": {"label": "SoulKyu/notificator#57"},
+                                "agent": {"startedAt": fresh}}]}))
+    poll_fast()
+    if alarms(now):
+        print(f"FAIL alarms: queue time counted as stall time: {alarms(now)}")
+        fails += 1
     stub(PS_OK)
     LOOP_SINCE.clear()
     poll_fast()  # first sighting seeds from looper's agent.startedAt, not from now
@@ -976,26 +1002,33 @@ def selfcheck():
     globals()["sh"] = real_sh
     LOOP_SINCE.clear()
     track_loops([lp57], now)
-    # alarm panel: one failed unit + one stalled loop, both widths, flashing title
+    # alarm panel: machine-wide breakage (7 failed units) + one stalled loop, both widths,
+    # flashing title — more alarms than ALARM_ROWS, so the overflow row renders too
+    exited = time.strftime("%a %Y-%m-%d %H:%M:%S %Z", time.localtime(now - 11520))
     with LOCK:
-        STATE["svc"] = {"notificator-qa": {
-            "Id": "notificator-qa.service", "ActiveState": "failed", "Result": "exit-code",
-            "ExecMainStatus": "2", "NRestarts": "3",
-            "ExecMainExitTimestamp": time.strftime("%a %Y-%m-%d %H:%M:%S %Z", time.localtime(now - 11520))}}
+        STATE["svc"] = {f"notificator-{n}": {
+            "Id": f"notificator-{n}.service", "ActiveState": "failed", "Result": "exit-code",
+            "ExecMainStatus": "2", "NRestarts": "3", "ExecMainExitTimestamp": exited}
+            for n in ("qa", "scout", "worker", "rebaser", "promoter", "docagent", "reporter")}
         STATE["loops"] = [lp57]
     a = alarms(now)
-    if not (len(a) == 2 and "qa" in a[0][1] and "exit 2" in a[0][1] and "3h12" in a[0][1]
-            and "#57" in a[1][1] and "implement" in a[1][1] and "47min" in a[1][1]):
+    if not (len(a) == 8 and "qa" in a[2][1] and "exit 2" in a[2][1] and "3h12" in a[2][1]
+            and "#57" in a[-1][1] and "implement" in a[-1][1] and "47min" in a[-1][1]):
         print(f"FAIL alarms: {a}")
         fails += 1
     for w in (92, 60):
         for tick in range(4):
-            for line, _ in render_frame(tick, w, flash=True):
+            frame = render_frame(tick, w, flash=True)
+            for line, _ in frame:
                 if dwidth(line) != w:
                     print(f"FAIL alarm row {dwidth(line)} cols (want {w}): {line!r}")
                     fails += 1
-    with LOCK:  # unit back to success + loop step moved on → alarms gone, panel gone
-        STATE["svc"]["notificator-qa"]["Result"] = "success"
+            if sum(1 for l, _ in frame if f"+{len(a) - ALARM_ROWS} autres alarmes" in l) != 1:
+                print(f"FAIL alarm panel not capped at {ALARM_ROWS} rows (w={w})")
+                fails += 1
+    with LOCK:  # units back to success + loop step moved on → alarms gone, panel gone
+        for s in STATE["svc"].values():
+            s["Result"] = "success"
     track_loops([dict(lp57, step="publish")], now)
     if alarms(now) or any("ALARMES" in l for l, _ in render_frame(0, 92)):
         print("FAIL alarm panel rendered with no alarm")
