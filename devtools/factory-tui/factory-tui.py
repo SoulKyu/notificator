@@ -198,13 +198,20 @@ def ago(sec):
 
 
 def compute_pending(prs, issues, now):
-    """Ball-in-your-court items from raw gh JSON, oldest first. -> [str]"""
+    """Ball-in-your-court items from raw gh JSON, oldest first. -> [str]
+
+    Covers the two gates the loop cannot pass on its own: a PR whose every gate is
+    green (`ready-to-merge`) and an issue parked on `looper:hold`. `rebase:conflict`
+    is deliberately out of scope — the rebaser owns that lane.
+    """
     rows = []
     for p in prs:
         labels = {l["name"] for l in p.get("labels", [])}
+        # `looper:review` is never cleared (it survives merge), so it says nothing
+        # about the gate — `ready-to-merge` is what the agents actually set last.
         if (p.get("isDraft") or p.get("mergeable") != "MERGEABLE"
-                or "qa:passed" not in labels or "qa:failed" in labels
-                or any(l.startswith("looper:") and "review" in l for l in labels)):
+                or "ready-to-merge" not in labels or "qa:failed" in labels
+                or "looper:spec-reviewing" in labels):
             continue
         t = ts(p.get("updatedAt")) or now
         rows.append((t, f"🚢 PR#{p['number']} prête à merger — {ago(now - t)}"))
@@ -212,7 +219,7 @@ def compute_pending(prs, issues, now):
         if not any(l["name"] == "looper:hold" for l in i.get("labels", [])):
             continue
         t = ts(i.get("updatedAt")) or now
-        rows.append((t, f"⛔ #{i['number']} {i.get('title', '')} — attend ton go"))
+        rows.append((t, f"⛔ #{i['number']} {i.get('title', '')[:50]} — attend ton go"))
     return [r for _, r in sorted(rows, key=lambda x: x[0])]
 
 
@@ -300,14 +307,21 @@ def poll_slow():
     except Exception:
         pass
     out = sh(f"gh issue list -R {shlex.quote(REPO)} --state open --json number,title,labels,updatedAt 2>/dev/null", 30)
-    try:
-        iss = open_issues = json.loads(out or "[]")
-        held = sum(1 for i in iss if any(l["name"] == "looper:hold" for l in i["labels"]))
-        agent = sum(1 for i in iss if any(l["name"] == "agent:proposed" for l in i["labels"]))
+    # same rule as the PR query: "" means unreachable, so say so instead of
+    # publishing a hold queue we know is missing rows
+    issues_ok = bool(out.strip())
+    if not issues_ok:
         with LOCK:
-            STATE["issues"] = f"issues: {len(iss)} open · {agent} agents · {held} hold"
-    except Exception:
-        pass
+            STATE["issues"] = "(github injoignable)"
+    else:
+        try:
+            iss = open_issues = json.loads(out)
+            held = sum(1 for i in iss if any(l["name"] == "looper:hold" for l in i["labels"]))
+            agent = sum(1 for i in iss if any(l["name"] == "agent:proposed" for l in i["labels"]))
+            with LOCK:
+                STATE["issues"] = f"issues: {len(iss)} open · {agent} agents · {held} hold"
+        except Exception:
+            issues_ok = False
     since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 86400))
     i_out = sh(f"gh issue list -R {shlex.quote(REPO)} --state all --limit 200 "
                f"--search {shlex.quote(f'created:>{since}')} --json labels,createdAt 2>/dev/null", 30)
@@ -321,9 +335,12 @@ def poll_slow():
             score = compute_score(json.loads(i_out), json.loads(p_out), time.time())
         except Exception:
             score = None
+    pending = compute_pending(open_prs, open_issues, time.time())
+    if not issues_ok:
+        pending.append("⛔ hold: (github injoignable)")
     with LOCK:
         STATE["prs"], STATE["score"] = prs, score
-        STATE["pending"] = compute_pending(open_prs, open_issues, time.time())
+        STATE["pending"] = pending
         STATE["events"].extend(events)
 
 
@@ -751,13 +768,16 @@ def selfcheck():
     if compute_score([], [], now) is not None:
         print("FAIL compute_score: empty input should be None")
         fails += 1
-    ready = {"number": 72, "labels": [{"name": "qa:passed"}], "mergeable": "MERGEABLE",
-             "isDraft": False, "updatedAt": "2026-01-01T20:00:00Z"}
+    # a real merge-ready PR still carries `looper:review` — the reviewer agent never
+    # clears it — so the positive fixture has to as well, or the filter is untested
+    ready = {"number": 72, "labels": [{"name": "qa:passed"}, {"name": "looper:review"},
+                                      {"name": "ready-to-merge"}],
+             "mergeable": "MERGEABLE", "isDraft": False, "updatedAt": "2026-01-01T20:00:00Z"}
     pending_prs = [ready,
                    dict(ready, number=73, isDraft=True),
                    dict(ready, number=74, mergeable="CONFLICTING"),
-                   dict(ready, number=75, labels=[{"name": "qa:failed"}]),
-                   dict(ready, number=76, labels=[{"name": "qa:passed"}, {"name": "looper:spec-reviewing"}]),
+                   dict(ready, number=75, labels=ready["labels"] + [{"name": "qa:failed"}]),
+                   dict(ready, number=76, labels=ready["labels"] + [{"name": "looper:spec-reviewing"}]),
                    dict(ready, number=77, labels=[{"name": "qa:passed"}, {"name": "looper:review"}]),
                    dict(ready, number=78, updatedAt="2026-01-01T23:00:00Z")]
     pending_issues = [{"number": 67, "title": "daily reports", "labels": [{"name": "looper:hold"}],
@@ -765,12 +785,18 @@ def selfcheck():
                       {"number": 68, "title": "libre", "labels": [{"name": "agent:proposed"}],
                        "updatedAt": "2025-12-30T00:00:00Z"}]
     pend = compute_pending(pending_prs, pending_issues, now)
+    # #72/#78 are the regression that matters: green gates *and* the sticky review lane
     if pend != ["⛔ #67 daily reports — attend ton go", "🚢 PR#72 prête à merger — 4h",
                 "🚢 PR#78 prête à merger — 1h"]:
         print(f"FAIL compute_pending: {pend}")
         fails += 1
     if compute_pending([], [], now) != []:
         print("FAIL compute_pending: nothing pending should be empty")
+        fails += 1
+    # a long issue title must not eat the "— attend ton go" marker
+    long_row = compute_pending([], [dict(pending_issues[0], title="t" * 200)], now)[0]
+    if not long_row.endswith(" — attend ton go") or len(long_row) > 80:
+        print(f"FAIL compute_pending: long title not bounded: {long_row!r}")
         fails += 1
     with LOCK:
         STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300,
