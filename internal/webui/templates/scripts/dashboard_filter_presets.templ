@@ -316,7 +316,12 @@ templ DashboardFilterPresetsMixin() {
 		// user explicitly asked to re-capture it)
 		buildPresetFilterData() {
 			if (this.willReplaceSavedFilters()) {
-				return this.captureCurrentFilterState();
+				const captured = this.captureCurrentFilterState();
+				if (this.editingPreset && !this.includeColumnConfig) {
+					// Opting out of columns keeps the preset's saved layout, it never clears it
+					captured.column_configs = (this.editingPreset.filter_data || {}).column_configs || [];
+				}
+				return captured;
 			}
 
 			return {
