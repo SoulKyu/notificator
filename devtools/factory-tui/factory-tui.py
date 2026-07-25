@@ -541,9 +541,14 @@ def person_cell(state, tick, seed, status, detail):
     ], 2
 
 
+def loop_num(lp):
+    """Loop number from a `looper ps` target — `owner/repo#81` and `owner/repo/81` both -> `81`."""
+    return re.split(r"[/#]", lp["target"])[-1]
+
+
 def loop_state(lp):
     """One `looper ps` row -> (state, status, detail)"""
-    tgt = lp["target"].split("/")[-1]
+    tgt = loop_num(lp)
     if lp["status"] == "running":
         return "work", lp["step"], tgt
     if lp["status"] == "queued":
@@ -582,13 +587,15 @@ def agent_state(key, kind):
 
 def loop_order(lp):
     """Sort key giving desks a stable order — `looper ps` row order is not guaranteed."""
-    tail = lp["target"].rsplit("/", 1)[-1]
+    tail = loop_num(lp)
     return (0, int(tail), "") if tail.isdigit() else (1, 0, lp["target"])
 
 
-def build_desks():
+def build_desks(max_desks=None):
     """ROSTER expanded for the current frame: a looper role running N>1 loops
-    concurrently gets one desk per loop (WORKER·1, WORKER·2…). N<=1 → one desk."""
+    concurrently gets one desk per loop (WORKER·1, WORKER·2…). N<=1 → one desk.
+    `max_desks` caps the grid so a busy office can't push the panels below it off
+    screen; desks that don't fit fold into the last desk of their role (`WORKER·2+3`)."""
     with LOCK:
         loops = list(STATE["loops"])
     desks = []
@@ -603,6 +610,24 @@ def build_desks():
         else:
             desks.append({"key": key, "id": key, "emoji": emoji, "name": name, "kind": kind,
                           "state": agent_state(key, kind), "loop": mine[0] if mine else None})
+    if max_desks is None or len(desks) <= max_desks:
+        return desks
+    # Trim the widest role first, highest rank first; the roster itself is never trimmed.
+    # ponytail: O(desks²) rescan — desks stay in the dozens, and it keeps ROSTER order from
+    # deciding who shrinks (scanning backwards once would always cost WORKER its desks first).
+    hidden, floor = {}, max(max_desks, len(ROSTER))
+    while len(desks) > floor:
+        counts = {}
+        for d in desks:
+            counts[d["key"]] = counts.get(d["key"], 0) + 1
+        key = max(counts, key=lambda k: counts[k])  # ties → ROSTER order, so it stays deterministic
+        if counts[key] < 2:
+            break
+        hidden[key] = hidden.get(key, 0) + 1
+        desks.pop(max(j for j, d in enumerate(desks) if d["key"] == key))
+    for key, n in hidden.items():
+        last = max(j for j, d in enumerate(desks) if d["key"] == key)
+        desks[last]["name"] += f"+{n}"
     return desks
 
 
@@ -674,6 +699,16 @@ def grid_per_row(width):
     if per_row > 2 and (width - 4) - per_row * (CELL_W + 3) < 16:
         per_row -= 1  # give up one desk column so the coffee corner fits
     return per_row
+
+
+# worst-case non-office frame rows: title + intercom(1+3) + score(1+3) + board(1+2) + radio + err + bottom
+PANEL_ROWS = 15
+
+
+def desk_cap(h, per_row):
+    """Desks that still leave room for the panels below the office — main_curses stops
+    drawing at h-1, so an unbounded grid silently swallows the wall board and the radio."""
+    return max(len(ROSTER), max(1, (h - PANEL_ROWS) // 8) * per_row)
 
 
 def render_frame(tick, width=92, sel=None, desks=None, flash=False):
@@ -785,12 +820,27 @@ def desk_index(desks, ident):
     return next((i for i, d in enumerate(desks) if d["id"] == ident), None)
 
 
+def desk_resolve(desks, ident, fallback):
+    """Selection follows its loop; when that loop is gone, its role's desk; else the clamped
+    position. The bare clamp would park the highlight on an unrelated role, since the list
+    shrinks mid-list (three worker desks collapsing to one makes index 6 the reviewer)."""
+    idx = desk_index(desks, ident)
+    if idx is None and ident:
+        idx = next((i for i, d in enumerate(desks) if d["key"] == ident.split(":", 1)[0]), None)
+    return idx if idx is not None else min(fallback, len(desks) - 1)
+
+
+def desk_log_prefix(desk):
+    """Prefix of this desk's own loop logs, or None off a loop. The trailing dash anchors it —
+    bare `worker-9` also matches `worker-95-*.log`."""
+    return f"{desk['key']}-{loop_num(desk['loop'])}-" if desk["loop"] else None
+
+
 def desk_tail(desk, n=ZOOM_TAIL):
     """This desk's own loop log (`worker-49-*`) when one exists, else the role-wide newest."""
-    lp = desk["loop"]
-    if lp:
-        # trailing dash anchors the prefix — bare `worker-9` also matches `worker-95-*.log`
-        name, tail = log_tail(f"{desk['key']}-{lp['target'].rsplit('/', 1)[-1]}-", n)
+    prefix = desk_log_prefix(desk)
+    if prefix:
+        name, tail = log_tail(prefix, n)
         if name:
             return name, tail
     return log_tail(desk["key"], n)
@@ -810,9 +860,9 @@ def zoom_lines(desk, tail_name, tail, follow, note, width=80):
         last = f"{s.get('Result') or '—'} · {s.get('ExecMainStartTimestamp') or '—'}"
     else:  # ponytail: looper roles have no systemd unit — show this desk's loop instead
         last = f"{lp['status']} · {lp['target']}" if lp else "—"
-    tgt = lp["target"].rsplit("/", 1)[-1] if lp else None
     # the tail may fall back to the role-wide newest log — say so rather than imply it's this loop's
-    scope = "" if not tgt or not tail_name or tail_name.startswith(f"{key}-{tgt}-") else " (rôle entier)"
+    prefix = desk_log_prefix(desk)
+    scope = "" if not prefix or not tail_name or tail_name.startswith(prefix) else " (rôle entier)"
     inner = width - 2
     lines = ["╔" + dpad(f" ZOOM — {emoji} {name} ", inner, center=True, fill="═") + "╗"]
     for b in (f" état : {state} · {status} {detail}".rstrip(),
@@ -891,9 +941,8 @@ def main_curses(scr):
         width = min(w - 1, 120)
         per_row = grid_per_row(width)  # must match render_frame's column count or Up/Down drifts
         # desks appear/disappear mid-list with concurrent loops — re-resolve by id, not position
-        desks = build_desks()
-        idx = desk_index(desks, sel_id)
-        sel = idx if idx is not None else min(sel, len(desks) - 1)
+        desks = build_desks(desk_cap(h, per_row))
+        sel = desk_resolve(desks, sel_id, sel)
         zoom = desk_index(desks, zoom_id) if zoom_id else None
         if zoom is None:
             zoom_id = None  # zoomed desk gone → close the panel, never slide onto a neighbour
@@ -1237,9 +1286,11 @@ def selfcheck():
             fails += 1
     # dynamic desks: 3 concurrent worker loops → 3 worker desks, rows still exact width.
     # injected out of `looper ps` order on purpose — build_desks() must sort them.
+    # `#N` is what `looper ps` really prints; one `/N` row keeps both spellings covered.
     with LOCK:
-        STATE["loops"] = [{"type": "worker", "target": f"SoulKyu/notificator/{n}", "step": "code",
-                           "status": "running"} for n in (55, 49, 50)]
+        STATE["loops"] = [{"type": "worker", "target": t, "step": "code", "status": "running"}
+                          for t in ("SoulKyu/notificator#55", "SoulKyu/notificator/49",
+                                    "SoulKyu/notificator#50")]
     desks = build_desks()
     workers = [d for d in desks if d["key"] == "worker"]
     if [d["name"] for d in workers] != ["WORKER·1", "WORKER·2", "WORKER·3"]:
@@ -1263,8 +1314,9 @@ def selfcheck():
     # a zoom on loop 50 must keep showing loop 50 when a lower-numbered sibling finishes —
     # its rank slides from WORKER·2 to WORKER·1 while the index does not move at all
     ident = workers[1]["id"]
+    worker_at = desk_index(desks, ident)
     with LOCK:  # loop 49 finishes; 50 and 55 keep running
-        STATE["loops"] = [lp for lp in STATE["loops"] if not lp["target"].endswith("/49")]
+        STATE["loops"] = [lp for lp in STATE["loops"] if loop_num(lp) != "49"]
     shrunk = build_desks()
     if shrunk[desk_index(shrunk, ident)]["loop"]["target"] != workers[1]["loop"]["target"]:
         print(f"FAIL desk identity repointed: {shrunk[desk_index(shrunk, ident)]['loop']['target']}")
@@ -1279,17 +1331,40 @@ def selfcheck():
     if desk_index(solo, ident) is not None:
         print("FAIL desk_index: vanished desk should resolve to None")
         fails += 1
+    # …and the selection then falls back to the role, not to whoever inherited the old index
+    if solo[desk_resolve(solo, ident, worker_at)]["key"] != "worker":
+        print(f"FAIL desk_resolve: worker selection landed on {solo[desk_resolve(solo, ident, worker_at)]['key']}")
+        fails += 1
     solo_workers = [d["name"] for d in solo if d["key"] == "worker"]
     if len(solo) != len(ROSTER) or solo_workers != ["WORKER"]:
         print(f"FAIL single loop duplicated the desk: {solo_workers}")
+        fails += 1
+    # a full factory must not push the wall board off a short terminal: cap the grid, fold the rest
+    with LOCK:
+        STATE["loops"] = [{"type": r, "target": f"SoulKyu/notificator#{i}", "step": "code", "status": "running"}
+                          for r in ("worker", "reviewer", "fixer", "coordinator", "planner")
+                          for i in range(5)]
+    term_h, term_w = 50, 120
+    cap = desk_cap(term_h, grid_per_row(term_w))
+    capped = build_desks(cap)
+    if not len(ROSTER) <= len(capped) <= cap:
+        print(f"FAIL desk cap: {len(capped)} desks (cap {cap})")
+        fails += 1
+    frame = render_frame(3, term_w, sel=0, desks=capped)
+    board = next((y for y, (l, _) in enumerate(frame) if "TABLEAU DU MUR" in l), None)
+    if board is None or board >= term_h - 1:
+        print(f"FAIL desk cap: wall board at row {board} of a {term_h}-row terminal")
+        fails += 1
+    if sum(1 for d in capped if "+" in d["name"]) < 1:
+        print(f"FAIL desk cap: hidden loops not folded into a desk title: {[d['name'] for d in capped]}")
         fails += 1
     with LOCK:  # leave no injected loop behind for later checks
         STATE["loops"] = []
     # the per-loop log prefix is anchored: a desk on loop 9 must not claim `worker-95-*.log`
     global LOG_DIR
     real_log_dir = LOG_DIR
-    d9 = {"key": "worker", "id": "worker:x/9", "emoji": "🚢", "name": "WORKER·1", "kind": "looper:worker",
-          "state": ("work", "code", "9"), "loop": {"target": "x/9", "step": "code", "status": "running"}}
+    d9 = {"key": "worker", "id": "worker:x#9", "emoji": "🚢", "name": "WORKER·1", "kind": "looper:worker",
+          "state": ("work", "code", "9"), "loop": {"target": "x#9", "step": "code", "status": "running"}}
     with tempfile.TemporaryDirectory() as tmp:
         LOG_DIR = tmp
         open(os.path.join(tmp, "worker-95-20260101T000000.log"), "w").close()
