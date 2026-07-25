@@ -3,16 +3,53 @@ package scripts
 templ DashboardModal() {
 	<script>
 		window.dashboardModalMixin = {
-			async showAlertDetails(fingerprint) {
+			// Pushes /dashboard/alert/<fp> while keeping the current query string so the
+			// shareable filter state survives the modal. Returns true if an entry was added.
+			pushAlertHistoryEntry(fingerprint) {
+				const newPath = `/dashboard/alert/${fingerprint}`;
+				if (window.location.pathname === newPath) {
+					return false;
+				}
+				window.history.pushState({ alertId: fingerprint }, '', newPath + window.location.search);
+				this.alertModalPushedHistory = true;
+				return true;
+			},
+
+			// Single popstate entry point: the URL is the source of truth for the modal.
+			syncModalWithLocation(event) {
+				const match = window.location.pathname.match(/^\/dashboard\/alert\/([^/]+)$/);
+				if (!match) {
+					if (this.showAlertModal) {
+						this.closeAlertModal({ skipHistory: true });
+					}
+					return;
+				}
+
+				const fingerprint = match[1];
+				// An alertId in the popped state means we pushed this entry ourselves
+				// (Forward after a close), so closing again can safely pop it. A deep
+				// link has no state and must not send the user off the site.
+				this.alertModalPushedHistory = !!event?.state?.alertId;
+				if (this.showAlertModal && this.alertDetails?.alert?.fingerprint === fingerprint) {
+					return;
+				}
+
+				const resolved = (this.resolvedAlerts || []).find(a => a.fingerprint === fingerprint);
+				if (resolved) {
+					this.showResolvedAlertDetails(resolved, { skipHistory: true });
+				} else {
+					this.showAlertDetails(fingerprint, { skipHistory: true });
+				}
+			},
+
+			async showAlertDetails(fingerprint, options) {
 				this.alertDetailsLoading = true;
 				this.showAlertModal = true;
 				this.currentAlertTab = 'overview';
 				this.alertDetails = null;
 
-				const currentPath = window.location.pathname;
-				const newPath = `/dashboard/alert/${fingerprint}`;
-				if (currentPath !== newPath) {
-					window.history.pushState({ alertId: fingerprint }, '', newPath);
+				if (!options?.skipHistory) {
+					this.pushAlertHistoryEntry(fingerprint);
 				}
 
 				try {
@@ -42,17 +79,33 @@ templ DashboardModal() {
 				}
 			},
 
-			closeAlertModal() {
+			closeAlertModal(options) {
 				this.showAlertModal = false;
 				this.alertDetails = null;
 				this.currentAlertTab = 'overview';
-				
+
 				this.newCommentContent = '';
 				this.commentSubmitting = false;
 				this.commentDeleting = {};
-				
-				if (window.location.pathname.includes('/alert/')) {
-					window.history.pushState({}, '', '/dashboard');
+
+				// Called from popstate: the browser already moved us off the alert URL.
+				if (options?.skipHistory) {
+					this.alertModalPushedHistory = false;
+					return;
+				}
+
+				if (!window.location.pathname.includes('/alert/')) {
+					return;
+				}
+
+				if (this.alertModalPushedHistory) {
+					// Pop our own entry instead of stacking a new one - this restores the
+					// exact pre-modal URL (filters included) and keeps Forward working.
+					this.alertModalPushedHistory = false;
+					window.history.back();
+				} else {
+					// Deep link: no entry of ours to pop, so rewrite in place.
+					window.history.replaceState({}, '', '/dashboard' + window.location.search);
 				}
 			},
 
