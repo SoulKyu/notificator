@@ -77,6 +77,8 @@ MAIL_TICKS, PARTY_TICKS = 4, 12  # ~1 s flight, ~3 s banner at 4 fps
 MAIL_SEEN = None   # (box, filename) pairs already counted — None until first poll
 PR_PREV = None     # {number: title} of open PRs at previous poll
 LOOP_SINCE = {}    # (type, target) -> (step, first_seen_ts) — stall detection
+PS_FAIL = 0        # consecutive failed `looper ps` polls
+PS_FAIL_MIN = 2    # ... before the klaxon: one hiccup every ~20 min would beep all day
 ALARM_SEEN = None  # alarm keys already klaxonned — None until the first curses frame
 ALARM_FLASH = None # tick of the last new alarm; the title flashes for KLAXON_TICKS
 KLAXON_TICKS = 12  # ~3 s at 4 fps
@@ -181,9 +183,14 @@ def poll_fast():
         elif "=" in line:
             k, v = line.split("=", 1)
             cur[k] = v
-    track_loops(loops, time.time(), prune=ps_ok)
+    global PS_FAIL
+    PS_FAIL = 0 if ps_ok else PS_FAIL + 1
+    track_loops(loops, time.time(), prune=ps_ok)  # raw ps_ok: one failure still keeps the clocks
     with LOCK:
-        STATE["loops"], STATE["svc"], STATE["ps_ok"] = loops, svc, ps_ok
+        STATE["loops"], STATE["svc"] = loops, svc
+        # ... but the alarm waits for PS_FAIL_MIN in a row: the daemon restarts and
+        # self-upgrades, and beeping for something that healed 3 s ago is alert fatigue
+        STATE["ps_ok"] = PS_FAIL < PS_FAIL_MIN
 
 
 def ago(seconds, fine=False):
@@ -209,8 +216,8 @@ def systemd_ts(s):
 
 
 def alarms(now=None):
-    """-> [(stable key, row)] for a dead looper, failed units and loops stalled past
-    FACTORY_STALL_MIN."""
+    """-> [(stable key, row)] for a dead looper, failed units, loops waiting on a human
+    and loops stalled past FACTORY_STALL_MIN."""
     now = now or time.time()
     with LOCK:
         svc, loops, since_of = dict(STATE["svc"]), list(STATE["loops"]), dict(LOOP_SINCE)
@@ -234,6 +241,13 @@ def alarms(now=None):
         out.append((f"unit:{unit}",
                     f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']}"
                     f"{detail}{age}{restarts}"))
+    # the one alarm where the operator is the blocker: track_loops() drops non-running
+    # loops, so manual_intervention can never surface as a stall row
+    for lp in sorted(loops, key=lambda l: (l["type"], l["target"])):
+        if lp["status"] != "manual_intervention":
+            continue
+        out.append((f"halt:{lp['type']}:{lp['target']}",
+                    f"✋ {lp['type']} {lp['target'].split('/')[-1]} attend une intervention humaine"))
     for (typ, target), (step, since) in sorted(since_of.items()):
         lp = next((l for l in loops if l["type"] == typ and l["target"] == target), None)
         if not lp or lp["status"] != "running" or now - since < STALL_MIN * 60:
@@ -688,9 +702,11 @@ def render_frame(tick, width=92, sel=None, flash=False):
         if len(alrm) > shown:
             hid = alrm[shown:]            # say *what* was swallowed: stall rows always sort last
             n_u = sum(1 for k, _ in hid if k.startswith("unit:"))
+            n_h = sum(1 for k, _ in hid if k.startswith("halt:"))
             n_l = sum(1 for k, _ in hid if k.startswith("loop:"))
-            s_u, s_l = "s" if n_u > 1 else "", "s" if n_l > 1 else ""
+            s_u, s_h, s_l = ("s" if n > 1 else "" for n in (n_u, n_h, n_l))
             tail = " · ".join(p for p in (f"{n_u} unité{s_u} en échec" if n_u else "",
+                                          f"{n_h} loop{s_h} en attente humaine" if n_h else "",
                                           f"{n_l} loop{s_l} bloquée{s_l}" if n_l else "") if p)
             rows.append(("│ " + dpad(f"… +{len(hid)} autres alarmes ({tail})", width - 4) + " │", 4))
     if pending:  # rien en attente → pas de panneau
@@ -1010,13 +1026,26 @@ def selfcheck():
         stub(ps)
         LOOP_SINCE.clear()
         LOOP_SINCE[k57] = ("implement", now - 2820)
-        poll_fast()
+        globals()["PS_FAIL"] = 0
+        for _ in range(1 if ps_ok else PS_FAIL_MIN):  # a failure only alarms once debounced
+            poll_fast()
         if (LOOP_SINCE.get(k57) == ("implement", now - 2820)) != keep:
             print(f"FAIL poll_fast/{name}: LOOP_SINCE = {LOOP_SINCE}")
             fails += 1
         if any(k == "looper:down" for k, _ in alarms(now)) == ps_ok:
             print(f"FAIL poll_fast/{name}: looper:down alarm should be {not ps_ok}")
             fails += 1
+    # the debounce itself: one failed poll is routine, two in a row is the alarm
+    stub("")
+    globals()["PS_FAIL"] = 0
+    poll_fast()
+    if any(k == "looper:down" for k, _ in alarms(now)):
+        print("FAIL poll_fast: a single failed `looper ps` must not raise looper:down")
+        fails += 1
+    poll_fast()
+    if not any(k == "looper:down" for k, _ in alarms(now)):
+        print(f"FAIL poll_fast: looper:down must raise after {PS_FAIL_MIN} failed polls")
+        fails += 1
     # `status` flattens manual_intervention into paused; only displayStatus keeps the desk honest
     stub(json.dumps({"items": [{"type": "fixer", "status": "paused", "loopStatus": "paused",
                                 "displayStatus": "manual_intervention", "currentStep": None,
@@ -1024,6 +1053,10 @@ def selfcheck():
     poll_fast()
     if agent_state("fixer", "looper:fixer")[1] != "manual_intervention":
         print(f"FAIL agent_state: paused loop lost its display status: {agent_state('fixer', 'looper:fixer')}")
+        fails += 1
+    # ... and a desk label is not an alarm: the operator is the blocker here
+    if not any(k == "halt:fixer:SoulKyu/notificator#83" for k, _ in alarms(now)):
+        print(f"FAIL alarms: manual_intervention raised no halt row: {alarms(now)}")
         fails += 1
     # the scheduler starts the loop that just waited 47 min: its clock is the agent's, not the queue's
     fresh = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 5))
