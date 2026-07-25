@@ -113,13 +113,40 @@ def overlay(line, col, s):
 
 # ── data pollers ────────────────────────────────────────────────────────────
 
+def iso_ts(s):
+    """'2026-07-25T05:20:55.942Z' -> epoch (UTC), or None."""
+    try:
+        return calendar.timegm(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+    except Exception:
+        return None
+
+
+def track_loops(loops, now, prune=True):
+    """Refresh LOOP_SINCE. prune=False when the poll produced no usable output — a
+    transient `looper ps` failure must not restart every stall clock at zero."""
+    with LOCK:
+        live = set()
+        for lp in loops:
+            k = (lp["type"], lp["target"])
+            live.add(k)
+            if k not in LOOP_SINCE:  # first sighting: trust looper's clock, not ours
+                LOOP_SINCE[k] = (lp["step"], lp.get("since") or now)
+            elif LOOP_SINCE[k][0] != lp["step"]:
+                LOOP_SINCE[k] = (lp["step"], now)
+        if prune:
+            for k in set(LOOP_SINCE) - live:
+                del LOOP_SINCE[k]
+
+
 def poll_fast():
-    loops = []
-    out = sh("looper ps 2>/dev/null")
-    for line in out.splitlines()[2:]:
-        parts = line.split()
-        if len(parts) >= 7 and parts[1] != "-":
-            loops.append({"type": parts[1], "target": parts[2], "step": parts[3], "status": parts[6]})
+    out = sh("looper ps --json 2>/dev/null")
+    try:
+        items = json.loads(out)["items"]
+    except Exception:
+        items = []
+    loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
+              "step": i.get("currentStep") or "-", "status": i.get("status") or "-",
+              "since": iso_ts((i.get("agent") or {}).get("startedAt"))} for i in items]
     svc = {}
     units = " ".join(k.split(":")[1] + ".service" for _, _, _, k in ROSTER if k.startswith("svc:"))
     out = sh(f"systemctl --user show {units} "
@@ -133,15 +160,7 @@ def poll_fast():
         elif "=" in line:
             k, v = line.split("=", 1)
             cur[k] = v
-    now = time.time()
-    live = set()
-    for lp in loops:
-        k = (lp["type"], lp["target"])
-        live.add(k)
-        if LOOP_SINCE.get(k, (None,))[0] != lp["step"]:
-            LOOP_SINCE[k] = (lp["step"], now)
-    for k in set(LOOP_SINCE) - live:
-        del LOOP_SINCE[k]
+    track_loops(loops, time.time(), prune=bool(out.strip()))
     with LOCK:
         STATE["loops"], STATE["svc"] = loops, svc
 
@@ -171,7 +190,7 @@ def alarms(now=None):
     """-> [(stable key, row)] for failed units and loops stalled past FACTORY_STALL_MIN."""
     now = now or time.time()
     with LOCK:
-        svc, loops = dict(STATE["svc"]), list(STATE["loops"])
+        svc, loops, since_of = dict(STATE["svc"]), list(STATE["loops"]), dict(LOOP_SINCE)
     out = []
     for unit, s in sorted(svc.items()):
         if s.get("Result") in ("success", "", None):
@@ -182,7 +201,7 @@ def alarms(now=None):
         out.append((f"unit:{unit}",
                     f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']} "
                     f"(exit {s.get('ExecMainStatus') or '?'}){age}{restarts}"))
-    for (typ, target), (step, since) in sorted(LOOP_SINCE.items()):
+    for (typ, target), (step, since) in sorted(since_of.items()):
         lp = next((l for l in loops if l["type"] == typ and l["target"] == target), None)
         if not lp or lp["status"] != "running" or now - since < STALL_MIN * 60:
             continue
@@ -822,6 +841,8 @@ def main_curses(scr):
 
 def selfcheck():
     """Alignment invariants: monitor segment = 11 cols in every state, frame rows all equal."""
+    global STALL_MIN
+    STALL_MIN = 30  # pin the knob: alarms() and render_frame() both read it, fixtures assume 30
     fails = 0
     for state in ("work", "break", "sleep", "error", "wait", "away"):
         for tick in range(8):
@@ -915,16 +936,30 @@ def selfcheck():
             if dwidth(line) != 80:
                 print(f"FAIL zoom row {dwidth(line)} cols: {line!r}")
                 fails += 1
-    # alarm panel: one failed unit + one stalled loop, both widths, flashing title
+    # stall bookkeeping: seeded from looper's clock, survives a transient `looper ps` failure
     now = time.time()
+    k57 = ("worker", "SoulKyu/notificator#57")
+    lp57 = {"type": "worker", "target": "SoulKyu/notificator#57", "step": "implement",
+            "status": "running", "since": now - 2820}
+    LOOP_SINCE.clear()
+    track_loops([lp57], now)
+    track_loops([], now + 3, prune=False)  # empty poll ≠ loop gone
+    track_loops([lp57], now + 6)
+    if LOOP_SINCE.get(k57) != ("implement", now - 2820):
+        print(f"FAIL track_loops: stall clock not preserved: {LOOP_SINCE}")
+        fails += 1
+    track_loops([], now + 9)  # genuinely gone → pruned
+    if LOOP_SINCE:
+        print(f"FAIL track_loops: stale entry not pruned: {LOOP_SINCE}")
+        fails += 1
+    track_loops([lp57], now)
+    # alarm panel: one failed unit + one stalled loop, both widths, flashing title
     with LOCK:
         STATE["svc"] = {"notificator-qa": {
             "Id": "notificator-qa.service", "ActiveState": "failed", "Result": "exit-code",
             "ExecMainStatus": "2", "NRestarts": "3",
             "ExecMainExitTimestamp": time.strftime("%a %Y-%m-%d %H:%M:%S %Z", time.localtime(now - 11520))}}
-        STATE["loops"] = [{"type": "worker", "target": "SoulKyu/notificator#57",
-                           "step": "implement", "status": "running"}]
-    LOOP_SINCE[("worker", "SoulKyu/notificator#57")] = ("implement", now - 2820)
+        STATE["loops"] = [lp57]
     a = alarms(now)
     if not (len(a) == 2 and "qa" in a[0][1] and "exit 2" in a[0][1] and "3h12" in a[0][1]
             and "#57" in a[1][1] and "implement" in a[1][1] and "47min" in a[1][1]):
@@ -938,7 +973,7 @@ def selfcheck():
                     fails += 1
     with LOCK:  # unit back to success + loop step moved on → alarms gone, panel gone
         STATE["svc"]["notificator-qa"]["Result"] = "success"
-    LOOP_SINCE[("worker", "SoulKyu/notificator#57")] = ("publish", now)
+    track_loops([dict(lp57, step="publish")], now)
     if alarms(now) or any("ALARMES" in l for l, _ in render_frame(0, 92)):
         print("FAIL alarm panel rendered with no alarm")
         fails += 1

@@ -48,7 +48,7 @@ stays read-only.
 
 | Source | What it feeds | Interval |
 |---|---|---|
-| `looper ps` | looper roles: coordinator, planner, reviewer, fixer, worker | 3 s |
+| `looper ps --json` | looper roles: coordinator, planner, reviewer, fixer, worker | 3 s |
 | `systemctl --user` (services + timers `notificator-*`) | custom agents: scout, roast, qa, rebaser, promoter, groomer, doc, reporter — running / next wake-up / failure | 3–10 s |
 | `gh pr list` / `gh issue list` | the team board | 45 s |
 | `gh pr list` / `gh issue list` (last-24h search, one batched query set) | the 🏆 SCOREBOARD panel: per-agent stats (scout issues/approved, roast verdicts/kills, worker PRs/merged, qa pass/fail), hourly activity sparkline, ⭐ employé du jour — hidden when there is no data, "(github injoignable)" when GitHub is down | 45 s |
@@ -69,8 +69,10 @@ Observable transitions feed a render-side event queue (no extra pollers):
   instead of scrolling past: a `notificator-*` unit whose `Result` is not
   `success` (name, result, exit code, age since `ExecMainExitTimestamp`) and a
   `running` looper loop stuck on the same step past `FACTORY_STALL_MIN`
-  (default 30 min). Rows clear on the unit's next successful run or when the
-  step moves on; no alarm → no panel. Each *new* alarm rings one
+  (default 30 min), aged from `looper ps --json`'s `agent.startedAt` so a
+  restarted TUI does not reset the clock. Rows clear on the unit's next
+  successful run or when the step moves on; no alarm → no panel. Each *new*
+  alarm rings one
   `curses.beep()` and flashes the panel title for ~3 s (live TUI only —
   `--once` and `--check` never beep)
 - **☕ coffee corner** — when the terminal leaves enough spare width, a coffee
