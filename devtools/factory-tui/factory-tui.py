@@ -723,31 +723,42 @@ def grid_per_row(width):
     return per_row
 
 
-def panel_rows():
-    """Non-office rows of the frame about to be drawn. Four of the five panels are conditional in
-    render_frame, so a worst-case constant charges ~16 rows that are usually not drawn and pins the
-    cap at len(ROSTER) below a 55-row terminal — the dynamic desks would never appear."""
-    n = 1 + 3 + 1 + 1  # title + wall board (header + PRs + issues) + radio + bottom border
+def panel_snapshot():
+    """One read of everything drawn below the office. desk_cap budgets for these rows and
+    render_frame emits them, so both must see the same values: reading STATE twice leaves the
+    unlocked build_desks/key-dispatch/office loop in between, and a poll landing in that window
+    makes the frame taller than the budget it was granted."""
     with LOCK:
-        if STATE["intercom"]:
-            n += 1 + len(STATE["intercom"])
-        if STATE["score"]:
-            n += 2 if STATE["score"] == "err" else 4
-        if STATE["pending"]:
-            n += 1 + min(len(STATE["pending"]), PENDING_MAX) + (len(STATE["pending"]) > PENDING_MAX)
-        if STATE["err"]:
-            n += 1
+        return {"prs": list(STATE["prs"]), "issues": STATE["issues"], "ticker": STATE["ticker"],
+                "err": STATE["err"], "intercom": list(STATE["intercom"]),
+                "score": STATE["score"], "pending": list(STATE["pending"])}
+
+
+def panel_rows(p):
+    """Non-office rows of the frame about to be drawn, from a panel_snapshot. Four of the five
+    panels are conditional in render_frame, so a worst-case constant charges ~16 rows that are
+    usually not drawn and pins the cap at len(ROSTER) below a 55-row terminal — the dynamic desks
+    would never appear."""
+    n = 1 + 3 + 1 + 1  # title + wall board (header + PRs + issues) + radio + bottom border
+    if p["intercom"]:
+        n += 1 + len(p["intercom"])
+    if p["score"]:
+        n += 2 if p["score"] == "err" else 4
+    if p["pending"]:
+        n += 1 + min(len(p["pending"]), PENDING_MAX) + (len(p["pending"]) > PENDING_MAX)
+    if p["err"]:
+        n += 1
     return n
 
 
-def desk_cap(h, per_row):
+def desk_cap(h, per_row, p):
     """Desks that still leave room for the panels below the office — an unbounded grid silently
     swallows the wall board and the radio. Budget is h-1: main_curses stops drawing at h-1, so
     on `h - panels` landing on a multiple of 8 an h-row frame loses its closing border."""
-    return max(len(ROSTER), max(1, (h - 1 - panel_rows()) // 8) * per_row)
+    return max(len(ROSTER), max(1, (h - 1 - panel_rows(p)) // 8) * per_row)
 
 
-def render_frame(tick, width=92, sel=None, desks=None, flash=False):
+def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False):
     desks = build_desks() if desks is None else desks
     rows = []
     t = time.strftime("%H:%M:%S")
@@ -775,9 +786,9 @@ def render_frame(tick, width=92, sel=None, desks=None, flash=False):
                 line = dpad(line, used) + coffee[li]
             rows.append((dpad(line, width - 1) + "│", 0))
     office_rows = (len(desks) + per_row - 1) // per_row
-    with LOCK:
-        prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
-        intercom, score, pending = list(STATE["intercom"]), STATE["score"], list(STATE["pending"])
+    p = panel_snapshot() if panels is None else panels  # caller's snapshot: the one desk_cap budgeted
+    prs, issues, ticker, err = p["prs"], p["issues"], p["ticker"], p["err"]
+    intercom, score, pending = p["intercom"], p["score"], p["pending"]
     if intercom:
         rows.append(("│" + dpad(" ═══ 💬 INTERCOM ", width - 2, fill="═") + "│", 0))
         for msg in intercom:
@@ -985,7 +996,8 @@ def main_curses(scr):
         # desks appear/disappear mid-list with concurrent loops — re-resolve by id, not position.
         # A desk vanishing auto-closes the zoom and swallows this frame's keystroke, so an Esc
         # meaning "close the panel" can't fall through to the navigation branch and quit the TUI.
-        desks = build_desks(desk_cap(h, per_row), keep=zoom_id)
+        panels = panel_snapshot()  # one read per frame: the cap and the frame must agree
+        desks = build_desks(desk_cap(h, per_row, panels), keep=zoom_id)
         sel = desk_resolve(desks, sel_id, sel)
         zoom = desk_index(desks, zoom_id) if zoom_id else None
         if zoom is None and zoom_id:
@@ -1018,7 +1030,8 @@ def main_curses(scr):
                 if msg:
                     note = send_summon(desks[zoom]["key"], msg)
         scr.erase()
-        for y, (line, color) in enumerate(render_frame(tick, width, sel, desks, flash=klaxon(tick))):
+        for y, (line, color) in enumerate(render_frame(tick, width, sel, desks, panels,
+                                                       flash=klaxon(tick))):
             if y >= h - 1:
                 break
             try:
@@ -1410,12 +1423,13 @@ def selfcheck():
     # 55 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 22 panel rows = 54 frame
     # rows, and main_curses draws h-1 of them. Below that no cap fits the panels, so nothing to assert.
     for term_h in range(55, 70):
-        cap = desk_cap(term_h, grid_per_row(term_w))
+        panels = panel_snapshot()
+        cap = desk_cap(term_h, grid_per_row(term_w), panels)
         capped = build_desks(cap)
         if not len(ROSTER) <= len(capped) <= cap:
             print(f"FAIL desk cap: {len(capped)} desks (cap {cap}) at h={term_h}")
             fails += 1
-        frame = render_frame(3, term_w, sel=0, desks=capped)
+        frame = render_frame(3, term_w, sel=0, desks=capped, panels=panels)
         board = next((y for y, (l, _) in enumerate(frame) if "TABLEAU DU MUR" in l), None)
         if board is None or board >= term_h - 1:
             print(f"FAIL desk cap: wall board at row {board} of a {term_h}-row terminal")
@@ -1434,18 +1448,33 @@ def selfcheck():
             if dwidth(line) != term_w:
                 print(f"FAIL capped row {dwidth(line)} cols at h={term_h}: {line!r}")
                 fails += 1
+    # the budget and the frame must come out of one read of STATE. Cap on an empty office, let a
+    # poll fill every panel in the gap, then draw: re-reading STATE here would emit the 16 rows the
+    # budget never granted and push the board past h-1, so the frame must honour the snapshot.
+    with LOCK:
+        STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
+    quiet, term_h = panel_snapshot(), 60
+    capped = build_desks(desk_cap(term_h, grid_per_row(term_w), quiet))
+    with LOCK:  # the poller lands between desk_cap() and render_frame()
+        STATE["pending"] = [f"attente {i}" for i in range(PENDING_MAX + 4)]
+        STATE["intercom"] = [f"a → b: msg {i}" for i in range(3)]
+        STATE["err"], STATE["score"] = "poll error", s
+    frame = render_frame(3, term_w, sel=0, desks=capped, panels=quiet)
+    if len(frame) > term_h - 1:
+        print(f"FAIL panel snapshot: poll in the gap grew the frame to {len(frame)} rows at h={term_h}")
+        fails += 1
     # the zoomed desk is a centred overlay, not a grid slot: the cap must never trim it out from
     # under the operator. h=50 with every panel up caps at the len(ROSTER) floor, so without `keep`
     # every WORKER·N but the first is gone and desk_index returns None → the panel closes mid-read.
     top_worker = max((d for d in build_desks() if d["key"] == "worker"), key=lambda d: d["name"])["id"]
-    kept = build_desks(desk_cap(50, grid_per_row(term_w)), keep=top_worker)
+    kept = build_desks(desk_cap(50, grid_per_row(term_w), panel_snapshot()), keep=top_worker)
     if desk_index(kept, top_worker) is None:
         print(f"FAIL desk cap: zoomed desk trimmed away: {[d['name'] for d in kept]}")
         fails += 1
     with LOCK:  # …and with no optional panel drawn the budget must hand the extra rows back out:
         STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
-    if desk_cap(50, grid_per_row(term_w)) <= len(ROSTER):  # a worst-case constant pins this at 13
-        print(f"FAIL desk cap: no panels drawn still caps at {desk_cap(50, grid_per_row(term_w))}")
+    if desk_cap(50, grid_per_row(term_w), panel_snapshot()) <= len(ROSTER):  # a constant pins this at 13
+        print(f"FAIL desk cap: no panels drawn still caps at {desk_cap(50, grid_per_row(term_w), panel_snapshot())}")
         fails += 1
     # 📬 counts a role's inbox, so it belongs on the desk the mail flight lands on — one badge,
     # not one per concurrent loop, which would read as three messages queued for three people
@@ -1509,7 +1538,9 @@ def selfcheck():
         fails += 1
     # valid JSON of the wrong shape is the other half of the blast radius: a bare list, a null,
     # or a `target` serialised as the plain label all used to raise AttributeError out of poll_fast
-    for bad in ("[]", "null", '{"items": [{"type": "worker", "target": "owner/repo#1"}]}'):
+    # no stdout at all is the same verdict, and deliberately so: sh() returns "" for a missing
+    # binary and for a 20 s timeout alike, neither of which is an idle factory
+    for bad in ("[]", "null", '{"items": [{"type": "worker", "target": "owner/repo#1"}]}', "", "   \n"):
         if parse_ps(bad) != ([], False):
             print(f"FAIL ps parse: unshaped JSON {bad} → {parse_ps(bad)}")
             fails += 1
