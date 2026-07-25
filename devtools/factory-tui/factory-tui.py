@@ -223,7 +223,8 @@ def alarms(now=None):
             continue
         t = systemd_ts(s.get("ExecMainExitTimestamp"))
         age = f" il y a {ago(now - t, fine=True)}" if t else ""
-        restarts = f" · {s['NRestarts']} restarts" if (s.get("NRestarts") or "0") != "0" else ""
+        n = int(s.get("NRestarts") or "0")
+        restarts = f" · {n} redémarrage{'s' if n > 1 else ''}" if n else ""
         code = "signal" if s.get("ExecMainCode") in ("2", "3") else "exit"  # si_code 2/3 = killed/dumped
         out.append((f"unit:{unit}",
                     f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']} "
@@ -1039,7 +1040,7 @@ def selfcheck():
     stub('{"items": []}')  # no loops: the only alarm left is the failed unit
     poll_fast()
     row = next((r for k, r in alarms(now) if k == "unit:notificator-reporter"), "")
-    if not all(x in row for x in ("core-dump", "signal 11", "2 restarts", "il y a")):
+    if not all(x in row for x in ("core-dump", "signal 11", "2 redémarrages", "il y a")):
         print(f"FAIL alarms: systemctl -p list drifted from what alarms() reads: {row!r}")
         fails += 1
     if any(k == "unit:notificator-qa" for k, _ in alarms(now)):
@@ -1074,6 +1075,15 @@ def selfcheck():
                 if dwidth(line) != w:
                     print(f"FAIL alarm row {dwidth(line)} cols (want {w}): {line!r}")
                     fails += 1
+            top = next(i for i, (l, _) in enumerate(frame) if "ALARMES" in l)
+            body = 0  # the panel ends at the next panel header
+            for l, _ in frame[top + 1:]:
+                if "═══" in l:
+                    break
+                body += 1
+            if body != ALARM_ROWS + 1:  # capped rows + the one summarising tail
+                print(f"FAIL alarm panel is {body} rows, want {ALARM_ROWS} + tail (w={w})")
+                fails += 1
             # the hidden tail names its categories, so a swallowed stall row is still visible
             tail = f"+{len(a) - ALARM_ROWS} autres alarmes (2 unités en échec · 1 loop bloquée)"
             if sum(1 for l, _ in frame if tail in l) != 1:
