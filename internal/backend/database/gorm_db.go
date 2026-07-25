@@ -227,6 +227,10 @@ func (gdb *GormDB) GetUserByID(userID string) (*models.User, error) {
 	return &user, nil
 }
 
+func (gdb *GormDB) UpdateUserTimezone(userID, timezone string) error {
+	return gdb.db.Model(&models.User{}).Where("id = ?", userID).Update("timezone", timezone).Error
+}
+
 func (gdb *GormDB) UpdateLastLogin(userID string) error {
 	now := time.Now()
 	return gdb.db.Model(&models.User{}).Where("id = ?", userID).Update("last_login", &now).Error

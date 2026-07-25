@@ -239,6 +239,9 @@ func (c *BackendClient) ValidateSession(sessionID string) (*User, error) {
 	if resp.User.OauthId != "" {
 		user.OAuthID = &resp.User.OauthId
 	}
+	if resp.User.Timezone != "" {
+		user.Timezone = &resp.User.Timezone
+	}
 
 	return user, nil
 }
@@ -272,8 +275,34 @@ func (c *BackendClient) GetProfile(sessionID string) (*User, error) {
 	if resp.User.OauthId != "" {
 		user.OAuthID = &resp.User.OauthId
 	}
+	if resp.User.Timezone != "" {
+		user.Timezone = &resp.User.Timezone
+	}
 
 	return user, nil
+}
+
+// UpdateTimezone persists the user's IANA timezone preference
+func (c *BackendClient) UpdateTimezone(sessionID, timezone string) error {
+	if c.authClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.authClient.UpdateTimezone(ctx, &authpb.UpdateTimezoneRequest{
+		SessionId: sessionID,
+		Timezone:  timezone,
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+
+	return nil
 }
 
 // Alert acknowledgment and resolution methods
