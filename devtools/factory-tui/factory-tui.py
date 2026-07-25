@@ -54,7 +54,8 @@ SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
 ZOOM_TAIL = 15
 
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
-         "mail_pending": {}, "intercom": [], "score": None, "events": []}
+         "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": []}
+PENDING_MAX = 5
 LOCK = threading.Lock()
 
 # one-shot animations, consumed by the render loop (render-side state only)
@@ -179,16 +180,52 @@ def poll_med():
         STATE["events"].extend(events[:6])
 
 
+def ts(s):
+    """GitHub timestamp -> epoch seconds, or None."""
+    try:
+        return calendar.timegm(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+    except Exception:
+        return None
+
+
+def ago(sec):
+    """Compact age: 42min · 4h · 3j."""
+    if sec < 3600:
+        return f"{max(0, int(sec // 60))}min"
+    if sec < 86400:
+        return f"{int(sec // 3600)}h"
+    return f"{int(sec // 86400)}j"
+
+
+def compute_pending(prs, issues, now):
+    """Ball-in-your-court items from raw gh JSON, oldest first. -> [str]
+
+    Covers the two gates the loop cannot pass on its own: a PR whose every gate is
+    green (`ready-to-merge`) and an issue parked on `looper:hold`. `rebase:conflict`
+    is deliberately out of scope — the rebaser owns that lane.
+    """
+    rows = []
+    for p in prs:
+        labels = {l["name"] for l in p.get("labels", [])}
+        # `looper:review` is never cleared (it survives merge), so it says nothing
+        # about the gate — `ready-to-merge` is what the agents actually set last.
+        if (p.get("isDraft") or p.get("mergeable") != "MERGEABLE"
+                or "ready-to-merge" not in labels or "qa:failed" in labels
+                or "looper:spec-reviewing" in labels):
+            continue
+        t = ts(p.get("updatedAt")) or now
+        rows.append((t, f"🚢 PR#{p['number']} prête à merger — {ago(now - t)}"))
+    for i in issues:
+        if not any(l["name"] == "looper:hold" for l in i.get("labels", [])):
+            continue
+        t = ts(i.get("updatedAt")) or now
+        rows.append((t, f"⛔ #{i['number']} {i.get('title', '')[:50]} — attend ton go"))
+    return [r for _, r in sorted(rows, key=lambda x: x[0])]
+
+
 def compute_score(issues, prs, now):
     """24h team stats from raw gh JSON. -> dict, or None when nothing happened."""
     cutoff = now - 86400
-
-    def ts(s):
-        try:
-            return calendar.timegm(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
-        except Exception:
-            return None
-
     sc = {"scout": 0, "scout_ok": 0, "roast": 0, "kills": 0,
           "prs": 0, "merged": 0, "qa_ok": 0, "qa_ko": 0}
     events = []
@@ -238,16 +275,17 @@ def compute_score(issues, prs, now):
 
 def poll_slow():
     global PR_PREV
-    prs, events = [], []
-    out = sh(f"gh pr list -R {shlex.quote(REPO)} --state open --json number,title,labels,mergeable 2>/dev/null", 30)
+    prs, events, open_prs, open_issues = [], [], [], []
+    out = sh(f"gh pr list -R {shlex.quote(REPO)} --state open "
+             f"--json number,title,labels,mergeable,isDraft,updatedAt 2>/dev/null", 30)
     if not out.strip():
         # `gh` returns "[]" for zero PRs — an empty string means GitHub is unreachable
         with LOCK:
             STATE["prs"], STATE["issues"] = ["(github injoignable)"], "(github injoignable)"
-            STATE["score"] = "err"
+            STATE["score"], STATE["pending"] = "err", []
         return
     try:
-        data = json.loads(out or "[]")
+        data = open_prs = json.loads(out or "[]")
         for p in data:
             labels = {l["name"] for l in p["labels"]}
             tag = ("💥conflit" if p.get("mergeable") == "CONFLICTING" else
@@ -268,15 +306,22 @@ def poll_slow():
         PR_PREV = now_open
     except Exception:
         pass
-    out = sh(f"gh issue list -R {shlex.quote(REPO)} --state open --json labels 2>/dev/null", 30)
-    try:
-        iss = json.loads(out or "[]")
-        held = sum(1 for i in iss if any(l["name"] == "looper:hold" for l in i["labels"]))
-        agent = sum(1 for i in iss if any(l["name"] == "agent:proposed" for l in i["labels"]))
+    out = sh(f"gh issue list -R {shlex.quote(REPO)} --state open --json number,title,labels,updatedAt 2>/dev/null", 30)
+    # same rule as the PR query: "" means unreachable, so say so instead of
+    # publishing a hold queue we know is missing rows
+    issues_ok = bool(out.strip())
+    if not issues_ok:
         with LOCK:
-            STATE["issues"] = f"issues: {len(iss)} open · {agent} agents · {held} hold"
-    except Exception:
-        pass
+            STATE["issues"] = "(github injoignable)"
+    else:
+        try:
+            iss = open_issues = json.loads(out)
+            held = sum(1 for i in iss if any(l["name"] == "looper:hold" for l in i["labels"]))
+            agent = sum(1 for i in iss if any(l["name"] == "agent:proposed" for l in i["labels"]))
+            with LOCK:
+                STATE["issues"] = f"issues: {len(iss)} open · {agent} agents · {held} hold"
+        except Exception:
+            issues_ok = False
     since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 86400))
     i_out = sh(f"gh issue list -R {shlex.quote(REPO)} --state all --limit 200 "
                f"--search {shlex.quote(f'created:>{since}')} --json labels,createdAt 2>/dev/null", 30)
@@ -290,8 +335,12 @@ def poll_slow():
             score = compute_score(json.loads(i_out), json.loads(p_out), time.time())
         except Exception:
             score = None
+    pending = compute_pending(open_prs, open_issues, time.time())
+    if not issues_ok:
+        pending.append("⛔ hold: (github injoignable)")
     with LOCK:
         STATE["prs"], STATE["score"] = prs, score
+        STATE["pending"] = pending
         STATE["events"].extend(events)
 
 
@@ -511,7 +560,7 @@ def render_frame(tick, width=92, sel=None):
     office_rows = (len(ROSTER) + per_row - 1) // per_row
     with LOCK:
         prs, issues, ticker, err = STATE["prs"], STATE["issues"], STATE["ticker"], STATE["err"]
-        intercom, score = list(STATE["intercom"]), STATE["score"]
+        intercom, score, pending = list(STATE["intercom"]), STATE["score"], list(STATE["pending"])
     if intercom:
         rows.append(("│" + dpad(" ═══ 💬 INTERCOM ", width - 2, fill="═") + "│", 0))
         for msg in intercom:
@@ -528,6 +577,12 @@ def render_frame(tick, width=92, sel=None):
                          + dpad(f"🧪 qa     {score['qa_ok']} ✓ · {score['qa_ko']} ✗", width - 4 - half) + " │", 5))
             star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
             rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
+    if pending:  # rien en attente → pas de panneau
+        rows.append(("│" + dpad(" ═══ 🙋 EN ATTENTE DE TOI ", width - 2, fill="═") + "│", 0))
+        for row in pending[:PENDING_MAX]:
+            rows.append(("│ " + dpad(row, width - 4) + " │", 6))
+        if len(pending) > PENDING_MAX:
+            rows.append(("│ " + dpad(f"… +{len(pending) - PENDING_MAX} autres", width - 4) + " │", 5))
     rows.append(("│" + dpad(" ═══ 📌 TABLEAU DU MUR ", width - 2, fill="═") + "│", 0))
     board_pos = (width // 2, len(rows) - 1)
     rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
@@ -713,8 +768,39 @@ def selfcheck():
     if compute_score([], [], now) is not None:
         print("FAIL compute_score: empty input should be None")
         fails += 1
+    # a real merge-ready PR still carries `looper:review` — the reviewer agent never
+    # clears it — so the positive fixture has to as well, or the filter is untested
+    ready = {"number": 72, "labels": [{"name": "qa:passed"}, {"name": "looper:review"},
+                                      {"name": "ready-to-merge"}],
+             "mergeable": "MERGEABLE", "isDraft": False, "updatedAt": "2026-01-01T20:00:00Z"}
+    pending_prs = [ready,
+                   dict(ready, number=73, isDraft=True),
+                   dict(ready, number=74, mergeable="CONFLICTING"),
+                   dict(ready, number=75, labels=ready["labels"] + [{"name": "qa:failed"}]),
+                   dict(ready, number=76, labels=ready["labels"] + [{"name": "looper:spec-reviewing"}]),
+                   dict(ready, number=77, labels=[{"name": "qa:passed"}, {"name": "looper:review"}]),
+                   dict(ready, number=78, updatedAt="2026-01-01T23:00:00Z")]
+    pending_issues = [{"number": 67, "title": "daily reports", "labels": [{"name": "looper:hold"}],
+                       "updatedAt": "2025-12-30T00:00:00Z"},
+                      {"number": 68, "title": "libre", "labels": [{"name": "agent:proposed"}],
+                       "updatedAt": "2025-12-30T00:00:00Z"}]
+    pend = compute_pending(pending_prs, pending_issues, now)
+    # #72/#78 are the regression that matters: green gates *and* the sticky review lane
+    if pend != ["⛔ #67 daily reports — attend ton go", "🚢 PR#72 prête à merger — 4h",
+                "🚢 PR#78 prête à merger — 1h"]:
+        print(f"FAIL compute_pending: {pend}")
+        fails += 1
+    if compute_pending([], [], now) != []:
+        print("FAIL compute_pending: nothing pending should be empty")
+        fails += 1
+    # a long issue title must not eat the "— attend ton go" marker
+    long_row = compute_pending([], [dict(pending_issues[0], title="t" * 200)], now)[0]
+    if not long_row.endswith(" — attend ton go") or len(long_row) > 80:
+        print(f"FAIL compute_pending: long title not bounded: {long_row!r}")
+        fails += 1
     with LOCK:
         STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300,
+                     pending=pend + [f"⛔ #{n} titre très long ✨ {'é' * 60} — attend ton go" for n in range(80, 85)],
                      mail_pending={"scout": 2}, intercom=["roast → scout: amend #1 📬", "scout → roast: done"],
                      events=[{"kind": "mail", "frm": "scout", "to": "worker"},
                              {"kind": "mail", "frm": "inconnu", "to": "qa"},
@@ -727,6 +813,16 @@ def selfcheck():
                 if dwidth(line) != w:
                     print(f"FAIL row {dwidth(line)} cols (want {w}): {line!r}")
                     fails += 1
+    # pending tray: capped with an overflow marker, absent when the queue is empty
+    body = "\n".join(l for l, _ in render_frame(1, 92))
+    if "🙋 EN ATTENTE DE TOI" not in body or "… +3 autres" not in body:
+        print("FAIL pending panel: header or overflow marker missing")
+        fails += 1
+    with LOCK:
+        STATE["pending"] = []
+    if "EN ATTENTE" in "\n".join(l for l, _ in render_frame(1, 92)):
+        print("FAIL pending panel rendered with nothing pending")
+        fails += 1
     # control room: selected border and zoom panel keep every row at exact width
     for line, _ in render_frame(3, 92, sel=5):
         if dwidth(line) != 92:
