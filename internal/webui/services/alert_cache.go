@@ -40,6 +40,16 @@ type alertFetcher interface {
 	FetchAllAlertsDetailed() ([]alertmanager.AlertWithSource, map[string]error)
 }
 
+// collabLoader abstracts the backend calls that feed collaboration state into the
+// cache, so tests can exercise the dedup guards in loadAcknowledgmentsEfficiently
+// and loadCommentCountsEfficiently without a live backend.
+// *client.BackendClient satisfies it.
+type collabLoader interface {
+	IsConnected() bool
+	GetAllAcknowledgedAlerts(alertKeys []string) (map[string]*alertpb.Acknowledgment, error)
+	GetCommentCountsBatch(fingerprints []string) (map[string]int, error)
+}
+
 // maxBackendWorkers bounds concurrent backend calls spawned by a refresh cycle,
 // so a large diff cannot stampede the backend with thousands of gRPC calls.
 const maxBackendWorkers = 8
@@ -56,6 +66,7 @@ type AlertCache struct {
 	userHiddenAlerts   map[string]map[string]bool             // userID -> fingerprint -> hidden
 	alertmanagerClient alertFetcher
 	backendClient      *client.BackendClient
+	collabClient       collabLoader // same object as backendClient, narrowed so tests can fake it
 	colorService       *ColorService
 	backendSem         chan struct{} // semaphore bounding refresh-triggered backend calls
 
@@ -108,11 +119,19 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 		fetcher = amClient
 	}
 
+	// Same care for the collaboration seam: a typed-nil in the interface would
+	// defeat the nil check in loadBackendData.
+	var collab collabLoader
+	if backendClient != nil {
+		collab = backendClient
+	}
+
 	return &AlertCache{
 		alerts:                make(map[string]*webuimodels.DashboardAlert),
 		userHiddenAlerts:      make(map[string]map[string]bool),
 		alertmanagerClient:    fetcher,
 		backendClient:         backendClient,
+		collabClient:          collab,
 		colorService:          NewColorService(backendClient),
 		cachedColors:          make(map[string]map[string]*AlertColorResult),
 		backendSem:            make(chan struct{}, maxBackendWorkers),
@@ -220,7 +239,11 @@ func (ac *AlertCache) refreshAlerts() {
 		if existingAlert, exists := ac.alerts[fingerprint]; !exists {
 			ac.alerts[fingerprint] = dashAlert
 			ac.newAlerts = append(ac.newAlerts, fingerprint)
-			newAlertsForSSE = append(newAlertsForSSE, dashAlert)
+			// Snapshot, never the cache-resident pointer: the backend loaders and
+			// MutateAlert write to it under ac.mu while the SSE handler serialises
+			// the payload holding no lock.
+			alertCopy := *dashAlert
+			newAlertsForSSE = append(newAlertsForSSE, &alertCopy)
 
 			// Capture alert fired event for statistics
 			ac.runBounded(func() {
@@ -293,12 +316,10 @@ func (ac *AlertCache) refreshAlerts() {
 
 	log.Printf("Alert cache refresh complete: %d active alerts, %d newly resolved", activeCount, resolvedCount)
 
-	ac.loadBackendData()
-
-	// Refresh color cache for all active users after alerts are updated
-	go ac.RefreshAllCachedColors()
-
-	// Notify SSE subscribers if there are any changes
+	// Emit the poll diff before anything else can write to the cache. These are
+	// snapshots taken under ac.mu, so a collaboration write landing right after the
+	// unlock above must not be allowed to push its fresher payload first and then be
+	// overwritten by this older one — the dashboard replaces alert objects wholesale.
 	if len(newAlertsForSSE) > 0 || len(updatedAlertsForSSE) > 0 || len(removedFingerprints) > 0 {
 		update := &webuimodels.DashboardIncrementalUpdate{
 			NewAlerts:      newAlertsForSSE,
@@ -308,6 +329,11 @@ func (ac *AlertCache) refreshAlerts() {
 		}
 		ac.notifySubscribers(update)
 	}
+
+	ac.loadBackendData()
+
+	// Refresh color cache for all active users after alerts are updated
+	go ac.RefreshAllCachedColors()
 }
 
 func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string) *webuimodels.DashboardAlert {
@@ -496,11 +522,11 @@ func (ac *AlertCache) MutateAlert(fingerprint string, fn func(*webuimodels.Dashb
 
 func (ac *AlertCache) loadBackendData() {
 	log.Printf("loadBackendData called - checking backend connection...")
-	if ac.backendClient == nil {
+	if ac.collabClient == nil {
 		log.Printf("Backend client is nil - skipping acknowledgment loading")
 		return
 	}
-	if !ac.backendClient.IsConnected() {
+	if !ac.collabClient.IsConnected() {
 		log.Printf("Backend client not connected - skipping acknowledgment loading")
 		return
 	}
@@ -528,7 +554,7 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 	}
 
 	// Step 2: call gRPC with NO lock held
-	acknowledgedAlerts, err := ac.backendClient.GetAllAcknowledgedAlerts(fingerprints)
+	acknowledgedAlerts, err := ac.collabClient.GetAllAcknowledgedAlerts(fingerprints)
 	if err != nil {
 		log.Printf("Failed to load acknowledged alerts from backend: %v", err)
 		return
@@ -624,7 +650,7 @@ func (ac *AlertCache) loadCommentCountsEfficiently() {
 	}
 
 	// Step 2: call gRPC with NO lock held
-	counts, err := ac.backendClient.GetCommentCountsBatch(fingerprints)
+	counts, err := ac.collabClient.GetCommentCountsBatch(fingerprints)
 	if err != nil {
 		log.Printf("Failed to load comment counts batch: %v", err)
 		// Reset all comment counts to 0 on error
