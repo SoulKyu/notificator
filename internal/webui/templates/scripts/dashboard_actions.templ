@@ -14,8 +14,11 @@ templ DashboardActions() {
 				}
 			},
 
-			// Every action handler calls this on entry so a new attempt never runs
-			// under the banner of an older one, whatever branch the attempt ends in.
+			// Every action handler calls this when an attempt starts — the
+			// fire-and-forget ones on entry, submitAcknowledgment/submitSilence once
+			// their input passes validation — so a new attempt never runs under the
+			// banner of an older one, whatever branch the attempt ends in. Modal
+			// failures land in ackError/silenceError, not here.
 			clearActionError() {
 				clearTimeout(this._actionErrorTimer);
 				this.actionError = '';
@@ -67,6 +70,7 @@ templ DashboardActions() {
 				
 				this.ackSubmitting = true;
 				this.ackError = '';
+				this.clearActionError();
 				
 				try {
 					let request;
@@ -533,6 +537,7 @@ templ DashboardActions() {
 				
 				this.silenceSubmitting = true;
 				this.silenceError = '';
+				this.clearActionError();
 				
 				try {
 					let request;
