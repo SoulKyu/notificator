@@ -243,17 +243,15 @@ templ DashboardResolvedAlertsMixin() {
 			// Show alert details from resolved tab
 			// Uses dedicated statistics endpoint since resolved alerts are not in the live cache
 			// Also checks live cache for current status (in case alert is still firing/silenced)
-			async showResolvedAlertDetails(alert) {
+			async showResolvedAlertDetails(alert, options) {
 				this.alertDetailsLoading = true;
 				this.showAlertModal = true;
 				this.currentAlertTab = 'overview';
 				this.alertDetails = null;
 
 				const fingerprint = alert.fingerprint;
-				const currentPath = window.location.pathname;
-				const newPath = `/dashboard/alert/${fingerprint}`;
-				if (currentPath !== newPath) {
-					window.history.pushState({ alertId: fingerprint }, '', newPath);
+				if (!options?.skipHistory) {
+					this.pushAlertHistoryEntry(fingerprint);
 				}
 
 				try {
@@ -308,11 +306,11 @@ templ DashboardResolvedAlertsMixin() {
 						}
 					} else {
 						console.error('Failed to load resolved alert details:', statsResult.error || 'Unknown error');
-						this.closeAlertModal();
+						this.closeAlertModal(options);
 					}
 				} catch (error) {
 					console.error('Error loading resolved alert details:', error);
-					this.closeAlertModal();
+					this.closeAlertModal(options);
 				} finally {
 					this.alertDetailsLoading = false;
 				}

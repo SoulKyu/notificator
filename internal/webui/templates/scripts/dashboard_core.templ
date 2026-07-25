@@ -68,6 +68,7 @@ templ DashboardCore() {
 				customDurationError: '',
 				
 				showAlertModal: false,
+				alertModalPushedHistory: false,
 				alertDetails: null,
 				currentAlertTab: 'overview',
 				alertDetailsLoading: false,
@@ -361,6 +362,9 @@ templ DashboardCore() {
 					}
 					
 					this.checkAlertFromURL();
+
+					// Keep the alert modal in sync with Back/Forward navigation.
+					window.addEventListener('popstate', (event) => this.syncModalWithLocation(event));
 
 					document.addEventListener('visibilitychange', async () => {
 						if (!document.hidden) {

@@ -3,16 +3,60 @@ package scripts
 templ DashboardModal() {
 	<script>
 		window.dashboardModalMixin = {
-			async showAlertDetails(fingerprint) {
+			// Pushes /dashboard/alert/<fp> while keeping the current query string so the
+			// shareable filter state survives the modal.
+			pushAlertHistoryEntry(fingerprint) {
+				const newPath = `/dashboard/alert/${fingerprint}`;
+				if (window.location.pathname === newPath) {
+					return;
+				}
+				const url = newPath + window.location.search;
+				if (this.alertModalPushedHistory) {
+					// Chained open (e.g. a notification click while the modal is up): we
+					// already own the current entry, so swap it instead of stacking one
+					// the close would never pop.
+					window.history.replaceState({ alertId: fingerprint }, '', url);
+					return;
+				}
+				window.history.pushState({ alertId: fingerprint }, '', url);
+				this.alertModalPushedHistory = true;
+			},
+
+			// Single popstate entry point: the URL is the source of truth for the modal.
+			syncModalWithLocation(event) {
+				const match = window.location.pathname.match(/^\/dashboard\/alert\/([^/]+)$/);
+				if (!match) {
+					if (this.showAlertModal) {
+						this.closeAlertModal({ skipHistory: true });
+					}
+					return;
+				}
+
+				const fingerprint = match[1];
+				// An alertId in the popped state means we pushed this entry ourselves
+				// (Forward after a close), so closing again can safely pop it. A deep
+				// link has no state and must not send the user off the site.
+				this.alertModalPushedHistory = !!event?.state?.alertId;
+				if (this.showAlertModal && this.alertDetails?.alert?.fingerprint === fingerprint) {
+					return;
+				}
+
+				const resolved = (this.resolvedAlerts || []).find(a => a.fingerprint === fingerprint);
+				if (resolved) {
+					this.showResolvedAlertDetails(resolved, { skipHistory: true });
+				} else {
+					this.showAlertDetails(fingerprint, { skipHistory: true });
+				}
+			},
+
+			async showAlertDetails(fingerprint, options) {
 				this.alertDetailsLoading = true;
 				this.showAlertModal = true;
 				this.currentAlertTab = 'overview';
 				this.alertDetails = null;
 
-				const currentPath = window.location.pathname;
-				const newPath = `/dashboard/alert/${fingerprint}`;
-				if (currentPath !== newPath) {
-					window.history.pushState({ alertId: fingerprint }, '', newPath);
+				if (!options?.skipHistory) {
+					this.pushAlertHistoryEntry(fingerprint);
 				}
 
 				try {
@@ -31,28 +75,49 @@ templ DashboardModal() {
 						this.alertDetails = result.data;
 					} else {
 						console.error('Failed to load alert details: ' + result.error);
-						this.closeAlertModal();
+						this.closeAlertModal(options);
 					}
 				} catch (error) {
 					console.error('Error loading alert details:', error);
 					console.error('Failed to load alert details');
-					this.closeAlertModal();
+					this.closeAlertModal(options);
 				} finally {
 					this.alertDetailsLoading = false;
 				}
 			},
 
-			closeAlertModal() {
+			closeAlertModal(options) {
 				this.showAlertModal = false;
 				this.alertDetails = null;
 				this.currentAlertTab = 'overview';
-				
+
 				this.newCommentContent = '';
 				this.commentSubmitting = false;
 				this.commentDeleting = {};
-				
-				if (window.location.pathname.includes('/alert/')) {
-					window.history.pushState({}, '', '/dashboard');
+
+				// Called from popstate: the browser has usually already moved us off the
+				// alert URL. A failed popstate-driven open has not, so rewrite in place
+				// rather than driving history against the user's Back/Forward press.
+				if (options?.skipHistory) {
+					this.alertModalPushedHistory = false;
+					if (window.location.pathname.includes('/alert/')) {
+						window.history.replaceState({}, '', '/dashboard' + window.location.search);
+					}
+					return;
+				}
+
+				if (!window.location.pathname.includes('/alert/')) {
+					return;
+				}
+
+				if (this.alertModalPushedHistory) {
+					// Pop our own entry instead of stacking a new one - this restores the
+					// exact pre-modal URL (filters included) and keeps Forward working.
+					this.alertModalPushedHistory = false;
+					window.history.back();
+				} else {
+					// Deep link: no entry of ours to pop, so rewrite in place.
+					window.history.replaceState({}, '', '/dashboard' + window.location.search);
 				}
 			},
 
