@@ -48,7 +48,7 @@ stays read-only.
 
 | Source | What it feeds | Interval |
 |---|---|---|
-| `looper ps` | looper roles: coordinator, planner, reviewer, fixer, worker | 3 s |
+| `looper ps --json` | looper roles: coordinator, planner, reviewer, fixer, worker | 3 s |
 | `systemctl --user` (services + timers `notificator-*`) | custom agents: scout, roast, qa, rebaser, promoter, groomer, doc, reporter — running / next wake-up / failure | 3–10 s |
 | `gh pr list` / `gh issue list` | the team board | 45 s |
 | `gh pr list` / `gh issue list` (last-24h search, one batched query set) | the 🏆 SCOREBOARD panel: per-agent stats (scout issues/approved, roast verdicts/kills, worker PRs/merged, qa pass/fail), hourly activity sparkline, ⭐ employé du jour — hidden when there is no data, "(github injoignable)" when GitHub is down | 45 s |
@@ -65,6 +65,27 @@ Observable transitions feed a render-side event queue (no extra pollers):
 - **🎉 merge party** — a PR that disappears from `gh pr list` and turns out
   `MERGED` (one `gh pr view` check) throws a full-width celebration banner
   naming the PR for ~3 s
+- **🚨 alarm board** — breakage accumulates in a panel above the 📌 TABLEAU
+  instead of scrolling past: an unreachable looper daemon (`looper ps --json`
+  unparseable, or parseable but of an unknown shape — every desk would
+  otherwise render a calm `veille`; two consecutive failed polls are needed, a
+  single hiccup against a self-restarting daemon is noise, not a signal), a
+  `notificator-*` unit whose `Result` is not
+  `success` (name, result, exit code — or signal number when `ExecMainCode` says
+  the unit was killed — age since `ExecMainExitTimestamp`), a loop parked on
+  `manual_intervention` (the one alarm where you are the blocker) and a
+  `running` looper loop stuck on the same step past `FACTORY_STALL_MIN`
+  (default 30 min), aged from `looper ps --json`'s `agent.startedAt` so a
+  restarted TUI does not reset the clock (a `queued` loop has no clock — waiting
+  for a free slot is not stalling). Rows clear on the unit's next
+  successful run, when a human unblocks the loop, or when the step moves on; no
+  alarm → no panel. The panel is
+  capped at 5 rows plus a `… +N autres alarmes (2 unités en échec · 1 loop
+  bloquée)` tail so a machine-wide breakage cannot push the 📌 TABLEAU
+  off-screen nor silently swallow a whole alarm category. Each *new*
+  alarm rings one
+  `curses.beep()` and flashes the panel title for ~3 s (live TUI only —
+  `--once` and `--check` never beep)
 - **☕ coffee corner** — when the terminal leaves enough spare width, a coffee
   machine is drawn beside the desks; agents on break queue there and their desk
   shows an empty chair (narrow terminals fall back to the plain desk rendering)
@@ -76,6 +97,7 @@ Observable transitions feed a render-side event queue (no extra pollers):
 | `FACTORY_REPO` | `SoulKyu/notificator` | GitHub repo for the board |
 | `FACTORY_LOG_DIR` | `~/.claude-agents/notificator/logs` | agent logs to feed the ticker |
 | `FACTORY_INBOX_DIR` | `~/.claude-agents/notificator/inbox` | agent mailboxes for 📬 badges + 💬 INTERCOM |
+| `FACTORY_STALL_MIN` | `30` | minutes on the same looper step before a 🚨 stall alarm |
 
 ## Requirements
 

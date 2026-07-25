@@ -53,8 +53,21 @@ SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
 SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
 ZOOM_TAIL = 15
 
+
+def stall_min(v):
+    """FACTORY_STALL_MIN in minutes. A typo'd tuning knob ('45m') must not take the
+    whole dashboard down at import time; 0 would flag every fresh loop as stalled."""
+    try:
+        return max(1, int(v or 30))
+    except ValueError:
+        return 30
+
+
+STALL_MIN = stall_min(os.environ.get("FACTORY_STALL_MIN"))
+
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
-         "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": []}
+         "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
+         "ps_ok": True}
 PENDING_MAX = 5
 LOCK = threading.Lock()
 
@@ -63,6 +76,13 @@ ANIM = {"mail": [], "party": []}
 MAIL_TICKS, PARTY_TICKS = 4, 12  # ~1 s flight, ~3 s banner at 4 fps
 MAIL_SEEN = None   # (box, filename) pairs already counted — None until first poll
 PR_PREV = None     # {number: title} of open PRs at previous poll
+LOOP_SINCE = {}    # (type, target) -> (step, first_seen_ts) — stall detection
+PS_FAIL = 0        # consecutive failed `looper ps` polls
+PS_FAIL_MIN = 2    # ... before the klaxon: one hiccup every ~20 min would beep all day
+ALARM_SEEN = None  # alarm keys already klaxonned — None until the first curses frame
+ALARM_FLASH = None # tick of the last new alarm; the title flashes for KLAXON_TICKS
+KLAXON_TICKS = 12  # ~3 s at 4 fps
+ALARM_ROWS = 5     # panel height cap; the tail is summarised in one extra row
 
 
 def sh(cmd, timeout=20):
@@ -108,16 +128,52 @@ def overlay(line, col, s):
 
 # ── data pollers ────────────────────────────────────────────────────────────
 
+def iso_ts(s):
+    """'2026-07-25T05:20:55.942Z' -> epoch (UTC), or None."""
+    try:
+        return calendar.timegm(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+    except Exception:
+        return None
+
+
+def track_loops(loops, now, prune=True):
+    """Refresh LOOP_SINCE. prune=False when the poll produced no usable output — a
+    transient `looper ps` failure must not restart every stall clock at zero."""
+    with LOCK:
+        live = set()
+        for lp in loops:
+            k = (lp["type"], lp["target"])
+            live.add(k)
+            if lp["status"] != "running":  # queued/paused waiting is not stall time
+                LOOP_SINCE.pop(k, None)
+                continue
+            if k not in LOOP_SINCE:  # first sighting: trust looper's clock, not ours
+                LOOP_SINCE[k] = (lp["step"], lp.get("since") or now)
+            elif LOOP_SINCE[k][0] != lp["step"]:
+                LOOP_SINCE[k] = (lp["step"], now)
+        if prune:
+            for k in set(LOOP_SINCE) - live:
+                del LOOP_SINCE[k]
+
+
 def poll_fast():
-    loops = []
-    out = sh("looper ps 2>/dev/null")
-    for line in out.splitlines()[2:]:
-        parts = line.split()
-        if len(parts) >= 7 and parts[1] != "-":
-            loops.append({"type": parts[1], "target": parts[2], "step": parts[3], "status": parts[6]})
+    ps_out = sh("looper ps --json 2>/dev/null")
+    try:  # parse success, not emptiness: sh() hands back stdout even on a non-zero exit
+        loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
+                  "step": i.get("currentStep") or "-",
+                  # displayStatus refines `status`: a loop parked on manual_intervention
+                  # is merely `paused` in `status`, and that is the one state a human owes work to
+                  "status": i.get("displayStatus") or i.get("status") or "-",
+                  "since": iso_ts((i.get("agent") or {}).get("startedAt"))}
+                 for i in json.loads(ps_out)["items"]]  # a loop with no `type` is not renderable:
+        ps_ok = True                                    # a schema drift means "injoignable", not "frozen"
+    except Exception:
+        loops, ps_ok = [], False
     svc = {}
     units = " ".join(k.split(":")[1] + ".service" for _, _, _, k in ROSTER if k.startswith("svc:"))
-    out = sh(f"systemctl --user show {units} -p Id,ActiveState,Result,ExecMainStartTimestamp 2>/dev/null")
+    out = sh(f"systemctl --user show {units} "
+             "-p Id,ActiveState,Result,ExecMainStartTimestamp,ExecMainExitTimestamp,"
+             "ExecMainStatus,ExecMainCode,NRestarts 2>/dev/null")
     cur = {}
     for line in out.splitlines() + [""]:
         if not line.strip():
@@ -127,8 +183,80 @@ def poll_fast():
         elif "=" in line:
             k, v = line.split("=", 1)
             cur[k] = v
+    global PS_FAIL
+    PS_FAIL = 0 if ps_ok else PS_FAIL + 1
+    track_loops(loops, time.time(), prune=ps_ok)  # raw ps_ok: one failure still keeps the clocks
     with LOCK:
         STATE["loops"], STATE["svc"] = loops, svc
+        # ... but the alarm waits for PS_FAIL_MIN in a row: the daemon restarts and
+        # self-upgrades, and beeping for something that healed 3 s ago is alert fatigue
+        STATE["ps_ok"] = PS_FAIL < PS_FAIL_MIN
+
+
+def ago(seconds, fine=False):
+    """Compact French age. Rounded (42min · 4h · 3j) for GitHub ages; fine=True
+    (42s · 47min · 3h12 · 2j) where the exact duration is the signal — a stall clock."""
+    s = max(0, int(seconds))
+    if s < 60:
+        return f"{s}s" if fine else "0min"
+    if s < 3600:
+        return f"{s // 60}min"
+    if s < 86400:
+        return f"{s // 3600}h{s % 3600 // 60:02d}" if fine else f"{s // 3600}h"
+    return f"{s // 86400}j"
+
+
+def systemd_ts(s):
+    """'Sat 2026-07-25 04:00:12 CEST' -> epoch (local tz), or None."""
+    m = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", s or "")
+    try:
+        return time.mktime(time.strptime(m.group(0), "%Y-%m-%d %H:%M:%S")) if m else None
+    except Exception:
+        return None
+
+
+def alarms(now=None):
+    """-> [(stable key, row)] for a dead looper, failed units, loops waiting on a human
+    and loops stalled past FACTORY_STALL_MIN."""
+    now = now or time.time()
+    with LOCK:
+        svc, loops, since_of = dict(STATE["svc"]), list(STATE["loops"]), dict(LOOP_SINCE)
+        ps_ok = STATE["ps_ok"]
+    out = []
+    if not ps_ok:  # otherwise every looper desk renders a calm "veille" and nothing alarms
+        out.append(("looper:down", "🚨 looper injoignable — état des loops inconnu"))
+    for unit, s in sorted(svc.items()):
+        if s.get("Result") in ("success", "", None):
+            continue
+        t = systemd_ts(s.get("ExecMainExitTimestamp"))
+        age = f" il y a {ago(now - t, fine=True)}" if t else ""
+        n = int(s.get("NRestarts") or "0")
+        restarts = f" · {n} redémarrage{'s' if n > 1 else ''}" if n else ""
+        # ExecMainCode is si_code: 0 (or unset) means no main process ever exited, so
+        # ExecMainStatus carries nothing and Result is the whole story; 2/3 = killed/dumped,
+        # and then the number is a signal, not an exit code
+        raw = s.get("ExecMainStatus") or ""
+        detail = "" if not raw or s.get("ExecMainCode") == "0" else \
+            f" ({'signal' if s.get('ExecMainCode') in ('2', '3') else 'exit'} {raw})"
+        out.append((f"unit:{unit}",
+                    f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']}"
+                    f"{detail}{age}{restarts}"))
+    # the one alarm where the operator is the blocker: track_loops() drops non-running
+    # loops, so manual_intervention can never surface as a stall row
+    for lp in sorted(loops, key=lambda l: (l["type"], l["target"])):
+        if lp["status"] != "manual_intervention":
+            continue
+        out.append((f"halt:{lp['type']}:{lp['target']}",
+                    f"✋ {lp['type']} {lp['target'].split('/')[-1]} attend une intervention humaine"))
+    for (typ, target), (step, since) in sorted(since_of.items()):
+        lp = next((l for l in loops if l["type"] == typ and l["target"] == target), None)
+        if not lp or lp["status"] != "running" or now - since < STALL_MIN * 60:
+            continue
+        # clock first: dpad() truncates from the right, and the age is the one number
+        # this alarm exists for — the step name is what a narrow frame may safely eat
+        out.append((f"loop:{typ}:{target}",
+                    f"⏳ {ago(now - since, fine=True)} — {typ} {target.split('/')[-1]} bloqué sur {step}"))
+    return out
 
 
 def poll_med():
@@ -180,23 +308,6 @@ def poll_med():
         STATE["events"].extend(events[:6])
 
 
-def ts(s):
-    """GitHub timestamp -> epoch seconds, or None."""
-    try:
-        return calendar.timegm(time.strptime((s or "")[:19], "%Y-%m-%dT%H:%M:%S"))
-    except Exception:
-        return None
-
-
-def ago(sec):
-    """Compact age: 42min · 4h · 3j."""
-    if sec < 3600:
-        return f"{max(0, int(sec // 60))}min"
-    if sec < 86400:
-        return f"{int(sec // 3600)}h"
-    return f"{int(sec // 86400)}j"
-
-
 def compute_pending(prs, issues, now):
     """Ball-in-your-court items from raw gh JSON, oldest first. -> [str]
 
@@ -213,12 +324,12 @@ def compute_pending(prs, issues, now):
                 or "ready-to-merge" not in labels or "qa:failed" in labels
                 or "looper:spec-reviewing" in labels):
             continue
-        t = ts(p.get("updatedAt")) or now
+        t = iso_ts(p.get("updatedAt")) or now
         rows.append((t, f"🚢 PR#{p['number']} prête à merger — {ago(now - t)}"))
     for i in issues:
         if not any(l["name"] == "looper:hold" for l in i.get("labels", [])):
             continue
-        t = ts(i.get("updatedAt")) or now
+        t = iso_ts(i.get("updatedAt")) or now
         rows.append((t, f"⛔ #{i['number']} {i.get('title', '')[:50]} — attend ton go"))
     return [r for _, r in sorted(rows, key=lambda x: x[0])]
 
@@ -231,7 +342,7 @@ def compute_score(issues, prs, now):
     events = []
     for i in issues:
         labels = {l["name"] for l in i.get("labels", [])}
-        t = ts(i.get("createdAt"))
+        t = iso_ts(i.get("createdAt"))
         if t is None or t < cutoff:
             continue
         events.append(t)
@@ -245,7 +356,7 @@ def compute_score(issues, prs, now):
             sc["kills"] += 1
     for p in prs:
         labels = {l["name"] for l in p.get("labels", [])}
-        created, merged = ts(p.get("createdAt")), ts(p.get("mergedAt"))
+        created, merged = iso_ts(p.get("createdAt")), iso_ts(p.get("mergedAt"))
         from_looper = (p.get("headRefName") or "").startswith("looper/")
         if created is not None and created >= cutoff:
             events.append(created)
@@ -533,7 +644,7 @@ def grid_per_row(width):
     return per_row
 
 
-def render_frame(tick, width=92, sel=None):
+def render_frame(tick, width=92, sel=None, flash=False):
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
@@ -577,6 +688,27 @@ def render_frame(tick, width=92, sel=None):
                          + dpad(f"🧪 qa     {score['qa_ok']} ✓ · {score['qa_ko']} ✗", width - 4 - half) + " │", 5))
             star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
             rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
+    alrm = alarms()
+    if alrm:  # no alarm → no panel
+        on = flash and tick % 2 == 0
+        rows.append(("│" + dpad(" ═══ 🚨 ALARMES " + ("‼ " if on else ""), width - 2, fill="═") + "│",
+                     4 if on else 0))
+        # capped: a machine-wide breakage must not push the board and the ⚠ err line
+        # off-screen. At exactly one row over the cap the tail would occupy the row it
+        # displaced and say strictly less, so summarise only when it buys space back.
+        shown = ALARM_ROWS if len(alrm) > ALARM_ROWS + 1 else len(alrm)
+        for _, msg in alrm[:shown]:
+            rows.append(("│ " + dpad(msg, width - 4) + " │", 4))
+        if len(alrm) > shown:
+            hid = alrm[shown:]            # say *what* was swallowed: stall rows always sort last
+            n_u = sum(1 for k, _ in hid if k.startswith("unit:"))
+            n_h = sum(1 for k, _ in hid if k.startswith("halt:"))
+            n_l = sum(1 for k, _ in hid if k.startswith("loop:"))
+            s_u, s_h, s_l = ("s" if n > 1 else "" for n in (n_u, n_h, n_l))
+            tail = " · ".join(p for p in (f"{n_u} unité{s_u} en échec" if n_u else "",
+                                          f"{n_h} loop{s_h} en attente humaine" if n_h else "",
+                                          f"{n_l} loop{s_l} bloquée{s_l}" if n_l else "") if p)
+            rows.append(("│ " + dpad(f"… +{len(hid)} autres alarmes ({tail})", width - 4) + " │", 4))
     if pending:  # rien en attente → pas de panneau
         rows.append(("│" + dpad(" ═══ 🙋 EN ATTENTE DE TOI ", width - 2, fill="═") + "│", 0))
         for row in pending[:PENDING_MAX]:
@@ -679,6 +811,17 @@ def send_summon(key, msg):
         return "✗ " + str(e)[:50]
 
 
+def klaxon(tick):
+    """Beep once per new alarm; -> True while the title should flash. Curses path only."""
+    global ALARM_SEEN, ALARM_FLASH
+    keys = {k for k, _ in alarms()}
+    if ALARM_SEEN is not None and keys - ALARM_SEEN:
+        ALARM_FLASH = tick
+        curses.beep()
+    ALARM_SEEN = keys
+    return ALARM_FLASH is not None and tick - ALARM_FLASH < KLAXON_TICKS
+
+
 def main_curses(scr):
     curses.curs_set(0)
     scr.nodelay(True)
@@ -720,7 +863,7 @@ def main_curses(scr):
                 if msg:
                     note = send_summon(ROSTER[zoom][0], msg)
         scr.erase()
-        for y, (line, color) in enumerate(render_frame(tick, width, sel)):
+        for y, (line, color) in enumerate(render_frame(tick, width, sel, flash=klaxon(tick))):
             if y >= h - 1:
                 break
             try:
@@ -744,7 +887,12 @@ def main_curses(scr):
 
 def selfcheck():
     """Alignment invariants: monitor segment = 11 cols in every state, frame rows all equal."""
+    global STALL_MIN
+    STALL_MIN = 30  # pin the knob: alarms() and render_frame() both read it, fixtures assume 30
     fails = 0
+    if (stall_min("45m"), stall_min(None), stall_min("0"), stall_min("45")) != (30, 30, 1, 45):
+        print(f"FAIL stall_min: junk knob must fall back, not crash: {stall_min('45m')}")
+        fails += 1
     for state in ("work", "break", "sleep", "error", "wait", "away"):
         for tick in range(8):
             inner, _ = person_cell(state, tick, 3, "s", "d")
@@ -837,6 +985,188 @@ def selfcheck():
             if dwidth(line) != 80:
                 print(f"FAIL zoom row {dwidth(line)} cols: {line!r}")
                 fails += 1
+    # stall bookkeeping: seeded from looper's clock, survives a transient `looper ps` failure
+    now = time.time()
+    k57 = ("worker", "SoulKyu/notificator#57")
+    lp57 = {"type": "worker", "target": "SoulKyu/notificator#57", "step": "implement",
+            "status": "running", "since": now - 2820}
+    LOOP_SINCE.clear()
+    track_loops([lp57], now)
+    track_loops([dict(lp57, step="review")], now + 3)  # step change → clock restarts
+    if LOOP_SINCE.get(k57) != ("review", now + 3):
+        print(f"FAIL track_loops: step change did not restart the clock: {LOOP_SINCE}")
+        fails += 1
+    # poll_fast() is where `prune` is derived, so drive it — a failed `looper ps` must
+    # keep the clocks, an honestly empty one must prune.
+    PS_OK = json.dumps({"items": [{"type": "worker", "status": "running", "currentStep": "implement",
+                                   "target": {"label": "SoulKyu/notificator#57"},
+                                   "agent": {"startedAt": "2026-01-02T00:00:00Z"}}]})
+    SYSD = "Id=notificator-qa.service\nActiveState=active\nResult=success\n\n"
+    real_sh = sh
+    def stub(ps):
+        def fake(cmd, timeout=20):
+            if cmd.startswith("looper ps"):
+                return ps
+            # mimic `systemctl show -p`: only the requested properties come back, so dropping
+            # one from the -p list breaks this fixture instead of quietly changing a row
+            want = set(re.search(r"-p ([\w,]+)", cmd).group(1).split(","))
+            return "".join(l + "\n" for l in SYSD.splitlines()
+                           if not l.strip() or l.split("=", 1)[0] in want)
+        globals()["sh"] = fake
+    PS_QUEUED = json.dumps({"items": [{"type": "worker", "status": "queued", "currentStep": "implement",
+                                       "target": {"label": "SoulKyu/notificator#57"}, "agent": None}]})
+    PS_SCHEMA = json.dumps({"items": [{"kind": "worker", "status": "running",  # `type` renamed upstream
+                                       "currentStep": "implement"}]})
+    for name, ps, keep, ps_ok in (("present", PS_OK, True, True),
+                                  ("timeout", "", True, False),                             # sh() failure path
+                                  ("garbage", "looper: daemon unreachable\n", True, False),  # non-JSON stdout
+                                  ("schema", PS_SCHEMA, True, False),                        # valid JSON, no `type`
+                                  ("gone", '{"items": []}', False, True),                    # really gone → prune
+                                  ("queued", PS_QUEUED, False, True)):  # waiting in the queue is not stalling
+        stub(ps)
+        LOOP_SINCE.clear()
+        LOOP_SINCE[k57] = ("implement", now - 2820)
+        globals()["PS_FAIL"] = 0
+        for _ in range(1 if ps_ok else PS_FAIL_MIN):  # a failure only alarms once debounced
+            poll_fast()
+        if (LOOP_SINCE.get(k57) == ("implement", now - 2820)) != keep:
+            print(f"FAIL poll_fast/{name}: LOOP_SINCE = {LOOP_SINCE}")
+            fails += 1
+        if any(k == "looper:down" for k, _ in alarms(now)) == ps_ok:
+            print(f"FAIL poll_fast/{name}: looper:down alarm should be {not ps_ok}")
+            fails += 1
+    # the debounce itself: one failed poll is routine, two in a row is the alarm
+    stub("")
+    globals()["PS_FAIL"] = 0
+    poll_fast()
+    if any(k == "looper:down" for k, _ in alarms(now)):
+        print("FAIL poll_fast: a single failed `looper ps` must not raise looper:down")
+        fails += 1
+    poll_fast()
+    if not any(k == "looper:down" for k, _ in alarms(now)):
+        print(f"FAIL poll_fast: looper:down must raise after {PS_FAIL_MIN} failed polls")
+        fails += 1
+    # `status` flattens manual_intervention into paused; only displayStatus keeps the desk honest
+    stub(json.dumps({"items": [{"type": "fixer", "status": "paused", "loopStatus": "paused",
+                                "displayStatus": "manual_intervention", "currentStep": None,
+                                "target": {"label": "SoulKyu/notificator#83"}, "agent": None}]}))
+    poll_fast()
+    if agent_state("fixer", "looper:fixer")[1] != "manual_intervention":
+        print(f"FAIL agent_state: paused loop lost its display status: {agent_state('fixer', 'looper:fixer')}")
+        fails += 1
+    # ... and a desk label is not an alarm: the operator is the blocker here
+    if not any(k == "halt:fixer:SoulKyu/notificator#83" for k, _ in alarms(now)):
+        print(f"FAIL alarms: manual_intervention raised no halt row: {alarms(now)}")
+        fails += 1
+    # the scheduler starts the loop that just waited 47 min: its clock is the agent's, not the queue's
+    fresh = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 5))
+    stub(json.dumps({"items": [{"type": "worker", "status": "running", "currentStep": "implement",
+                                "target": {"label": "SoulKyu/notificator#57"},
+                                "agent": {"startedAt": fresh}}]}))
+    poll_fast()
+    if alarms(now):
+        print(f"FAIL alarms: queue time counted as stall time: {alarms(now)}")
+        fails += 1
+    stub(PS_OK)
+    LOOP_SINCE.clear()
+    poll_fast()  # first sighting seeds from looper's agent.startedAt, not from now
+    if LOOP_SINCE.get(k57) != ("implement", iso_ts("2026-01-02T00:00:00Z")):
+        print(f"FAIL poll_fast: first sighting not seeded from agent.startedAt: {LOOP_SINCE}")
+        fails += 1
+    exited = time.strftime("%a %Y-%m-%d %H:%M:%S %Z", time.localtime(now - 11520))
+    # the `-p` property list in poll_fast() and the keys alarms() reads are a stringly-typed
+    # contract ~800 lines apart: drive a failed unit through the real parser so trimming the
+    # list fails loudly instead of quietly downgrading `signal 11` back to `exit 11`
+    SYSD = ("Id=notificator-qa.service\nActiveState=active\nResult=success\n"
+            "ExecMainExitTimestamp=\nExecMainStatus=0\nExecMainCode=0\nNRestarts=0\n\n"
+            "Id=notificator-reporter.service\nActiveState=failed\nResult=core-dump\n"
+            f"ExecMainExitTimestamp={exited}\nExecMainStatus=11\nExecMainCode=3\nNRestarts=2\n\n"
+            # ExecStartPre failed: the unit is dead but ExecMain* never got set
+            "Id=notificator-groomer.service\nActiveState=failed\nResult=exit-code\n"
+            "ExecMainExitTimestamp=\nExecMainStatus=0\nExecMainCode=0\nNRestarts=0\n\n")
+    stub('{"items": []}')  # no loops: the only alarms left are the failed units
+    poll_fast()
+    row = next((r for k, r in alarms(now) if k == "unit:notificator-reporter"), "")
+    if not all(x in row for x in ("core-dump", "signal 11", "2 redémarrages", "il y a")):
+        print(f"FAIL alarms: systemctl -p list drifted from what alarms() reads: {row!r}")
+        fails += 1
+    row = next((r for k, r in alarms(now) if k == "unit:notificator-groomer"), "")
+    if "échec exit-code" not in row or "(exit" in row:
+        print(f"FAIL alarms: no main process exited, so there is no status to report: {row!r}")
+        fails += 1
+    if any(k == "unit:notificator-qa" for k, _ in alarms(now)):
+        print("FAIL alarms: a healthy unit must not alarm")
+        fails += 1
+    globals()["sh"] = real_sh
+    LOOP_SINCE.clear()
+    track_loops([lp57], now)
+    # alarm panel: machine-wide breakage (7 failed units) + one stalled loop, both widths,
+    # flashing title — more alarms than ALARM_ROWS, so the overflow row renders too
+    with LOCK:
+        STATE["svc"] = {f"notificator-{n}": {
+            "Id": f"notificator-{n}.service", "ActiveState": "failed", "Result": "exit-code",
+            "ExecMainStatus": "2", "ExecMainCode": "1", "NRestarts": "3",
+            "ExecMainExitTimestamp": exited}
+            for n in ("qa", "scout", "worker", "rebaser", "promoter", "docagent", "reporter")}
+        STATE["svc"]["notificator-worker"].update(  # ExecMainStatus is a signal when si_code is 2
+            Result="oom-kill", ExecMainStatus="9", ExecMainCode="2")
+        STATE["svc"]["notificator-reporter"].update(  # ... and when it is 3 (killed + dumped core)
+            Result="core-dump", ExecMainStatus="11", ExecMainCode="3")
+        STATE["loops"] = [lp57]
+    a = alarms(now)
+    if not (len(a) == 8 and "qa" in a[2][1] and "exit 2" in a[2][1] and "3h12" in a[2][1]
+            and any("core-dump" in r and "signal 11" in r for _, r in a)
+            and "signal 9" in a[-2][1] and "oom-kill" in a[-2][1]
+            and "#57" in a[-1][1] and "implement" in a[-1][1] and "47min" in a[-1][1]):
+        print(f"FAIL alarms: {a}")
+        fails += 1
+    for w in (92, 60):
+        for tick in range(4):
+            frame = render_frame(tick, w, flash=True)
+            for line, _ in frame:
+                if dwidth(line) != w:
+                    print(f"FAIL alarm row {dwidth(line)} cols (want {w}): {line!r}")
+                    fails += 1
+            top = next(i for i, (l, _) in enumerate(frame) if "ALARMES" in l)
+            body = 0  # the panel ends at the next panel header
+            for l, _ in frame[top + 1:]:
+                if "═══" in l:
+                    break
+                body += 1
+            if body != ALARM_ROWS + 1:  # capped rows + the one summarising tail
+                print(f"FAIL alarm panel is {body} rows, want {ALARM_ROWS} + tail (w={w})")
+                fails += 1
+            # the hidden tail names its categories, so a swallowed stall row is still visible
+            tail = f"+{len(a) - ALARM_ROWS} autres alarmes (2 unités en échec · 1 loop bloquée)"
+            if sum(1 for l, _ in frame if tail in l) != 1:
+                print(f"FAIL alarm panel not capped at {ALARM_ROWS} rows with a typed tail (w={w})")
+                fails += 1
+    # exactly ALARM_ROWS + 1 alarms: the tail would occupy the row it displaced, so all
+    # six render — and the stall row, which sorts last, is the one that proves it
+    with LOCK:
+        for n in ("scout", "rebaser"):
+            STATE["svc"][f"notificator-{n}"]["Result"] = "success"
+    for w in (92, 60):
+        frame = render_frame(1, w)
+        top = next(i for i, (l, _) in enumerate(frame) if "ALARMES" in l)
+        body = 0
+        for l, _ in frame[top + 1:]:
+            if "═══" in l:
+                break
+            body += 1
+        if body != ALARM_ROWS + 1 or any("autres alarmes" in l for l, _ in frame):
+            print(f"FAIL alarm panel summarised a single hidden row ({body} rows, w={w})")
+            fails += 1
+        if not any("47min" in l for l, _ in frame):  # the clock leads, so dpad() cannot eat it
+            print(f"FAIL alarm panel: stall clock truncated away at w={w}")
+            fails += 1
+    with LOCK:  # units back to success + loop step moved on → alarms gone, panel gone
+        for s in STATE["svc"].values():
+            s["Result"] = "success"
+    track_loops([dict(lp57, step="publish")], now)
+    if alarms(now) or any("ALARMES" in l for l, _ in render_frame(0, 92)):
+        print("FAIL alarm panel rendered with no alarm")
+        fails += 1
     # navigation stride == renderer column count (coffee-corner decrement included)
     for w, want in ((92, 3), (113, 4), (120, 4)):
         if grid_per_row(w) != want:
