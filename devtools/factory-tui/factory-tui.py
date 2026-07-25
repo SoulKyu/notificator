@@ -616,8 +616,10 @@ def build_desks(max_desks=None):
         role = kind.split(":")[1] if kind.startswith("looper:") else None
         mine = sorted((lp for lp in loops if lp["type"] == role), key=loop_order) if role else []
         if len(mine) > 1:
-            # `·N` is a label (a rank); `id` is the loop itself, so lookups survive a sibling finishing
-            desks += [{"key": key, "id": f"{key}:{lp['target']}", "emoji": emoji,
+            # `·N` is a label (a rank); `id` is the loop itself, so lookups survive a sibling
+            # finishing. loopId over target: parse_ps defaults target to "?" for targetless rows
+            # (queued loops), and two of those would share an id and collide in desk_index.
+            desks += [{"key": key, "id": f"{key}:{lp.get('loopId') or lp['target']}", "emoji": emoji,
                        "name": f"{name}·{i + 1}", "kind": kind,
                        "state": loop_state(lp), "loop": lp} for i, lp in enumerate(mine)]
         else:
@@ -1360,6 +1362,16 @@ def selfcheck():
     if len(solo) != len(ROSTER) or solo_workers != ["WORKER"]:
         print(f"FAIL single loop duplicated the desk: {solo_workers}")
         fails += 1
+    # targetless loops (queued, the common case) all carry target "?" — the id must come from
+    # loopId or two of them collide and desk_index silently resolves both to the first desk
+    with LOCK:
+        STATE["loops"] = [{"type": "worker", "target": "?", "step": "—", "status": "queued",
+                           "loopId": f"lp_{c}", "runId": None} for c in "AB"]
+    queued = build_desks()
+    for i, d in enumerate(queued):
+        if d["key"] == "worker" and desk_index(queued, d["id"]) != i:
+            print(f"FAIL desk id collision: {d['name']} resolves to index {desk_index(queued, d['id'])}")
+            fails += 1
     # a full factory must not push the wall board off a short terminal: cap the grid, fold the rest
     with LOCK:
         STATE["loops"] = [{"type": r, "target": f"SoulKyu/notificator#{i}", "step": "code", "status": "running"}
@@ -1452,6 +1464,12 @@ def selfcheck():
     if parse_ps(json.dumps({"items": [{"target": {"label": "x#1"}}]})) != ([], False):
         print("FAIL ps parse: a typeless row should read as unreachable")
         fails += 1
+    # valid JSON of the wrong shape is the other half of the blast radius: a bare list, a null,
+    # or a `target` serialised as the plain label all used to raise AttributeError out of poll_fast
+    for bad in ("[]", "null", '{"items": [{"type": "worker", "target": "owner/repo#1"}]}'):
+        if parse_ps(bad) != ([], False):
+            print(f"FAIL ps parse: unshaped JSON {bad} → {parse_ps(bad)}")
+            fails += 1
     # an older CLI, or one printing a diagnostic to stdout, costs the loop desks and nothing else
     real_sh = sh
     globals()["sh"] = lambda cmd, timeout=20: ("error: unknown flag --json\n" if "looper ps" in cmd
