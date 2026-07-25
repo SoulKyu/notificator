@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"notificator/internal/models"
 	webuimodels "notificator/internal/webui/models"
@@ -120,6 +121,27 @@ func TestCountMatchedAlertsIsScopedToSource(t *testing.T) {
 	}
 	if got := countMatchedAlerts(silence, "unknown-am", alerts); got != 0 {
 		t.Errorf("countMatchedAlerts(unknown-am) = %d, want 0", got)
+	}
+}
+
+// Sorting on EndsAt alone reads as "soonest expiry first" but buries every actionable
+// silence under the expired ones Alertmanager retains for 120h once the expired filter is on.
+func TestSortSilencesPutsLiveFirstAndExpiredNewestFirst(t *testing.T) {
+	base := time.Now()
+	silences := []webuimodels.Silence{
+		{ID: "expired-old", EndsAt: base.Add(-48 * time.Hour), Status: webuimodels.SilenceStatus{State: "expired"}},
+		{ID: "active-late", EndsAt: base.Add(6 * time.Hour), Status: webuimodels.SilenceStatus{State: "active"}},
+		{ID: "expired-recent", EndsAt: base.Add(-1 * time.Hour), Status: webuimodels.SilenceStatus{State: "expired"}},
+		{ID: "pending-soon", EndsAt: base.Add(1 * time.Hour), Status: webuimodels.SilenceStatus{State: "pending"}},
+	}
+
+	sortSilences(silences)
+
+	want := []string{"pending-soon", "active-late", "expired-recent", "expired-old"}
+	for i, id := range want {
+		if silences[i].ID != id {
+			t.Fatalf("position %d = %s, want %s", i, silences[i].ID, id)
+		}
 	}
 }
 

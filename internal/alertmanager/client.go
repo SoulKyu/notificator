@@ -3,6 +3,7 @@ package alertmanager
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,10 @@ import (
 	"notificator/internal/auth"
 	"notificator/internal/models"
 )
+
+// ErrSilenceNotFound is returned when Alertmanager answers 404 for a silence ID, so callers
+// can tell a stale ID apart from an upstream fault instead of matching on the error text.
+var ErrSilenceNotFound = errors.New("silence not found")
 
 type customHeaderRoundTripper struct {
 	headers map[string]string
@@ -426,7 +431,7 @@ func (c *Client) FetchSilence(silenceID string) (*models.Silence, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("silence with ID %s not found", silenceID)
+		return nil, fmt.Errorf("silence with ID %s: %w", silenceID, ErrSilenceNotFound)
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -563,7 +568,7 @@ func (c *Client) DeleteSilence(silenceID string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("silence with ID %s not found", silenceID)
+		return fmt.Errorf("silence with ID %s: %w", silenceID, ErrSilenceNotFound)
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

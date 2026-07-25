@@ -1,15 +1,18 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gin-gonic/gin"
 
+	"notificator/internal/alertmanager"
 	"notificator/internal/models"
 	"notificator/internal/webui/middleware"
 	webuimodels "notificator/internal/webui/models"
@@ -157,6 +160,23 @@ func fetchAlertSilences(alert *webuimodels.DashboardAlert) []webuimodels.Silence
 	return silences
 }
 
+// sortSilences puts live silences first, soonest expiry first, and pushes expired ones to
+// the back most-recent-first. Ordering by EndsAt alone would bury every actionable silence
+// under the 120h of expired ones Alertmanager retains by default.
+func sortSilences(silences []webuimodels.Silence) {
+	sort.SliceStable(silences, func(i, j int) bool {
+		iExpired := silences[i].Status.State == silenceStateExpired
+		jExpired := silences[j].Status.State == silenceStateExpired
+		if iExpired != jExpired {
+			return !iExpired
+		}
+		if iExpired {
+			return silences[i].EndsAt.After(silences[j].EndsAt)
+		}
+		return silences[i].EndsAt.Before(silences[j].EndsAt)
+	})
+}
+
 // GetSilences returns every silence of every configured Alertmanager, sorted by soonest
 // expiry, together with the sources that could not be reached.
 func GetSilences(c *gin.Context) {
@@ -183,18 +203,7 @@ func GetSilences(c *gin.Context) {
 		silences = append(silences, toWebuiSilence(item.Silence, item.Source, matched))
 	}
 
-	// Live silences first, soonest expiry first; expired ones last, most recent first.
-	sort.SliceStable(silences, func(i, j int) bool {
-		iExpired := silences[i].Status.State == silenceStateExpired
-		jExpired := silences[j].Status.State == silenceStateExpired
-		if iExpired != jExpired {
-			return !iExpired
-		}
-		if iExpired {
-			return silences[i].EndsAt.After(silences[j].EndsAt)
-		}
-		return silences[i].EndsAt.Before(silences[j].EndsAt)
-	})
+	sortSilences(silences)
 
 	failed := make(map[string]string, len(failedSources))
 	for name, err := range failedSources {
@@ -210,6 +219,16 @@ func GetSilences(c *gin.Context) {
 		"sources":       sources,
 		"failedSources": failed,
 	}))
+}
+
+// silenceErrorStatus maps a silence lookup failure to an HTTP status. A stale silence ID is
+// the caller's problem (404); 502 stays reserved for a genuine upstream fault, so watching
+// webui 5xx rates does not alarm on user input.
+func silenceErrorStatus(err error) int {
+	if errors.Is(err, alertmanager.ErrSilenceNotFound) {
+		return http.StatusNotFound
+	}
+	return http.StatusBadGateway
 }
 
 // ExtendSilence pushes the end time of an existing silence further out. Alertmanager
@@ -247,9 +266,14 @@ func ExtendSilence(c *gin.Context) {
 		return
 	}
 
+	if !slices.Contains(alertmanagerClient.GetClientNames(), request.Source) {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Unknown alertmanager source: "+request.Source))
+		return
+	}
+
 	silence, err := alertmanagerClient.FetchSilenceFromAlertmanager(request.Source, silenceID)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, webuimodels.ErrorResponse("Failed to fetch silence: "+err.Error()))
+		c.JSON(silenceErrorStatus(err), webuimodels.ErrorResponse("Failed to fetch silence: "+err.Error()))
 		return
 	}
 
@@ -266,6 +290,23 @@ func ExtendSilence(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadGateway, webuimodels.ErrorResponse("Failed to extend silence: "+err.Error()))
 		return
+	}
+
+	// Alertmanager only reuses the ID when it accepted the update in place. A different ID
+	// means the silence lapsed between our read and its write, so this is a new silence
+	// rather than an extension — the state check above cannot see that window.
+	if updated.ID != silenceID {
+		c.JSON(http.StatusConflict, webuimodels.ErrorResponse(
+			"Silence lapsed while being extended; Alertmanager created a new silence "+updated.ID+" instead and the original stayed expired"))
+		return
+	}
+
+	// CreateSilence echoes back the request struct, so re-read to answer with Alertmanager's
+	// own status and updatedAt instead of the pre-POST snapshot. Fall back on a read failure.
+	if fresh, err := alertmanagerClient.FetchSilenceFromAlertmanager(request.Source, silenceID); err == nil {
+		updated = fresh
+	} else {
+		log.Printf("⚠️  Extended silence %s on %s but could not re-read it: %v", silenceID, request.Source, err)
 	}
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(toWebuiSilence(*updated, request.Source, 0)))
@@ -290,8 +331,13 @@ func ExpireSilence(c *gin.Context) {
 		return
 	}
 
+	if !slices.Contains(alertmanagerClient.GetClientNames(), source) {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Unknown alertmanager source: "+source))
+		return
+	}
+
 	if err := alertmanagerClient.DeleteSilenceFromAlertmanager(source, silenceID); err != nil {
-		c.JSON(http.StatusBadGateway, webuimodels.ErrorResponse("Failed to expire silence: "+err.Error()))
+		c.JSON(silenceErrorStatus(err), webuimodels.ErrorResponse("Failed to expire silence: "+err.Error()))
 		return
 	}
 
