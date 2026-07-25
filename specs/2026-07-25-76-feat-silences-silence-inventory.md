@@ -76,8 +76,11 @@ Extend and expire reuse what is there:
 
 - **Extend** = `MultiClient.CreateSilenceOnAlertmanager(source, silence)` with
   the **same `ID`** and a new `EndsAt`. Alertmanager `POST /api/v2/silences`
-  upserts on `id`, and `Client.CreateSilence` already marshals the whole
-  `models.Silence` — a field set, not new HTTP code.
+  updates the stored silence in place *only* when the submission passes its
+  internal `canUpdate` check; otherwise it expires the original and mints a
+  replacement (see **Extend is not guaranteed to be in-place** under Risks for
+  the mechanism and the handler contract). `Client.CreateSilence` already
+  marshals the whole `models.Silence` — a field set, not new HTTP code.
 - **Expire** = `MultiClient.DeleteSilenceFromAlertmanager(source, id)`
   (line 793) — Alertmanager's DELETE expires rather than deletes.
 
@@ -86,14 +89,16 @@ Extend re-reads the current silence with
 matchers, creator and comment are preserved verbatim (Alertmanager rejects a
 changed `StartsAt` on an active silence). New end time is
 `max(now, silence.EndsAt) + delta`, so extending a silence that is minutes from
-expiry still yields a full window. Expired silences are not extendable —
-Alertmanager would mint a new ID, which breaks the "silence ID is unchanged"
-criterion; the handler rejects them with 409.
+expiry still yields a full window. Expired silences are not extendable — the
+handler rejects them with 409, because Alertmanager would mint a new ID and the
+"silence ID is unchanged" criterion could no longer hold.
 
 ### 2. Matching helper
 
 New `silenceMatchesAlert(silence models.Silence, labels map[string]string) bool`
-in `internal/webui/handlers/silence_handlers.go`:
+in `internal/webui/handlers/silence_handlers.go`, where `models` is
+`internal/models` — the type `Client.FetchSilences` decodes into, the one that
+carries `IsEqual` — and **not** `internal/webui/models`:
 
 - every matcher must hold (AND);
 - `IsRegex == false` → string equality, negated when `IsEqual == false`;
@@ -109,13 +114,29 @@ Run over `alertCache.GetAllAlerts()` — the same in-memory source
 whose `Source` equals the silence's source Alertmanager, since one logical
 silence exists once per Alertmanager and each copy only suppresses its own.
 
+**The cache does not store Alertmanager's labels**, so matching must compensate.
+`AlertCache.convertToDashboardAlert`
+(`internal/webui/services/alert_cache.go:291-299`) rewrites the `severity` label
+on ingestion via `transformSeverity` (same file, lines 27-34): the value is
+lowercased and `information` → `info`. Alertmanager evaluates matchers against
+the **raw** labels, so a silence on `severity="Critical"` matches there and
+would match nothing in the cache. Matching therefore normalises the matcher the
+same way ingestion normalises the label: for a non-regex matcher on `severity`,
+compare `transformSeverity(matcher.Value)` against the cached value. A regex
+matcher on `severity` cannot be normalised safely (the pattern, not a literal,
+is what would need rewriting) and is excluded from the count — such a silence
+renders its count as `—` rather than `0` and is **never** flagged *suppressing
+nothing*. This is chosen over having `AlertCache` retain the untransformed label
+map alongside the transformed one: more faithful, but it touches the cache
+struct and every consumer of it for one page's counter.
+
 ### 3. Handlers — new `internal/webui/handlers/silence_handlers.go`
 
 | Method | Path | Behaviour |
 |---|---|---|
 | `GET` | `/api/v1/dashboard/silences` | `FetchAllSilencesDetailed()`, enrich each silence with `source` + `matchedAlerts`, return `{ silences: [...], failedSources: {name: msg} }` |
 | `POST` | `/api/v1/dashboard/silences/:id/extend` | body `{ "source": "...", "duration": "1h" }` (allowlist `1h`/`4h`/`24h`), fetch → bump `EndsAt` → re-create with same ID |
-| `DELETE` | `/api/v1/dashboard/silences/:id` | query/body `source`, `DeleteSilenceFromAlertmanager` |
+| `DELETE` | `/api/v1/dashboard/silences/:id?source=…` | query parameter `source` (**not** a body — bodies on DELETE are handled inconsistently by proxies and HTTP clients), `DeleteSilenceFromAlertmanager` |
 
 Both mutating endpoints require the source Alertmanager name and 400 on an
 unknown one (`GetClientNames()` is the allowlist). All three are registered in
@@ -124,7 +145,8 @@ the existing `dashboard` group in `internal/webui/router.go` (which already has
 `protectedPages.GET("/silences", handlers.SilencesPage)` goes next to
 `/statistics` (line 358).
 
-Response silence shape (JSON, extends the existing wire model with two fields):
+Response silence shape (JSON, extends the existing wire model with three fields
+— `source`, `matchedAlerts` and `isEqual`):
 
 ```json
 {
@@ -134,6 +156,21 @@ Response silence shape (JSON, extends the existing wire model with two fields):
   "status": {"state": "active"}, "matchedAlerts": 3
 }
 ```
+
+That payload needs a model change first: `internal/webui/models/dashboard.go`
+(lines 257-261) defines `SilenceMatcher` with `Name` / `Value` / `IsRegex` and
+**no `IsEqual`** — the field only exists on `internal/models.SilenceMatcher`
+(`internal/models/silence.go:21-26`). Add
+``IsEqual bool `json:"isEqual"` `` to the webui `SilenceMatcher`; both the
+`/api/v1/dashboard/silences` payload and `details.Silences` use
+`webuimodels.Silence`, and mapping from `internal/models.Silence` copies
+`IsEqual` verbatim. Any code constructing a matcher directly **must** set
+`IsEqual: true` for a positive matcher — the Go zero value is `false`, i.e.
+negation, so an unset field silently inverts the meaning of the matcher. Without
+this, `severity!=critical` marshals identically to `severity=critical` and the
+UI claims a silence matches exactly what it excludes.
+`internal/models.Silence.GetMatchersString()` (silence.go:66-84) already renders
+`!=` / `=~` correctly and is the reference for the UI's operator rendering.
 
 State comes from Alertmanager (`status.state`); no client-side recomputation.
 Timestamps go out as RFC3339 and the countdown / "expiring soon" flag is
@@ -175,6 +212,7 @@ have nothing to do with the backend.
   `SilencesPage`, `silenceMatchesAlert`.
 - `internal/webui/handlers/silence_handlers_test.go` — new.
 - `internal/webui/handlers/dashboard_handlers.go` — fill `details.Silences`.
+- `internal/webui/models/dashboard.go` — add `IsEqual` to `SilenceMatcher`.
 - `internal/webui/router.go` — 3 API routes + `/silences` page route.
 - `internal/webui/templates/pages/Silences.templ` — new.
 - `internal/webui/templates/components/PageNavigator.templ` — nav tab.
@@ -183,16 +221,40 @@ have nothing to do with the backend.
 
 ## Risks & trade-offs
 
-- **Extend semantics.** Upsert-on-ID is Alertmanager behaviour, not a documented
-  contract of every fork; Mimir/Cortex ruler-backed Alertmanagers behave the
-  same but should be checked manually. If a target returns a *new* ID, the
-  handler surfaces it as an error rather than silently orphaning the old
-  silence — the response ID is compared to the requested one.
+- **Extend is not guaranteed to be in-place.** Alertmanager updates a silence
+  under its existing ID only when the submitted silence passes its internal
+  `canUpdate` check: matchers deep-equal to the stored ones, `StartsAt`
+  unchanged for an active silence, new `EndsAt` not in the past. When that check
+  fails on a silence that is **not** already expired, Alertmanager **expires the
+  stored silence and persists a replacement under a freshly generated ID** — so
+  by the time the handler sees a different ID in the response, the original is
+  already gone. A new ID is therefore the signal of a *destructive* replacement,
+  not of a fork that merely behaves differently. The re-fetch in §1 makes the
+  happy path likely to pass `canUpdate`, but it does not make the destructive
+  path unreachable: any lossy field in the `models.Silence` round-trip (matcher
+  ordering, an `IsEqual` that does not survive) trips it on an active silence.
+
+  The handler must **not** report a bare error on ID mismatch. An error toast
+  after *Extend +1h* leads the operator to conclude nothing happened and walk
+  away believing the silence still covers a firing page — when in fact it was
+  expired and a replacement nothing in Notificator tracks now exists. That is
+  strictly worse than a clean failure. On mismatch the handler returns `200`
+  with `{"id": "<new-id>", "replaced": true, "previousId": "<old-id>"}`, and the
+  UI shows a warning: "Alertmanager replaced this silence — the original was
+  expired and a new silence `<new-id>` now covers the same matchers." The row
+  re-fetches and picks up the new ID, so no window exists in which the operator
+  is told nothing changed.
+
+  Upsert-on-ID is Alertmanager behaviour rather than a documented contract of
+  every fork; Mimir/Cortex ruler-backed Alertmanagers behave the same but should
+  be checked manually.
 - **Matched-alert count is an approximation.** It is computed against the
   in-memory alert cache (refresh-interval stale, resolved alerts absent), so it
   answers "is this silence suppressing anything right now?", not "has it ever".
   *Suppressing nothing* is a cleanup hint, not proof — worth saying so in the
-  tooltip.
+  tooltip. Note this covers refresh-window staleness only; the cache's
+  systematic `severity` rewrite is a deterministic, permanent mismatch and is
+  handled in §2 by normalising the matcher value, not left to the tooltip.
 - **Regex dialect.** Go RE2 vs Alertmanager's (also RE2) match, but the
   full-string anchoring is easy to get wrong; that is exactly what the unit test
   covers.
@@ -213,7 +275,29 @@ have nothing to do with the backend.
   `silenceMatchesAlert`: equal match, equal non-match, `isEqual=false`
   (negation), regex match/non-match, regex anchoring (`web` must not match
   `webserver`), missing label, multi-matcher AND (one failing matcher ⇒ no
-  match).
+  match), a `severity="Critical"` matcher against a cached alert carrying
+  `severity=critical` (must match, via `transformSeverity` normalisation), and a
+  regex matcher on `severity` producing an unreliable count — asserting the row
+  renders `—` and is **not** flagged *suppressing nothing*.
+- Handler-level tests in the same file, against a stubbed `MultiClient` — the
+  guards below fail silently rather than loudly, so the docker-compose
+  walkthrough will not catch their removal in a future refactor:
+  - `POST /silences/:id/extend`: rejects a duration outside `1h`/`4h`/`24h` with
+    400 (a dropped allowlist accepts `8760h` and mutes a service for a year);
+    rejects an unknown `source` with 400 (allowlist from `GetClientNames()`);
+    rejects an already-expired silence with 409; on success sends
+    `EndsAt == max(now, previous EndsAt) + delta` with `StartsAt`, matchers,
+    `createdBy` and `comment` byte-identical to the fetched silence.
+  - `POST /silences/:id/extend` replacement path: a stub returning a *different*
+    ID yields `200` with `replaced: true` and `previousId` set — not an error —
+    so the UI reports a replacement rather than a failure.
+  - `DELETE /silences/:id`: rejects an unknown `source` with 400; calls
+    `DeleteSilenceFromAlertmanager` with exactly that source and no other.
+  - `GET /silences`: one failing source populates `failedSources` and still
+    returns the other source's rows.
+  - A `severity!=critical` silence renders as `severity!=critical` (not
+    `severity=critical`) in both the `/silences` table payload and the alert
+    modal's `details.Silences`.
 - `make webui-templates && go build ./...` passes; `git status` shows no
   hand-edited `*_templ.go`.
 - Manual via `make test` (docker-compose stack), with ≥2 Alertmanagers:
@@ -224,6 +308,9 @@ have nothing to do with the backend.
     matched count; a silence matching nothing shows *suppressing nothing*.
   - Extend +1h → end time moves, ID unchanged (cross-check in the Alertmanager
     UI); Expire now → row leaves the active view, other Alertmanager untouched.
+  - Force the replacement path (e.g. submit with a reordered matcher list) →
+    the UI reports a replacement with the new ID, not a failure, and never
+    leaves the operator believing an unsilenced alert is still silenced.
   - Stop one Alertmanager → the page still lists the other and names the failing
     source; the table is not empty and there is no blanket error.
   - Open a silenced alert's modal → silences listed with creator, comment, end
