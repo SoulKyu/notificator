@@ -195,9 +195,10 @@ templ DashboardFilterPresetsMixin() {
 				console.log('Applied', data.column_configs.length, 'column configurations from preset');
 			}
 
-			// Apply filter-specific hidden alerts
-			this.filterHiddenAlerts = data.hidden_alerts || [];
-			this.filterHiddenRules = data.hidden_rules || [];
+			// Apply filter-specific hidden alerts (copies, so dashboard hides never
+			// mutate the cached preset's stored filter_data)
+			this.filterHiddenAlerts = [...(data.hidden_alerts || [])];
+			this.filterHiddenRules = [...(data.hidden_rules || [])];
 			console.log('Applied', this.filterHiddenAlerts.length, 'filter hidden alerts and', this.filterHiddenRules.length, 'filter hidden rules');
 
 			// Reload dashboard data with new filters
@@ -304,11 +305,17 @@ templ DashboardFilterPresetsMixin() {
 			};
 		},
 
+		// Single source of truth for "the saved view will be replaced by the live
+		// dashboard state", shared by the form labels and the persistence branch
+		willReplaceSavedFilters() {
+			return !this.editingPreset || this.recaptureFilters;
+		},
+
 		// Filter data the save/update form will persist: the preset's own saved
 		// filters while editing, the live dashboard state otherwise (or when the
 		// user explicitly asked to re-capture it)
 		buildPresetFilterData() {
-			if (!this.editingPreset || this.recaptureFilters) {
+			if (this.willReplaceSavedFilters()) {
 				return this.captureCurrentFilterState();
 			}
 
