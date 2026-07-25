@@ -147,7 +147,10 @@ def poll_fast():
     ps_out = sh("looper ps --json 2>/dev/null")
     try:  # parse success, not emptiness: sh() hands back stdout even on a non-zero exit
         loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
-                  "step": i.get("currentStep") or "-", "status": i.get("status") or "-",
+                  "step": i.get("currentStep") or "-",
+                  # displayStatus refines `status`: a loop parked on manual_intervention
+                  # is merely `paused` in `status`, and that is the one state a human owes work to
+                  "status": i.get("displayStatus") or i.get("status") or "-",
                   "since": iso_ts((i.get("agent") or {}).get("startedAt"))}
                  for i in json.loads(ps_out)["items"]]  # a loop with no `type` is not renderable:
         ps_ok = True                                    # a schema drift means "injoignable", not "frozen"
@@ -210,7 +213,7 @@ def alarms(now=None):
         t = systemd_ts(s.get("ExecMainExitTimestamp"))
         age = f" il y a {ago(now - t, fine=True)}" if t else ""
         restarts = f" · {s['NRestarts']} restarts" if (s.get("NRestarts") or "0") != "0" else ""
-        code = "signal" if s.get("ExecMainCode") == "2" else "exit"  # si_code 2 = killed, not exited
+        code = "signal" if s.get("ExecMainCode") in ("2", "3") else "exit"  # si_code 2/3 = killed/dumped
         out.append((f"unit:{unit}",
                     f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']} "
                     f"({code} {s.get('ExecMainStatus') or '?'}){age}{restarts}"))
@@ -980,6 +983,14 @@ def selfcheck():
         if any(k == "looper:down" for k, _ in alarms(now)) == ps_ok:
             print(f"FAIL poll_fast/{name}: looper:down alarm should be {not ps_ok}")
             fails += 1
+    # `status` flattens manual_intervention into paused; only displayStatus keeps the desk honest
+    stub(json.dumps({"items": [{"type": "fixer", "status": "paused", "loopStatus": "paused",
+                                "displayStatus": "manual_intervention", "currentStep": None,
+                                "target": {"label": "SoulKyu/notificator#83"}, "agent": None}]}))
+    poll_fast()
+    if agent_state("fixer", "looper:fixer")[1] != "manual_intervention":
+        print(f"FAIL agent_state: paused loop lost its display status: {agent_state('fixer', 'looper:fixer')}")
+        fails += 1
     # the scheduler starts the loop that just waited 47 min: its clock is the agent's, not the queue's
     fresh = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 5))
     stub(json.dumps({"items": [{"type": "worker", "status": "running", "currentStep": "implement",
@@ -1008,9 +1019,12 @@ def selfcheck():
             for n in ("qa", "scout", "worker", "rebaser", "promoter", "docagent", "reporter")}
         STATE["svc"]["notificator-worker"].update(  # ExecMainStatus is a signal when si_code is 2
             Result="oom-kill", ExecMainStatus="9", ExecMainCode="2")
+        STATE["svc"]["notificator-reporter"].update(  # ... and when it is 3 (killed + dumped core)
+            Result="core-dump", ExecMainStatus="11", ExecMainCode="3")
         STATE["loops"] = [lp57]
     a = alarms(now)
     if not (len(a) == 8 and "qa" in a[2][1] and "exit 2" in a[2][1] and "3h12" in a[2][1]
+            and any("core-dump" in r and "signal 11" in r for _, r in a)
             and "signal 9" in a[-2][1] and "oom-kill" in a[-2][1]
             and "#57" in a[-1][1] and "implement" in a[-1][1] and "47min" in a[-1][1]):
         print(f"FAIL alarms: {a}")
