@@ -825,6 +825,99 @@ func (f *fakeAlertFetcher) FetchAllAlertsDetailed() ([]alertmanager.AlertWithSou
 	return f.alerts, f.fetchErrors
 }
 
+// TestAlertCache_RefreshKeepsAcknowledgementState covers the SSE regression where
+// a refresh cycle compared the cache against a collaboration-free poll result and
+// pushed that stripped alert to browsers, flipping acked alerts back to un-acked.
+func TestAlertCache_RefreshKeepsAcknowledgementState(t *testing.T) {
+	amAlert := alertmanager.AlertWithSource{
+		Alert: models.Alert{
+			Labels:      map[string]string{"alertname": "HighMemoryUsage"},
+			Annotations: map[string]string{"summary": "Memory is high"},
+			Status:      models.AlertStatus{State: "firing"},
+			StartsAt:    time.Now().Add(-time.Hour),
+		},
+		Source: "prod",
+	}
+
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+	cache.alertmanagerClient = &fakeAlertFetcher{alerts: []alertmanager.AlertWithSource{amAlert}}
+	cache.refreshAlerts()
+
+	updates := cache.Subscribe()
+	defer cache.Unsubscribe(updates)
+
+	fingerprint := cache.convertToDashboardAlert(amAlert.Alert, amAlert.Source).Fingerprint
+	acknowledgedAt := time.Now().Add(-time.Minute)
+	if !cache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+		a.IsAcknowledged = true
+		a.AcknowledgedBy = "alice"
+		a.AcknowledgedAt = acknowledgedAt
+		a.CommentCount = 2
+	}) {
+		t.Fatal("alert should be cached after the seeding refresh")
+	}
+
+	updatedAt := func() time.Time {
+		alert, ok := cache.GetAlert(fingerprint)
+		if !ok {
+			t.Fatal("alert disappeared from the cache")
+		}
+		return alert.UpdatedAt
+	}
+	beforeRefresh := updatedAt()
+
+	// The acknowledgement itself is what has to reach browsers, with real state.
+	select {
+	case update := <-updates:
+		if len(update.UpdatedAlerts) != 1 || !update.UpdatedAlerts[0].IsAcknowledged {
+			t.Fatalf("acknowledgement should be pushed over SSE with ack state, got %+v", update.UpdatedAlerts)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("acknowledging an alert should push an SSE update")
+	}
+
+	// Three cycles with an unchanged Alertmanager payload: nothing should move.
+	for i := 0; i < 3; i++ {
+		cache.refreshAlerts()
+
+		select {
+		case update := <-updates:
+			t.Fatalf("cycle %d: unchanged alert should not be pushed over SSE, got %d updated alerts", i, len(update.UpdatedAlerts))
+		default:
+		}
+
+		cached, _ := cache.GetAlert(fingerprint)
+		if !cached.IsAcknowledged || cached.AcknowledgedBy != "alice" || cached.CommentCount != 2 {
+			t.Fatalf("cycle %d: collaboration state lost: %+v", i, cached)
+		}
+		if !cached.UpdatedAt.Equal(beforeRefresh) {
+			t.Fatalf("cycle %d: UpdatedAt advanced without a real change", i)
+		}
+	}
+
+	// A real Alertmanager-side change must still be pushed, with ack state intact.
+	changed := amAlert
+	changed.Alert.Annotations = map[string]string{"summary": "Memory is critical"}
+	cache.alertmanagerClient = &fakeAlertFetcher{alerts: []alertmanager.AlertWithSource{changed}}
+	cache.refreshAlerts()
+
+	select {
+	case update := <-updates:
+		if len(update.UpdatedAlerts) != 1 {
+			t.Fatalf("expected 1 updated alert, got %d", len(update.UpdatedAlerts))
+		}
+		pushed := update.UpdatedAlerts[0]
+		if !pushed.IsAcknowledged || pushed.AcknowledgedBy != "alice" || pushed.CommentCount != 2 {
+			t.Errorf("SSE payload lost collaboration state: %+v", pushed)
+		}
+		if pushed.Summary != "Memory is critical" {
+			t.Errorf("SSE payload should carry the new summary, got %q", pushed.Summary)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("a changed alert should be pushed over SSE")
+	}
+}
+
 func TestAlertCache_RefreshWithPartialFetchFailure(t *testing.T) {
 	newAlert := func(name, source string) alertmanager.AlertWithSource {
 		return alertmanager.AlertWithSource{
