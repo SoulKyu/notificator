@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -906,4 +907,111 @@ func TestAlertCache_RefreshWithPartialFetchFailure(t *testing.T) {
 			t.Error("prod alert should resolve once its source answers without it")
 		}
 	})
+}
+
+// TestAlertCache_ConcurrentRefreshAndReads runs refresh-style writes (mutations
+// of cached structs under ac.mu) concurrently with the read accessors, exactly
+// like a browser polling the dashboard during the background refresh cycle.
+// It fails under -race when GetAlert/GetAllAlerts hand out cache-resident
+// pointers instead of snapshots.
+func TestAlertCache_ConcurrentRefreshAndReads(t *testing.T) {
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+
+	const fingerprint = "race-fingerprint"
+	cache.UpdateAlert(&webuimodels.DashboardAlert{
+		Fingerprint: fingerprint,
+		Status:      webuimodels.AlertStatus{State: "firing"},
+		Summary:     "race test",
+	})
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// Writer: the same field writes loadAcknowledgmentsEfficiently and the
+	// resolve pass perform on cache-resident structs.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			cache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+				a.IsAcknowledged = i%2 == 0
+				a.AcknowledgedBy = "alice"
+				a.Status.State = "resolved"
+				a.CommentCount++
+			})
+		}
+	}()
+
+	// Readers: dereference returned alerts with no lock held, as handlers do.
+	for r := 0; r < 4; r++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if alert, ok := cache.GetAlert(fingerprint); ok {
+					_ = alert.IsAcknowledged
+					_ = alert.AcknowledgedBy
+					_ = alert.Status.State
+				}
+				for _, alert := range cache.GetAllAlerts() {
+					_ = alert.CommentCount
+					_ = alert.Summary
+				}
+			}
+		}()
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+}
+
+// TestAlertCache_MutateAlert verifies mutations reach the cache while snapshots
+// returned by the accessors stay isolated from it.
+func TestAlertCache_MutateAlert(t *testing.T) {
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+
+	const fingerprint = "mutate-fingerprint"
+	cache.UpdateAlert(&webuimodels.DashboardAlert{
+		Fingerprint: fingerprint,
+		Status:      webuimodels.AlertStatus{State: "firing"},
+	})
+
+	if cache.MutateAlert("missing", func(a *webuimodels.DashboardAlert) {}) {
+		t.Error("MutateAlert should return false for an unknown fingerprint")
+	}
+
+	ok := cache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+		a.Status.State = "resolved"
+		a.IsResolved = true
+		a.CommentCount++
+	})
+	if !ok {
+		t.Fatal("MutateAlert should return true for a cached fingerprint")
+	}
+
+	cached, exists := cache.GetAlert(fingerprint)
+	if !exists {
+		t.Fatal("alert should still be cached")
+	}
+	if cached.Status.State != "resolved" || !cached.IsResolved || cached.CommentCount != 1 {
+		t.Errorf("mutation not visible on immediate read: %+v", cached)
+	}
+
+	// Writing through a returned snapshot must not touch the cache.
+	cached.CommentCount = 99
+	again, _ := cache.GetAlert(fingerprint)
+	if again.CommentCount != 1 {
+		t.Errorf("accessor returned a cache-resident pointer: CommentCount = %d, want 1", again.CommentCount)
+	}
 }

@@ -266,9 +266,10 @@ func (ac *AlertCache) refreshAlerts() {
 		}
 	}
 
+	activeCount := len(ac.alerts)
 	ac.mu.Unlock()
 
-	log.Printf("Alert cache refresh complete: %d active alerts, %d newly resolved", len(ac.alerts), resolvedCount)
+	log.Printf("Alert cache refresh complete: %d active alerts, %d newly resolved", activeCount, resolvedCount)
 
 	ac.loadBackendData()
 
@@ -430,6 +431,22 @@ func (ac *AlertCache) UpdateAlert(alert *webuimodels.DashboardAlert) {
 	}
 }
 
+// MutateAlert applies fn to the cached alert under ac.mu; returns false if the
+// fingerprint is not in the live cache. This is the only supported way to write
+// to a cached alert — the read accessors return snapshots, so writes through
+// their return values never reach the cache.
+func (ac *AlertCache) MutateAlert(fingerprint string, fn func(*webuimodels.DashboardAlert)) bool {
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	alert, exists := ac.alerts[fingerprint]
+	if !exists {
+		return false
+	}
+	fn(alert)
+	return true
+}
+
 func (ac *AlertCache) loadBackendData() {
 	log.Printf("loadBackendData called - checking backend connection...")
 	if ac.backendClient == nil {
@@ -544,9 +561,14 @@ func (ac *AlertCache) GetAllAlerts() []*webuimodels.DashboardAlert {
 	ac.mu.RLock()
 	defer ac.mu.RUnlock()
 
+	// Return snapshots, not cache-resident pointers: the background refresher
+	// keeps mutating the cached structs after this lock is released. A shallow
+	// copy is enough — Labels is never written after construction and
+	// Annotations is only ever replaced wholesale.
 	alerts := make([]*webuimodels.DashboardAlert, 0, len(ac.alerts))
 	for _, alert := range ac.alerts {
-		alerts = append(alerts, alert)
+		alertCopy := *alert
+		alerts = append(alerts, &alertCopy)
 	}
 
 	return alerts
@@ -598,8 +620,11 @@ func (ac *AlertCache) GetAlert(fingerprint string) (*webuimodels.DashboardAlert,
 	ac.mu.RLock()
 
 	if alert, exists := ac.alerts[fingerprint]; exists {
+		// Copy under the lock: the background refresher keeps mutating the
+		// cached struct after RUnlock. Use MutateAlert to write to the cache.
+		alertCopy := *alert
 		ac.mu.RUnlock()
-		return alert, true
+		return &alertCopy, true
 	}
 
 	ac.mu.RUnlock()
