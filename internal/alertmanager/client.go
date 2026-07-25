@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strings"
 	"sync"
 	"time"
@@ -578,8 +579,14 @@ func (c *Client) DeleteSilence(silenceID string) error {
 	return nil
 }
 
+// healthCheckFilter keeps the health probe cheap: the alerts endpoint is the
+// only one guaranteed to exist across Alertmanager, Cortex and Mimir, but a
+// filter that cannot match anything makes it answer with an empty list instead
+// of the full payload.
+const healthCheckFilter = `alertname="__notificator_health_check__"`
+
 func (c *Client) TestConnection() error {
-	url := fmt.Sprintf("%s/api/v2/alerts", c.BaseURL) // v2 API doesn't have dedicated status endpoint
+	url := fmt.Sprintf("%s/api/v2/alerts?filter=%s", c.BaseURL, neturl.QueryEscape(healthCheckFilter))
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -598,6 +605,9 @@ func (c *Client) TestConnection() error {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("alertmanager returned status %d: %s", resp.StatusCode, string(body[:min(200, len(body))]))
 	}
+
+	// Drain the body so the connection goes back to the keep-alive pool.
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	return nil
 }
@@ -673,27 +683,76 @@ type SilenceWithSource struct {
 	Source  string // Name of the Alertmanager instance
 }
 
+type namedClient struct {
+	name   string
+	client *Client
+}
+
+type fanOutResult[T any] struct {
+	name  string
+	value T
+	err   error
+}
+
+// snapshotClients copies the client map under RLock so fan-outs can do their
+// HTTP work without holding mc.mutex, which would otherwise block
+// UpdateFromConfig for the whole N x timeout window.
+func (mc *MultiClient) snapshotClients() []namedClient {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	snapshot := make([]namedClient, 0, len(mc.clients))
+	for name, client := range mc.clients {
+		snapshot = append(snapshot, namedClient{name: name, client: client})
+	}
+
+	return snapshot
+}
+
+// fanOut calls fn against every client concurrently and returns the results in
+// snapshot order, so the wall-clock cost is max(latency) rather than
+// sum(latency). Concurrency is unbounded on purpose: the fleet size is the
+// number of configured Alertmanagers, which is small by construction.
+func fanOut[T any](clients []namedClient, fn func(*Client) (T, error)) []fanOutResult[T] {
+	results := make([]fanOutResult[T], len(clients))
+
+	var wg sync.WaitGroup
+	for i, nc := range clients {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			value, err := fn(nc.client)
+			results[i] = fanOutResult[T]{name: nc.name, value: value, err: err}
+		}()
+	}
+	wg.Wait()
+
+	return results
+}
+
+func testConnections(clients []namedClient) []fanOutResult[struct{}] {
+	return fanOut(clients, func(c *Client) (struct{}, error) {
+		return struct{}{}, c.TestConnection()
+	})
+}
+
 // FetchAllAlertsDetailed fetches alerts from every configured Alertmanager and
 // reports per-source failures instead of collapsing them into a single error,
 // so callers can tell a partial fetch from a genuinely empty one.
 func (mc *MultiClient) FetchAllAlertsDetailed() ([]AlertWithSource, map[string]error) {
-	mc.mutex.RLock()
-	defer mc.mutex.RUnlock()
-
 	var allAlerts []AlertWithSource
 	failedSources := make(map[string]error)
 
-	for name, client := range mc.clients {
-		alerts, err := client.FetchAlerts()
-		if err != nil {
-			failedSources[name] = err
+	for _, result := range fanOut(mc.snapshotClients(), (*Client).FetchAlerts) {
+		if result.err != nil {
+			failedSources[result.name] = result.err
 			continue
 		}
 
-		for _, alert := range alerts {
+		for _, alert := range result.value {
 			allAlerts = append(allAlerts, AlertWithSource{
 				Alert:  alert,
-				Source: name,
+				Source: result.name,
 			})
 		}
 	}
@@ -733,23 +792,19 @@ func (mc *MultiClient) FetchAllActiveAlerts() ([]AlertWithSource, error) {
 // reports per-source failures instead of collapsing them into a single error, so an
 // unreachable Alertmanager degrades that source instead of blanking the inventory.
 func (mc *MultiClient) FetchAllSilencesDetailed() ([]SilenceWithSource, map[string]error) {
-	mc.mutex.RLock()
-	defer mc.mutex.RUnlock()
-
 	var allSilences []SilenceWithSource
 	failedSources := make(map[string]error)
 
-	for name, client := range mc.clients {
-		silences, err := client.FetchSilences()
-		if err != nil {
-			failedSources[name] = err
+	for _, result := range fanOut(mc.snapshotClients(), (*Client).FetchSilences) {
+		if result.err != nil {
+			failedSources[result.name] = result.err
 			continue
 		}
 
-		for _, silence := range silences {
+		for _, silence := range result.value {
 			allSilences = append(allSilences, SilenceWithSource{
 				Silence: silence,
-				Source:  name,
+				Source:  result.name,
 			})
 		}
 	}
@@ -758,13 +813,10 @@ func (mc *MultiClient) FetchAllSilencesDetailed() ([]SilenceWithSource, map[stri
 }
 
 func (mc *MultiClient) TestAllConnections() map[string]error {
-	mc.mutex.RLock()
-	defer mc.mutex.RUnlock()
-
 	results := make(map[string]error)
 
-	for name, client := range mc.clients {
-		results[name] = client.TestConnection()
+	for _, result := range testConnections(mc.snapshotClients()) {
+		results[result.name] = result.err
 	}
 
 	return results
@@ -835,25 +887,21 @@ func (c *Client) IsHealthy() bool {
 }
 
 func (mc *MultiClient) GetHealthStatus() map[string]bool {
-	mc.mutex.RLock()
-	defer mc.mutex.RUnlock()
-
 	status := make(map[string]bool)
-	for name, client := range mc.clients {
-		status[name] = client.IsHealthy()
+	for _, result := range testConnections(mc.snapshotClients()) {
+		status[result.name] = result.err == nil
 	}
 
 	return status
 }
 
 func (mc *MultiClient) GetHealthyClients() map[string]*Client {
-	mc.mutex.RLock()
-	defer mc.mutex.RUnlock()
+	clients := mc.snapshotClients()
 
 	healthy := make(map[string]*Client)
-	for name, client := range mc.clients {
-		if client.IsHealthy() {
-			healthy[name] = client
+	for i, result := range testConnections(clients) {
+		if result.err == nil {
+			healthy[result.name] = clients[i].client
 		}
 	}
 

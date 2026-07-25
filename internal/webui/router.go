@@ -49,7 +49,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	err = backendClient.Connect()
 	if err != nil {
 		// For now, continue without backend - will show connection errors
-		log.Fatalf("Backend is mandatory on webui %w", err)
+		log.Fatalf("Backend is mandatory on webui: %v", err)
 	}
 
 	// Set backend client for handlers
