@@ -48,7 +48,7 @@ stays read-only.
 
 | Source | What it feeds | Interval |
 |---|---|---|
-| `looper ps --json` | looper roles: coordinator, planner, reviewer, fixer, worker | 3 s |
+| `looper ps --json` | looper roles: coordinator, planner, reviewer, fixer, worker — a role running N>1 loops concurrently gets N desks (`🚢 WORKER·1`, `🚢 WORKER·2`…), each with its own target and step. The grid is capped by terminal height so it never hides the panels below it; desks that don't fit fold into the last desk of their role (`🚢 WORKER·2+3`) | 3 s |
 | `systemctl --user` (services + timers `notificator-*`) | custom agents: scout, roast, qa, rebaser, promoter, groomer, doc, reporter — running / next wake-up / failure | 3–10 s |
 | `gh pr list` / `gh issue list` | the team board | 45 s |
 | `gh pr list` / `gh issue list` (last-24h search, one batched query set) | the 🏆 SCOREBOARD panel: per-agent stats (scout issues/approved, roast verdicts/kills, worker PRs/merged, qa pass/fail), hourly activity sparkline, ⭐ employé du jour — hidden when there is no data, "(github injoignable)" when GitHub is down | 45 s |
@@ -96,6 +96,7 @@ Observable transitions feed a render-side event queue (no extra pollers):
 |---|---|---|
 | `FACTORY_REPO` | `SoulKyu/notificator` | GitHub repo for the board |
 | `FACTORY_LOG_DIR` | `~/.claude-agents/notificator/logs` | agent logs to feed the ticker |
+| `FACTORY_LOOPER_LOG_DIR` | `~/.looper/logs/loops` | looper run logs (`<loopId>/<runId>/*.stdout.log`) for the zoom tail of a looper desk |
 | `FACTORY_INBOX_DIR` | `~/.claude-agents/notificator/inbox` | agent mailboxes for 📬 badges + 💬 INTERCOM |
 | `FACTORY_STALL_MIN` | `30` | minutes on the same looper step before a 🚨 stall alarm |
 
