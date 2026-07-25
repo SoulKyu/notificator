@@ -290,13 +290,13 @@ def poll_med():
                 STATE["ticker"] = f"[{name}] {line.strip()[:200]}"
     except Exception:
         pass
-    # agent-to-agent mail: pending inboxes + recent archived conversations
+    # agent-to-agent mail: pending inboxes + recent task events (events.jsonl)
     global MAIL_SEEN
     pending, intercom, events, seen = {}, [], [], set()
     try:
         for box in os.listdir(INBOX_DIR):
-            if box == "archive":
-                continue
+            if box == "archive" or not os.path.isdir(os.path.join(INBOX_DIR, box)):
+                continue  # skip 'archive' and files like events.jsonl
             msgs = [f for f in os.listdir(os.path.join(INBOX_DIR, box)) if f.startswith("msg-")]
             if msgs:
                 pending[box] = len(msgs)
@@ -307,14 +307,21 @@ def poll_med():
                     m = re.search(r"^From: (\S+)", head, re.M)
                     events.append({"kind": "mail", "frm": m.group(1) if m else None, "to": box})
         MAIL_SEEN = seen
-        arch = os.path.join(INBOX_DIR, "archive")
-        for f in sorted(os.listdir(arch), reverse=True)[:3]:
-            to = f.rsplit(".", 1)[-1]
-            head, _, body = open(os.path.join(arch, f), errors="replace").read().partition("\n\n")
-            frm = next((l[6:] for l in head.splitlines() if l.startswith("From: ")), "?")
-            first = body.strip().splitlines()[0] if body.strip() else ""
-            intercom.append(f"{frm} → {to}: {first[:120]}")
-        intercom.reverse()
+        # structured task events (summon.sh / inbox-lib.sh append-only log):
+        # submitted lines show frm→to + subject [ref]; consumed lines show a ✓.
+        evlog = os.path.join(INBOX_DIR, "events.jsonl")
+        if os.path.exists(evlog):
+            for ln in open(evlog, errors="replace").read().splitlines()[-6:]:
+                try:
+                    e = json.loads(ln)
+                except Exception:
+                    continue
+                subj = (e.get("subject") or "")[:100]
+                if e.get("event") == "consumed":
+                    intercom.append(f"  ✓ {e.get('by','?')} handled: {subj}")
+                else:
+                    ref = f" [{e['ref']}]" if e.get("ref") else ""
+                    intercom.append(f"{e.get('from','?')} → {e.get('to','?')}: {subj}{ref}")
     except Exception:
         pass
     with LOCK:
