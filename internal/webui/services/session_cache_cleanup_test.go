@@ -87,15 +87,21 @@ func TestHiddenAlertsServiceSweepIdleSessions(t *testing.T) {
 	}
 }
 
-// The nil backend client is the assertion: any gRPC fetch dereferences it and
-// panics, so "did not panic" means the cached snapshot was served.
 func TestHiddenAlertsServiceLoadUserDataServesCacheWithinTTL(t *testing.T) {
-	s := NewHiddenAlertsService(nil)
+	backend := &stubBackend{}
+	s := NewHiddenAlertsService(backend)
 	s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
 	s.lastAccess["sess"] = time.Now()
 
 	if err := s.LoadUserData("sess"); err != nil {
 		t.Fatalf("LoadUserData: %v", err)
+	}
+
+	if backend.calls != 0 {
+		t.Errorf("fresh cache should not fetch: got %d backend calls, want 0", backend.calls)
+	}
+	if !s.userHiddenAlerts["sess"]["fp"] {
+		t.Error("cached snapshot should have been left untouched")
 	}
 }
 
@@ -113,14 +119,20 @@ func TestHiddenAlertsServiceLoadUserDataRefetchesWhenStale(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Error("expected a backend fetch attempt")
-				}
-			}()
-			s := NewHiddenAlertsService(nil)
+			backend := &stubBackend{alerts: []*alertpb.UserHiddenAlert{{Fingerprint: "fetched"}}}
+			s := NewHiddenAlertsService(backend)
 			prime(s)
-			_ = s.LoadUserData("sess")
+
+			if err := s.LoadUserData("sess"); err != nil {
+				t.Fatalf("LoadUserData: %v", err)
+			}
+
+			if backend.calls != 1 {
+				t.Errorf("stale cache should refetch: got %d backend calls, want 1", backend.calls)
+			}
+			if got := s.userHiddenAlerts["sess"]; !got["fetched"] || len(got) != 1 {
+				t.Errorf("fetched snapshot should replace the primed one, got %v", got)
+			}
 		})
 	}
 }
@@ -174,6 +186,25 @@ func TestHiddenAlertsServiceLoadUserDataDropsSnapshotClearedMidFetch(t *testing.
 
 	if _, ok := s.userHiddenAlerts["sess"]; ok {
 		t.Error("snapshot predating the mid-fetch clear-all should not be published")
+	}
+}
+
+// A hide landing mid-fetch on a cold entry creates the snapshot map before it
+// bumps the generation, so the guard must clear it: a one-fingerprint map with
+// no rules reads as "loaded" to IsAlertHidden, which then never reloads.
+func TestHiddenAlertsServiceLoadUserDataDropsSnapshotHiddenMidFetchOnColdEntry(t *testing.T) {
+	backend := &stubBackend{}
+	s := NewHiddenAlertsService(backend)
+	backend.onFetch = func() {
+		_ = s.HideAlert("sess", &webuimodels.DashboardAlert{Fingerprint: "fpA"}, "")
+	}
+
+	if err := s.LoadUserData("sess"); err != nil {
+		t.Fatalf("LoadUserData: %v", err)
+	}
+
+	if _, ok := s.userHiddenAlerts["sess"]; ok {
+		t.Error("entry half-populated by a mid-fetch hide should be cleared so IsAlertHidden reloads")
 	}
 }
 
