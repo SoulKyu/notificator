@@ -579,6 +579,12 @@ def agent_state(key, kind):
     return "break", "pause", nxt or "?"
 
 
+def loop_order(lp):
+    """Sort key giving desks a stable order — `looper ps` row order is not guaranteed."""
+    tail = lp["target"].rsplit("/", 1)[-1]
+    return (0, int(tail), "") if tail.isdigit() else (1, 0, lp["target"])
+
+
 def build_desks():
     """ROSTER expanded for the current frame: a looper role running N>1 loops
     concurrently gets one desk per loop (WORKER·1, WORKER·2…). N<=1 → one desk."""
@@ -587,7 +593,7 @@ def build_desks():
     desks = []
     for key, emoji, name, kind in ROSTER:
         role = kind.split(":")[1] if kind.startswith("looper:") else None
-        mine = [lp for lp in loops if lp["type"] == role] if role else []
+        mine = sorted((lp for lp in loops if lp["type"] == role), key=loop_order) if role else []
         if len(mine) > 1:
             desks += [{"key": key, "emoji": emoji, "name": f"{name}·{i + 1}", "kind": kind,
                        "state": loop_state(lp), "loop": lp} for i, lp in enumerate(mine)]
@@ -770,10 +776,27 @@ def log_tail(key, n=ZOOM_TAIL):
         return None, []
 
 
+def desk_index(desks, name):
+    """Position of a desk by name, or None. Selection must follow identity, not position:
+    worker desks appear/disappear mid-list, so index 8 means a different agent frame to frame."""
+    return next((i for i, d in enumerate(desks) if d["name"] == name), None)
+
+
+def desk_tail(desk, n=ZOOM_TAIL):
+    """This desk's own loop log (`worker-49-*`) when one exists, else the role-wide newest."""
+    lp = desk["loop"]
+    if lp:
+        name, tail = log_tail(f"{desk['key']}-{lp['target'].rsplit('/', 1)[-1]}", n)
+        if name:
+            return name, tail
+    return log_tail(desk["key"], n)
+
+
 def zoom_lines(desk, tail_name, tail, follow, note, width=80):
     """Zoom panel over one desk -> lines at exact display width."""
     key, emoji, name, kind = desk["key"], desk["emoji"], desk["name"], desk["kind"]
     state, status, detail = desk["state"]
+    lp = desk["loop"]
     with LOCK:
         svc, timers = dict(STATE["svc"]), dict(STATE["timers"])
     unit = ("notificator-scout" if kind == "virtual:scout-log"
@@ -782,14 +805,16 @@ def zoom_lines(desk, tail_name, tail, follow, note, width=80):
         s = svc.get(unit, {})
         last = f"{s.get('Result') or '—'} · {s.get('ExecMainStartTimestamp') or '—'}"
     else:  # ponytail: looper roles have no systemd unit — show this desk's loop instead
-        lp = desk["loop"]
         last = f"{lp['status']} · {lp['target']}" if lp else "—"
+    tgt = lp["target"].rsplit("/", 1)[-1] if lp else None
+    # the tail may fall back to the role-wide newest log — say so rather than imply it's this loop's
+    scope = "" if not tgt or not tail_name or tail_name.startswith(f"{key}-{tgt}") else " (rôle entier)"
     inner = width - 2
     lines = ["╔" + dpad(f" ZOOM — {emoji} {name} ", inner, center=True, fill="═") + "╗"]
     for b in (f" état : {state} · {status} {detail}".rstrip(),
               f" dernier run : {last}",
               f" prochain réveil : {timers.get(TIMER_OF.get(key, ''), '') or '—'}",
-              f" log : {tail_name or '(aucun)'}  [{'follow' if follow else 'figé'}]"):
+              f" log : {tail_name or '(aucun)'}{scope}  [{'follow' if follow else 'figé'}]"):
         lines.append("║" + dpad(b, inner) + "║")
     lines.append("╠" + "═" * inner + "╣")
     rows = (tail or ["(aucun log)"])[-ZOOM_TAIL:]
@@ -854,17 +879,20 @@ def main_curses(scr):
     for i, fg in ((1, curses.COLOR_GREEN), (2, curses.COLOR_YELLOW), (3, curses.COLOR_BLUE),
                   (4, curses.COLOR_RED), (5, curses.COLOR_CYAN), (6, curses.COLOR_MAGENTA)):
         curses.init_pair(i, fg, -1)
-    tick, sel, zoom, follow, frozen, note = 0, 0, None, True, (None, []), ""
+    tick, sel, follow, frozen, note = 0, 0, True, (None, []), ""
+    sel_name = zoom_name = None
     while True:
         ch = scr.getch()
         h, w = scr.getmaxyx()
         width = min(w - 1, 120)
         per_row = grid_per_row(width)  # must match render_frame's column count or Up/Down drifts
-        # ponytail: desk count varies with concurrent loops — clamp, indexes may shift under you
+        # desks appear/disappear mid-list with concurrent loops — re-resolve by name, not position
         desks = build_desks()
-        sel = min(sel, len(desks) - 1)
-        if zoom is not None:
-            zoom = min(zoom, len(desks) - 1)
+        idx = desk_index(desks, sel_name)
+        sel = idx if idx is not None else min(sel, len(desks) - 1)
+        zoom = desk_index(desks, zoom_name) if zoom_name else None
+        if zoom is None:
+            zoom_name = None  # zoomed desk gone → close the panel, never slide onto a neighbour
         if ch == ord("q"):
             return
         if zoom is None:
@@ -879,14 +907,15 @@ def main_curses(scr):
             elif ch == curses.KEY_DOWN:
                 sel = (sel + per_row) % len(desks)
             elif ch in (curses.KEY_ENTER, 10, 13):
-                zoom, follow, note = sel, True, ""
+                zoom, zoom_name, follow, note = sel, desks[sel]["name"], True, ""
+            sel_name = desks[sel]["name"]
         else:
             if ch == 27:
-                zoom = None
+                zoom, zoom_name = None, None
             elif ch == ord("l"):
                 follow = not follow
                 if not follow:
-                    frozen = log_tail(desks[zoom]["key"])
+                    frozen = desk_tail(desks[zoom])
             elif ch == ord("s") and desks[zoom]["key"] in SUMMONABLE:
                 msg = prompt_summon(scr, desks[zoom]["key"])
                 if msg:
@@ -901,7 +930,7 @@ def main_curses(scr):
                 pass
         if zoom is not None:
             # ponytail: re-read the tail every frame in follow mode — small seek'd read, dev tool
-            tail_name, tail = log_tail(desks[zoom]["key"]) if follow else frozen
+            tail_name, tail = desk_tail(desks[zoom]) if follow else frozen
             zl = zoom_lines(desks[zoom], tail_name, tail, follow, note, min(80, max(24, w - 4)))
             y0, x0 = max(0, (h - len(zl)) // 2), max(0, (w - dwidth(zl[0])) // 2)
             for i, line in enumerate(zl):
@@ -1202,10 +1231,11 @@ def selfcheck():
         if grid_per_row(w) != want:
             print(f"FAIL grid_per_row({w}) = {grid_per_row(w)} (want {want})")
             fails += 1
-    # dynamic desks: 3 concurrent worker loops → 3 worker desks, rows still exact width
+    # dynamic desks: 3 concurrent worker loops → 3 worker desks, rows still exact width.
+    # injected out of `looper ps` order on purpose — build_desks() must sort them.
     with LOCK:
         STATE["loops"] = [{"type": "worker", "target": f"SoulKyu/notificator/{n}", "step": "code",
-                           "status": "running"} for n in (49, 50, 55)]
+                           "status": "running"} for n in (55, 49, 50)]
     desks = build_desks()
     workers = [d for d in desks if d["key"] == "worker"]
     if [d["name"] for d in workers] != ["WORKER·1", "WORKER·2", "WORKER·3"]:
@@ -1228,9 +1258,20 @@ def selfcheck():
             fails += 1
     with LOCK:  # single loop → single desk, unchanged from ROSTER
         STATE["loops"] = [STATE["loops"][0]]
-    if len(build_desks()) != len(ROSTER) or build_desks()[5]["name"] != "WORKER":
-        print("FAIL single loop should not duplicate the desk")
+    solo = build_desks()
+    # a selection parked on REVIEW must still be REVIEW once two worker loops finish
+    if desk_index(solo, "REVIEW") == desk_index(desks, "REVIEW") or desk_index(solo, "REVIEW") is None:
+        print(f"FAIL desk_index: REVIEW {desk_index(desks, 'REVIEW')} → {desk_index(solo, 'REVIEW')}")
         fails += 1
+    if desk_index(solo, "WORKER·2") is not None:
+        print("FAIL desk_index: vanished desk should resolve to None")
+        fails += 1
+    solo_workers = [d["name"] for d in solo if d["key"] == "worker"]
+    if len(solo) != len(ROSTER) or solo_workers != ["WORKER"]:
+        print(f"FAIL single loop duplicated the desk: {solo_workers}")
+        fails += 1
+    with LOCK:  # leave no injected loop behind for later checks
+        STATE["loops"] = []
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 
