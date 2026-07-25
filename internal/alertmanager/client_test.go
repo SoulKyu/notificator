@@ -91,28 +91,34 @@ func TestFetchAllAlertsDetailedIsConcurrent(t *testing.T) {
 }
 
 func TestFetchAllAlertsDetailedPartialFailure(t *testing.T) {
-	// A source whose handler outlives the client timeout stands in for an
-	// unreachable Alertmanager.
+	// Sources whose handlers outlive the client timeout stand in for unreachable
+	// Alertmanagers. Two of them, so serialising stacks both timeouts on top of
+	// the healthy latencies (~1.1s) and trips the bound below, while a concurrent
+	// fan-out stays at roughly one timeout.
 	hang := make(chan struct{})
-	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	tarpit := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-hang
-	}))
+	})
+	deadA := httptest.NewServer(tarpit)
+	deadB := httptest.NewServer(tarpit)
 	defer func() {
 		close(hang)
-		dead.Close()
+		deadA.Close()
+		deadB.Close()
 	}()
 
 	urls := map[string]string{
 		"healthy-a": alertmanagerStub(t, "healthy-a", 50*time.Millisecond).URL,
 		"healthy-b": alertmanagerStub(t, "healthy-b", 50*time.Millisecond).URL,
-		"dead":      dead.URL,
+		"dead-a":    deadA.URL,
+		"dead-b":    deadB.URL,
 	}
 
 	const deadTimeout = 500 * time.Millisecond
 
 	mc := multiClientFor(urls)
 	for _, nc := range mc.snapshotClients() {
-		if nc.name == "dead" {
+		if strings.HasPrefix(nc.name, "dead") {
 			nc.client.HTTPClient.Timeout = deadTimeout
 		}
 	}
@@ -125,19 +131,21 @@ func TestFetchAllAlertsDetailedPartialFailure(t *testing.T) {
 		t.Fatalf("got %d alerts, want the 2 healthy ones", len(alerts))
 	}
 	for _, a := range alerts {
-		if a.Source == "dead" {
+		if strings.HasPrefix(a.Source, "dead") {
 			t.Fatalf("dead source contributed alerts: %+v", a)
 		}
 	}
-	if _, ok := failed["dead"]; !ok {
-		t.Fatalf("dead source missing from failedSources: %v", failed)
+	for _, name := range []string{"dead-a", "dead-b"} {
+		if _, ok := failed[name]; !ok {
+			t.Fatalf("%s missing from failedSources: %v", name, failed)
+		}
 	}
-	if len(failed) != 1 {
+	if len(failed) != 2 {
 		t.Fatalf("unexpected failures: %v", failed)
 	}
-	// Bounded by the single timeout, not timeout + healthy latencies. The bound
-	// is derived from the timeout so the intent stays "did not serialise" rather
-	// than a hand-tuned number that a slow runner can trip.
+	// Bounded by a single timeout, not both timeouts plus the healthy latencies.
+	// The bound is derived from the timeout so the intent stays "did not
+	// serialise" rather than a hand-tuned number that a slow runner can trip.
 	if elapsed > 2*deadTimeout {
 		t.Fatalf("fan-out took %s, want it bounded by the dead source timeout %s", elapsed, deadTimeout)
 	}
