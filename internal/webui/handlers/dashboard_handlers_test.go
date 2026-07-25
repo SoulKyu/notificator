@@ -92,6 +92,11 @@ func TestBulkActionEnvelopeReportsPartialFailure(t *testing.T) {
 	if bulk.ProcessedCount != 1 || bulk.FailedCount != 1 {
 		t.Errorf("expected processedCount=1 failedCount=1, got %d/%d", bulk.ProcessedCount, bulk.FailedCount)
 	}
+	// The prose summary and the structured counts must stay in lockstep: the
+	// client composes its own message from failedCount/processedCount.
+	if envelope.Error != "1 of 2 actions failed" {
+		t.Errorf("expected summary %q, got %q", "1 of 2 actions failed", envelope.Error)
+	}
 	if len(bulk.Failures) != 1 || bulk.Failures[0].Target != "missing-fp" {
 		t.Errorf("expected single failure for missing-fp, got %+v", bulk.Failures)
 	}

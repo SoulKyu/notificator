@@ -3,15 +3,27 @@ package scripts
 templ DashboardActions() {
 	<script>
 		window.dashboardActionsMixin = {
-			showActionError(message) {
+			// autoDismiss is opt-out: paths that also shrink the selection keep the
+			// banner until the operator dismisses it, so the explanation outlives
+			// an incident-length distraction.
+			showActionError(message, autoDismiss = true) {
 				this.actionError = message;
 				clearTimeout(this._actionErrorTimer);
-				this._actionErrorTimer = setTimeout(() => { this.actionError = ''; }, 8000);
+				if (autoDismiss) {
+					this._actionErrorTimer = setTimeout(() => { this.actionError = ''; }, 8000);
+				}
 			},
 
 			bulkActionErrorMessage(result, fallback) {
-				const failures = (result.data && result.data.failures) || [];
-				let message = result.error || fallback;
+				const data = result.data || {};
+				const failures = data.failures || [];
+				const failedCount = typeof data.failedCount === 'number' ? data.failedCount : failures.length;
+				const total = failedCount + (data.processedCount || 0);
+				// Build the count from the structured fields; result.error is only a
+				// human-readable fallback when the server sent no per-target data.
+				let message = failedCount > 0
+					? `${failedCount} of ${total} actions failed`
+					: (result.error || fallback);
 				const details = failures.slice(0, 3).map(f => f.error).filter(Boolean);
 				if (details.length > 0) {
 					message += ': ' + details.join('; ');
@@ -171,7 +183,10 @@ templ DashboardActions() {
 
 					if (failedFingerprints.length > 0) {
 						this.selectedAlerts = failedFingerprints;
-						this.showActionError(`${failedFingerprints.length} of ${hiddenCount + failedFingerprints.length} alerts could not be hidden`);
+						this.showActionError(`${failedFingerprints.length} of ${hiddenCount + failedFingerprints.length} alerts could not be hidden`, false);
+					} else if (this.selectedGroups.length > 0) {
+						// Group hiding is not supported yet: keep the selection, do not pretend it worked.
+						this.showActionError('Hiding groups is not supported yet — select individual alerts instead');
 					} else {
 						this.clearSelection();
 					}
@@ -303,7 +318,7 @@ templ DashboardActions() {
 						this.loadDashboardData();
 					} else {
 						this.selectOnlyFailedTargets(result);
-						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unacknowledge selected items'));
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unacknowledge selected items'), false);
 						if (result.data && result.data.processedCount > 0) {
 							this.loadDashboardData();
 						}
@@ -381,7 +396,7 @@ templ DashboardActions() {
 						this.loadDashboardData();
 					} else {
 						this.selectOnlyFailedTargets(result);
-						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to resolve selected items'));
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to resolve selected items'), false);
 						if (result.data && result.data.processedCount > 0) {
 							this.loadDashboardData();
 						}
@@ -750,7 +765,7 @@ templ DashboardActions() {
 						this.loadDashboardData();
 					} else {
 						this.selectOnlyFailedTargets(result);
-						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence selected items'));
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence selected items'), false);
 						if (result.data && result.data.processedCount > 0) {
 							this.loadDashboardData();
 						}

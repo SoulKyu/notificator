@@ -17,6 +17,7 @@ templ NewDashboardContent() {
 		@keydown.meta.f.window.prevent="focusSearch($event)">
 		<!-- Shared Action Error Banner -->
 		<div x-show="actionError" x-cloak x-transition
+			 role="alert" aria-live="assertive" aria-atomic="true"
 			 class="fixed top-20 right-4 z-50 max-w-md p-3 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md shadow-lg">
 			<div class="flex items-start">
 				<svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
