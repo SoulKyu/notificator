@@ -585,6 +585,11 @@ func (c *Client) DeleteSilence(silenceID string) error {
 // of the full payload.
 const healthCheckFilter = `alertname="__notificator_health_check__"`
 
+// healthCheckDrainLimit caps how much of the probe response we read. A backend
+// that honours the filter answers with a handful of bytes; one that silently
+// ignores it would otherwise have us pull the entire alert set on every probe.
+const healthCheckDrainLimit = 4 << 10
+
 func (c *Client) TestConnection() error {
 	url := fmt.Sprintf("%s/api/v2/alerts?filter=%s", c.BaseURL, neturl.QueryEscape(healthCheckFilter))
 
@@ -606,8 +611,10 @@ func (c *Client) TestConnection() error {
 		return fmt.Errorf("alertmanager returned status %d: %s", resp.StatusCode, string(body[:min(200, len(body))]))
 	}
 
-	// Drain the body so the connection goes back to the keep-alive pool.
-	_, _ = io.Copy(io.Discard, resp.Body)
+	// Drain a bounded amount so the connection goes back to the keep-alive pool
+	// without downloading a full payload from a backend that ignored the filter.
+	// Past that ceiling, letting the transport abandon the connection is cheaper.
+	_, _ = io.CopyN(io.Discard, resp.Body, healthCheckDrainLimit)
 
 	return nil
 }

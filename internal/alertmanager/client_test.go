@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"notificator/config"
 )
+
+func alertJSON(name string) string {
+	return fmt.Sprintf(`[{"fingerprint":"fp-%s","labels":{"alertname":"%s"},"status":{"state":"active"}}]`, name, name)
+}
 
 // alertmanagerStub serves a single alert named after the instance, after delay.
 func alertmanagerStub(t *testing.T, name string, delay time.Duration) *httptest.Server {
@@ -18,7 +23,24 @@ func alertmanagerStub(t *testing.T, name string, delay time.Duration) *httptest.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(delay)
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `[{"fingerprint":"fp-%s","labels":{"alertname":"%s"},"status":{"state":"active"}}]`, name, name)
+		fmt.Fprint(w, alertJSON(name))
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// barrierStub only answers once every peer stub is also serving, so a fan-out
+// that regressed to a sequential loop deadlocks on the first source and fails
+// on its client timeout instead of merely being slow.
+func barrierStub(t *testing.T, name string, barrier *sync.WaitGroup) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		barrier.Done()
+		barrier.Wait()
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, alertJSON(name))
 	}))
 	t.Cleanup(srv.Close)
 
@@ -35,8 +57,6 @@ func multiClientFor(urls map[string]string) *MultiClient {
 }
 
 func TestFetchAllAlertsDetailedIsConcurrent(t *testing.T) {
-	const delay = 300 * time.Millisecond
-
 	tests := []struct {
 		name    string
 		sources int
@@ -47,25 +67,24 @@ func TestFetchAllAlertsDetailedIsConcurrent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// Every source must be in flight at once for any of them to answer,
+			// so this asserts observed concurrency rather than wall-clock.
+			var barrier sync.WaitGroup
+			barrier.Add(tc.sources)
+
 			urls := make(map[string]string, tc.sources)
 			for i := 0; i < tc.sources; i++ {
 				name := fmt.Sprintf("am-%d", i)
-				urls[name] = alertmanagerStub(t, name, delay).URL
+				urls[name] = barrierStub(t, name, &barrier).URL
 			}
 
-			start := time.Now()
 			alerts, failed := multiClientFor(urls).FetchAllAlertsDetailed()
-			elapsed := time.Since(start)
 
 			if len(failed) != 0 {
-				t.Fatalf("unexpected failures: %v", failed)
+				t.Fatalf("sources did not run concurrently (a serial fan-out stalls on the barrier): %v", failed)
 			}
 			if len(alerts) != tc.sources {
 				t.Fatalf("got %d alerts, want %d", len(alerts), tc.sources)
-			}
-			// Serial would be sources*delay; concurrent stays near one delay.
-			if max := time.Duration(float64(delay) * 1.8); elapsed > max {
-				t.Fatalf("fan-out took %s, want under %s (serial would be %s)", elapsed, max, time.Duration(tc.sources)*delay)
 			}
 		})
 	}
@@ -122,7 +141,12 @@ func TestFetchAllAlertsDetailedPartialFailure(t *testing.T) {
 
 func TestFanOutDoesNotHoldMutexAcrossHTTP(t *testing.T) {
 	release := make(chan struct{})
+	// serving proves the fan-out is inside the HTTP call before the writer races
+	// it; without it the write lock may be taken before the fetch ever starts and
+	// the test passes regardless of where the mutex is held.
+	serving := make(chan struct{})
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(serving)
 		<-release
 		fmt.Fprint(w, `[]`)
 	}))
@@ -130,12 +154,18 @@ func TestFanOutDoesNotHoldMutexAcrossHTTP(t *testing.T) {
 
 	mc := multiClientFor(map[string]string{"slow": slow.URL})
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		mc.FetchAllAlertsDetailed()
-	}()
+	// Deferred so a t.Fatal below still unblocks the handler, letting the
+	// deferred slow.Close() return; otherwise a regression reads as a hung
+	// package instead of a failed assertion.
+	defer close(release)
+
+	go mc.FetchAllAlertsDetailed()
+
+	select {
+	case <-serving:
+	case <-time.After(5 * time.Second):
+		t.Fatal("fan-out never reached the HTTP handler")
+	}
 
 	// UpdateFromConfig needs the write lock; it must not wait on the in-flight fetch.
 	updated := make(chan struct{})
@@ -149,15 +179,17 @@ func TestFanOutDoesNotHoldMutexAcrossHTTP(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("UpdateFromConfig blocked behind an in-flight fan-out")
 	}
-
-	close(release)
-	wg.Wait()
 }
 
-func TestTestConnectionDrainsBody(t *testing.T) {
+func TestTestConnectionUsesHealthFilterAndReusesConnection(t *testing.T) {
+	var mu sync.Mutex
 	var filter string
+	var addrs []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		filter = r.URL.Query().Get("filter")
+		addrs = append(addrs, r.RemoteAddr)
+		mu.Unlock()
 		fmt.Fprint(w, `[]`)
 	}))
 	defer srv.Close()
@@ -166,13 +198,56 @@ func TestTestConnectionDrainsBody(t *testing.T) {
 	if err := client.TestConnection(); err != nil {
 		t.Fatalf("TestConnection: %v", err)
 	}
+	if err := client.TestConnection(); err != nil {
+		t.Fatalf("second TestConnection: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
 	if filter != healthCheckFilter {
 		t.Fatalf("health probe filter = %q, want %q", filter, healthCheckFilter)
 	}
+	if len(addrs) != 2 {
+		t.Fatalf("got %d probes, want 2: %v", len(addrs), addrs)
+	}
+	// Same client port means the drained body put the connection back in the
+	// keep-alive pool; dropping the drain makes the transport dial a fresh one.
+	if addrs[0] != addrs[1] {
+		t.Fatalf("probe dialled a new connection instead of reusing one: %v", addrs)
+	}
+}
 
-	// A drained + closed body is reused, so the second probe rides the same connection.
-	if err := client.TestConnection(); err != nil {
-		t.Fatalf("second TestConnection: %v", err)
+func TestTestConnectionBoundsDrainOfIgnoredFilter(t *testing.T) {
+	// A backend that silently ignores the filter answers with the full alert set.
+	// The probe must stop reading at healthCheckDrainLimit, which is observable:
+	// an incompletely read body cannot go back to the keep-alive pool, so the
+	// second probe dials a new connection. An unbounded drain would reuse it.
+	body := strings.Repeat("x", 64*healthCheckDrainLimit)
+
+	var mu sync.Mutex
+	var addrs []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		addrs = append(addrs, r.RemoteAddr)
+		mu.Unlock()
+		fmt.Fprint(w, body)
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL)
+	for i := 0; i < 2; i++ {
+		if err := client.TestConnection(); err != nil {
+			t.Fatalf("TestConnection %d: %v", i, err)
+		}
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(addrs) != 2 {
+		t.Fatalf("got %d probes, want 2: %v", len(addrs), addrs)
+	}
+	if addrs[0] == addrs[1] {
+		t.Fatalf("probe drained the whole %d-byte payload instead of stopping at %d bytes", len(body), healthCheckDrainLimit)
 	}
 }
 
