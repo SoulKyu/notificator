@@ -1376,7 +1376,9 @@ func GetBulkAlertStatus(c *gin.Context) {
 	statuses := make(map[string]map[string]interface{})
 
 	for _, fingerprint := range request.Fingerprints {
-		alert := alertCache.GetAlertByFingerprint(fingerprint)
+		// Live cache only: the callers are resolved fingerprints, so a backend
+		// fallback would be a gRPC round trip per row for data we never report.
+		alert := alertCache.GetLiveAlert(fingerprint)
 		if alert != nil {
 			// Alert found in live cache
 			statuses[fingerprint] = map[string]interface{}{
