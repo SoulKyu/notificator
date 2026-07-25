@@ -8,6 +8,7 @@ import (
 
 	"notificator/internal/backend/models"
 	alertpb "notificator/internal/backend/proto/alert"
+	webuimodels "notificator/internal/webui/models"
 )
 
 // stubBackend implements only the two fetch methods LoadUserData needs; the
@@ -31,6 +32,10 @@ func (b *stubBackend) GetUserHiddenAlerts(string, ...string) ([]*alertpb.UserHid
 func (b *stubBackend) GetUserHiddenRules(string, ...string) ([]*alertpb.UserHiddenRule, error) {
 	return nil, b.err
 }
+
+func (b *stubBackend) ClearAllHiddenAlerts(string, ...string) error { return nil }
+
+func (b *stubBackend) HideAlert(string, string, string, string, string, ...string) error { return nil }
 
 func TestColorServiceSweepExpired(t *testing.T) {
 	cs := NewColorService(nil)
@@ -151,8 +156,43 @@ func TestHiddenAlertsServiceLoadUserDataDropsSnapshotInvalidatedMidFetch(t *test
 	if _, ok := s.userHiddenAlerts["sess"]; ok {
 		t.Error("snapshot predating the mid-fetch invalidation should not be published")
 	}
-	if _, ok := s.lastAccess["sess"]; ok {
-		t.Error("discarded snapshot should leave the entry cold, not fresh")
+	if time.Since(s.lastAccess["sess"]) < s.cacheTTL {
+		t.Error("discarded snapshot should leave the entry stale, not fresh")
+	}
+}
+
+// Clear-all is a mutation like any other: an in-flight fetch that predates it
+// must not republish the pre-clear fingerprint set for a full TTL.
+func TestHiddenAlertsServiceLoadUserDataDropsSnapshotClearedMidFetch(t *testing.T) {
+	backend := &stubBackend{alerts: []*alertpb.UserHiddenAlert{{Fingerprint: "stale"}}}
+	s := NewHiddenAlertsService(backend)
+	backend.onFetch = func() { _ = s.ClearAllHiddenAlerts("sess") }
+
+	if err := s.LoadUserData("sess"); err != nil {
+		t.Fatalf("LoadUserData: %v", err)
+	}
+
+	if _, ok := s.userHiddenAlerts["sess"]; ok {
+		t.Error("snapshot predating the mid-fetch clear-all should not be published")
+	}
+}
+
+// An impersonated mutation targets another user's hidden set, so it must not be
+// written into the acting session's snapshot.
+func TestHiddenAlertsServiceHideAlertIgnoresCacheWhenImpersonating(t *testing.T) {
+	s := NewHiddenAlertsService(&stubBackend{})
+	s.userHiddenAlerts["sess"] = map[string]bool{}
+	s.lastAccess["sess"] = time.Now()
+
+	if err := s.HideAlert("sess", &webuimodels.DashboardAlert{Fingerprint: "other-user-fp"}, "", "impersonated-user"); err != nil {
+		t.Fatalf("HideAlert: %v", err)
+	}
+
+	if len(s.userHiddenAlerts["sess"]) != 0 {
+		t.Error("impersonated hide should not touch the acting session's snapshot")
+	}
+	if s.generation["sess"] != 0 {
+		t.Error("impersonated hide should not bump the acting session's generation")
 	}
 }
 
@@ -165,7 +205,12 @@ func TestHiddenAlertsServiceInvalidateCacheRemovesAllMaps(t *testing.T) {
 
 	s.InvalidateCache("sess")
 
-	if len(s.userHiddenAlerts)+len(s.userHiddenRules)+len(s.compiledRegexRules)+len(s.lastAccess) != 0 {
-		t.Error("InvalidateCache should remove the session from all maps")
+	if len(s.userHiddenAlerts)+len(s.userHiddenRules)+len(s.compiledRegexRules) != 0 {
+		t.Error("InvalidateCache should remove the session's cached data")
+	}
+	// lastAccess is kept but backdated, so the idle sweep can still reclaim the
+	// generation counter for sessions whose last action was an invalidation.
+	if time.Since(s.lastAccess["sess"]) < s.cacheTTL {
+		t.Error("InvalidateCache should leave lastAccess stale, not fresh")
 	}
 }

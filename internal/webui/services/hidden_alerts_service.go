@@ -310,13 +310,23 @@ func (s *HiddenAlertsService) CompileFilterRules(rules []webuimodels.FilterHidde
 	return compiledRules
 }
 
+// isImpersonating mirrors the check client.BackendClient uses to decide whether
+// a mutation targets another user. The cache is keyed by sessionID and holds the
+// session owner's hidden set, so an impersonated mutation says nothing about it.
+func isImpersonating(impersonateUserID []string) bool {
+	return len(impersonateUserID) > 0 && impersonateUserID[0] != ""
+}
+
 // HideAlert hides a specific alert for a user
 func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.DashboardAlert, reason string, impersonateUserID ...string) error {
 	err := s.backendClient.HideAlert(sessionID, alert.Fingerprint, alert.AlertName, alert.Instance, reason, impersonateUserID...)
 	if err != nil {
 		return fmt.Errorf("failed to hide alert in backend: %w", err)
 	}
-	
+	if isImpersonating(impersonateUserID) {
+		return nil
+	}
+
 	// Update the cache
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -335,7 +345,10 @@ func (s *HiddenAlertsService) UnhideAlert(sessionID, fingerprint string, imperso
 	if err != nil {
 		return fmt.Errorf("failed to unhide alert in backend: %w", err)
 	}
-	
+	if isImpersonating(impersonateUserID) {
+		return nil
+	}
+
 	// Update the cache
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -427,7 +440,10 @@ func (s *HiddenAlertsService) InvalidateCache(sessionID string) {
 	delete(s.userHiddenAlerts, sessionID)
 	delete(s.userHiddenRules, sessionID)
 	delete(s.compiledRegexRules, sessionID)
-	delete(s.lastAccess, sessionID)
+	// Backdate instead of deleting: the entry can never read as fresh (the
+	// snapshot is gone and LoadUserData checks that first) but stays visible to
+	// sweepIdleSessionsLocked, which is what reclaims the generation counter.
+	s.lastAccess[sessionID] = time.Now().Add(-s.cacheTTL)
 	s.generation[sessionID]++
 }
 
@@ -465,14 +481,18 @@ func (s *HiddenAlertsService) ClearAllHiddenAlerts(sessionID string, impersonate
 	if err != nil {
 		return fmt.Errorf("failed to clear hidden alerts in backend: %w", err)
 	}
-	
+	if isImpersonating(impersonateUserID) {
+		return nil
+	}
+
 	// Clear the cache
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.userHiddenAlerts[sessionID] != nil {
 		s.userHiddenAlerts[sessionID] = make(map[string]bool)
 	}
-	
+	s.generation[sessionID]++
+
 	return nil
 }
 
