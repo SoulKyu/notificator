@@ -65,6 +65,14 @@ Observable transitions feed a render-side event queue (no extra pollers):
 - **🎉 merge party** — a PR that disappears from `gh pr list` and turns out
   `MERGED` (one `gh pr view` check) throws a full-width celebration banner
   naming the PR for ~3 s
+- **🚨 alarm board** — breakage accumulates in a panel above the 📌 TABLEAU
+  instead of scrolling past: a `notificator-*` unit whose `Result` is not
+  `success` (name, result, exit code, age since `ExecMainExitTimestamp`) and a
+  `running` looper loop stuck on the same step past `FACTORY_STALL_MIN`
+  (default 30 min). Rows clear on the unit's next successful run or when the
+  step moves on; no alarm → no panel. Each *new* alarm rings one
+  `curses.beep()` and flashes the panel title for ~3 s (live TUI only —
+  `--once` and `--check` never beep)
 - **☕ coffee corner** — when the terminal leaves enough spare width, a coffee
   machine is drawn beside the desks; agents on break queue there and their desk
   shows an empty chair (narrow terminals fall back to the plain desk rendering)
@@ -76,6 +84,7 @@ Observable transitions feed a render-side event queue (no extra pollers):
 | `FACTORY_REPO` | `SoulKyu/notificator` | GitHub repo for the board |
 | `FACTORY_LOG_DIR` | `~/.claude-agents/notificator/logs` | agent logs to feed the ticker |
 | `FACTORY_INBOX_DIR` | `~/.claude-agents/notificator/inbox` | agent mailboxes for 📬 badges + 💬 INTERCOM |
+| `FACTORY_STALL_MIN` | `30` | minutes on the same looper step before a 🚨 stall alarm |
 
 ## Requirements
 

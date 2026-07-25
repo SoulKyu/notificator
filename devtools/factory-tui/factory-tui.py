@@ -52,6 +52,7 @@ TIMER_OF = {
 SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
 SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
 ZOOM_TAIL = 15
+STALL_MIN = int(os.environ.get("FACTORY_STALL_MIN") or 30)
 
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": []}
@@ -63,6 +64,10 @@ ANIM = {"mail": [], "party": []}
 MAIL_TICKS, PARTY_TICKS = 4, 12  # ~1 s flight, ~3 s banner at 4 fps
 MAIL_SEEN = None   # (box, filename) pairs already counted — None until first poll
 PR_PREV = None     # {number: title} of open PRs at previous poll
+LOOP_SINCE = {}    # (type, target) -> (step, first_seen_ts) — stall detection
+ALARM_SEEN = None  # alarm keys already klaxonned — None until the first curses frame
+ALARM_FLASH = None # tick of the last new alarm; the title flashes for KLAXON_TICKS
+KLAXON_TICKS = 12  # ~3 s at 4 fps
 
 
 def sh(cmd, timeout=20):
@@ -117,7 +122,8 @@ def poll_fast():
             loops.append({"type": parts[1], "target": parts[2], "step": parts[3], "status": parts[6]})
     svc = {}
     units = " ".join(k.split(":")[1] + ".service" for _, _, _, k in ROSTER if k.startswith("svc:"))
-    out = sh(f"systemctl --user show {units} -p Id,ActiveState,Result,ExecMainStartTimestamp 2>/dev/null")
+    out = sh(f"systemctl --user show {units} "
+             "-p Id,ActiveState,Result,ExecMainStartTimestamp,ExecMainExitTimestamp,ExecMainStatus,NRestarts 2>/dev/null")
     cur = {}
     for line in out.splitlines() + [""]:
         if not line.strip():
@@ -127,8 +133,62 @@ def poll_fast():
         elif "=" in line:
             k, v = line.split("=", 1)
             cur[k] = v
+    now = time.time()
+    live = set()
+    for lp in loops:
+        k = (lp["type"], lp["target"])
+        live.add(k)
+        if LOOP_SINCE.get(k, (None,))[0] != lp["step"]:
+            LOOP_SINCE[k] = (lp["step"], now)
+    for k in set(LOOP_SINCE) - live:
+        del LOOP_SINCE[k]
     with LOCK:
         STATE["loops"], STATE["svc"] = loops, svc
+
+
+def ago(seconds):
+    """Compact French age: 42s · 47min · 3h12 · 2j."""
+    s = max(0, int(seconds))
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}min"
+    if s < 86400:
+        return f"{s // 3600}h{s % 3600 // 60:02d}"
+    return f"{s // 86400}j"
+
+
+def systemd_ts(s):
+    """'Sat 2026-07-25 04:00:12 CEST' -> epoch (local tz), or None."""
+    m = re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", s or "")
+    try:
+        return time.mktime(time.strptime(m.group(0), "%Y-%m-%d %H:%M:%S")) if m else None
+    except Exception:
+        return None
+
+
+def alarms(now=None):
+    """-> [(stable key, row)] for failed units and loops stalled past FACTORY_STALL_MIN."""
+    now = now or time.time()
+    with LOCK:
+        svc, loops = dict(STATE["svc"]), list(STATE["loops"])
+    out = []
+    for unit, s in sorted(svc.items()):
+        if s.get("Result") in ("success", "", None):
+            continue
+        t = systemd_ts(s.get("ExecMainExitTimestamp"))
+        age = f" il y a {ago(now - t)}" if t else ""
+        restarts = f" · {s['NRestarts']} restarts" if (s.get("NRestarts") or "0") != "0" else ""
+        out.append((f"unit:{unit}",
+                    f"🔥 {unit.replace('notificator-', '')} — échec {s['Result']} "
+                    f"(exit {s.get('ExecMainStatus') or '?'}){age}{restarts}"))
+    for (typ, target), (step, since) in sorted(LOOP_SINCE.items()):
+        lp = next((l for l in loops if l["type"] == typ and l["target"] == target), None)
+        if not lp or lp["status"] != "running" or now - since < STALL_MIN * 60:
+            continue
+        out.append((f"loop:{typ}:{target}",
+                    f"⏳ {typ} {target.split('/')[-1]} bloqué sur {step} depuis {ago(now - since)}"))
+    return out
 
 
 def poll_med():
@@ -533,7 +593,7 @@ def grid_per_row(width):
     return per_row
 
 
-def render_frame(tick, width=92, sel=None):
+def render_frame(tick, width=92, sel=None, flash=False):
     rows = []
     t = time.strftime("%H:%M:%S")
     title = "─ 🏭 NOTIFICATOR DEV FACTORY "
@@ -577,6 +637,13 @@ def render_frame(tick, width=92, sel=None):
                          + dpad(f"🧪 qa     {score['qa_ok']} ✓ · {score['qa_ko']} ✗", width - 4 - half) + " │", 5))
             star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
             rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
+    alrm = alarms()
+    if alrm:  # no alarm → no panel
+        on = flash and tick % 2 == 0
+        rows.append(("│" + dpad(" ═══ 🚨 ALARMES " + ("‼ " if on else ""), width - 2, fill="═") + "│",
+                     4 if on else 0))
+        for _, msg in alrm:
+            rows.append(("│ " + dpad(msg, width - 4) + " │", 4))
     if pending:  # rien en attente → pas de panneau
         rows.append(("│" + dpad(" ═══ 🙋 EN ATTENTE DE TOI ", width - 2, fill="═") + "│", 0))
         for row in pending[:PENDING_MAX]:
@@ -679,6 +746,17 @@ def send_summon(key, msg):
         return "✗ " + str(e)[:50]
 
 
+def klaxon(tick):
+    """Beep once per new alarm; -> True while the title should flash. Curses path only."""
+    global ALARM_SEEN, ALARM_FLASH
+    keys = {k for k, _ in alarms()}
+    if ALARM_SEEN is not None and keys - ALARM_SEEN:
+        ALARM_FLASH = tick
+        curses.beep()
+    ALARM_SEEN = keys
+    return ALARM_FLASH is not None and tick - ALARM_FLASH < KLAXON_TICKS
+
+
 def main_curses(scr):
     curses.curs_set(0)
     scr.nodelay(True)
@@ -720,7 +798,7 @@ def main_curses(scr):
                 if msg:
                     note = send_summon(ROSTER[zoom][0], msg)
         scr.erase()
-        for y, (line, color) in enumerate(render_frame(tick, width, sel)):
+        for y, (line, color) in enumerate(render_frame(tick, width, sel, flash=klaxon(tick))):
             if y >= h - 1:
                 break
             try:
@@ -837,6 +915,33 @@ def selfcheck():
             if dwidth(line) != 80:
                 print(f"FAIL zoom row {dwidth(line)} cols: {line!r}")
                 fails += 1
+    # alarm panel: one failed unit + one stalled loop, both widths, flashing title
+    now = time.time()
+    with LOCK:
+        STATE["svc"] = {"notificator-qa": {
+            "Id": "notificator-qa.service", "ActiveState": "failed", "Result": "exit-code",
+            "ExecMainStatus": "2", "NRestarts": "3",
+            "ExecMainExitTimestamp": time.strftime("%a %Y-%m-%d %H:%M:%S %Z", time.localtime(now - 11520))}}
+        STATE["loops"] = [{"type": "worker", "target": "SoulKyu/notificator#57",
+                           "step": "implement", "status": "running"}]
+    LOOP_SINCE[("worker", "SoulKyu/notificator#57")] = ("implement", now - 2820)
+    a = alarms(now)
+    if not (len(a) == 2 and "qa" in a[0][1] and "exit 2" in a[0][1] and "3h12" in a[0][1]
+            and "#57" in a[1][1] and "implement" in a[1][1] and "47min" in a[1][1]):
+        print(f"FAIL alarms: {a}")
+        fails += 1
+    for w in (92, 60):
+        for tick in range(4):
+            for line, _ in render_frame(tick, w, flash=True):
+                if dwidth(line) != w:
+                    print(f"FAIL alarm row {dwidth(line)} cols (want {w}): {line!r}")
+                    fails += 1
+    with LOCK:  # unit back to success + loop step moved on → alarms gone, panel gone
+        STATE["svc"]["notificator-qa"]["Result"] = "success"
+    LOOP_SINCE[("worker", "SoulKyu/notificator#57")] = ("publish", now)
+    if alarms(now) or any("ALARMES" in l for l, _ in render_frame(0, 92)):
+        print("FAIL alarm panel rendered with no alarm")
+        fails += 1
     # navigation stride == renderer column count (coffee-corner decrement included)
     for w, want in ((92, 3), (113, 4), (120, 4)):
         if grid_per_row(w) != want:
