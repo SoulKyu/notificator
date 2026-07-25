@@ -729,14 +729,23 @@ def panel_snapshot():
     unlocked build_desks/key-dispatch/office loop in between, and a poll landing in that window
     makes the frame taller than the budget it was granted."""
     with LOCK:
-        return {"prs": list(STATE["prs"]), "issues": STATE["issues"], "ticker": STATE["ticker"],
-                "err": STATE["err"], "intercom": list(STATE["intercom"]),
-                "score": STATE["score"], "pending": list(STATE["pending"])}
+        p = {"prs": list(STATE["prs"]), "issues": STATE["issues"], "ticker": STATE["ticker"],
+             "err": STATE["err"], "intercom": list(STATE["intercom"]),
+             "score": STATE["score"], "pending": list(STATE["pending"])}
+    p["alarms"] = alarms()  # outside the `with`: alarms() takes LOCK itself and it is not reentrant
+    return p
+
+
+def alarm_shown(alrm):
+    """Alarm rows render_frame emits before the summarising tail. Shared with panel_rows so the
+    budget and the renderer cannot drift: at exactly one row over the cap the tail would occupy
+    the row it displaced and say strictly less, so summarise only when it buys space back."""
+    return ALARM_ROWS if len(alrm) > ALARM_ROWS + 1 else len(alrm)
 
 
 def panel_rows(p):
-    """Non-office rows of the frame about to be drawn, from a panel_snapshot. Four of the five
-    panels are conditional in render_frame, so a worst-case constant charges ~16 rows that are
+    """Non-office rows of the frame about to be drawn, from a panel_snapshot. Five of the six
+    panels are conditional in render_frame, so a worst-case constant charges ~23 rows that are
     usually not drawn and pins the cap at len(ROSTER) below a 55-row terminal — the dynamic desks
     would never appear."""
     n = 1 + 3 + 1 + 1  # title + wall board (header + PRs + issues) + radio + bottom border
@@ -744,6 +753,9 @@ def panel_rows(p):
         n += 1 + len(p["intercom"])
     if p["score"]:
         n += 2 if p["score"] == "err" else 4
+    if p["alarms"]:
+        shown = alarm_shown(p["alarms"])
+        n += 1 + shown + (len(p["alarms"]) > shown)
     if p["pending"]:
         n += 1 + min(len(p["pending"]), PENDING_MAX) + (len(p["pending"]) > PENDING_MAX)
     if p["err"]:
@@ -805,15 +817,13 @@ def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False)
                          + dpad(f"🧪 qa     {score['qa_ok']} ✓ · {score['qa_ko']} ✗", width - 4 - half) + " │", 5))
             star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
             rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
-    alrm = alarms()
+    alrm = p["alarms"]  # from the snapshot: an alarm raised mid-frame must not outgrow the budget
     if alrm:  # no alarm → no panel
         on = flash and tick % 2 == 0
         rows.append(("│" + dpad(" ═══ 🚨 ALARMES " + ("‼ " if on else ""), width - 2, fill="═") + "│",
                      4 if on else 0))
-        # capped: a machine-wide breakage must not push the board and the ⚠ err line
-        # off-screen. At exactly one row over the cap the tail would occupy the row it
-        # displaced and say strictly less, so summarise only when it buys space back.
-        shown = ALARM_ROWS if len(alrm) > ALARM_ROWS + 1 else len(alrm)
+        # capped: a machine-wide breakage must not push the board and the ⚠ err line off-screen
+        shown = alarm_shown(alrm)
         for _, msg in alrm[:shown]:
             rows.append(("│ " + dpad(msg, width - 4) + " │", 4))
         if len(alrm) > shown:
@@ -1417,12 +1427,17 @@ def selfcheck():
         STATE["score"] = s
         STATE["intercom"] = [f"a → b: msg {i}" for i in range(3)]  # 1 + 3, the budgeted worst case
         STATE["err"] = "poll error"  # the budgeted error row: without it the frame is a row short
+        # …and the alarm panel, the one render_frame builds itself: without a failed unit here
+        # alarms() is empty and the sweep never sees its 1 + ALARM_ROWS + tail rows
+        STATE["svc"] = {f"notificator-{u}": {"Id": f"notificator-{u}.service", "Result": "exit-code",
+                                             "ExecMainStatus": "1", "ExecMainCode": "1"}
+                        for u in ("scout", "qa", "rebaser", "promoter", "docagent", "reporter", "groomer")}
     term_w = 120
     # sweep the heights: the budget boundary only shows up when (h - PANEL_ROWS) % 8 == 0,
     # so a single height silently passes an off-by-one that eats the closing border.
-    # 55 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 22 panel rows = 54 frame
+    # 62 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 29 panel rows = 61 frame
     # rows, and main_curses draws h-1 of them. Below that no cap fits the panels, so nothing to assert.
-    for term_h in range(55, 70):
+    for term_h in range(62, 78):
         panels = panel_snapshot()
         cap = desk_cap(term_h, grid_per_row(term_w), panels)
         capped = build_desks(cap)
@@ -1451,14 +1466,17 @@ def selfcheck():
     # the budget and the frame must come out of one read of STATE. Cap on an empty office, let a
     # poll fill every panel in the gap, then draw: re-reading STATE here would emit the 16 rows the
     # budget never granted and push the board past h-1, so the frame must honour the snapshot.
-    with LOCK:
+    with LOCK:  # svc too: it feeds alarms(), and leaving it set makes the later poll fixtures order-dependent
         STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
+        STATE["svc"] = {}
     quiet, term_h = panel_snapshot(), 60
     capped = build_desks(desk_cap(term_h, grid_per_row(term_w), quiet))
     with LOCK:  # the poller lands between desk_cap() and render_frame()
         STATE["pending"] = [f"attente {i}" for i in range(PENDING_MAX + 4)]
         STATE["intercom"] = [f"a → b: msg {i}" for i in range(3)]
         STATE["err"], STATE["score"] = "poll error", s
+        STATE["svc"] = {"notificator-qa": {"Id": "notificator-qa.service", "Result": "exit-code",
+                                           "ExecMainStatus": "1", "ExecMainCode": "1"}}
     frame = render_frame(3, term_w, sel=0, desks=capped, panels=quiet)
     if len(frame) > term_h - 1:
         print(f"FAIL panel snapshot: poll in the gap grew the frame to {len(frame)} rows at h={term_h}")
@@ -1473,6 +1491,7 @@ def selfcheck():
         fails += 1
     with LOCK:  # …and with no optional panel drawn the budget must hand the extra rows back out:
         STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
+        STATE["svc"] = {}
     if desk_cap(50, grid_per_row(term_w), panel_snapshot()) <= len(ROSTER):  # a constant pins this at 13
         print(f"FAIL desk cap: no panels drawn still caps at {desk_cap(50, grid_per_row(term_w), panel_snapshot())}")
         fails += 1
