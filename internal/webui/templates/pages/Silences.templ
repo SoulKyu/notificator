@@ -1,0 +1,334 @@
+package pages
+
+import (
+	"notificator/internal/webui/templates/components"
+	"notificator/internal/webui/templates/layouts"
+)
+
+type SilencesData struct {
+	User ProfileUser
+}
+
+templ Silences(data SilencesData) {
+	@layouts.Base("Silences - Notificator", SilencesContent(data))
+}
+
+templ SilencesContent(data SilencesData) {
+	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="silencesPage()">
+		<!-- Sticky Header Bar -->
+		<header class="sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50">
+			<div class="px-6 py-4">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-4 flex-1">
+						<div>
+							<h1 class="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">Silences</h1>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								<span x-text="filteredSilences.length"></span> of <span x-text="silences.length"></span> silences
+								<span class="text-slate-300 dark:text-slate-600 mx-1">&bull;</span>
+								<span x-text="sources.length"></span> alertmanager(s)
+							</p>
+						</div>
+					</div>
+
+					<div class="hidden md:flex items-center justify-center">
+						@components.PageNavigator("silences")
+					</div>
+
+					<div class="flex items-center gap-2 flex-1 justify-end">
+						<button @click="loadSilences()" :disabled="loading"
+							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+							<svg class="w-4 h-4" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+							</svg>
+							<span class="hidden sm:inline">Refresh</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		</header>
+
+		<div class="px-6 py-6 space-y-4">
+			<!-- Degraded sources banner -->
+			<template x-for="[name, message] in Object.entries(failedSources)" :key="name">
+				<div class="flex items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+					<svg class="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+					</svg>
+					<div class="text-sm">
+						<p class="font-medium text-amber-800 dark:text-amber-300">
+							Alertmanager <span class="font-mono" x-text="name"></span> is unreachable — its silences are not listed.
+						</p>
+						<p class="text-amber-700 dark:text-amber-400 break-all" x-text="message"></p>
+					</div>
+				</div>
+			</template>
+
+			<!-- Filters -->
+			<div class="flex flex-wrap items-center gap-3 bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 px-4 py-3">
+				<div class="relative flex-1 min-w-[220px]">
+					<input type="text" x-model="search" placeholder="Filter matchers, creator or comment..."
+						class="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+					<svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+					</svg>
+				</div>
+
+				<select x-model="sourceFilter"
+					class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white">
+					<option value="">All sources</option>
+					<template x-for="source in sources" :key="source">
+						<option :value="source" x-text="source"></option>
+					</template>
+				</select>
+
+				<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1">
+					<template x-for="state in ['active', 'pending', 'expired']" :key="state">
+						<button @click="toggleState(state)"
+							:class="states.includes(state) ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'"
+							class="px-3 py-1.5 text-sm font-medium rounded-md capitalize transition-colors"
+							x-text="state"></button>
+					</template>
+				</div>
+			</div>
+
+			<!-- Table -->
+			<div class="bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+				<div x-show="loading" class="px-6 py-12 text-center text-slate-500 dark:text-slate-400">Loading silences...</div>
+
+				<div x-show="!loading && filteredSilences.length === 0" class="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+					No silences match the current filters.
+				</div>
+
+				<table x-show="!loading && filteredSilences.length > 0" class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+					<thead class="bg-slate-50 dark:bg-dark-bg-tertiary">
+						<tr>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Source</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Matchers</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Creator</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Comment</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">State</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ends</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Matched</th>
+							<th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Actions</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+						<template x-for="silence in filteredSilences" :key="silence.source + '/' + silence.id">
+							<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+								<td class="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap" x-text="silence.source"></td>
+								<td class="px-4 py-3 text-sm">
+									<div class="flex flex-wrap gap-1 max-w-md">
+										<template x-for="matcher in (silence.matchers || [])" :key="matcher.name + matcher.value">
+											<span class="inline-flex px-2 py-0.5 rounded font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+												x-text="matcherLabel(matcher)"></span>
+										</template>
+									</div>
+								</td>
+								<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap" x-text="silence.createdBy || '-'"></td>
+								<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 max-w-xs truncate" :title="silence.comment" x-text="silence.comment || '-'"></td>
+								<td class="px-4 py-3 text-sm whitespace-nowrap">
+									<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize"
+										:class="stateClass(silence)" x-text="silence.status?.state || 'unknown'"></span>
+									<span x-show="isExpiringSoon(silence)"
+										class="ml-1 inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300">Expiring soon</span>
+								</td>
+								<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">
+									<div x-text="formatDate(silence.endsAt)"></div>
+									<div class="text-xs text-slate-500 dark:text-slate-400" x-text="relativeEnd(silence.endsAt)"></div>
+								</td>
+								<td class="px-4 py-3 text-sm whitespace-nowrap">
+									<span x-show="silence.status?.state !== 'expired'" class="text-slate-700 dark:text-slate-300">
+										<span x-text="silence.matchedAlerts"></span> alert(s)
+									</span>
+									<span x-show="silence.status?.state === 'active' && silence.matchedAlerts === 0"
+										class="block text-xs text-amber-600 dark:text-amber-400">Suppressing nothing</span>
+								</td>
+								<td class="px-4 py-3 text-sm text-right whitespace-nowrap">
+									<div class="inline-flex items-center gap-1" x-show="silence.status?.state !== 'expired'">
+										<template x-for="option in extendOptions" :key="option">
+											<button @click="extend(silence, option)" :disabled="busyId === silence.source + '/' + silence.id"
+												class="px-2 py-1 text-xs font-medium rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50"
+												x-text="'+' + option"></button>
+										</template>
+										<button @click="expire(silence)" :disabled="busyId === silence.source + '/' + silence.id"
+											class="px-2 py-1 text-xs font-medium rounded-md bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 disabled:opacity-50">
+											Expire now
+										</button>
+									</div>
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+
+			<p x-show="error" class="text-sm text-red-600 dark:text-red-400" x-text="error"></p>
+		</div>
+	</div>
+
+	<script>
+		function silencesPage() {
+			return {
+				silences: [],
+				sources: [],
+				failedSources: {},
+				loading: false,
+				error: '',
+				search: '',
+				sourceFilter: '',
+				states: ['active', 'pending'],
+				extendOptions: ['1h', '4h', '24h'],
+				busyId: null,
+				now: Date.now(),
+
+				init() {
+					this.loadSilences();
+					// Keep the relative countdowns honest without re-fetching.
+					setInterval(() => { this.now = Date.now(); }, 30000);
+				},
+
+				async loadSilences() {
+					this.loading = true;
+					this.error = '';
+					try {
+						const response = await fetch('/api/v1/dashboard/silences');
+						const payload = await response.json();
+						if (!response.ok || !payload.success) {
+							throw new Error(payload.error || 'Failed to load silences');
+						}
+						this.silences = payload.data.silences || [];
+						this.sources = payload.data.sources || [];
+						this.failedSources = payload.data.failedSources || {};
+					} catch (err) {
+						this.error = err.message;
+					} finally {
+						this.loading = false;
+					}
+				},
+
+				toggleState(state) {
+					if (this.states.includes(state)) {
+						this.states = this.states.filter(s => s !== state);
+					} else {
+						this.states = [...this.states, state];
+					}
+				},
+
+				matcherLabel(matcher) {
+					let operator = matcher.isEqual === false ? '!=' : '=';
+					if (matcher.isRegex) {
+						operator += '~';
+					}
+					return matcher.name + operator + matcher.value;
+				},
+
+				get filteredSilences() {
+					const query = this.search.trim().toLowerCase();
+					return this.silences.filter(silence => {
+						if (this.states.length && !this.states.includes(silence.status?.state)) {
+							return false;
+						}
+						if (this.sourceFilter && silence.source !== this.sourceFilter) {
+							return false;
+						}
+						if (!query) {
+							return true;
+						}
+						const haystack = [
+							silence.createdBy || '',
+							silence.comment || '',
+							(silence.matchers || []).map(m => this.matcherLabel(m)).join(' ')
+						].join(' ').toLowerCase();
+						return haystack.includes(query);
+					});
+				},
+
+				isExpiringSoon(silence) {
+					if (silence.status?.state !== 'active') {
+						return false;
+					}
+					const remaining = new Date(silence.endsAt).getTime() - this.now;
+					return remaining > 0 && remaining < 3600000;
+				},
+
+				stateClass(silence) {
+					const state = silence.status?.state;
+					if (state === 'active') {
+						return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
+					}
+					if (state === 'pending') {
+						return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
+					}
+					return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+				},
+
+				formatDate(value) {
+					if (!value) {
+						return '-';
+					}
+					return new Date(value).toLocaleString();
+				},
+
+				relativeEnd(value) {
+					if (!value) {
+						return '';
+					}
+					const delta = new Date(value).getTime() - this.now;
+					const prefix = delta >= 0 ? 'ends in ' : 'ended ';
+					const suffix = delta >= 0 ? '' : ' ago';
+					const minutes = Math.floor(Math.abs(delta) / 60000);
+					if (minutes < 60) {
+						return prefix + minutes + 'm' + suffix;
+					}
+					const hours = Math.floor(minutes / 60);
+					if (hours < 24) {
+						return prefix + hours + 'h ' + (minutes % 60) + 'm' + suffix;
+					}
+					return prefix + Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h' + suffix;
+				},
+
+				async extend(silence, duration) {
+					this.busyId = silence.source + '/' + silence.id;
+					this.error = '';
+					try {
+						const response = await fetch('/api/v1/dashboard/silences/' + encodeURIComponent(silence.id) + '/extend', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ source: silence.source, duration: duration })
+						});
+						const payload = await response.json();
+						if (!response.ok || !payload.success) {
+							throw new Error(payload.error || 'Failed to extend silence');
+						}
+						await this.loadSilences();
+					} catch (err) {
+						this.error = err.message;
+					} finally {
+						this.busyId = null;
+					}
+				},
+
+				async expire(silence) {
+					if (!confirm('Expire this silence on ' + silence.source + ' now?')) {
+						return;
+					}
+					this.busyId = silence.source + '/' + silence.id;
+					this.error = '';
+					try {
+						const url = '/api/v1/dashboard/silences/' + encodeURIComponent(silence.id) + '?source=' + encodeURIComponent(silence.source);
+						const response = await fetch(url, { method: 'DELETE' });
+						const payload = await response.json();
+						if (!response.ok || !payload.success) {
+							throw new Error(payload.error || 'Failed to expire silence');
+						}
+						await this.loadSilences();
+					} catch (err) {
+						this.error = err.message;
+					} finally {
+						this.busyId = null;
+					}
+				}
+			};
+		}
+	</script>
+}

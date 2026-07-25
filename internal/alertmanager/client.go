@@ -724,17 +724,20 @@ func (mc *MultiClient) FetchAllActiveAlerts() ([]AlertWithSource, error) {
 	return activeAlerts, nil
 }
 
-func (mc *MultiClient) FetchAllSilences() ([]SilenceWithSource, error) {
+// FetchAllSilencesDetailed fetches silences from every configured Alertmanager and
+// reports per-source failures instead of collapsing them into a single error, so an
+// unreachable Alertmanager degrades that source instead of blanking the inventory.
+func (mc *MultiClient) FetchAllSilencesDetailed() ([]SilenceWithSource, map[string]error) {
 	mc.mutex.RLock()
 	defer mc.mutex.RUnlock()
 
 	var allSilences []SilenceWithSource
-	var errors []error
+	failedSources := make(map[string]error)
 
 	for name, client := range mc.clients {
 		silences, err := client.FetchSilences()
 		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to fetch silences from %s: %w", name, err))
+			failedSources[name] = err
 			continue
 		}
 
@@ -746,8 +749,16 @@ func (mc *MultiClient) FetchAllSilences() ([]SilenceWithSource, error) {
 		}
 	}
 
-	if len(errors) > 0 && len(allSilences) == 0 { // If all clients failed, return the first error
-		return nil, errors[0]
+	return allSilences, failedSources
+}
+
+func (mc *MultiClient) FetchAllSilences() ([]SilenceWithSource, error) {
+	allSilences, failedSources := mc.FetchAllSilencesDetailed()
+
+	if len(failedSources) > 0 && len(allSilences) == 0 { // If all clients failed, return the first error
+		for name, err := range failedSources {
+			return nil, fmt.Errorf("failed to fetch silences from %s: %w", name, err)
+		}
 	}
 
 	return allSilences, nil

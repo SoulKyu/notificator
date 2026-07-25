@@ -1,7 +1,7 @@
 package components
 
-// PageNavigator renders a prominent navigation switcher between Dashboard and Statistics
-// activePage should be "dashboard" or "statistics"
+// PageNavigator renders a prominent navigation switcher between Dashboard, Silences and Statistics
+// activePage should be "dashboard", "silences" or "statistics"
 templ PageNavigator(activePage string) {
 	<nav class="page-navigator" aria-label="Main navigation">
 		<div class="flex items-center bg-slate-100 dark:bg-slate-800/50 rounded-xl p-1 shadow-inner">
@@ -23,6 +23,27 @@ templ PageNavigator(activePage string) {
 				<!-- Active indicator dot -->
 				if activePage == "dashboard" {
 					<span class="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+				}
+			</a>
+
+			<!-- Silences Tab -->
+			<a
+				href="/silences"
+				class={ "group relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+					templ.KV("bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm", activePage == "silences"),
+					templ.KV("text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50", activePage != "silences") }
+			>
+				<!-- Muted Bell Icon -->
+				<svg class={ "w-4 h-4 transition-transform duration-200",
+					templ.KV("text-purple-500", activePage == "silences"),
+					templ.KV("group-hover:scale-110", activePage != "silences") }
+					fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M9.143 17.082a24.248 24.248 0 0 0 3.844.148m-3.844-.148a23.856 23.856 0 0 1-5.455-1.31 8.964 8.964 0 0 0 2.3-5.542m3.155 6.852a3 3 0 0 0 5.667 1.97m1.965-2.277L21 21m-4.225-4.225a23.81 23.81 0 0 0 3.536-1.003A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6.53 6.53m10.245 10.245L6.53 6.53M3 3l3.53 3.53" />
+				</svg>
+				<span>Silences</span>
+				<!-- Active indicator dot -->
+				if activePage == "silences" {
+					<span class="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
 				}
 			</a>
 

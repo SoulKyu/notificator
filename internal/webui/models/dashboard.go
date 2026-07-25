@@ -244,6 +244,7 @@ type Comment struct {
 // Silence represents a silence affecting an alert
 type Silence struct {
 	ID        string           `json:"id"`
+	Source    string           `json:"source"` // Name of the Alertmanager holding this silence
 	CreatedBy string           `json:"createdBy"`
 	Comment   string           `json:"comment"`
 	StartsAt  time.Time        `json:"startsAt"`
@@ -251,6 +252,8 @@ type Silence struct {
 	UpdatedAt time.Time        `json:"updatedAt"`
 	Matchers  []SilenceMatcher `json:"matchers"`
 	Status    SilenceStatus    `json:"status"`
+	// MatchedAlerts is how many cached alerts of the same source the silence currently matches
+	MatchedAlerts int `json:"matchedAlerts"`
 }
 
 // SilenceMatcher represents a silence matcher
@@ -258,6 +261,7 @@ type SilenceMatcher struct {
 	Name    string `json:"name"`
 	Value   string `json:"value"`
 	IsRegex bool   `json:"isRegex"`
+	IsEqual bool   `json:"isEqual"`
 }
 
 // SilenceStatus represents the status of a silence
