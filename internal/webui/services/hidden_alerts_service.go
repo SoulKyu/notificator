@@ -9,7 +9,6 @@ import (
 
 	"notificator/internal/backend/models"
 	alertpb "notificator/internal/backend/proto/alert"
-	"notificator/internal/webui/client"
 	webuimodels "notificator/internal/webui/models"
 )
 
@@ -18,29 +17,45 @@ import (
 const sessionIdleTTL = 7 * 24 * time.Hour
 
 // cacheTTL bounds how long a cached hidden-alerts snapshot is served without
-// re-fetching. Mutations (hide/unhide/save/remove rule) update or invalidate the
-// cache in-process, so this only covers changes made by another webui replica.
+// re-fetching. The cache is keyed by sessionID and mutations only touch the
+// acting session's entry, so a change made from any other session (the same
+// user on a second device, an admin acting through impersonation, or another
+// webui replica) becomes visible after at most cacheTTL.
 const cacheTTL = 30 * time.Second
+
+// hiddenAlertsBackend is the slice of client.BackendClient this service calls.
+// It exists as a seam so tests can inject a backend that returns errors.
+type hiddenAlertsBackend interface {
+	GetUserHiddenAlerts(sessionID string, impersonateUserID ...string) ([]*alertpb.UserHiddenAlert, error)
+	GetUserHiddenRules(sessionID string, impersonateUserID ...string) ([]*alertpb.UserHiddenRule, error)
+	HideAlert(sessionID, fingerprint, alertName, instance, reason string, impersonateUserID ...string) error
+	UnhideAlert(sessionID, fingerprint string, impersonateUserID ...string) error
+	SaveHiddenRule(sessionID string, rule *alertpb.UserHiddenRule, impersonateUserID ...string) (*alertpb.UserHiddenRule, error)
+	RemoveHiddenRule(sessionID, ruleID string, impersonateUserID ...string) error
+	ClearAllHiddenAlerts(sessionID string, impersonateUserID ...string) error
+}
 
 // HiddenAlertsService manages hidden alerts and rules for users
 type HiddenAlertsService struct {
-	backendClient       *client.BackendClient
+	backendClient       hiddenAlertsBackend
 	mu                  sync.RWMutex
 	userHiddenAlerts    map[string]map[string]bool             // userID -> fingerprint -> hidden
 	userHiddenRules     map[string][]models.UserHiddenRule     // userID -> rules
 	compiledRegexRules  map[string]map[string]*regexp.Regexp   // userID -> ruleID -> compiled regex
-	lastAccess          map[string]time.Time                   // userID -> last LoadUserData fetch
+	lastAccess          map[string]time.Time                   // userID -> last successful LoadUserData fetch
+	generation          map[string]uint64                      // userID -> bumped by every mutation/invalidation
 	cacheTTL            time.Duration
 }
 
 // NewHiddenAlertsService creates a new hidden alerts service
-func NewHiddenAlertsService(backendClient *client.BackendClient) *HiddenAlertsService {
+func NewHiddenAlertsService(backendClient hiddenAlertsBackend) *HiddenAlertsService {
 	service := &HiddenAlertsService{
 		backendClient:      backendClient,
 		userHiddenAlerts:   make(map[string]map[string]bool),
 		userHiddenRules:    make(map[string][]models.UserHiddenRule),
 		compiledRegexRules: make(map[string]map[string]*regexp.Regexp),
 		lastAccess:         make(map[string]time.Time),
+		generation:         make(map[string]uint64),
 		cacheTTL:           cacheTTL,
 	}
 	
@@ -66,6 +81,7 @@ func (s *HiddenAlertsService) LoadUserData(sessionID string) error {
 
 	s.mu.RLock()
 	fresh := s.userHiddenAlerts[sessionID] != nil && time.Since(s.lastAccess[sessionID]) < s.cacheTTL
+	gen := s.generation[sessionID]
 	s.mu.RUnlock()
 	if fresh {
 		return nil
@@ -109,6 +125,13 @@ func (s *HiddenAlertsService) LoadUserData(sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// A mutation or invalidation landed while the fetch was in flight: this
+	// snapshot predates it. Drop it and leave the entry cold so the next call
+	// refetches, rather than republishing the pre-mutation state for a TTL.
+	if s.generation[sessionID] != gen {
+		return nil
+	}
+
 	// Replace cached hidden alerts wholesale so entries removed in the backend
 	// (or stale regexes for deleted rules) do not accumulate.
 	if hiddenAlertsErr == nil {
@@ -133,7 +156,14 @@ func (s *HiddenAlertsService) LoadUserData(sessionID string) error {
 		}
 	}
 
-	s.lastAccess[sessionID] = time.Now()
+	// Only a complete fetch is cacheable: on error the fallbacks above published
+	// an empty snapshot, so backdate the clock to keep the entry sweepable but
+	// never fresh, and let the next request retry the backend.
+	if hiddenAlertsErr == nil && hiddenRulesErr == nil {
+		s.lastAccess[sessionID] = time.Now()
+	} else {
+		s.lastAccess[sessionID] = time.Now().Add(-s.cacheTTL)
+	}
 	// ponytail: opportunistic sweep instead of a janitor goroutine — sessions
 	// idle past the backend session TTL are dropped on the next load by anyone.
 	s.sweepIdleSessionsLocked()
@@ -150,6 +180,7 @@ func (s *HiddenAlertsService) sweepIdleSessionsLocked() {
 			delete(s.userHiddenRules, sessionID)
 			delete(s.compiledRegexRules, sessionID)
 			delete(s.lastAccess, sessionID)
+			delete(s.generation, sessionID)
 		}
 	}
 }
@@ -293,7 +324,8 @@ func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.Das
 		s.userHiddenAlerts[sessionID] = make(map[string]bool)
 	}
 	s.userHiddenAlerts[sessionID][alert.Fingerprint] = true
-	
+	s.generation[sessionID]++
+
 	return nil
 }
 
@@ -310,7 +342,8 @@ func (s *HiddenAlertsService) UnhideAlert(sessionID, fingerprint string, imperso
 	if s.userHiddenAlerts[sessionID] != nil {
 		delete(s.userHiddenAlerts[sessionID], fingerprint)
 	}
-	
+	s.generation[sessionID]++
+
 	return nil
 }
 
@@ -395,6 +428,7 @@ func (s *HiddenAlertsService) InvalidateCache(sessionID string) {
 	delete(s.userHiddenRules, sessionID)
 	delete(s.compiledRegexRules, sessionID)
 	delete(s.lastAccess, sessionID)
+	s.generation[sessionID]++
 }
 
 // GetUserHiddenRules gets all hidden rules for a user

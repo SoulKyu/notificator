@@ -1,12 +1,36 @@
 package services
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 	"time"
 
 	"notificator/internal/backend/models"
+	alertpb "notificator/internal/backend/proto/alert"
 )
+
+// stubBackend implements only the two fetch methods LoadUserData needs; the
+// embedded nil interface panics if anything else is called.
+type stubBackend struct {
+	hiddenAlertsBackend
+	alerts  []*alertpb.UserHiddenAlert
+	err     error
+	calls   int
+	onFetch func()
+}
+
+func (b *stubBackend) GetUserHiddenAlerts(string, ...string) ([]*alertpb.UserHiddenAlert, error) {
+	b.calls++
+	if b.onFetch != nil {
+		b.onFetch()
+	}
+	return b.alerts, b.err
+}
+
+func (b *stubBackend) GetUserHiddenRules(string, ...string) ([]*alertpb.UserHiddenRule, error) {
+	return nil, b.err
+}
 
 func TestColorServiceSweepExpired(t *testing.T) {
 	cs := NewColorService(nil)
@@ -93,6 +117,42 @@ func TestHiddenAlertsServiceLoadUserDataRefetchesWhenStale(t *testing.T) {
 			prime(s)
 			_ = s.LoadUserData("sess")
 		})
+	}
+}
+
+// A failed fetch must not be cached as fresh, or a transient backend outage
+// would blank a session's hidden alerts for a full TTL.
+func TestHiddenAlertsServiceLoadUserDataRetriesAfterFailedFetch(t *testing.T) {
+	backend := &stubBackend{err: errors.New("backend unavailable")}
+	s := NewHiddenAlertsService(backend)
+
+	for range 2 {
+		if err := s.LoadUserData("sess"); err != nil {
+			t.Fatalf("LoadUserData: %v", err)
+		}
+	}
+
+	if backend.calls != 2 {
+		t.Errorf("failed fetch should stay refetchable: got %d backend calls, want 2", backend.calls)
+	}
+}
+
+// An invalidation landing mid-fetch must discard the in-flight snapshot instead
+// of republishing pre-mutation state and marking it fresh for a TTL.
+func TestHiddenAlertsServiceLoadUserDataDropsSnapshotInvalidatedMidFetch(t *testing.T) {
+	backend := &stubBackend{alerts: []*alertpb.UserHiddenAlert{{Fingerprint: "stale"}}}
+	s := NewHiddenAlertsService(backend)
+	backend.onFetch = func() { s.InvalidateCache("sess") }
+
+	if err := s.LoadUserData("sess"); err != nil {
+		t.Fatalf("LoadUserData: %v", err)
+	}
+
+	if _, ok := s.userHiddenAlerts["sess"]; ok {
+		t.Error("snapshot predating the mid-fetch invalidation should not be published")
+	}
+	if _, ok := s.lastAccess["sess"]; ok {
+		t.Error("discarded snapshot should leave the entry cold, not fresh")
 	}
 }
 
