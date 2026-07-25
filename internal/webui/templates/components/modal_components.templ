@@ -4,7 +4,7 @@ package components
 templ SettingsModal() {
 	<div x-show="showSettings" x-data="settingsModalData()" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
 		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity z-0" @click="showSettings = false"></div>
+			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity z-0" @click="if (!settingsSaving) showSettings = false"></div>
 
 			<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] relative z-10 border border-gray-200/50 dark:border-dark-border-subtle/50">
 				<!-- Header with close button -->
@@ -13,6 +13,8 @@ templ SettingsModal() {
 						Dashboard Settings
 					</h3>
 					<button @click="showSettings = false"
+							:disabled="settingsSaving"
+							:class="{ 'opacity-50 cursor-not-allowed': settingsSaving }"
 							class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary transition-colors group">
 						<svg class="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -504,7 +506,7 @@ templ SettingsModal() {
 												Remove token
 											</button>
 										</div>
-										<div x-show="sentryConfig.testResult" class="mt-2">
+										<div x-show="sentryConfig.testResult" role="status" aria-live="polite" class="mt-2">
 											<p x-show="sentryConfig.testResult && sentryConfig.testResult.success" class="text-xs text-green-600 dark:text-green-400" x-text="sentryConfig.testResult ? sentryConfig.testResult.message : ''"></p>
 											<p x-show="sentryConfig.testResult && !sentryConfig.testResult.success" class="text-xs text-red-600 dark:text-red-400" x-text="sentryConfig.testResult ? sentryConfig.testResult.message : ''"></p>
 										</div>
@@ -654,6 +656,8 @@ templ SettingsModal() {
 						Cancel
 					</button>
 					<p x-show="settingsSaveResult"
+					   role="status"
+					   aria-live="polite"
 					   class="mt-3 text-sm sm:mt-0 sm:mr-auto sm:self-center"
 					   :class="settingsSaveResult && settingsSaveResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
 					   x-text="settingsSaveResult ? settingsSaveResult.message : ''"></p>
