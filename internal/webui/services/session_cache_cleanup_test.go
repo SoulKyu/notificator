@@ -105,6 +105,23 @@ func TestHiddenAlertsServiceLoadUserDataServesCacheWithinTTL(t *testing.T) {
 	}
 }
 
+// A successful load must mark the entry fresh, so the next call inside the TTL
+// is served from cache. This is the behaviour the whole PR exists for.
+func TestHiddenAlertsServiceLoadUserDataCachesAfterSuccessfulFetch(t *testing.T) {
+	backend := &stubBackend{alerts: []*alertpb.UserHiddenAlert{{Fingerprint: "fp"}}}
+	s := NewHiddenAlertsService(backend)
+
+	for range 2 {
+		if err := s.LoadUserData("sess"); err != nil {
+			t.Fatalf("LoadUserData: %v", err)
+		}
+	}
+
+	if backend.calls != 1 {
+		t.Errorf("second load inside the TTL should be served from cache: got %d backend calls, want 1", backend.calls)
+	}
+}
+
 func TestHiddenAlertsServiceLoadUserDataRefetchesWhenStale(t *testing.T) {
 	for name, prime := range map[string]func(s *HiddenAlertsService){
 		"expired": func(s *HiddenAlertsService) {

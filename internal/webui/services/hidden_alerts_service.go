@@ -37,14 +37,14 @@ type hiddenAlertsBackend interface {
 
 // HiddenAlertsService manages hidden alerts and rules for users
 type HiddenAlertsService struct {
-	backendClient       hiddenAlertsBackend
-	mu                  sync.RWMutex
-	userHiddenAlerts    map[string]map[string]bool             // userID -> fingerprint -> hidden
-	userHiddenRules     map[string][]models.UserHiddenRule     // userID -> rules
-	compiledRegexRules  map[string]map[string]*regexp.Regexp   // userID -> ruleID -> compiled regex
-	lastAccess          map[string]time.Time                   // userID -> last successful LoadUserData fetch
-	generation          map[string]uint64                      // userID -> bumped by every mutation/invalidation
-	cacheTTL            time.Duration
+	backendClient      hiddenAlertsBackend
+	mu                 sync.RWMutex
+	userHiddenAlerts   map[string]map[string]bool           // userID -> fingerprint -> hidden
+	userHiddenRules    map[string][]models.UserHiddenRule   // userID -> rules
+	compiledRegexRules map[string]map[string]*regexp.Regexp // userID -> ruleID -> compiled regex
+	lastAccess         map[string]time.Time                 // userID -> last successful LoadUserData fetch
+	generation         map[string]uint64                    // userID -> bumped by every mutation/invalidation
+	cacheTTL           time.Duration
 }
 
 // NewHiddenAlertsService creates a new hidden alerts service
