@@ -224,14 +224,20 @@ templ DashboardActions() {
 					}
 				} catch (error) {
 					console.error('Error hiding alerts:', error);
-					// The loop position is unknown, so every still-selected fingerprint
-					// stays a retry candidate; the reload and the persistent banner are
-					// what make the partial progress visible.
 					if (hiddenCount > 0) {
 						this.loadDashboardData();
 					}
+					// The loop consumed exactly this many entries, in order: the retryable
+					// selection is the server-refused fingerprints plus the untried tail.
+					const consumed = hiddenCount + failures.length;
+					this.selectedAlerts = failures.map(f => f.fingerprint)
+						.concat(this.selectedAlerts.slice(consumed));
 					const hidden = hiddenCount > 0 ? `${hiddenCount} alert(s) hidden. ` : '';
-					this.showActionError(`${hidden}Network error: failed to hide the remaining alerts`, false);
+					const reasons = failures.map(f => f.error).filter(Boolean).slice(0, 3);
+					const rejected = reasons.length > 0
+						? `${failures.length} rejected: ${reasons.join('; ')}. `
+						: '';
+					this.showActionError(`${hidden}${rejected}Network error: failed to hide the remaining alerts`, false);
 				}
 			},
 
