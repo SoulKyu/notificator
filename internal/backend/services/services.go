@@ -14,6 +14,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"notificator/config"
@@ -716,15 +718,17 @@ func (s *AlertServiceGorm) GetAcknowledgments(ctx context.Context, req *alertpb.
 	}, nil
 }
 
-// GetAllAcknowledgedAlerts implements the GetAllAcknowledgedAlerts RPC method
+// GetAllAcknowledgedAlerts implements the GetAllAcknowledgedAlerts RPC method.
+//
+// Callers treat the response as an authoritative snapshot and clear the
+// acknowledgment of every fingerprint missing from it, so a database failure
+// must surface as an error rather than as an empty map — an empty map would
+// un-acknowledge the whole dashboard on a statement timeout or a failover.
 func (s *AlertServiceGorm) GetAllAcknowledgedAlerts(ctx context.Context, req *alertpb.GetAllAcknowledgedAlertsRequest) (*alertpb.GetAllAcknowledgedAlertsResponse, error) {
 	acknowledgedAlerts, err := s.db.GetAllAcknowledgedAlerts(req.AlertKeys)
 	if err != nil {
 		log.Printf("Error getting all acknowledged alerts: %v", err)
-		return &alertpb.GetAllAcknowledgedAlertsResponse{
-			AcknowledgedAlerts: make(map[string]*alertpb.Acknowledgment),
-			Count:              0,
-		}, nil
+		return nil, status.Errorf(codes.Internal, "failed to load acknowledged alerts: %v", err)
 	}
 
 	// Convert to protobuf format

@@ -352,10 +352,15 @@ func (gdb *GormDB) backfillFixTimeSeconds() error {
 	return nil
 }
 
-// cleanupResolvedAcknowledgments drops acknowledgments whose alert already
-// resolved. Until CreateResolvedAlert started clearing them, these rows survived
-// the resolution and re-acknowledged the next firing of the same labels, which
-// share a fingerprint.
+// cleanupResolvedAcknowledgments drops acknowledgments left behind by a
+// resolution. Until CreateResolvedAlert started clearing them, these rows
+// survived the resolution and re-acknowledged the next firing of the same
+// labels, which share a fingerprint.
+//
+// This runs on every backend start, not once, so the predicate has to tell a
+// stale row from a live one: only an acknowledgment created *before* the
+// resolution belongs to the firing that ended. An alert that resolves, fires
+// again and gets acknowledged keeps that acknowledgment across restarts.
 //
 // ponytail: keyed on resolved_alerts, so it only reaches orphans whose resolved
 // snapshot has not expired yet (retention default 24h). Older orphans are
@@ -369,7 +374,11 @@ func (gdb *GormDB) cleanupResolvedAcknowledgments() error {
 
 	result := gdb.db.Exec(`
 		DELETE FROM acknowledgments
-		WHERE alert_key IN (SELECT fingerprint FROM resolved_alerts)
+		WHERE EXISTS (
+			SELECT 1 FROM resolved_alerts r
+			WHERE r.fingerprint = acknowledgments.alert_key
+			  AND r.resolved_at > acknowledgments.created_at
+		)
 	`)
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete acknowledgments of resolved alerts: %w", result.Error)

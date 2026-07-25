@@ -2,11 +2,13 @@ package database
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -513,6 +515,42 @@ func (gdb *GormDB) GetAllAcknowledgedAlerts(alertKeys []string) (map[string]mode
 	return result, nil
 }
 
+// isEmptyAcknowledgmentSnapshot reports whether the caller supplied no usable
+// acknowledgment history — either nothing at all, because its fetch failed, or
+// an empty JSON payload.
+func isEmptyAcknowledgmentSnapshot(acknowledgments []byte) bool {
+	switch strings.TrimSpace(string(acknowledgments)) {
+	case "", "null", "[]", "{}":
+		return true
+	}
+	return false
+}
+
+// snapshotAcknowledgments reads the live acknowledgments of an alert through tx,
+// shaped like GetAcknowledgments so both snapshot sources serialize the same.
+// Returns nil when the alert has none.
+func snapshotAcknowledgments(tx *gorm.DB, fingerprint string) ([]byte, error) {
+	var acks []models.AcknowledgmentWithUser
+	if err := tx.Table("acknowledgments").
+		Select("acknowledgments.*, users.username").
+		Joins("JOIN users ON users.id = acknowledgments.user_id").
+		Where("acknowledgments.alert_key = ?", fingerprint).
+		Order("acknowledgments.created_at DESC").
+		Find(&acks).Error; err != nil {
+		return nil, fmt.Errorf("failed to read acknowledgments for resolved alert: %w", err)
+	}
+
+	if len(acks) == 0 {
+		return nil, nil
+	}
+
+	snapshot, err := json.Marshal(acks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize acknowledgments for resolved alert: %w", err)
+	}
+	return snapshot, nil
+}
+
 func (gdb *GormDB) CreateResolvedAlert(fingerprint, source string, alertData, comments, acknowledgments []byte, ttlHours int) (*models.ResolvedAlert, error) {
 	now := time.Now()
 	resolvedAlert := &models.ResolvedAlert{
@@ -525,11 +563,23 @@ func (gdb *GormDB) CreateResolvedAlert(fingerprint, source string, alertData, co
 		Source:          source,
 	}
 
-	// The acknowledgment belongs to the firing that just ended and is already
-	// snapshotted in the row above. Leaving the live rows behind would silently
-	// re-acknowledge the next firing of the same labels, which share a
-	// fingerprint, and hide it from the classic dashboard.
+	// The acknowledgment belongs to the firing that just ended. Leaving the live
+	// rows behind would silently re-acknowledge the next firing of the same
+	// labels, which share a fingerprint, and hide it from the classic dashboard.
+	//
+	// The caller's snapshot is best-effort — it comes from a separate RPC that
+	// may have failed — so the rows are read here when it is missing. Snapshot
+	// and delete then share one transaction and the history cannot be lost.
 	err := gdb.db.Transaction(func(tx *gorm.DB) error {
+		if isEmptyAcknowledgmentSnapshot(acknowledgments) {
+			snapshot, err := snapshotAcknowledgments(tx, fingerprint)
+			if err != nil {
+				return err
+			}
+			if snapshot != nil {
+				resolvedAlert.Acknowledgments = models.JSONB(snapshot)
+			}
+		}
 		if err := tx.Create(resolvedAlert).Error; err != nil {
 			return fmt.Errorf("failed to create resolved alert: %w", err)
 		}

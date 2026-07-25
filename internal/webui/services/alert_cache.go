@@ -510,6 +510,15 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 // applyAcknowledgments makes the cache mirror the backend exactly: alerts the
 // backend no longer reports as acknowledged are cleared, so a re-firing alert
 // does not latch onto the previous incident's acknowledgment.
+//
+// acknowledgedAlerts must be a snapshot the backend actually produced — never an
+// empty map standing in for a failed fetch, which would un-acknowledge the whole
+// dashboard. GetAllAcknowledgedAlerts returns a gRPC error on a database failure
+// for that reason, and callers must return before reaching here.
+//
+// The snapshot is point-in-time: an acknowledgment written locally (the
+// acknowledge handler's MutateAlert) after the map was built is cleared here and
+// reappears on the next refresh.
 func (ac *AlertCache) applyAcknowledgments(acknowledgedAlerts map[string]*alertpb.Acknowledgment) {
 	ac.mu.Lock()
 	defer ac.mu.Unlock()

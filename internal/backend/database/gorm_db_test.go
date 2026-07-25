@@ -1,6 +1,7 @@
 package database
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -125,8 +126,46 @@ func TestCreateResolvedAlertClearsAcknowledgments(t *testing.T) {
 	}
 }
 
-// TestCleanupResolvedAcknowledgments covers the one-off migration that drops
-// acknowledgment rows orphaned by resolutions that happened before the fix.
+// TestCreateResolvedAlertSnapshotsAcknowledgmentsWhenCallerHasNone pins the
+// other half of that lifecycle: the caller builds its snapshot with a separate,
+// best-effort RPC, so when that fetch fails the rows must still be recorded
+// before the same transaction deletes them.
+func TestCreateResolvedAlertSnapshotsAcknowledgmentsWhenCallerHasNone(t *testing.T) {
+	for _, payload := range [][]byte{nil, []byte(`[]`), []byte(`null`)} {
+		gdb := newTestDB(t)
+
+		alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+		if err := gdb.db.Create(&alice).Error; err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		ack := models.Acknowledgment{ID: "a1", AlertKey: "resolved-key", UserID: alice.ID, Reason: "on it"}
+		if err := gdb.db.Create(&ack).Error; err != nil {
+			t.Fatalf("create ack: %v", err)
+		}
+
+		resolved, err := gdb.CreateResolvedAlert("resolved-key", "prod", []byte(`{}`), nil, payload, 24)
+		if err != nil {
+			t.Fatalf("CreateResolvedAlert(%q): %v", payload, err)
+		}
+
+		var snapshot []models.AcknowledgmentWithUser
+		if err := json.Unmarshal([]byte(resolved.Acknowledgments), &snapshot); err != nil {
+			t.Fatalf("snapshot for payload %q is not readable acknowledgment history: %v (%q)", payload, err, resolved.Acknowledgments)
+		}
+		if len(snapshot) != 1 || snapshot[0].Username != "alice" || snapshot[0].Reason != "on it" {
+			t.Errorf("payload %q: acknowledgment history lost, got %+v", payload, snapshot)
+		}
+
+		if live, _ := gdb.GetAcknowledgments("resolved-key"); len(live) != 0 {
+			t.Errorf("payload %q: live acknowledgments should still be cleared, got %d", payload, len(live))
+		}
+	}
+}
+
+// TestCleanupResolvedAcknowledgments covers the startup migration that drops
+// acknowledgment rows orphaned by resolutions that happened before the fix. It
+// re-runs on every boot, so it must keep the acknowledgment of an alert that
+// resolved and then fired again inside the resolved-alert retention window.
 func TestCleanupResolvedAcknowledgments(t *testing.T) {
 	gdb := newTestDB(t)
 
@@ -135,9 +174,13 @@ func TestCleanupResolvedAcknowledgments(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 
+	now := time.Now()
 	acks := []models.Acknowledgment{
-		{ID: "a1", AlertKey: "orphan-key", UserID: alice.ID, Reason: "stale"},
-		{ID: "a2", AlertKey: "firing-key", UserID: alice.ID, Reason: "current"},
+		// Acknowledged before the resolution: belongs to the firing that ended.
+		{ID: "a1", AlertKey: "orphan-key", UserID: alice.ID, Reason: "stale", CreatedAt: now.Add(-2 * time.Hour)},
+		{ID: "a2", AlertKey: "firing-key", UserID: alice.ID, Reason: "current", CreatedAt: now.Add(-2 * time.Hour)},
+		// Acknowledged after the resolution: belongs to the firing that is live now.
+		{ID: "a3", AlertKey: "refired-key", UserID: alice.ID, Reason: "on the new one", CreatedAt: now.Add(-5 * time.Minute)},
 	}
 	for i := range acks {
 		if err := gdb.db.Create(&acks[i]).Error; err != nil {
@@ -145,15 +188,14 @@ func TestCleanupResolvedAcknowledgments(t *testing.T) {
 		}
 	}
 
-	now := time.Now()
-	if err := gdb.db.Create(&models.ResolvedAlert{
-		Fingerprint: "orphan-key",
-		AlertData:   models.JSONB(`{}`),
-		ResolvedAt:  now.Add(-time.Hour),
-		ExpiresAt:   now.Add(23 * time.Hour),
-		Source:      "prod",
-	}).Error; err != nil {
-		t.Fatalf("create resolved alert: %v", err)
+	resolved := []models.ResolvedAlert{
+		{Fingerprint: "orphan-key", AlertData: models.JSONB(`{}`), ResolvedAt: now.Add(-time.Hour), ExpiresAt: now.Add(23 * time.Hour), Source: "prod"},
+		{Fingerprint: "refired-key", AlertData: models.JSONB(`{}`), ResolvedAt: now.Add(-time.Hour), ExpiresAt: now.Add(23 * time.Hour), Source: "prod"},
+	}
+	for i := range resolved {
+		if err := gdb.db.Create(&resolved[i]).Error; err != nil {
+			t.Fatalf("create resolved alert: %v", err)
+		}
 	}
 
 	if err := gdb.cleanupResolvedAcknowledgments(); err != nil {
@@ -165,5 +207,8 @@ func TestCleanupResolvedAcknowledgments(t *testing.T) {
 	}
 	if firing, _ := gdb.GetAcknowledgments("firing-key"); len(firing) != 1 {
 		t.Errorf("acknowledgment of a still-firing alert must survive, got %d", len(firing))
+	}
+	if refired, _ := gdb.GetAcknowledgments("refired-key"); len(refired) != 1 {
+		t.Errorf("acknowledgment created after the resolution belongs to the live firing, got %d", len(refired))
 	}
 }
