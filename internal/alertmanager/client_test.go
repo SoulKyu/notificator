@@ -108,10 +108,12 @@ func TestFetchAllAlertsDetailedPartialFailure(t *testing.T) {
 		"dead":      dead.URL,
 	}
 
+	const deadTimeout = 500 * time.Millisecond
+
 	mc := multiClientFor(urls)
 	for _, nc := range mc.snapshotClients() {
 		if nc.name == "dead" {
-			nc.client.HTTPClient.Timeout = 500 * time.Millisecond
+			nc.client.HTTPClient.Timeout = deadTimeout
 		}
 	}
 
@@ -133,9 +135,11 @@ func TestFetchAllAlertsDetailedPartialFailure(t *testing.T) {
 	if len(failed) != 1 {
 		t.Fatalf("unexpected failures: %v", failed)
 	}
-	// Bounded by the single timeout, not timeout + healthy latencies.
-	if elapsed > 900*time.Millisecond {
-		t.Fatalf("fan-out took %s, want it bounded by the dead source timeout", elapsed)
+	// Bounded by the single timeout, not timeout + healthy latencies. The bound
+	// is derived from the timeout so the intent stays "did not serialise" rather
+	// than a hand-tuned number that a slow runner can trip.
+	if elapsed > 2*deadTimeout {
+		t.Fatalf("fan-out took %s, want it bounded by the dead source timeout %s", elapsed, deadTimeout)
 	}
 }
 
@@ -252,13 +256,20 @@ func TestTestConnectionBoundsDrainOfIgnoredFilter(t *testing.T) {
 }
 
 func TestGetHealthStatusConcurrent(t *testing.T) {
-	const delay = 300 * time.Millisecond
+	const probed = 4
+
+	// Same barrier trick as the fetch fan-out: every probed source must be in
+	// flight at once for any of them to answer, so a serial regression stalls
+	// on the client timeout instead of merely being slow.
+	var barrier sync.WaitGroup
+	barrier.Add(probed)
 
 	urls := map[string]string{}
-	for i := 0; i < 4; i++ {
+	for i := 0; i < probed; i++ {
 		name := fmt.Sprintf("am-%d", i)
-		urls[name] = alertmanagerStub(t, name, delay).URL
+		urls[name] = barrierStub(t, name, &barrier).URL
 	}
+	// The broken source answers immediately and must not join the barrier.
 	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))
@@ -267,9 +278,7 @@ func TestGetHealthStatusConcurrent(t *testing.T) {
 
 	mc := multiClientFor(urls)
 
-	start := time.Now()
 	status := mc.GetHealthStatus()
-	elapsed := time.Since(start)
 
 	if len(status) != len(urls) {
 		t.Fatalf("got %d statuses, want %d", len(status), len(urls))
@@ -277,10 +286,15 @@ func TestGetHealthStatusConcurrent(t *testing.T) {
 	if status["broken"] {
 		t.Fatal("broken source reported healthy")
 	}
-	if elapsed > time.Duration(float64(delay)*1.8) {
-		t.Fatalf("health fan-out took %s, want near %s", elapsed, delay)
+	for name := range status {
+		if name != "broken" && !status[name] {
+			t.Fatalf("probes did not run concurrently (a serial fan-out stalls on the barrier): %v", status)
+		}
 	}
 
+	// GetHealthyClients probes a second round; every Wait above has returned by
+	// now, so the WaitGroup is safe to re-arm.
+	barrier.Add(probed)
 	healthy := mc.GetHealthyClients()
 	if len(healthy) != 4 {
 		t.Fatalf("got %d healthy clients, want 4: %v", len(healthy), healthy)
