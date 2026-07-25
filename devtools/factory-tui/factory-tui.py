@@ -621,7 +621,11 @@ def build_desks(max_desks=None, keep=None):
             # `·N` is a label (a rank); `id` is the loop itself, so lookups survive a sibling
             # finishing. loopId over target: parse_ps defaults target to "?" for targetless rows
             # (queued loops), and two of those would share an id and collide in desk_index.
-            desks += [{"key": key, "id": f"{key}:{lp.get('loopId') or lp['target']}", "emoji": emoji,
+            # ponytail: no loopId (older looper CLI) → fall back to rank, which is unique within
+            # the frame but not stable across them; a wrong-desk zoom is worse than a jumpy one.
+            desks += [{"key": key,
+                       "id": f"{key}:{lp['loopId']}" if lp.get("loopId") else f"{key}:{lp['target']}#{i}",
+                       "emoji": emoji,
                        "name": f"{name}·{i + 1}", "kind": kind,
                        "state": loop_state(lp), "loop": lp} for i, lp in enumerate(mine)]
         else:
@@ -1009,11 +1013,11 @@ def main_curses(scr):
         panels = panel_snapshot()  # one read per frame: the cap and the frame must agree
         desks = build_desks(desk_cap(h, per_row, panels), keep=zoom_id)
         sel = desk_resolve(desks, sel_id, sel)
+        if ch == ord("q"):  # above the swallow below: q quits in both modes, unconditionally
+            return
         zoom = desk_index(desks, zoom_id) if zoom_id else None
         if zoom is None and zoom_id:
             zoom_id, ch = None, -1  # -1 is getch()'s "no key" in nodelay mode → every branch no-ops
-        if ch == ord("q"):
-            return
         if zoom is None:
             if ch == 27:
                 return
@@ -1355,7 +1359,8 @@ def selfcheck():
     # injected out of `looper ps` order on purpose — build_desks() must sort them.
     # `#N` is what `looper ps` really prints; one `/N` row keeps both spellings covered.
     with LOCK:
-        STATE["loops"] = [{"type": "worker", "target": t, "step": "code", "status": "running"}
+        STATE["loops"] = [{"type": "worker", "target": t, "step": "code", "status": "running",
+                           "loopId": f"lp_{t[-2:]}", "runId": None}
                           for t in ("SoulKyu/notificator#55", "SoulKyu/notificator/49",
                                     "SoulKyu/notificator#50")]
     desks = build_desks()
@@ -1415,6 +1420,15 @@ def selfcheck():
     for i, d in enumerate(queued):
         if d["key"] == "worker" and desk_index(queued, d["id"]) != i:
             print(f"FAIL desk id collision: {d['name']} resolves to index {desk_index(queued, d['id'])}")
+            fails += 1
+    # …and with no loopId at all (older looper CLI) the rank fallback must still be unique
+    with LOCK:
+        STATE["loops"] = [{"type": "worker", "target": "?", "step": "—", "status": "queued"}
+                          for _ in range(2)]
+    handleless = build_desks()
+    for i, d in enumerate(handleless):
+        if d["key"] == "worker" and desk_index(handleless, d["id"]) != i:
+            print(f"FAIL loopId-less desk id collision: {d['name']} → index {desk_index(handleless, d['id'])}")
             fails += 1
     # a full factory must not push the wall board off a short terminal: cap the grid, fold the rest
     with LOCK:
