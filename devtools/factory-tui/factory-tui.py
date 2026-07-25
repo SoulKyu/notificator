@@ -3,7 +3,7 @@
 
 Little ASCII people at their desks: screens scroll when they code, coffee
 steams on breaks, zzZ floats while they sleep, and screens flash on failures.
-Zero dependencies (stdlib curses). Data: `looper ps`, systemd user
+Zero dependencies (stdlib curses). Data: `looper ps --json`, systemd user
 timers/services, `gh` (PRs/issues), newest agent log as chatter ticker.
 
 Run:      python3 factory-tui.py
@@ -24,6 +24,8 @@ import time
 import unicodedata
 
 LOG_DIR = os.environ.get("FACTORY_LOG_DIR", os.path.expanduser("~/.claude-agents/notificator/logs"))
+# looper keeps its own role logs out of LOG_DIR, one directory per run
+LOOPER_LOG_DIR = os.environ.get("FACTORY_LOOPER_LOG_DIR", os.path.expanduser("~/.looper/logs/loops"))
 INBOX_DIR = os.environ.get("FACTORY_INBOX_DIR", os.path.expanduser("~/.claude-agents/notificator/inbox"))
 REPO = os.environ.get("FACTORY_REPO", "SoulKyu/notificator")
 POLL_FAST, POLL_MED, POLL_SLOW = 3, 10, 45
@@ -50,6 +52,7 @@ TIMER_OF = {
     "promoter": "notificator-promoter.timer", "groomer": "notificator-groomer.timer",
     "docagent": "notificator-docagent.timer", "reporter": "notificator-reporter.timer",
 }
+LOG_PREFIX_OF = {"rebaser": "rebase"}  # desks whose log files are not named after their ROSTER key
 SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
 SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
 ZOOM_TAIL = 15
@@ -158,6 +161,8 @@ def track_loops(loops, now, prune=True):
 
 
 def poll_fast():
+    # --json over the table: no positional column parsing, and it carries loopId/runId,
+    # which is the only way to find a looper role's own log (see loop_tail).
     ps_out = sh("looper ps --json 2>/dev/null")
     try:  # parse success, not emptiness: sh() hands back stdout even on a non-zero exit
         loops = [{"type": i["type"], "target": (i.get("target") or {}).get("label") or "?",
@@ -165,7 +170,8 @@ def poll_fast():
                   # displayStatus refines `status`: a loop parked on manual_intervention
                   # is merely `paused` in `status`, and that is the one state a human owes work to
                   "status": i.get("displayStatus") or i.get("status") or "-",
-                  "since": iso_ts((i.get("agent") or {}).get("startedAt"))}
+                  "since": iso_ts((i.get("agent") or {}).get("startedAt")),
+                  "loopId": i.get("loopId"), "runId": i.get("runId")}
                  for i in json.loads(ps_out)["items"]]  # a loop with no `type` is not renderable:
         ps_ok = True                                    # a schema drift means "injoignable", not "frozen"
     except Exception:
@@ -707,9 +713,10 @@ PANEL_ROWS = 15 + PENDING_MAX + 2
 
 
 def desk_cap(h, per_row):
-    """Desks that still leave room for the panels below the office — main_curses stops
-    drawing at h-1, so an unbounded grid silently swallows the wall board and the radio."""
-    return max(len(ROSTER), max(1, (h - PANEL_ROWS) // 8) * per_row)
+    """Desks that still leave room for the panels below the office — an unbounded grid silently
+    swallows the wall board and the radio. Budget is h-1: main_curses stops drawing at h-1, so
+    on `h - PANEL_ROWS` landing on a multiple of 8 an h-row frame loses its closing border."""
+    return max(len(ROSTER), max(1, (h - 1 - PANEL_ROWS) // 8) * per_row)
 
 
 def render_frame(tick, width=92, sel=None, desks=None, flash=False):
@@ -799,19 +806,34 @@ def render_frame(tick, width=92, sel=None, desks=None, flash=False):
 
 # ── control room: zoom, log tail, summon ───────────────────────────────────
 
-def log_tail(key, n=ZOOM_TAIL):
-    """Newest log file of an agent -> (basename, last n non-empty lines)."""
+def newest_tail(paths, n):
+    """Newest of `paths` -> (basename, last n non-empty lines). Reads the tail only."""
     try:
-        logs = [os.path.join(LOG_DIR, f) for f in os.listdir(LOG_DIR) if f.startswith(key)]
-        if not logs:
-            return None, []
-        newest = max(logs, key=os.path.getmtime)
+        newest = max(paths, key=os.path.getmtime)
         with open(newest, "rb") as f:
             f.seek(0, 2)
             f.seek(max(0, f.tell() - 16384))
             data = f.read().decode(errors="replace")
         return os.path.basename(newest), [l for l in data.splitlines() if l.strip()][-n:]
     except Exception:
+        return None, []
+
+
+def log_tail(key, n=ZOOM_TAIL):
+    """Newest log file of an agent in LOG_DIR -> (basename, last n non-empty lines)."""
+    try:
+        return newest_tail([os.path.join(LOG_DIR, f) for f in os.listdir(LOG_DIR) if f.startswith(key)], n)
+    except Exception:
+        return None, []
+
+
+def loop_tail(lp, n=ZOOM_TAIL):
+    """Agent stdout of one looper run. looper writes these under LOOPER_LOG_DIR/<loopId>/<runId>/,
+    never into LOG_DIR, so a role-prefixed filename in LOG_DIR would never match a looper desk."""
+    try:
+        d = os.path.join(LOOPER_LOG_DIR, lp["loopId"], lp["runId"])
+        return newest_tail([os.path.join(d, f) for f in os.listdir(d) if f.endswith(".stdout.log")], n)
+    except Exception:  # missing loopId/runId (older looper) or run already reaped
         return None, []
 
 
@@ -831,20 +853,12 @@ def desk_resolve(desks, ident, fallback):
     return idx if idx is not None else min(fallback, len(desks) - 1)
 
 
-def desk_log_prefix(desk):
-    """Prefix of this desk's own loop logs, or None off a loop. The trailing dash anchors it —
-    bare `worker-9` also matches `worker-95-*.log`."""
-    return f"{desk['key']}-{loop_num(desk['loop'])}-" if desk["loop"] else None
-
-
 def desk_tail(desk, n=ZOOM_TAIL):
-    """This desk's own loop log (`worker-49-*`) when one exists, else the role-wide newest."""
-    prefix = desk_log_prefix(desk)
-    if prefix:
-        name, tail = log_tail(prefix, n)
-        if name:
-            return name, tail
-    return log_tail(desk["key"], n)
+    """A desk sitting on a loop tails that run's own agent log; the others tail the newest
+    LOG_DIR log of their role. No cross-fallback — the two roots never hold each other's logs."""
+    if desk["loop"]:
+        return loop_tail(desk["loop"], n)
+    return log_tail(LOG_PREFIX_OF.get(desk["key"], desk["key"]), n)
 
 
 def zoom_lines(desk, tail_name, tail, follow, note, width=80):
@@ -861,15 +875,12 @@ def zoom_lines(desk, tail_name, tail, follow, note, width=80):
         last = f"{s.get('Result') or '—'} · {s.get('ExecMainStartTimestamp') or '—'}"
     else:  # ponytail: looper roles have no systemd unit — show this desk's loop instead
         last = f"{lp['status']} · {lp['target']}" if lp else "—"
-    # the tail may fall back to the role-wide newest log — say so rather than imply it's this loop's
-    prefix = desk_log_prefix(desk)
-    scope = "" if not prefix or not tail_name or tail_name.startswith(prefix) else " (rôle entier)"
     inner = width - 2
     lines = ["╔" + dpad(f" ZOOM — {emoji} {name} ", inner, center=True, fill="═") + "╗"]
     for b in (f" état : {state} · {status} {detail}".rstrip(),
               f" dernier run : {last}",
               f" prochain réveil : {timers.get(TIMER_OF.get(key, ''), '') or '—'}",
-              f" log : {tail_name or '(aucun)'}{scope}  [{'follow' if follow else 'figé'}]"):
+              f" log : {tail_name or '(aucun)'}  [{'follow' if follow else 'figé'}]"):
         lines.append("║" + dpad(b, inner) + "║")
     lines.append("╠" + "═" * inner + "╣")
     rows = (tail or ["(aucun log)"])[-ZOOM_TAIL:]
@@ -1276,8 +1287,8 @@ def selfcheck():
             print(f"FAIL alarm panel: stall clock truncated away at w={w}")
             fails += 1
     with LOCK:  # units back to success + loop step moved on → alarms gone, panel gone
-        for s in STATE["svc"].values():
-            s["Result"] = "success"
+        for unit in STATE["svc"].values():  # not `s`: the score fixture below still needs it
+            unit["Result"] = "success"
     track_loops([dict(lp57, step="publish")], now)
     if alarms(now) or any("ALARMES" in l for l, _ in render_frame(0, 92)):
         print("FAIL alarm panel rendered with no alarm")
@@ -1351,47 +1362,68 @@ def selfcheck():
         # Pending in particular is the normal state of the factory, not an edge case.
         STATE["pending"] = [f"attente {i}" for i in range(PENDING_MAX + 4)]  # header + 5 + "+N autres"
         STATE["score"] = s
-    term_h, term_w = 55, 120  # below ~54 the len(ROSTER) floor wins and no cap can fit the panels
-    cap = desk_cap(term_h, grid_per_row(term_w))
-    capped = build_desks(cap)
-    if not len(ROSTER) <= len(capped) <= cap:
-        print(f"FAIL desk cap: {len(capped)} desks (cap {cap})")
-        fails += 1
-    frame = render_frame(3, term_w, sel=0, desks=capped)
-    board = next((y for y, (l, _) in enumerate(frame) if "TABLEAU DU MUR" in l), None)
-    if board is None or board >= term_h - 1:
-        print(f"FAIL desk cap: wall board at row {board} of a {term_h}-row terminal")
-        fails += 1
-    radio = next((y for y, (l, _) in enumerate(frame) if "📻" in l), None)  # below the board → cut first
-    if radio is None or radio >= term_h - 1:
-        print(f"FAIL desk cap: radio ticker at row {radio} of a {term_h}-row terminal")
-        fails += 1
-    if sum(1 for d in capped if "+" in d["name"]) < 1:
-        print(f"FAIL desk cap: hidden loops not folded into a desk title: {[d['name'] for d in capped]}")
-        fails += 1
+        STATE["intercom"] = [f"a → b: msg {i}" for i in range(3)]  # 1 + 3, the budgeted worst case
+        STATE["err"] = "poll error"  # the budgeted error row: without it the frame is a row short
+    term_w = 120
+    # sweep the heights: the budget boundary only shows up when (h - PANEL_ROWS) % 8 == 0,
+    # so a single height silently passes an off-by-one that eats the closing border.
+    # 55 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + PANEL_ROWS = 54 frame
+    # rows, and main_curses draws h-1 of them. Below that no cap fits the panels, so nothing to assert.
+    for term_h in range(55, 70):
+        cap = desk_cap(term_h, grid_per_row(term_w))
+        capped = build_desks(cap)
+        if not len(ROSTER) <= len(capped) <= cap:
+            print(f"FAIL desk cap: {len(capped)} desks (cap {cap}) at h={term_h}")
+            fails += 1
+        frame = render_frame(3, term_w, sel=0, desks=capped)
+        board = next((y for y, (l, _) in enumerate(frame) if "TABLEAU DU MUR" in l), None)
+        if board is None or board >= term_h - 1:
+            print(f"FAIL desk cap: wall board at row {board} of a {term_h}-row terminal")
+            fails += 1
+        radio = next((y for y, (l, _) in enumerate(frame) if "📻" in l), None)  # below board → cut first
+        if radio is None or radio >= term_h - 1:
+            print(f"FAIL desk cap: radio ticker at row {radio} of a {term_h}-row terminal")
+            fails += 1
+        if len(frame) > term_h - 1:  # main_curses breaks at h-1: an h-row frame loses its └───┘
+            print(f"FAIL desk cap: {len(frame)}-row frame on a {term_h}-row terminal")
+            fails += 1
+        if sum(1 for d in capped if "+" in d["name"]) < 1:
+            print(f"FAIL desk cap: hidden loops not folded into a desk title: {[d['name'] for d in capped]}")
+            fails += 1
+        for line, _ in frame:  # folded `+N` titles are the one desk name mutated after construction
+            if dwidth(line) != term_w:
+                print(f"FAIL capped row {dwidth(line)} cols at h={term_h}: {line!r}")
+                fails += 1
     with LOCK:  # leave no injected loop behind for later checks
-        STATE["loops"], STATE["pending"] = [], []
-    # the per-loop log prefix is anchored: a desk on loop 9 must not claim `worker-95-*.log`
-    global LOG_DIR
-    real_log_dir = LOG_DIR
+        STATE["loops"], STATE["pending"], STATE["intercom"], STATE["err"] = [], [], [], ""
+    # a looper desk tails its own run under LOOPER_LOG_DIR/<loopId>/<runId>/; a desk off a loop
+    # tails its role in LOG_DIR, under the file prefix (REBASE writes `rebase-*`, not `rebaser-*`)
+    global LOG_DIR, LOOPER_LOG_DIR
+    real_log_dir, real_looper_dir = LOG_DIR, LOOPER_LOG_DIR
+    lp = {"target": "x#9", "step": "code", "status": "running", "loopId": "loop_a", "runId": "run_b"}
     d9 = {"key": "worker", "id": "worker:x#9", "emoji": "🚢", "name": "WORKER·1", "kind": "looper:worker",
-          "state": ("work", "code", "9"), "loop": {"target": "x#9", "step": "code", "status": "running"}}
+          "state": ("work", "code", "9"), "loop": lp}
+    reb = {"key": "rebaser", "id": "rebaser", "emoji": "🔀", "name": "REBASE", "kind": "svc:notificator-rebaser",
+           "state": ("work", "run", ""), "loop": None}
     with tempfile.TemporaryDirectory() as tmp:
-        LOG_DIR = tmp
-        open(os.path.join(tmp, "worker-95-20260101T000000.log"), "w").close()
-        name, _ = desk_tail(d9)
-        if name != "worker-95-20260101T000000.log" or "rôle entier" not in "".join(
-                zoom_lines(d9, name, [], True, "", 80)):
-            print(f"FAIL log prefix: loop 9 claims {name} as its own")
+        LOG_DIR, LOOPER_LOG_DIR = os.path.join(tmp, "agents"), os.path.join(tmp, "loops")
+        run = os.path.join(LOOPER_LOG_DIR, "loop_a", "run_b")
+        os.makedirs(run)
+        os.makedirs(LOG_DIR)
+        open(os.path.join(LOG_DIR, "worker-9-20260101T000000.log"), "w").close()
+        open(os.path.join(run, "agent_c.stderr.log"), "w").close()
+        if desk_tail(d9)[0] is not None:  # no stdout log yet — LOG_DIR must not be raided for one
+            print(f"FAIL loop tail: {desk_tail(d9)[0]} is not this run's log")
             fails += 1
-        own = os.path.join(tmp, "worker-9-20260101T000001.log")
-        open(own, "w").close()
-        os.utime(own, (0, 0))  # older than loop 95's log: the anchor must win over the mtime
-        name, _ = desk_tail(d9)
-        if name != "worker-9-20260101T000001.log":
-            print(f"FAIL log prefix: loop 9 should tail its own log, got {name}")
+        open(os.path.join(run, "agent_c.stdout.log"), "w").write("hello\n")
+        if desk_tail(d9)[0] != "agent_c.stdout.log":
+            print(f"FAIL loop tail: worker desk got {desk_tail(d9)[0]}")
             fails += 1
-    LOG_DIR = real_log_dir
+        open(os.path.join(LOG_DIR, "rebase-83-20260101T000000.log"), "w").close()
+        if desk_tail(reb)[0] != "rebase-83-20260101T000000.log":
+            print(f"FAIL log prefix: REBASE got {desk_tail(reb)[0]}")
+            fails += 1
+    LOG_DIR, LOOPER_LOG_DIR = real_log_dir, real_looper_dir
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 

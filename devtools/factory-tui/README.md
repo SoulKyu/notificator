@@ -96,6 +96,7 @@ Observable transitions feed a render-side event queue (no extra pollers):
 |---|---|---|
 | `FACTORY_REPO` | `SoulKyu/notificator` | GitHub repo for the board |
 | `FACTORY_LOG_DIR` | `~/.claude-agents/notificator/logs` | agent logs to feed the ticker |
+| `FACTORY_LOOPER_LOG_DIR` | `~/.looper/logs/loops` | looper run logs (`<loopId>/<runId>/*.stdout.log`) for the zoom tail of a looper desk |
 | `FACTORY_INBOX_DIR` | `~/.claude-agents/notificator/inbox` | agent mailboxes for 📬 badges + 💬 INTERCOM |
 | `FACTORY_STALL_MIN` | `30` | minutes on the same looper step before a 🚨 stall alarm |
 
