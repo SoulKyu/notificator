@@ -29,6 +29,11 @@ func (gdb *GormDB) RunCustomMigrations() error {
 		return fmt.Errorf("failed to backfill fix_time_seconds: %w", err)
 	}
 
+	// Drop acknowledgments left behind by alerts that already resolved
+	if err := gdb.cleanupResolvedAcknowledgments(); err != nil {
+		return fmt.Errorf("failed to cleanup resolved acknowledgments: %w", err)
+	}
+
 	log.Println("✅ Custom migrations completed")
 	return nil
 }
@@ -342,6 +347,38 @@ func (gdb *GormDB) backfillFixTimeSeconds() error {
 		log.Printf("✅ Backfilled fix_time_seconds for %d alert records", result.RowsAffected)
 	} else {
 		log.Println("ℹ️  No alerts need fix_time_seconds backfill")
+	}
+
+	return nil
+}
+
+// cleanupResolvedAcknowledgments drops acknowledgments whose alert already
+// resolved. Until CreateResolvedAlert started clearing them, these rows survived
+// the resolution and re-acknowledged the next firing of the same labels, which
+// share a fingerprint.
+//
+// ponytail: keyed on resolved_alerts, so it only reaches orphans whose resolved
+// snapshot has not expired yet (retention default 24h). Older orphans are
+// indistinguishable from a live acknowledgment and must be un-acknowledged from
+// the UI.
+func (gdb *GormDB) cleanupResolvedAcknowledgments() error {
+	if !gdb.db.Migrator().HasTable("acknowledgments") || !gdb.db.Migrator().HasTable("resolved_alerts") {
+		log.Println("ℹ️  acknowledgments or resolved_alerts table doesn't exist yet, skipping cleanup")
+		return nil
+	}
+
+	result := gdb.db.Exec(`
+		DELETE FROM acknowledgments
+		WHERE alert_key IN (SELECT fingerprint FROM resolved_alerts)
+	`)
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete acknowledgments of resolved alerts: %w", result.Error)
+	}
+
+	if result.RowsAffected > 0 {
+		log.Printf("✅ Cleaned up %d acknowledgments left behind by resolved alerts", result.RowsAffected)
+	} else {
+		log.Println("ℹ️  No acknowledgments left behind by resolved alerts")
 	}
 
 	return nil

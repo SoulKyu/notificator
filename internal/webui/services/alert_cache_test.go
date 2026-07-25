@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"notificator/internal/alertmanager"
+	alertpb "notificator/internal/backend/proto/alert"
 	"notificator/internal/models"
 	webuimodels "notificator/internal/webui/models"
 )
@@ -1084,5 +1087,71 @@ func TestAlertCache_GetLiveAlert(t *testing.T) {
 	live.Status.State = "firing"
 	if again := cache.GetLiveAlert(fingerprint); again.Status.State != "suppressed" {
 		t.Errorf("GetLiveAlert returned a cache-resident pointer: State = %q, want \"suppressed\"", again.Status.State)
+	}
+}
+
+// TestAlertCache_AcknowledgmentDoesNotSurviveResolution walks the resolve →
+// re-fire cycle: an acknowledged alert resolves, the backend drops the live ack
+// row along with it, and the next firing of the same labels — same fingerprint —
+// must come back un-acknowledged instead of vanishing from the classic dashboard.
+func TestAlertCache_AcknowledgmentDoesNotSurviveResolution(t *testing.T) {
+	firing := alertmanager.AlertWithSource{
+		Alert: models.Alert{
+			Labels:   map[string]string{"alertname": "HighMemoryUsage", "instance": "db-1"},
+			Status:   models.AlertStatus{State: "firing"},
+			StartsAt: time.Now().Add(-time.Hour),
+		},
+		Source: "prod",
+	}
+
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+	fingerprint := cache.convertToDashboardAlert(firing.Alert, firing.Source).Fingerprint
+
+	fetcher := &fakeAlertFetcher{alerts: []alertmanager.AlertWithSource{firing}}
+	cache.alertmanagerClient = fetcher
+	cache.refreshAlerts()
+
+	acked := map[string]*alertpb.Acknowledgment{
+		fingerprint: {
+			Username:  "alice",
+			Reason:    "looking into it",
+			CreatedAt: timestamppb.New(time.Now().Add(-30 * time.Minute)),
+		},
+	}
+	cache.applyAcknowledgments(acked)
+
+	alert, ok := cache.GetAlert(fingerprint)
+	if !ok || !alert.IsAcknowledged || alert.AcknowledgedBy != "alice" {
+		t.Fatalf("alert should be acknowledged by alice, got %+v", alert)
+	}
+
+	// A still-firing acknowledged alert stays acknowledged across refresh cycles.
+	cache.refreshAlerts()
+	cache.applyAcknowledgments(acked)
+	if alert, _ := cache.GetAlert(fingerprint); !alert.IsAcknowledged {
+		t.Error("a still-firing acknowledged alert must stay acknowledged across refreshes")
+	}
+
+	// The alert resolves and leaves the cache.
+	fetcher.alerts = nil
+	cache.refreshAlerts()
+	if _, ok := cache.GetAlert(fingerprint); ok {
+		t.Fatal("alert should leave the cache once its source stops reporting it")
+	}
+
+	// It fires again with identical labels; the backend no longer holds the ack.
+	fetcher.alerts = []alertmanager.AlertWithSource{firing}
+	cache.refreshAlerts()
+	cache.applyAcknowledgments(map[string]*alertpb.Acknowledgment{})
+
+	refired, ok := cache.GetAlert(fingerprint)
+	if !ok {
+		t.Fatal("re-firing alert should be back in the cache")
+	}
+	if refired.IsAcknowledged {
+		t.Errorf("re-firing alert inherited the previous incident's acknowledgment: by=%q at=%v", refired.AcknowledgedBy, refired.AcknowledgedAt)
+	}
+	if refired.AcknowledgedBy != "" || !refired.AcknowledgedAt.IsZero() || refired.AcknowledgeReason != "" {
+		t.Errorf("acknowledgment fields not cleared: %+v", refired)
 	}
 }

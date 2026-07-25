@@ -525,8 +525,21 @@ func (gdb *GormDB) CreateResolvedAlert(fingerprint, source string, alertData, co
 		Source:          source,
 	}
 
-	if err := gdb.db.Create(resolvedAlert).Error; err != nil {
-		return nil, fmt.Errorf("failed to create resolved alert: %w", err)
+	// The acknowledgment belongs to the firing that just ended and is already
+	// snapshotted in the row above. Leaving the live rows behind would silently
+	// re-acknowledge the next firing of the same labels, which share a
+	// fingerprint, and hide it from the classic dashboard.
+	err := gdb.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(resolvedAlert).Error; err != nil {
+			return fmt.Errorf("failed to create resolved alert: %w", err)
+		}
+		if err := tx.Where("alert_key = ?", fingerprint).Delete(&models.Acknowledgment{}).Error; err != nil {
+			return fmt.Errorf("failed to clear acknowledgments for resolved alert: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return resolvedAlert, nil

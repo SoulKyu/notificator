@@ -45,11 +45,20 @@ SQL is guarded by `IsSQLite()` / `IsPostgreSQL()`.
 
 `AutoMigrate()` runs `RunCustomMigrations()` **first** (`database/migrate.go`: dedupe
 `alert_statistics` before adding a unique index, add `column_configs` to `filter_presets`,
-create `user_column_preferences`, backfill `fix_time_seconds`), then GORM `AutoMigrate` over
+create `user_column_preferences`, backfill `fix_time_seconds`, drop acknowledgments of already
+resolved alerts), then GORM `AutoMigrate` over
 ~20 models: users, sessions, comments, acknowledgments, resolved_alerts, notification prefs,
 hidden alerts/rules, filter presets, the full OAuth table set, Sentry config, alert statistics
 + aggregates, statistics views, annotation-button configs. On Postgres it additionally creates
 GIN indexes on `alert_statistics.metadata` (best-effort — failure only warns).
+
+**Acknowledgments are scoped to a firing.** `alert_key` is the label-only fingerprint, so two
+incidents of the same alert share it. `CreateResolvedAlert` therefore deletes the live
+`acknowledgments` rows in the same transaction that snapshots them into `resolved_alerts` —
+otherwise the next firing inherits the previous incident's ack and disappears from the classic
+dashboard. The `cleanupResolvedAcknowledgments` migration drops rows orphaned before that fix,
+but only for resolutions still present in `resolved_alerts` (TTL 24h by default); older orphans
+must be un-acknowledged from the UI.
 
 **Two independent expiry mechanisms** (don't confuse them when debugging "my data vanished"):
 
