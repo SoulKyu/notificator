@@ -160,10 +160,12 @@ templ DashboardActions() {
 					return;
 				}
 
-				try {
-					let hiddenCount = 0;
-					const failures = [];
+				// Declared outside the try so the catch can still report the alerts
+				// that were already hidden before the throw.
+				let hiddenCount = 0;
+				const failures = [];
 
+				try {
 					// Hide individual alerts
 					for (const fingerprint of this.selectedAlerts) {
 						const response = await fetch('/api/v1/dashboard/hidden-alerts', {
@@ -222,7 +224,14 @@ templ DashboardActions() {
 					}
 				} catch (error) {
 					console.error('Error hiding alerts:', error);
-					this.showActionError('Network error: failed to hide alerts');
+					// The loop position is unknown, so every still-selected fingerprint
+					// stays a retry candidate; the reload and the persistent banner are
+					// what make the partial progress visible.
+					if (hiddenCount > 0) {
+						this.loadDashboardData();
+					}
+					const hidden = hiddenCount > 0 ? `${hiddenCount} alert(s) hidden. ` : '';
+					this.showActionError(`${hidden}Network error: failed to hide the remaining alerts`, false);
 				}
 			},
 
