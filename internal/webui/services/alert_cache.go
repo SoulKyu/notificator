@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"notificator/internal/alertmanager"
+	alertpb "notificator/internal/backend/proto/alert"
 	"notificator/internal/models"
 	"notificator/internal/webui/client"
 	webuimodels "notificator/internal/webui/models"
@@ -501,9 +502,29 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 
 	log.Printf("Received %d acknowledged alerts from backend", len(acknowledgedAlerts))
 
+	ac.applyAcknowledgments(acknowledgedAlerts)
+
+	log.Printf("Successfully updated %d alerts with acknowledgment data", len(acknowledgedAlerts))
+}
+
+// applyAcknowledgments makes the cache mirror the backend exactly: alerts the
+// backend no longer reports as acknowledged are cleared, so a re-firing alert
+// does not latch onto the previous incident's acknowledgment.
+//
+// acknowledgedAlerts must be a snapshot the backend actually produced — never an
+// empty map standing in for a failed fetch, which would un-acknowledge the whole
+// dashboard. GetAllAcknowledgedAlerts returns a gRPC error on a database failure
+// for that reason, and callers must return before reaching here.
+//
+// The snapshot is point-in-time: an acknowledgment written locally (the
+// acknowledge handler's MutateAlert) after the map was built is cleared here and
+// reappears on the next refresh.
+func (ac *AlertCache) applyAcknowledgments(acknowledgedAlerts map[string]*alertpb.Acknowledgment) {
 	ac.mu.Lock()
-	for fingerprint, acknowledgment := range acknowledgedAlerts {
-		if alert, exists := ac.alerts[fingerprint]; exists {
+	defer ac.mu.Unlock()
+
+	for fingerprint, alert := range ac.alerts {
+		if acknowledgment, exists := acknowledgedAlerts[fingerprint]; exists {
 			alert.IsAcknowledged = true
 			alert.AcknowledgedBy = acknowledgment.Username
 			alert.AcknowledgedAt = acknowledgment.CreatedAt.AsTime()
@@ -513,11 +534,13 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 			// Note: We don't capture statistics here because this is loading historical
 			// acknowledgments. Statistics should only be captured when alerts are
 			// acknowledged in real-time to avoid negative MTTR calculations.
+		} else {
+			alert.IsAcknowledged = false
+			alert.AcknowledgedBy = ""
+			alert.AcknowledgedAt = time.Time{}
+			alert.AcknowledgeReason = ""
 		}
 	}
-	ac.mu.Unlock()
-
-	log.Printf("Successfully updated %d alerts with acknowledgment data", len(acknowledgedAlerts))
 }
 
 func (ac *AlertCache) loadCommentCountsEfficiently() {

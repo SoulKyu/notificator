@@ -1,6 +1,7 @@
 package database
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ func newTestDB(t *testing.T) *GormDB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}, &models.ResolvedAlert{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return &GormDB{db: db, dbType: "sqlite"}
@@ -77,5 +78,137 @@ func TestAcknowledgmentCompositeIndexExists(t *testing.T) {
 	gdb := newTestDB(t)
 	if !gdb.db.Migrator().HasIndex(&models.Acknowledgment{}, "idx_acknowledgments_alert_key_created_at") {
 		t.Fatal("composite index idx_acknowledgments_alert_key_created_at missing after migration")
+	}
+}
+
+// TestCreateResolvedAlertClearsAcknowledgments pins the ack lifecycle to a
+// firing: once the alert resolves, the live rows go away so the next firing of
+// the same labels — same fingerprint — is not acknowledged on someone's behalf.
+func TestCreateResolvedAlertClearsAcknowledgments(t *testing.T) {
+	gdb := newTestDB(t)
+
+	alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+	if err := gdb.db.Create(&alice).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	acks := []models.Acknowledgment{
+		{ID: "a1", AlertKey: "resolved-key", UserID: alice.ID, Reason: "on it"},
+		{ID: "a2", AlertKey: "other-key", UserID: alice.ID, Reason: "unrelated"},
+	}
+	for i := range acks {
+		if err := gdb.db.Create(&acks[i]).Error; err != nil {
+			t.Fatalf("create ack: %v", err)
+		}
+	}
+
+	snapshot := []byte(`[{"username":"alice","reason":"on it"}]`)
+	resolved, err := gdb.CreateResolvedAlert("resolved-key", "prod", []byte(`{}`), nil, snapshot, 24)
+	if err != nil {
+		t.Fatalf("CreateResolvedAlert: %v", err)
+	}
+
+	// History survives on the resolved snapshot.
+	if string(resolved.Acknowledgments) != string(snapshot) {
+		t.Errorf("resolved alert should keep the acknowledgment snapshot, got %q", resolved.Acknowledgments)
+	}
+
+	live, err := gdb.GetAcknowledgments("resolved-key")
+	if err != nil {
+		t.Fatalf("GetAcknowledgments: %v", err)
+	}
+	if len(live) != 0 {
+		t.Errorf("live acknowledgments should be cleared on resolution, got %d", len(live))
+	}
+
+	if others, _ := gdb.GetAcknowledgments("other-key"); len(others) != 1 {
+		t.Errorf("acknowledgments of other alerts must be untouched, got %d", len(others))
+	}
+}
+
+// TestCreateResolvedAlertSnapshotsAcknowledgmentsWhenCallerHasNone pins the
+// other half of that lifecycle: the caller builds its snapshot with a separate,
+// best-effort RPC, so when that fetch fails the rows must still be recorded
+// before the same transaction deletes them.
+func TestCreateResolvedAlertSnapshotsAcknowledgmentsWhenCallerHasNone(t *testing.T) {
+	for _, payload := range [][]byte{nil, []byte(`[]`), []byte(`null`)} {
+		gdb := newTestDB(t)
+
+		alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+		if err := gdb.db.Create(&alice).Error; err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		ack := models.Acknowledgment{ID: "a1", AlertKey: "resolved-key", UserID: alice.ID, Reason: "on it"}
+		if err := gdb.db.Create(&ack).Error; err != nil {
+			t.Fatalf("create ack: %v", err)
+		}
+
+		resolved, err := gdb.CreateResolvedAlert("resolved-key", "prod", []byte(`{}`), nil, payload, 24)
+		if err != nil {
+			t.Fatalf("CreateResolvedAlert(%q): %v", payload, err)
+		}
+
+		var snapshot []models.AcknowledgmentWithUser
+		if err := json.Unmarshal([]byte(resolved.Acknowledgments), &snapshot); err != nil {
+			t.Fatalf("snapshot for payload %q is not readable acknowledgment history: %v (%q)", payload, err, resolved.Acknowledgments)
+		}
+		if len(snapshot) != 1 || snapshot[0].Username != "alice" || snapshot[0].Reason != "on it" {
+			t.Errorf("payload %q: acknowledgment history lost, got %+v", payload, snapshot)
+		}
+
+		if live, _ := gdb.GetAcknowledgments("resolved-key"); len(live) != 0 {
+			t.Errorf("payload %q: live acknowledgments should still be cleared, got %d", payload, len(live))
+		}
+	}
+}
+
+// TestCleanupResolvedAcknowledgments covers the startup migration that drops
+// acknowledgment rows orphaned by resolutions that happened before the fix. It
+// re-runs on every boot, so it must keep the acknowledgment of an alert that
+// resolved and then fired again inside the resolved-alert retention window.
+func TestCleanupResolvedAcknowledgments(t *testing.T) {
+	gdb := newTestDB(t)
+
+	alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+	if err := gdb.db.Create(&alice).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	now := time.Now()
+	acks := []models.Acknowledgment{
+		// Acknowledged before the resolution: belongs to the firing that ended.
+		{ID: "a1", AlertKey: "orphan-key", UserID: alice.ID, Reason: "stale", CreatedAt: now.Add(-2 * time.Hour)},
+		{ID: "a2", AlertKey: "firing-key", UserID: alice.ID, Reason: "current", CreatedAt: now.Add(-2 * time.Hour)},
+		// Acknowledged after the resolution: belongs to the firing that is live now.
+		{ID: "a3", AlertKey: "refired-key", UserID: alice.ID, Reason: "on the new one", CreatedAt: now.Add(-5 * time.Minute)},
+	}
+	for i := range acks {
+		if err := gdb.db.Create(&acks[i]).Error; err != nil {
+			t.Fatalf("create ack: %v", err)
+		}
+	}
+
+	resolved := []models.ResolvedAlert{
+		{Fingerprint: "orphan-key", AlertData: models.JSONB(`{}`), ResolvedAt: now.Add(-time.Hour), ExpiresAt: now.Add(23 * time.Hour), Source: "prod"},
+		{Fingerprint: "refired-key", AlertData: models.JSONB(`{}`), ResolvedAt: now.Add(-time.Hour), ExpiresAt: now.Add(23 * time.Hour), Source: "prod"},
+	}
+	for i := range resolved {
+		if err := gdb.db.Create(&resolved[i]).Error; err != nil {
+			t.Fatalf("create resolved alert: %v", err)
+		}
+	}
+
+	if err := gdb.cleanupResolvedAcknowledgments(); err != nil {
+		t.Fatalf("cleanupResolvedAcknowledgments: %v", err)
+	}
+
+	if orphans, _ := gdb.GetAcknowledgments("orphan-key"); len(orphans) != 0 {
+		t.Errorf("orphaned acknowledgments should be deleted, got %d", len(orphans))
+	}
+	if firing, _ := gdb.GetAcknowledgments("firing-key"); len(firing) != 1 {
+		t.Errorf("acknowledgment of a still-firing alert must survive, got %d", len(firing))
+	}
+	if refired, _ := gdb.GetAcknowledgments("refired-key"); len(refired) != 1 {
+		t.Errorf("acknowledgment created after the resolution belongs to the live firing, got %d", len(refired))
 	}
 }

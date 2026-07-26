@@ -45,11 +45,27 @@ SQL is guarded by `IsSQLite()` / `IsPostgreSQL()`.
 
 `AutoMigrate()` runs `RunCustomMigrations()` **first** (`database/migrate.go`: dedupe
 `alert_statistics` before adding a unique index, add `column_configs` to `filter_presets`,
-create `user_column_preferences`, backfill `fix_time_seconds`), then GORM `AutoMigrate` over
+create `user_column_preferences`, backfill `fix_time_seconds`, drop acknowledgments that predate
+a resolution), then GORM `AutoMigrate` over
 ~20 models: users, sessions, comments, acknowledgments, resolved_alerts, notification prefs,
 hidden alerts/rules, filter presets, the full OAuth table set, Sentry config, alert statistics
 + aggregates, statistics views, annotation-button configs. On Postgres it additionally creates
 GIN indexes on `alert_statistics.metadata` (best-effort — failure only warns).
+
+**Acknowledgments are scoped to a firing.** `alert_key` is the label-only fingerprint, so two
+incidents of the same alert share it. `CreateResolvedAlert` therefore deletes the live
+`acknowledgments` rows in the same transaction that snapshots them into `resolved_alerts` —
+otherwise the next firing inherits the previous incident's ack and disappears from the classic
+dashboard. The snapshot is taken inside that transaction: when the caller sends no
+acknowledgments payload, `CreateResolvedAlert` reads the rows through `tx` itself, so a failed
+snapshot fetch upstream cannot turn the delete into history loss.
+
+`cleanupResolvedAcknowledgments` sweeps rows orphaned by resolutions that predate that fix. It
+is **not** one-shot — it runs on every backend start — so it only deletes acknowledgments whose
+`created_at` is older than the matching `resolved_alerts.resolved_at`; an alert that resolved,
+fired again and was acknowledged again keeps that acknowledgment across restarts. It is bounded
+by the resolved-alert retention (TTL 24h by default): orphans whose resolution has already
+expired are indistinguishable from a live ack and must be un-acknowledged from the UI.
 
 **Two independent expiry mechanisms** (don't confuse them when debugging "my data vanished"):
 
