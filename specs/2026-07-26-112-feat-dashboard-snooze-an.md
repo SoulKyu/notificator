@@ -29,7 +29,7 @@ blind spot with no reminder.
 ## Goals
 
 - A personal hide with an expiry ("snooze"): 1h / 4h / 8h / until tomorrow
-  09:00 / forever, defaulting to a bounded value.
+  09:00 / forever, defaulting to `1h`.
 - Add the missing single-alert hide entry points — a row action and a button
   in the alert detail modal — since neither exists today, and wire the
   duration picker into them.
@@ -114,10 +114,14 @@ generated `*.pb.go`.
     query (which now filters expiry) — just carry `ExpiresAt` into
     `models.UserHiddenAlert`.
 - `internal/webui/handlers/hidden_alerts_handlers.go` `HideAlert` (line 36):
-  accept a `duration` (or `expiresAt`) field on the request struct, translate
-  a duration keyword (`1h`/`4h`/`8h`/`tomorrow_9am`/`forever`) into a concrete
-  `*time.Time` server-side (server clock is the source of truth, not the
-  client's), and pass it to the service.
+  accept a `duration` field on the request struct, an enum of exactly
+  `1h` / `4h` / `8h` / `tomorrow_9am` / `forever`, and translate it into a
+  concrete `*time.Time` server-side (server clock is the source of truth, not
+  the client's). A missing `duration` field defaults to `1h` (matching the
+  UI picker's pre-selected option, see Goals). An unrecognized value is
+  rejected with a 400 validation error — it must never silently fall back to
+  `forever`, since that would turn a bounded snooze into an accidental
+  permanent hide.
 
 ### Client (templ + Alpine)
 
@@ -136,8 +140,9 @@ generated `*.pb.go`.
 - Settings → Hidden list (`modal_components.templ:362`, `hiddenAlerts` array
   from `dashboard_settings.templ`'s `loadHiddenAlerts()`): render "expires in
   Xh" / "never" per entry from `expiresAt`, and add extend / wake-now actions
-  (wake-now = call `unhideSpecificAlert`, already at line 371; extend = a
-  small `HideAlert` call reusing the fingerprint with a new duration).
+  (wake-now = call `unhideSpecificAlert`, already at
+  `dashboard_settings.templ:578`; extend = a small `HideAlert` call reusing
+  the fingerprint with a new duration).
 - Snoozed counter: near the "Filters & Search" section
   (`internal/webui/templates/pages/NewDashboard.templ:357`), a small badge
   reading `window.currentSettingsModal.hiddenAlerts` (already loaded eagerly
@@ -187,10 +192,12 @@ generated `*.pb.go`.
   will silently ignore expiry on one path.
 - **Clock trust**: duration keywords (`1h`, `tomorrow 09:00`, …) must resolve
   to an absolute timestamp on the server, not the browser, so a wrong client
-  clock cannot under/over-snooze. Timezone for "tomorrow 09:00" should use the
-  server's configured timezone (see prod's tz-aware handling in
-  `feat/production-readiness`, not this branch's base) — pin it explicitly
-  rather than assuming UTC or the container's local time.
+  clock cannot under/over-snooze. This branch's base (`main`) does not have
+  the tz-aware handling that `feat/production-readiness` carries, so
+  `tomorrow_9am` resolves against the server process's UTC clock (Go's
+  `time.Now().UTC()`), not the container's local time or a per-user
+  timezone — call this out as a known limitation until the production-
+  readiness tz work lands on `main`.
 - **Two independent expiry checks** (server DB query + client SSE mirror)
   must agree. Tested by the acceptance criterion below; drifting them apart
   is the most likely regression path for this feature.
@@ -209,6 +216,12 @@ generated `*.pb.go`.
 - Backend test (new, e.g. in `gorm_db_test.go`) covering the `GetUserHiddenAlerts`
   expiry boundary: a row with `expires_at` in the past is excluded, a null
   `expires_at` is included, a future `expires_at` is included.
+- Handler test: missing `duration` defaults to `1h`; an unrecognized value
+  (e.g. `"bogus"`) returns a 400 and does not create a "forever" hide.
+- `tomorrow_9am` resolves against the server's UTC clock on this branch
+  (known limitation, see Risks) — not a per-user or container-local
+  timezone; this is testable/expected until the production-readiness tz
+  work lands on `main`.
 - Manual check via `make test` (docker-compose stack):
   - Hide an alert with a 1h snooze from a row action → alert disappears from
     the dashboard immediately.
