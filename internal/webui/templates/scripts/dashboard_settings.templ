@@ -521,7 +521,9 @@ templ DashboardSettings() {
 						if (response.ok) {
 							const result = await response.json();
 							if (result.success) {
-								this.hiddenAlerts = result.data.hiddenAlerts || [];
+								// alert_name comes back snake_case from the API (models.UserHiddenAlert);
+								// normalize so extendSnooze() can hand this straight to snoozeAlertData().
+								this.hiddenAlerts = (result.data.hiddenAlerts || []).map(a => ({ ...a, alertName: a.alertName || a.alert_name }));
 								console.log('Loaded hidden alerts:', this.hiddenAlerts.length);
 							}
 						}
