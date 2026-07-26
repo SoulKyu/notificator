@@ -87,6 +87,9 @@ services:
       - NOTIFICATOR_SENTRY_BASE_URL=https://sentry.example.com
       - NOTIFICATOR_SENTRY_GLOBAL_TOKEN=""
 
+      # Encryption key for Sentry personal tokens at rest (REQUIRED, generate with: openssl rand -hex 32)
+      - NOTIFICATOR_ENCRYPTION_KEY=${NOTIFICATOR_ENCRYPTION_KEY}
+
       # Logging
       - NOTIFICATOR_LOG_LEVEL=info
     depends_on:

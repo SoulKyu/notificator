@@ -46,6 +46,10 @@ func NewServer(cfg *config.Config, dbType string) *Server {
 }
 
 func (s *Server) Start() error {
+	if err := database.ValidateEncryptionKey(); err != nil {
+		return fmt.Errorf("invalid encryption key configuration: %w", err)
+	}
+
 	if err := s.initDatabase(); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
