@@ -3,6 +3,56 @@ package scripts
 templ DashboardActions() {
 	<script>
 		window.dashboardActionsMixin = {
+			// autoDismiss is opt-out: paths that also shrink the selection keep the
+			// banner until the operator dismisses it, so the explanation outlives
+			// an incident-length distraction.
+			showActionError(message, autoDismiss = true) {
+				this.actionError = message;
+				clearTimeout(this._actionErrorTimer);
+				if (autoDismiss) {
+					this._actionErrorTimer = setTimeout(() => { this.actionError = ''; }, 8000);
+				}
+			},
+
+			// Every action handler calls this when an attempt starts — the
+			// fire-and-forget ones on entry, submitAcknowledgment/submitSilence once
+			// their input passes validation — so a new attempt never runs under the
+			// banner of an older one, whatever branch the attempt ends in. Modal
+			// failures land in ackError/silenceError, not here.
+			clearActionError() {
+				clearTimeout(this._actionErrorTimer);
+				this.actionError = '';
+			},
+
+			bulkActionErrorMessage(result, fallback) {
+				const data = result.data || {};
+				const failures = data.failures || [];
+				const failedCount = typeof data.failedCount === 'number' ? data.failedCount : failures.length;
+				const total = failedCount + (data.processedCount || 0);
+				// Build the count from the structured fields; result.error is only a
+				// human-readable fallback when the server sent no per-target data.
+				let message = failedCount > 0
+					? `${failedCount} of ${total} actions failed`
+					: (result.error || fallback);
+				const details = failures.slice(0, 3).map(f => f.error).filter(Boolean);
+				if (details.length > 0) {
+					message += ': ' + details.join('; ');
+				}
+				return message;
+			},
+
+			// On partial failure, keep exactly the failed targets selected so the
+			// operator can retry them; leave the selection untouched otherwise.
+			selectOnlyFailedTargets(result) {
+				const failures = (result.data && result.data.failures) || [];
+				const failedAlerts = failures.filter(f => f.kind === 'alert').map(f => f.target);
+				const failedGroups = failures.filter(f => f.kind === 'group').map(f => f.target);
+				if (failedAlerts.length > 0 || failedGroups.length > 0) {
+					this.selectedAlerts = failedAlerts;
+					this.selectedGroups = failedGroups;
+				}
+			},
+
 			cancelAcknowledgment() {
 				this.showAckModal = false;
 				this.ackReason = '';
@@ -20,6 +70,7 @@ templ DashboardActions() {
 				
 				this.ackSubmitting = true;
 				this.ackError = '';
+				this.clearActionError();
 				
 				try {
 					let request;
@@ -77,17 +128,23 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
+
+					if (result.success === true) {
 						this.showAckModal = false;
-						
+
 						if (this.ackAction === 'bulk') {
 							this.clearSelection();
 						}
-						
+
 						this.loadDashboardData();
 					} else {
-						this.ackError = result.error || 'Failed to acknowledge';
+						if (this.ackAction === 'bulk') {
+							this.selectOnlyFailedTargets(result);
+						}
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
+						this.ackError = this.bulkActionErrorMessage(result, 'Failed to acknowledge');
 					}
 				} catch (error) {
 					console.error('Error submitting acknowledgment:', error);
@@ -98,13 +155,17 @@ templ DashboardActions() {
 			},
 
 			async hideSelected() {
+				this.clearActionError();
 				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
 					return;
 				}
 
-				try {
-					let hiddenCount = 0;
+				// Declared outside the try so the catch can still report the alerts
+				// that were already hidden before the throw.
+				let hiddenCount = 0;
+				const failures = [];
 
+				try {
 					// Hide individual alerts
 					for (const fingerprint of this.selectedAlerts) {
 						const response = await fetch('/api/v1/dashboard/hidden-alerts', {
@@ -125,23 +186,58 @@ templ DashboardActions() {
 						}
 
 						const result = await response.json();
-						if (result.success) {
+						if (result.success === true) {
 							hiddenCount++;
+						} else {
+							failures.push({ fingerprint: fingerprint, error: result.error });
 						}
 					}
 
 					// TODO: Handle group hiding when groups are supported
 
-					if (hiddenCount > 0) {
+					const failedFingerprints = failures.map(f => f.fingerprint);
+					let failureMessage = '';
+					if (failures.length > 0) {
+						failureMessage = `${failures.length} of ${hiddenCount + failures.length} alerts could not be hidden`;
+						const reasons = failures.map(f => f.error).filter(Boolean).slice(0, 3);
+						if (reasons.length > 0) {
+							failureMessage += ': ' + reasons.join('; ');
+						}
+					}
 
-						this.clearSelection();
-						this.loadDashboardData();
+					// The group notice must not swallow the alert outcome: drop the
+					// fingerprints that are done, keep the retryable ones selected, and
+					// report both facts in one message.
+					if (this.selectedGroups.length > 0) {
+						this.selectedAlerts = failedFingerprints;
+						const hidden = hiddenCount > 0 ? `${hiddenCount} alert(s) hidden. ` : '';
+						const failed = failureMessage ? `${failureMessage}. ` : '';
+						this.showActionError(`${hidden}${failed}Hiding groups is not supported yet — select individual alerts instead`, false);
+					} else if (failures.length > 0) {
+						this.selectedAlerts = failedFingerprints;
+						this.showActionError(failureMessage, false);
 					} else {
-
+						this.clearSelection();
+					}
+					if (hiddenCount > 0) {
+						this.loadDashboardData();
 					}
 				} catch (error) {
 					console.error('Error hiding alerts:', error);
-
+					if (hiddenCount > 0) {
+						this.loadDashboardData();
+					}
+					// The loop consumed exactly this many entries, in order: the retryable
+					// selection is the server-refused fingerprints plus the untried tail.
+					const consumed = hiddenCount + failures.length;
+					this.selectedAlerts = failures.map(f => f.fingerprint)
+						.concat(this.selectedAlerts.slice(consumed));
+					const hidden = hiddenCount > 0 ? `${hiddenCount} alert(s) hidden. ` : '';
+					const reasons = failures.map(f => f.error).filter(Boolean).slice(0, 3);
+					const rejected = reasons.length > 0
+						? `${failures.length} rejected: ${reasons.join('; ')}. `
+						: '';
+					this.showActionError(`${hidden}${rejected}Network error: failed to hide the remaining alerts`, false);
 				}
 			},
 
@@ -234,6 +330,7 @@ templ DashboardActions() {
 
 
 			async unacknowledgeSelected() {
+				this.clearActionError();
 				const request = {
 					alertFingerprints: this.selectedAlerts,
 					groupNames: this.selectedGroups,
@@ -257,21 +354,26 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						
+						this.selectOnlyFailedTargets(result);
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unacknowledge selected items'), false);
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
 					}
 				} catch (error) {
 					console.error('Error unacknowledging alerts:', error);
-					
+					this.showActionError('Network error: failed to unacknowledge alerts');
 				}
 			},
 
 			async unacknowledgeAlert(fingerprint) {
+				this.clearActionError();
 				const request = {
 					alertFingerprints: [fingerprint],
 					action: 'unacknowledge',
@@ -294,20 +396,21 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unacknowledge alert'));
 					}
 				} catch (error) {
 					console.error('Error unacknowledging alert:', error);
-					
+					this.showActionError('Network error: failed to unacknowledge alert');
 				}
 			},
 
 			async resolveSelected() {
+				this.clearActionError();
 				const request = {
 					alertFingerprints: this.selectedAlerts,
 					groupNames: this.selectedGroups,
@@ -331,21 +434,26 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						
+						this.selectOnlyFailedTargets(result);
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to resolve selected items'), false);
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
 					}
 				} catch (error) {
 					console.error('Error resolving alerts:', error);
-					
+					this.showActionError('Network error: failed to resolve alerts');
 				}
 			},
 
 			async resolveAlert(fingerprint) {
+				this.clearActionError();
 				const request = {
 					alertFingerprints: [fingerprint],
 					action: 'resolve',
@@ -368,16 +476,16 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to resolve alert'));
 					}
 				} catch (error) {
 					console.error('Error resolving alert:', error);
-					
+					this.showActionError('Network error: failed to resolve alert');
 				}
 			},
 
@@ -388,6 +496,7 @@ templ DashboardActions() {
 			},
 
 			async removeAllResolvedAlerts() {
+				this.clearActionError();
 				this.isRemovingResolvedAlerts = true;
 				
 				try {
@@ -402,18 +511,18 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						if (this.displayMode === 'resolved') {
 							await this.loadDashboardData();
 						}
 					} else {
-						
+						this.showActionError(result.error || 'Failed to remove resolved alerts');
 					}
 				} catch (error) {
 					console.error('Error removing resolved alerts:', error);
-					
+					this.showActionError('Network error: failed to remove resolved alerts');
 				} finally {
 					this.isRemovingResolvedAlerts = false;
 				}
@@ -443,6 +552,7 @@ templ DashboardActions() {
 				
 				this.silenceSubmitting = true;
 				this.silenceError = '';
+				this.clearActionError();
 				
 				try {
 					let request;
@@ -513,17 +623,23 @@ templ DashboardActions() {
 
 					const result = await response.json();
 					
-					if (result.success) {
-						
+					if (result.success === true) {
+
 						this.showSilenceModal = false;
-						
+
 						if (this.silenceAction === 'bulk') {
 							this.clearSelection();
 						}
-						
+
 						this.loadDashboardData();
 					} else {
-						this.silenceError = result.error || 'Failed to silence alert(s)';
+						if (this.silenceAction === 'bulk') {
+							this.selectOnlyFailedTargets(result);
+						}
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
+						this.silenceError = this.bulkActionErrorMessage(result, 'Failed to silence alert(s)');
 					}
 				} catch (error) {
 					console.error('Error submitting silence:', error);
@@ -662,6 +778,7 @@ templ DashboardActions() {
 			},
 
 			async unsilenceSelected() {
+				this.clearActionError();
 				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
 					
 					return;
@@ -690,17 +807,21 @@ templ DashboardActions() {
 					}
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.clearSelection();
 						this.loadDashboardData();
 					} else {
-						
+						this.selectOnlyFailedTargets(result);
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence selected items'), false);
+						if (result.data && result.data.processedCount > 0) {
+							this.loadDashboardData();
+						}
 					}
 				} catch (error) {
 					console.error('Error unsilencing selected items:', error);
-					
+					this.showActionError('Network error: failed to unsilence selected items');
 				}
 			},
 
@@ -731,6 +852,7 @@ templ DashboardActions() {
 			},
 
 			async unsilenceAlert(fingerprint) {
+				this.clearActionError();
 				try {
 					const response = await fetch('/api/v1/dashboard/bulk-action', {
 						method: 'POST',
@@ -746,20 +868,21 @@ templ DashboardActions() {
 					});
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence alert'));
 					}
 				} catch (error) {
 					console.error('Error unsilencing alert:', error);
-					
+					this.showActionError('Network error: failed to unsilence alert');
 				}
 			},
 
 			async unsilenceGroup(groupName) {
+				this.clearActionError();
 				try {
 					const response = await fetch('/api/v1/dashboard/bulk-action', {
 						method: 'POST',
@@ -775,16 +898,16 @@ templ DashboardActions() {
 					});
 
 					const result = await response.json();
-					
-					if (result.success) {
-						
+
+					if (result.success === true) {
+
 						this.loadDashboardData();
 					} else {
-						
+						this.showActionError(this.bulkActionErrorMessage(result, 'Failed to unsilence group'));
 					}
 				} catch (error) {
 					console.error('Error unsilencing group:', error);
-					
+					this.showActionError('Network error: failed to unsilence group');
 				}
 			},
 
