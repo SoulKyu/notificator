@@ -127,17 +127,29 @@ templ FilterPresetsModal() {
 									</label>
 								</div>
 
-								<div class="flex items-center">
-									<input type="checkbox" id="include-columns" name="include-columns"
-										   x-model="includeColumnConfig"
-										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
-									<label for="include-columns" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-										Include current column configuration
+								<div x-show="editingPreset" class="flex items-start p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+									<input type="checkbox" id="recapture-filters" name="recapture-filters"
+										   x-model="recaptureFilters"
+										   class="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
+									<label for="recapture-filters" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+										Replace this preset's saved view (filters, display and sort options) with my current dashboard
+										<span class="block text-xs text-gray-500 dark:text-gray-400">
+											Leave unchecked to keep the saved view as-is — only the name, description, sharing and the hidden alerts/rules below are updated.
+										</span>
 									</label>
 								</div>
 
+								<div x-show="willReplaceSavedFilters()" class="flex items-center">
+									<input type="checkbox" id="include-columns" name="include-columns"
+										   x-model="includeColumnConfig"
+										   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-dark-border-DEFAULT rounded">
+									<label for="include-columns" class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+										   x-text="editingPreset ? 'Also replace the saved column layout with my current one' : 'Include current column configuration'"></label>
+								</div>
+
 								<div class="bg-gray-50 dark:bg-dark-bg-tertiary rounded-md p-3">
-									<p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Current filters to be saved:</p>
+									<p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2"
+									   x-text="willReplaceSavedFilters() ? 'Current view to be saved:' : 'Saved view for this preset (kept as-is):'"></p>
 									<div class="text-xs text-gray-600 dark:text-gray-400 space-y-1" x-html="getFilterSummary()"></div>
 								</div>
 
