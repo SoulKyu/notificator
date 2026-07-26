@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"notificator/config"
 	"notificator/internal/backend/database"
 	"notificator/internal/backend/models"
 	alertpb "notificator/internal/backend/proto/alert"
@@ -18,15 +19,17 @@ import (
 type StatisticsServiceGorm struct {
 	alertpb.UnimplementedStatisticsServiceServer
 	db             *database.GormDB
+	adminConfig    *config.AdminConfig
 	queryService   *StatisticsQueryService
 	captureService *StatisticsCaptureService
 	workerPool     *StatisticsWorkerPool
 }
 
 // NewStatisticsServiceGorm creates a new statistics gRPC service
-func NewStatisticsServiceGorm(db *database.GormDB) *StatisticsServiceGorm {
+func NewStatisticsServiceGorm(db *database.GormDB, adminConfig *config.AdminConfig) *StatisticsServiceGorm {
 	return &StatisticsServiceGorm{
 		db:             db,
+		adminConfig:    adminConfig,
 		queryService:   NewStatisticsQueryService(db),
 		captureService: NewStatisticsCaptureService(db),
 		workerPool:     nil, // Will be set later via SetWorkerPool
@@ -817,10 +820,12 @@ func (s *StatisticsServiceGorm) GetStatisticsViews(ctx context.Context, req *ale
 		}, nil
 	}
 
-	// Determine which user ID to use
-	userID := user.ID
-	if req.GetImpersonateUserId() != "" {
-		userID = req.GetImpersonateUserId()
+	userID, err := resolveTargetUser(s.adminConfig, user, req.GetImpersonateUserId(), "GetStatisticsViews")
+	if err != nil {
+		return &alertpb.GetStatisticsViewsResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Get views from database
@@ -871,10 +876,12 @@ func (s *StatisticsServiceGorm) SaveStatisticsView(ctx context.Context, req *ale
 		}, nil
 	}
 
-	// Determine which user ID to use
-	userID := user.ID
-	if req.GetImpersonateUserId() != "" {
-		userID = req.GetImpersonateUserId()
+	userID, err := resolveTargetUser(s.adminConfig, user, req.GetImpersonateUserId(), "SaveStatisticsView")
+	if err != nil {
+		return &alertpb.SaveStatisticsViewResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Build view data JSON
@@ -940,10 +947,12 @@ func (s *StatisticsServiceGorm) UpdateStatisticsView(ctx context.Context, req *a
 		}, nil
 	}
 
-	// Determine which user ID to use
-	userID := user.ID
-	if req.GetImpersonateUserId() != "" {
-		userID = req.GetImpersonateUserId()
+	userID, err := resolveTargetUser(s.adminConfig, user, req.GetImpersonateUserId(), "UpdateStatisticsView")
+	if err != nil {
+		return &alertpb.UpdateStatisticsViewResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Get existing view
@@ -1021,10 +1030,12 @@ func (s *StatisticsServiceGorm) DeleteStatisticsView(ctx context.Context, req *a
 		}, nil
 	}
 
-	// Determine which user ID to use
-	userID := user.ID
-	if req.GetImpersonateUserId() != "" {
-		userID = req.GetImpersonateUserId()
+	userID, err := resolveTargetUser(s.adminConfig, user, req.GetImpersonateUserId(), "DeleteStatisticsView")
+	if err != nil {
+		return &alertpb.DeleteStatisticsViewResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Delete from database (with ownership check)
@@ -1062,10 +1073,12 @@ func (s *StatisticsServiceGorm) SetDefaultStatisticsView(ctx context.Context, re
 		}, nil
 	}
 
-	// Determine which user ID to use
-	userID := user.ID
-	if req.GetImpersonateUserId() != "" {
-		userID = req.GetImpersonateUserId()
+	userID, err := resolveTargetUser(s.adminConfig, user, req.GetImpersonateUserId(), "SetDefaultStatisticsView")
+	if err != nil {
+		return &alertpb.SetDefaultStatisticsViewResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// If view_id is empty, clear the default

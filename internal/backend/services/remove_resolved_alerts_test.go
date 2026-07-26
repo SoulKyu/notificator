@@ -25,7 +25,7 @@ func setupAlertServiceWithResolvedAlert(t *testing.T) (*AlertServiceGorm, *datab
 		t.Fatalf("failed to seed resolved alert: %v", err)
 	}
 
-	return NewAlertServiceGorm(db), db
+	return NewAlertServiceGorm(db, &config.AdminConfig{}), db
 }
 
 func resolvedAlertCount(t *testing.T, db *database.GormDB) int64 {

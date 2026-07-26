@@ -124,8 +124,8 @@ func (s *Server) initServices() {
 	}
 
 	s.authService = services.NewAuthServiceGorm(s.db, s.oauthService)
-	s.alertService = services.NewAlertServiceGorm(s.db)
-	s.statisticsService = services.NewStatisticsServiceGorm(s.db)
+	s.alertService = services.NewAlertServiceGorm(s.db, &s.config.Admin)
+	s.statisticsService = services.NewStatisticsServiceGorm(s.db, &s.config.Admin)
 
 	// Initialize statistics worker pool
 	// 10 workers with queue size of 1000 jobs

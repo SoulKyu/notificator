@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"notificator/config"
 	"notificator/internal/backend/database"
 	"notificator/internal/backend/models"
 	alertpb "notificator/internal/backend/proto/alert"
@@ -430,13 +431,15 @@ type Subscription struct {
 type AlertServiceGorm struct {
 	alertpb.UnimplementedAlertServiceServer
 	db            *database.GormDB
+	adminConfig   *config.AdminConfig
 	subscriptions map[string][]*Subscription // alertKey -> []*Subscription
 	subsMutex     sync.RWMutex
 }
 
-func NewAlertServiceGorm(db *database.GormDB) *AlertServiceGorm {
+func NewAlertServiceGorm(db *database.GormDB, adminConfig *config.AdminConfig) *AlertServiceGorm {
 	return &AlertServiceGorm{
 		db:            db,
+		adminConfig:   adminConfig,
 		subscriptions: make(map[string][]*Subscription),
 	}
 }
@@ -908,10 +911,12 @@ func (s *AlertServiceGorm) GetUserColorPreferences(ctx context.Context, req *ale
 		}, nil
 	}
 
-	// Use impersonated user ID if provided, otherwise use session user
-	targetUserID := user.ID
-	if req.ImpersonateUserId != "" {
-		targetUserID = req.ImpersonateUserId
+	targetUserID, err := resolveTargetUser(s.adminConfig, user, req.ImpersonateUserId, "GetUserColorPreferences")
+	if err != nil {
+		return &alertpb.GetUserColorPreferencesResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Get user color preferences
@@ -972,10 +977,12 @@ func (s *AlertServiceGorm) SaveUserColorPreferences(ctx context.Context, req *al
 		}, nil
 	}
 
-	// Use impersonated user ID if provided, otherwise use session user
-	targetUserID := user.ID
-	if req.ImpersonateUserId != "" {
-		targetUserID = req.ImpersonateUserId
+	targetUserID, err := resolveTargetUser(s.adminConfig, user, req.ImpersonateUserId, "SaveUserColorPreferences")
+	if err != nil {
+		return &alertpb.SaveUserColorPreferencesResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Convert protobuf preferences to model preferences
@@ -1047,10 +1054,12 @@ func (s *AlertServiceGorm) DeleteUserColorPreference(ctx context.Context, req *a
 		}, nil
 	}
 
-	// Use impersonated user ID if provided, otherwise use session user
-	targetUserID := user.ID
-	if req.ImpersonateUserId != "" {
-		targetUserID = req.ImpersonateUserId
+	targetUserID, err := resolveTargetUser(s.adminConfig, user, req.ImpersonateUserId, "DeleteUserColorPreference")
+	if err != nil {
+		return &alertpb.DeleteUserColorPreferenceResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Delete preference
@@ -1771,10 +1780,12 @@ func (s *AlertServiceGorm) GetUserHiddenAlerts(ctx context.Context, req *alertpb
 		}, nil
 	}
 
-	// Use impersonated user ID if provided, otherwise use session user
-	targetUserID := user.ID
-	if req.ImpersonateUserId != "" {
-		targetUserID = req.ImpersonateUserId
+	targetUserID, err := resolveTargetUser(s.adminConfig, user, req.ImpersonateUserId, "GetUserHiddenAlerts")
+	if err != nil {
+		return &alertpb.GetUserHiddenAlertsResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Get hidden alerts from database
@@ -1956,10 +1967,12 @@ func (s *AlertServiceGorm) GetUserHiddenRules(ctx context.Context, req *alertpb.
 		}, nil
 	}
 
-	// Use impersonated user ID if provided, otherwise use session user
-	targetUserID := user.ID
-	if req.ImpersonateUserId != "" {
-		targetUserID = req.ImpersonateUserId
+	targetUserID, err := resolveTargetUser(s.adminConfig, user, req.ImpersonateUserId, "GetUserHiddenRules")
+	if err != nil {
+		return &alertpb.GetUserHiddenRulesResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Get hidden rules from database
@@ -2448,10 +2461,12 @@ func (s *AlertServiceGorm) GetFilterPresets(ctx context.Context, req *alertpb.Ge
 		}, nil
 	}
 
-	// Use impersonated user ID if provided, otherwise use session user
-	targetUserID := user.ID
-	if req.ImpersonateUserId != "" {
-		targetUserID = req.ImpersonateUserId
+	targetUserID, err := resolveTargetUser(s.adminConfig, user, req.ImpersonateUserId, "GetFilterPresets")
+	if err != nil {
+		return &alertpb.GetFilterPresetsResponse{
+			Success: false,
+			Message: "Not authorized to impersonate this user",
+		}, nil
 	}
 
 	// Get filter presets from database
