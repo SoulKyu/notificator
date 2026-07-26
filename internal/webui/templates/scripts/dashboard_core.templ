@@ -258,8 +258,9 @@ templ DashboardCore() {
 
 				// Check if response indicates authentication failure
 				handleAuthError(response) {
-					// Redirect to login if unauthorized or service unavailable
-					if (response.status === 401 || response.status === 503) {
+					// Redirect to login only on real auth failure; 503 is a transient
+					// infra state (cache warm-up, backend restart), not an auth signal.
+					if (response.status === 401) {
 						window.location.href = '/login';
 						return true;
 					}
