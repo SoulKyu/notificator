@@ -37,6 +37,12 @@ func (am *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Validate session with backend
 		user, err := am.backendClient.ValidateSession(sessionID)
 		if err != nil {
+			if client.IsUnavailableError(err) {
+				// Backend is unreachable, not a bad session - keep the session intact
+				c.JSON(http.StatusServiceUnavailable, models.ErrorResponse("Authentication service unavailable"))
+				c.Abort()
+				return
+			}
 			// Session is invalid, clear it
 			ClearSession(c)
 			c.JSON(http.StatusUnauthorized, models.ErrorResponse("Invalid or expired session"))

@@ -11,6 +11,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	alertpb "notificator/internal/backend/proto/alert"
 	authpb "notificator/internal/backend/proto/auth"
 	"notificator/internal/webui/models"
@@ -69,6 +72,25 @@ func (c *BackendClient) Connect() error {
 
 func (c *BackendClient) IsConnected() bool {
 	return c.conn != nil && c.authClient != nil && c.statisticsClient != nil
+}
+
+// IsUnavailableError reports whether err comes from being unable to reach the
+// backend (transport down, timed out dialing) rather than the backend
+// rejecting the request (e.g. an invalid or expired session).
+func IsUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	switch st.Code() {
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *BackendClient) HealthCheck() error {
