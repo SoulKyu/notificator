@@ -33,9 +33,17 @@ The entire auth model is: **every RPC takes a `session_id` string and calls
 - `Login` creates a bcrypt-checked `User` session with a random hex `session_id`, 7-day expiry
   (`internal/backend/services/services.go`). `User` supports both local password and OAuth
   identity (`OAuthProvider`/`OAuthID`, `internal/backend/models/models.go`).
-- **No enforced RBAC.** `models/oauth_models.go` defines `UserRole` and OAuth group-sync
-  machinery, but nothing gates an RPC by role. `GetConnectedUsers` is commented "admin only"
-  yet only checks that *some* valid session exists. Do not trust "admin only" comments.
+- **No enforced RBAC**, with one exception: impersonation. `models/oauth_models.go` defines
+  `UserRole` and OAuth group-sync machinery, but nothing gates an RPC by role, and
+  `GetConnectedUsers` is commented "admin only" yet only checks that *some* valid session
+  exists — do not trust "admin only" comments elsewhere. Impersonation itself **is** enforced:
+  every `AlertServiceGorm` / `StatisticsServiceGorm` RPC that accepts `impersonate_user_id`
+  resolves the effective user through `resolveTargetUser()`
+  (`services/impersonation.go`), which rejects the request unless the caller is on
+  `config.AdminConfig`'s allowlist (checked by username or email) and logs denied attempts.
+  Before this, only the WebUI's `canImpersonate` gated it — a direct gRPC call could read or
+  overwrite any other user's color preferences, hidden alerts/rules, filter presets, and
+  statistics views.
 
 ## Database
 

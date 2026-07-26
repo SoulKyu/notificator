@@ -34,6 +34,27 @@ labels, the same logical alert has the same fingerprint across different Alertma
 **inhibited** when another alert suppresses it (`InhibitedBy`). **Resolved** means it stopped
 firing — at which point the WebUI archives it (see resolved alerts below).
 
+## Silences {#silences}
+
+A silence is created **per Alertmanager**, not centrally: one logical silence the user creates
+becomes N independent copies, one per configured source, each with its own ID and lifecycle. The
+`/silences` page (`internal/webui/handlers/silence_handlers.go`,
+`MultiClient.FetchAllSilencesDetailed`) is the read/audit surface over all of them — source +
+state + free-text filters, soonest-expiry sort, an expiring-soon badge, and a **matched-alert
+count** per silence (computed against the in-memory alert cache, same-source only, so it costs no
+extra Alertmanager traffic). Zero-match active silences surface as a cleanup worklist.
+
+**Extend** re-POSTs the silence with the same ID and a later `EndsAt` — Alertmanager upserts on
+ID, but if the silence lapsed first, Alertmanager mints a *new* ID instead of extending; the
+handler detects this (compares the returned ID) and answers `409` rather than silently returning
+the stale, pre-extend payload. **Expire** deletes the silence from its source only. Unknown
+sources and stale/unknown silence IDs map to `4xx` (`ErrSilenceNotFound` → `404`), not `502` —
+the fetch-per-source pattern mirrors `FetchAllAlertsDetailed` (see [webui](webui.md#alert-cache)):
+one unreachable Alertmanager degrades that source rather than blanking the page.
+
+> `SilenceMatcher.IsEqual` defaults to `true` on unmarshal — Alertmanager before 0.22 omits the
+> field, and decoding it as Go's zero value (`false`) silently negates every matcher.
+
 ## Filtering
 
 `internal/filters/filter.go` — `AlertFilter{SearchText, Severity, Status, Team}` with
@@ -63,7 +84,8 @@ These live in the backend DB and are edited over gRPC (`proto/alert.proto`, `Ale
   toggles and dashboard column layout.
 
 All of these accept an optional `impersonate_user_id` so an admin can manage another user's data
-(see [webui](webui.md#auth)).
+(see [webui](webui.md#auth)). The backend enforces this itself via `resolveTargetUser`
+(see [backend](backend.md#auth)) — it is not just a WebUI-side check.
 
 ## Statistics & on-call analytics {#statistics}
 

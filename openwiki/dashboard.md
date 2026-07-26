@@ -147,12 +147,11 @@ connected, its comments and acknowledgments.
 Tabs: **Overview**, **Details** (fingerprint, generator URL), **Labels** / **Annotations**
 (copy-to-clipboard), **Acknowledgments**, **Comments** (add/delete; system comments show a badge),
 **History** (lazy `GET /alert/:fp/history` → up to 50 fire/resolve/ack occurrences with MTTR/MTTA),
-and **Sentry** (only if the alert carries a `sentry` annotation/label; lazy-loaded). Header offers
-Silence/Unsilence, configurable per-user **annotation buttons**, Ack/Unack, "Source"
-(`generatorURL`), and "Copy as Issue" (builds a Markdown issue and copies it).
-
-> ⚠️ The modal's `Silences` field is **always empty** (`dashboard_handlers.go:1289`, not
-> implemented) — only `status.silencedBy` IDs are available.
+**Silences** (matchers, creator, comment, end time — resolved from the alert's own Alertmanager;
+see [domain](domain.md#silences)), and **Sentry** (only if the alert carries a `sentry`
+annotation/label; lazy-loaded). Header offers Silence/Unsilence, configurable per-user
+**annotation buttons**, Ack/Unack, "Source" (`generatorURL`), and "Copy as Issue" (builds a
+Markdown issue and copies it).
 
 ## Filter presets, resolved view, colors
 

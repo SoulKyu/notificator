@@ -82,9 +82,11 @@ This is separate from the backend's gRPC collaboration stream — see
   Day.js from CDN; contains inline dark-mode, impersonation-banner, and connected-users JS.
 - `pages/` — `NewDashboard` (the **live operational dashboard**, `/dashboard` — deep-dived in
   [dashboard](dashboard.md)), `StatisticsDashboard` (the **historical analytics dashboard**,
-  `/statistics` — deep-dived in [statistics](statistics.md)), `Login`, `Register`, `Profile`,
-  `OAuthCallback`, `Index`, `Playground` (dev/demo landing when `WebUI.Playground` is on).
-  Browser/sound alerts are covered in [notifications](notifications.md).
+  `/statistics` — deep-dived in [statistics](statistics.md)), the **silence inventory**
+  (`/silences` — read/extend/expire across all Alertmanagers, see
+  [domain](domain.md#silences)), `Login`, `Register`, `Profile`, `OAuthCallback`, `Index`,
+  `Playground` (dev/demo landing when `WebUI.Playground` is on). Browser/sound alerts are
+  covered in [notifications](notifications.md).
 - `components/` — tables, modals, filter/group views, timezone selector, page navigator, etc.
 - `scripts/` — **`.templ` files whose entire body is a `<script>` of hand-written Alpine.js**
   (e.g. `dashboard_core.templ` defines `function newDashboard(){…}`). Included into pages via
