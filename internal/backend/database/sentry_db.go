@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -12,22 +13,38 @@ import (
 	"notificator/internal/backend/models"
 )
 
-// Encryption key for tokens - should be from environment variable
+// EncryptionKeyEnvVar is the environment variable holding the AES-256 key
+// used to encrypt Sentry personal tokens at rest.
+const EncryptionKeyEnvVar = "NOTIFICATOR_ENCRYPTION_KEY"
+
+// ValidateEncryptionKey checks that NOTIFICATOR_ENCRYPTION_KEY is set to 64
+// lowercase hex characters (32 raw bytes), returning an error naming the
+// variable and the generation command otherwise.
+func ValidateEncryptionKey() error {
+	_, err := encryptionKeyFromEnv()
+	return err
+}
+
+func encryptionKeyFromEnv() ([]byte, error) {
+	key := os.Getenv(EncryptionKeyEnvVar)
+	if len(key) != 64 {
+		return nil, fmt.Errorf("%s must be set to 64 lowercase hex characters (32 bytes); generate one with `openssl rand -hex 32`", EncryptionKeyEnvVar)
+	}
+	keyBytes, err := hex.DecodeString(key)
+	if err != nil {
+		return nil, fmt.Errorf("%s must be 64 lowercase hex characters (32 bytes); generate one with `openssl rand -hex 32`", EncryptionKeyEnvVar)
+	}
+	return keyBytes, nil
+}
+
 func getEncryptionKey() []byte {
-	key := os.Getenv("NOTIFICATOR_ENCRYPTION_KEY")
-	if key == "" {
-		// Generate a default key for development - DO NOT USE IN PRODUCTION
-		key = "dev-encryption-key-32-bytes-long"
+	key, err := encryptionKeyFromEnv()
+	if err != nil {
+		// ValidateEncryptionKey is called at startup, so this can only be
+		// reached if the environment changed after the process started.
+		panic(err)
 	}
-	// Ensure key is 32 bytes for AES-256
-	keyBytes := []byte(key)
-	if len(keyBytes) < 32 {
-		// Pad with zeros
-		padded := make([]byte, 32)
-		copy(padded, keyBytes)
-		return padded
-	}
-	return keyBytes[:32]
+	return key
 }
 
 // Encrypt encrypts plaintext using AES

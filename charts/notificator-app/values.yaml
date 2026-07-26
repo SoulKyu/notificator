@@ -55,7 +55,11 @@ backend:
     # NOTIFICATOR_BACKEND_ENABLED: "true"
     # NOTIFICATOR_BACKEND_GRPC_LISTEN: ":50051"
     # NOTIFICATOR_BACKEND_HTTP_LISTEN: ":8080"
-    
+
+    # Encryption key for Sentry personal tokens at rest (REQUIRED - backend refuses to start
+    # without it). 64 lowercase hex characters, generate with: openssl rand -hex 32
+    # NOTIFICATOR_ENCRYPTION_KEY: "your-64-character-hex-secret-here"
+
     # Database configuration - PostgreSQL URL (recommended)
     # POSTGRES_URL: "postgres://user:password@host:5432/database?sslmode=require"
     

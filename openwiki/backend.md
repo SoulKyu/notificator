@@ -111,5 +111,6 @@ only** (no cross-replica fan-out). See [architecture](architecture.md#real-time)
   is inline in `AlertServiceGorm`.
 - **Silent job drops:** statistics worker pool drops events when full, with no alerting.
 - **Single-replica constraint:** in-memory subscriptions break under horizontal scaling.
-- **Encryption key fallback:** Sentry token storage falls back to a hardcoded dev key if
-  `NOTIFICATOR_ENCRYPTION_KEY` is unset — see [configuration](configuration.md#sentry).
+- **Encryption key is mandatory:** the backend refuses to start (non-zero exit before the gRPC
+  server accepts connections) unless `NOTIFICATOR_ENCRYPTION_KEY` is set to a valid 64-hex key —
+  see [configuration](configuration.md#sentry).

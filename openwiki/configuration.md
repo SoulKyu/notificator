@@ -76,10 +76,12 @@ tokens are stored **AES-256-GCM encrypted** (`internal/backend/database/sentry_d
 time the WebUI resolves the user's own token → the admin `GlobalToken` fallback → none, and
 enriches alerts from Sentry issue URLs found in annotations/labels.
 
-> ⚠️ **Security gotcha:** the encryption key comes from `NOTIFICATOR_ENCRYPTION_KEY`, but falls
-> back to a **hardcoded dev key** if unset — and this var is **not** documented in
-> `ENVIRONMENT_VARIABLES.md` or `.env.example`. Set it in any real deployment that stores Sentry
-> tokens, or those tokens are encrypted with a publicly-known key.
+> **`NOTIFICATOR_ENCRYPTION_KEY` is mandatory.** It must be 64 lowercase hex characters (32 bytes,
+> generate with `openssl rand -hex 32`); the backend logs an error and exits non-zero at startup
+> if it is unset or invalid, whether or not Sentry is enabled — there is no built-in fallback key.
+> Rotating the key (or setting it for the first time on a deployment that ran without one) makes
+> previously stored Sentry personal tokens unrecoverable; affected users must re-enter their token
+> via the Sentry settings modal. Documented in `ENVIRONMENT_VARIABLES.md` and `.env.example`.
 
 ## Session secret
 

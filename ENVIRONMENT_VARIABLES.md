@@ -45,6 +45,14 @@ The following standard database environment variables are also supported:
 - `DB_SSL_MODE` / `DATABASE_SSL_MODE` - SSL mode
 - `DB_PATH` / `DATABASE_PATH` - SQLite file path
 
+## Security Configuration
+
+- `NOTIFICATOR_ENCRYPTION_KEY` - **Required.** AES-256 key encrypting Sentry personal tokens at
+  rest, as 64 lowercase hex characters (32 bytes). The backend logs an error and exits non-zero at
+  startup if this is unset or invalid. Generate with: `openssl rand -hex 32`.
+  Rotating this key makes previously stored Sentry personal tokens unrecoverable; affected users
+  must re-enter their token via the Sentry settings modal.
+
 ## WebUI Configuration
 
 - `NOTIFICATOR_WEBUI_LISTEN` - WebUI server listen address (default: ":8081")
