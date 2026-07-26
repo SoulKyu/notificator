@@ -825,6 +825,283 @@ func (f *fakeAlertFetcher) FetchAllAlertsDetailed() ([]alertmanager.AlertWithSou
 	return f.alerts, f.fetchErrors
 }
 
+// TestAlertCache_RefreshKeepsAcknowledgementState covers the SSE regression where
+// a refresh cycle compared the cache against a collaboration-free poll result and
+// pushed that stripped alert to browsers, flipping acked alerts back to un-acked.
+func TestAlertCache_RefreshKeepsAcknowledgementState(t *testing.T) {
+	amAlert := alertmanager.AlertWithSource{
+		Alert: models.Alert{
+			Labels:      map[string]string{"alertname": "HighMemoryUsage"},
+			Annotations: map[string]string{"summary": "Memory is high"},
+			Status:      models.AlertStatus{State: "firing"},
+			StartsAt:    time.Now().Add(-time.Hour),
+		},
+		Source: "prod",
+	}
+
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+	cache.alertmanagerClient = &fakeAlertFetcher{alerts: []alertmanager.AlertWithSource{amAlert}}
+	cache.refreshAlerts()
+
+	updates := cache.Subscribe()
+	defer cache.Unsubscribe(updates)
+
+	fingerprint := cache.convertToDashboardAlert(amAlert.Alert, amAlert.Source).Fingerprint
+	acknowledgedAt := time.Now().Add(-time.Minute)
+	if !cache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+		a.IsAcknowledged = true
+		a.AcknowledgedBy = "alice"
+		a.AcknowledgedAt = acknowledgedAt
+		a.CommentCount = 2
+	}) {
+		t.Fatal("alert should be cached after the seeding refresh")
+	}
+
+	updatedAt := func() time.Time {
+		alert, ok := cache.GetAlert(fingerprint)
+		if !ok {
+			t.Fatal("alert disappeared from the cache")
+		}
+		return alert.UpdatedAt
+	}
+	beforeRefresh := updatedAt()
+
+	// The acknowledgement itself is what has to reach browsers, with real state.
+	select {
+	case update := <-updates:
+		if len(update.UpdatedAlerts) != 1 || !update.UpdatedAlerts[0].IsAcknowledged {
+			t.Fatalf("acknowledgement should be pushed over SSE with ack state, got %+v", update.UpdatedAlerts)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("acknowledging an alert should push an SSE update")
+	}
+
+	// Three cycles with an unchanged Alertmanager payload: nothing should move.
+	for i := 0; i < 3; i++ {
+		cache.refreshAlerts()
+
+		select {
+		case update := <-updates:
+			t.Fatalf("cycle %d: unchanged alert should not be pushed over SSE, got %d updated alerts", i, len(update.UpdatedAlerts))
+		default:
+		}
+
+		cached, _ := cache.GetAlert(fingerprint)
+		if !cached.IsAcknowledged || cached.AcknowledgedBy != "alice" || cached.CommentCount != 2 {
+			t.Fatalf("cycle %d: collaboration state lost: %+v", i, cached)
+		}
+		if !cached.UpdatedAt.Equal(beforeRefresh) {
+			t.Fatalf("cycle %d: UpdatedAt advanced without a real change", i)
+		}
+	}
+
+	// A real Alertmanager-side change must still be pushed, with ack state intact.
+	changed := amAlert
+	changed.Alert.Annotations = map[string]string{"summary": "Memory is critical"}
+	cache.alertmanagerClient = &fakeAlertFetcher{alerts: []alertmanager.AlertWithSource{changed}}
+	cache.refreshAlerts()
+
+	select {
+	case update := <-updates:
+		if len(update.UpdatedAlerts) != 1 {
+			t.Fatalf("expected 1 updated alert, got %d", len(update.UpdatedAlerts))
+		}
+		pushed := update.UpdatedAlerts[0]
+		if !pushed.IsAcknowledged || pushed.AcknowledgedBy != "alice" || pushed.CommentCount != 2 {
+			t.Errorf("SSE payload lost collaboration state: %+v", pushed)
+		}
+		if pushed.Summary != "Memory is critical" {
+			t.Errorf("SSE payload should carry the new summary, got %q", pushed.Summary)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("a changed alert should be pushed over SSE")
+	}
+}
+
+// fakeCollabLoader drives the backend side of the collaboration loaders, which
+// are the only path left for backend-side ack and comment changes to reach
+// browsers now that hasPolledStateChanged ignores those fields.
+type fakeCollabLoader struct {
+	acks      map[string]*alertpb.Acknowledgment
+	acksErr   error
+	counts    map[string]int
+	countsErr error
+}
+
+func (f *fakeCollabLoader) IsConnected() bool { return true }
+
+func (f *fakeCollabLoader) GetAllAcknowledgedAlerts([]string) (map[string]*alertpb.Acknowledgment, error) {
+	return f.acks, f.acksErr
+}
+
+func (f *fakeCollabLoader) GetCommentCountsBatch([]string) (map[string]int, error) {
+	return f.counts, f.countsErr
+}
+
+// seedCachedAlert returns a cache holding exactly one firing alert with the
+// collaboration seam wired to loader, plus that alert's fingerprint and a
+// subscriber with no update pending.
+func seedCachedAlert(t *testing.T, loader collabLoader) (*AlertCache, string, chan *webuimodels.DashboardIncrementalUpdate) {
+	t.Helper()
+
+	amAlert := alertmanager.AlertWithSource{
+		Alert: models.Alert{
+			Labels:      map[string]string{"alertname": "HighMemoryUsage"},
+			Annotations: map[string]string{"summary": "Memory is high"},
+			Status:      models.AlertStatus{State: "firing"},
+			StartsAt:    time.Now().Add(-time.Hour),
+		},
+		Source: "prod",
+	}
+
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+	cache.alertmanagerClient = &fakeAlertFetcher{alerts: []alertmanager.AlertWithSource{amAlert}}
+	// collabClient is still nil here, so the seeding refresh spawns no loader.
+	cache.refreshAlerts()
+	cache.collabClient = loader
+
+	updates := cache.Subscribe()
+	t.Cleanup(func() { cache.Unsubscribe(updates) })
+
+	return cache, cache.convertToDashboardAlert(amAlert.Alert, amAlert.Source).Fingerprint, updates
+}
+
+func nextUpdate(t *testing.T, updates chan *webuimodels.DashboardIncrementalUpdate) *webuimodels.DashboardIncrementalUpdate {
+	t.Helper()
+	select {
+	case update := <-updates:
+		return update
+	case <-time.After(time.Second):
+		t.Fatal("expected an SSE update")
+		return nil
+	}
+}
+
+// expectNoUpdate asserts nothing is queued. The loaders notify synchronously, so
+// a non-blocking read is enough.
+func expectNoUpdate(t *testing.T, updates chan *webuimodels.DashboardIncrementalUpdate) {
+	t.Helper()
+	select {
+	case update := <-updates:
+		t.Fatalf("unexpected SSE update: %+v", update.UpdatedAlerts)
+	default:
+	}
+}
+
+func TestAlertCache_LoadAcknowledgmentsPushesOnlyRealChanges(t *testing.T) {
+	createdAt := time.Now().Add(-time.Minute).Truncate(time.Second)
+	firstAck := func() *alertpb.Acknowledgment {
+		return &alertpb.Acknowledgment{
+			Username:  "alice",
+			Reason:    "investigating",
+			CreatedAt: timestamppb.New(createdAt),
+		}
+	}
+
+	tests := []struct {
+		name       string
+		second     *alertpb.Acknowledgment
+		wantPushed bool
+	}{
+		{
+			name:       "identical acknowledgement is pushed once",
+			second:     firstAck(),
+			wantPushed: false,
+		},
+		{
+			name:       "changed reason is pushed",
+			second:     &alertpb.Acknowledgment{Username: "alice", Reason: "escalated", CreatedAt: timestamppb.New(createdAt)},
+			wantPushed: true,
+		},
+		{
+			name:       "changed createdAt is pushed",
+			second:     &alertpb.Acknowledgment{Username: "alice", Reason: "investigating", CreatedAt: timestamppb.New(createdAt.Add(time.Second))},
+			wantPushed: true,
+		},
+		{
+			name:       "re-acknowledgement by another user is pushed",
+			second:     &alertpb.Acknowledgment{Username: "bob", Reason: "investigating", CreatedAt: timestamppb.New(createdAt)},
+			wantPushed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := &fakeCollabLoader{}
+			cache, fingerprint, updates := seedCachedAlert(t, loader)
+
+			loader.acks = map[string]*alertpb.Acknowledgment{fingerprint: firstAck()}
+			cache.loadAcknowledgmentsEfficiently()
+
+			first := nextUpdate(t, updates).UpdatedAlerts
+			if len(first) != 1 || !first[0].IsAcknowledged || first[0].AcknowledgedBy != "alice" {
+				t.Fatalf("first load should push the acknowledgement, got %+v", first)
+			}
+
+			loader.acks = map[string]*alertpb.Acknowledgment{fingerprint: tt.second}
+			cache.loadAcknowledgmentsEfficiently()
+
+			if !tt.wantPushed {
+				expectNoUpdate(t, updates)
+				return
+			}
+
+			second := nextUpdate(t, updates).UpdatedAlerts
+			if len(second) != 1 {
+				t.Fatalf("expected 1 updated alert, got %d", len(second))
+			}
+			pushed := second[0]
+			if pushed.AcknowledgedBy != tt.second.Username ||
+				pushed.AcknowledgeReason != tt.second.Reason ||
+				!pushed.AcknowledgedAt.Equal(tt.second.CreatedAt.AsTime()) {
+				t.Errorf("pushed payload does not carry the new acknowledgement: %+v", pushed)
+			}
+		})
+	}
+}
+
+func TestAlertCache_LoadCommentCountsPushesOnlyRealChanges(t *testing.T) {
+	loader := &fakeCollabLoader{}
+	cache, fingerprint, updates := seedCachedAlert(t, loader)
+
+	if !cache.MutateAlert(fingerprint, func(a *webuimodels.DashboardAlert) {
+		a.IsAcknowledged = true
+		a.AcknowledgedBy = "alice"
+		a.AcknowledgedAt = time.Now().Add(-time.Minute)
+	}) {
+		t.Fatal("alert should be cached after the seeding refresh")
+	}
+	nextUpdate(t, updates) // the acknowledgement push itself
+
+	loader.counts = map[string]int{fingerprint: 2}
+	cache.loadCommentCountsEfficiently()
+
+	pushed := nextUpdate(t, updates).UpdatedAlerts
+	if len(pushed) != 1 || pushed[0].CommentCount != 2 {
+		t.Fatalf("a new comment count should be pushed, got %+v", pushed)
+	}
+	if !pushed[0].IsAcknowledged || pushed[0].AcknowledgedBy != "alice" {
+		t.Errorf("comment-count push lost acknowledgement state: %+v", pushed[0])
+	}
+
+	// Same count next cycle: nothing on the wire.
+	cache.loadCommentCountsEfficiently()
+	expectNoUpdate(t, updates)
+
+	// The error branch zeroes every cached count and notifies nobody.
+	loader.countsErr = errors.New("backend down")
+	cache.loadCommentCountsEfficiently()
+	expectNoUpdate(t, updates)
+
+	cached, ok := cache.GetAlert(fingerprint)
+	if !ok {
+		t.Fatal("alert disappeared from the cache")
+	}
+	if cached.CommentCount != 0 {
+		t.Errorf("comment counts should be zeroed when the batch query fails, got %d", cached.CommentCount)
+	}
+}
+
 func TestAlertCache_RefreshWithPartialFetchFailure(t *testing.T) {
 	newAlert := func(name, source string) alertmanager.AlertWithSource {
 		return alertmanager.AlertWithSource{

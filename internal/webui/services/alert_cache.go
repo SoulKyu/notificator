@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,16 @@ type alertFetcher interface {
 	FetchAllAlertsDetailed() ([]alertmanager.AlertWithSource, map[string]error)
 }
 
+// collabLoader abstracts the backend calls that feed collaboration state into the
+// cache, so tests can exercise the dedup guards in loadAcknowledgmentsEfficiently
+// and loadCommentCountsEfficiently without a live backend.
+// *client.BackendClient satisfies it.
+type collabLoader interface {
+	IsConnected() bool
+	GetAllAcknowledgedAlerts(alertKeys []string) (map[string]*alertpb.Acknowledgment, error)
+	GetCommentCountsBatch(fingerprints []string) (map[string]int, error)
+}
+
 // maxBackendWorkers bounds concurrent backend calls spawned by a refresh cycle,
 // so a large diff cannot stampede the backend with thousands of gRPC calls.
 const maxBackendWorkers = 8
@@ -55,6 +66,7 @@ type AlertCache struct {
 	userHiddenAlerts   map[string]map[string]bool             // userID -> fingerprint -> hidden
 	alertmanagerClient alertFetcher
 	backendClient      *client.BackendClient
+	collabClient       collabLoader // same object as backendClient, narrowed so tests can fake it
 	colorService       *ColorService
 	backendSem         chan struct{} // semaphore bounding refresh-triggered backend calls
 
@@ -107,11 +119,19 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 		fetcher = amClient
 	}
 
+	// Same care for the collaboration seam: a typed-nil in the interface would
+	// defeat the nil check in loadBackendData.
+	var collab collabLoader
+	if backendClient != nil {
+		collab = backendClient
+	}
+
 	return &AlertCache{
 		alerts:                make(map[string]*webuimodels.DashboardAlert),
 		userHiddenAlerts:      make(map[string]map[string]bool),
 		alertmanagerClient:    fetcher,
 		backendClient:         backendClient,
+		collabClient:          collab,
 		colorService:          NewColorService(backendClient),
 		cachedColors:          make(map[string]map[string]*AlertColorResult),
 		backendSem:            make(chan struct{}, maxBackendWorkers),
@@ -219,7 +239,11 @@ func (ac *AlertCache) refreshAlerts() {
 		if existingAlert, exists := ac.alerts[fingerprint]; !exists {
 			ac.alerts[fingerprint] = dashAlert
 			ac.newAlerts = append(ac.newAlerts, fingerprint)
-			newAlertsForSSE = append(newAlertsForSSE, dashAlert)
+			// Snapshot, never the cache-resident pointer: the backend loaders and
+			// MutateAlert write to it under ac.mu while the SSE handler serialises
+			// the payload holding no lock.
+			alertCopy := *dashAlert
+			newAlertsForSSE = append(newAlertsForSSE, &alertCopy)
 
 			// Capture alert fired event for statistics
 			ac.runBounded(func() {
@@ -231,11 +255,19 @@ func (ac *AlertCache) refreshAlerts() {
 			})
 
 		} else {
-			// Check if alert changed before updating
-			if ac.hasAlertChanged(existingAlert, dashAlert) {
-				updatedAlertsForSSE = append(updatedAlertsForSSE, dashAlert)
+			// Only compare what a poll can actually tell us: the fresh alert has no
+			// collaboration state, so comparing it against the cache would report a
+			// change on every cycle for every acknowledged or commented alert.
+			changed := ac.hasPolledStateChanged(existingAlert, dashAlert)
+			ac.updateExistingAlert(existingAlert, dashAlert, changed)
+
+			if changed {
+				// Push the merged cache entry, not the stripped poll result, so the
+				// SSE payload keeps acknowledgement and comment state. Shallow copy
+				// for the same reason GetAllAlerts snapshots.
+				alertCopy := *existingAlert
+				updatedAlertsForSSE = append(updatedAlertsForSSE, &alertCopy)
 			}
-			ac.updateExistingAlert(existingAlert, dashAlert)
 		}
 	}
 
@@ -284,12 +316,10 @@ func (ac *AlertCache) refreshAlerts() {
 
 	log.Printf("Alert cache refresh complete: %d active alerts, %d newly resolved", activeCount, resolvedCount)
 
-	ac.loadBackendData()
-
-	// Refresh color cache for all active users after alerts are updated
-	go ac.RefreshAllCachedColors()
-
-	// Notify SSE subscribers if there are any changes
+	// Emit the poll diff before anything else can write to the cache. These are
+	// snapshots taken under ac.mu, so a collaboration write landing right after the
+	// unlock above must not be allowed to push its fresher payload first and then be
+	// overwritten by this older one — the dashboard replaces alert objects wholesale.
 	if len(newAlertsForSSE) > 0 || len(updatedAlertsForSSE) > 0 || len(removedFingerprints) > 0 {
 		update := &webuimodels.DashboardIncrementalUpdate{
 			NewAlerts:      newAlertsForSSE,
@@ -299,6 +329,11 @@ func (ac *AlertCache) refreshAlerts() {
 		}
 		ac.notifySubscribers(update)
 	}
+
+	ac.loadBackendData()
+
+	// Refresh color cache for all active users after alerts are updated
+	go ac.RefreshAllCachedColors()
 }
 
 func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string) *webuimodels.DashboardAlert {
@@ -370,9 +405,8 @@ func (ac *AlertCache) convertToDashboardAlert(alert models.Alert, source string)
 // 		!old.EndsAt.Equal(new.EndsAt)
 // }
 
-func (ac *AlertCache) updateExistingAlert(existing, new *webuimodels.DashboardAlert) {
-	// Check if alert has meaningfully changed before updating UpdatedAt
-	if ac.hasAlertChanged(existing, new) {
+func (ac *AlertCache) updateExistingAlert(existing, new *webuimodels.DashboardAlert, changed bool) {
+	if changed {
 		existing.UpdatedAt = time.Now()
 	}
 	// Note: UpdatedAt is NOT updated if alert hasn't changed
@@ -383,6 +417,21 @@ func (ac *AlertCache) updateExistingAlert(existing, new *webuimodels.DashboardAl
 	existing.IsResolved = new.IsResolved
 
 	existing.Annotations = new.Annotations
+	// Summary is derived from the annotations, so it has to follow them; leaving
+	// it stale would make hasPolledStateChanged report a change forever.
+	existing.Summary = new.Summary
+}
+
+// hasPolledStateChanged compares only the fields an Alertmanager poll actually
+// populates. Acknowledgements and comment counts arrive through MutateAlert and
+// loadBackendData, never through a poll, so comparing them against a freshly
+// converted alert would always report a change.
+// ponytail: EndsAt is deliberately excluded — Alertmanager keeps pushing it
+// forward for firing alerts, which would mark every alert changed every cycle.
+func (ac *AlertCache) hasPolledStateChanged(existing, new *webuimodels.DashboardAlert) bool {
+	return existing.Status.State != new.Status.State ||
+		existing.Summary != new.Summary ||
+		!maps.Equal(existing.Annotations, new.Annotations)
 }
 
 // hasAlertChanged compares two alerts to determine if there are meaningful changes
@@ -448,25 +497,36 @@ func (ac *AlertCache) UpdateAlert(alert *webuimodels.DashboardAlert) {
 // fingerprint is not in the live cache. This is the only supported way to write
 // to a cached alert — the read accessors return snapshots, so writes through
 // their return values never reach the cache.
+//
+// A mutation is a real change by definition (acknowledgements, comments,
+// manual resolution), so it stamps UpdatedAt and pushes the merged alert to SSE
+// subscribers. The poll cycle cannot detect these — the alert it builds from
+// Alertmanager carries no collaboration state at all.
 func (ac *AlertCache) MutateAlert(fingerprint string, fn func(*webuimodels.DashboardAlert)) bool {
 	ac.mu.Lock()
-	defer ac.mu.Unlock()
 
 	alert, exists := ac.alerts[fingerprint]
 	if !exists {
+		ac.mu.Unlock()
 		return false
 	}
+	now := time.Now()
 	fn(alert)
+	alert.UpdatedAt = now
+	alertCopy := *alert
+	ac.mu.Unlock()
+
+	ac.notifyAlertsUpdated([]*webuimodels.DashboardAlert{&alertCopy}, now)
 	return true
 }
 
 func (ac *AlertCache) loadBackendData() {
 	log.Printf("loadBackendData called - checking backend connection...")
-	if ac.backendClient == nil {
+	if ac.collabClient == nil {
 		log.Printf("Backend client is nil - skipping acknowledgment loading")
 		return
 	}
-	if !ac.backendClient.IsConnected() {
+	if !ac.collabClient.IsConnected() {
 		log.Printf("Backend client not connected - skipping acknowledgment loading")
 		return
 	}
@@ -494,7 +554,7 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 	}
 
 	// Step 2: call gRPC with NO lock held
-	acknowledgedAlerts, err := ac.backendClient.GetAllAcknowledgedAlerts(fingerprints)
+	acknowledgedAlerts, err := ac.collabClient.GetAllAcknowledgedAlerts(fingerprints)
 	if err != nil {
 		log.Printf("Failed to load acknowledged alerts from backend: %v", err)
 		return
@@ -519,28 +579,57 @@ func (ac *AlertCache) loadAcknowledgmentsEfficiently() {
 // The snapshot is point-in-time: an acknowledgment written locally (the
 // acknowledge handler's MutateAlert) after the map was built is cleared here and
 // reappears on the next refresh.
+//
+// Only real transitions are pushed to SSE subscribers: a steady acknowledgment
+// re-observed on every refresh must not generate an update, or every poll cycle
+// would repaint the dashboard.
 func (ac *AlertCache) applyAcknowledgments(acknowledgedAlerts map[string]*alertpb.Acknowledgment) {
-	ac.mu.Lock()
-	defer ac.mu.Unlock()
+	now := time.Now()
+	var changed []*webuimodels.DashboardAlert
 
+	ac.mu.Lock()
 	for fingerprint, alert := range ac.alerts {
 		if acknowledgment, exists := acknowledgedAlerts[fingerprint]; exists {
+			acknowledgedAt := acknowledgment.CreatedAt.AsTime()
+			if alert.IsAcknowledged &&
+				alert.AcknowledgedBy == acknowledgment.Username &&
+				alert.AcknowledgedAt.Equal(acknowledgedAt) &&
+				alert.AcknowledgeReason == acknowledgment.Reason {
+				continue
+			}
+
 			alert.IsAcknowledged = true
 			alert.AcknowledgedBy = acknowledgment.Username
-			alert.AcknowledgedAt = acknowledgment.CreatedAt.AsTime()
+			alert.AcknowledgedAt = acknowledgedAt
 			alert.AcknowledgeReason = acknowledgment.Reason
+			alert.UpdatedAt = now
+
+			alertCopy := *alert
+			changed = append(changed, &alertCopy)
 
 			// Note: Comment counts are loaded separately by loadCommentCountsEfficiently()
 			// Note: We don't capture statistics here because this is loading historical
 			// acknowledgments. Statistics should only be captured when alerts are
 			// acknowledged in real-time to avoid negative MTTR calculations.
 		} else {
+			if !alert.IsAcknowledged && alert.AcknowledgedBy == "" &&
+				alert.AcknowledgedAt.IsZero() && alert.AcknowledgeReason == "" {
+				continue
+			}
+
 			alert.IsAcknowledged = false
 			alert.AcknowledgedBy = ""
 			alert.AcknowledgedAt = time.Time{}
 			alert.AcknowledgeReason = ""
+			alert.UpdatedAt = now
+
+			alertCopy := *alert
+			changed = append(changed, &alertCopy)
 		}
 	}
+	ac.mu.Unlock()
+
+	ac.notifyAlertsUpdated(changed, now)
 }
 
 func (ac *AlertCache) loadCommentCountsEfficiently() {
@@ -561,7 +650,7 @@ func (ac *AlertCache) loadCommentCountsEfficiently() {
 	}
 
 	// Step 2: call gRPC with NO lock held
-	counts, err := ac.backendClient.GetCommentCountsBatch(fingerprints)
+	counts, err := ac.collabClient.GetCommentCountsBatch(fingerprints)
 	if err != nil {
 		log.Printf("Failed to load comment counts batch: %v", err)
 		// Reset all comment counts to 0 on error
@@ -575,19 +664,29 @@ func (ac *AlertCache) loadCommentCountsEfficiently() {
 
 	// Step 3: write results back under Lock
 	alertsWithComments := 0
+	now := time.Now()
+	var changed []*webuimodels.DashboardAlert
+
 	ac.mu.Lock()
 	for fingerprint, alert := range ac.alerts {
-		if count, exists := counts[fingerprint]; exists {
-			alert.CommentCount = count
-			if count > 0 {
-				alertsWithComments++
-			}
-		} else {
-			alert.CommentCount = 0
+		count := counts[fingerprint] // missing fingerprint means no comments
+		if count > 0 {
+			alertsWithComments++
 		}
+		if alert.CommentCount == count {
+			continue
+		}
+
+		alert.CommentCount = count
+		alert.UpdatedAt = now
+
+		alertCopy := *alert
+		changed = append(changed, &alertCopy)
 	}
 	totalAlerts := len(ac.alerts)
 	ac.mu.Unlock()
+
+	ac.notifyAlertsUpdated(changed, now)
 
 	log.Printf("Successfully loaded comment counts for %d alerts (%d with comments) using batch query", totalAlerts, alertsWithComments)
 }
@@ -1122,6 +1221,18 @@ func (ac *AlertCache) notifySubscribers(update *webuimodels.DashboardIncremental
 			log.Printf("SSE subscriber channel full, skipping update")
 		}
 	}
+}
+
+// notifyAlertsUpdated pushes already-snapshotted alerts to SSE subscribers.
+// Callers must pass copies, never cache-resident pointers.
+func (ac *AlertCache) notifyAlertsUpdated(alerts []*webuimodels.DashboardAlert, at time.Time) {
+	if len(alerts) == 0 {
+		return
+	}
+	ac.notifySubscribers(&webuimodels.DashboardIncrementalUpdate{
+		UpdatedAlerts:  alerts,
+		LastUpdateTime: at.Unix(),
+	})
 }
 
 // GetSubscriberCount returns the current number of SSE subscribers.
