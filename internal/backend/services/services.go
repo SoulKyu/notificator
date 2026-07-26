@@ -1225,6 +1225,14 @@ func (s *AlertServiceGorm) RemoveAllResolvedAlerts(ctx context.Context, req *ale
 		}, nil
 	}
 
+	if s.adminConfig == nil || (!s.adminConfig.IsAdmin(user.Username) && !s.adminConfig.IsAdmin(user.Email)) {
+		log.Printf("RemoveAllResolvedAlerts: denied, requester=%s (%s) is not an admin", user.ID, user.Username)
+		return &alertpb.RemoveAllResolvedAlertsResponse{
+			Success: false,
+			Message: "Admin rights required",
+		}, nil
+	}
+
 	log.Printf("RemoveAllResolvedAlerts: User %s (ID: %s) requested removal of all resolved alerts", user.Username, user.ID)
 
 	removedCount, err := s.db.RemoveAllResolvedAlerts()

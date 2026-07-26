@@ -29,12 +29,26 @@ type Config struct {
 
 type AdminConfig struct {
 	ImpersonationAllowedUsers []string `json:"impersonation_allowed_users"`
+	Users                     []string `json:"users"`
 }
 
 // CanImpersonate checks if a user (by username or email) is allowed to impersonate others
 func (a *AdminConfig) CanImpersonate(usernameOrEmail string) bool {
 	for _, allowed := range a.ImpersonationAllowedUsers {
 		if strings.EqualFold(allowed, usernameOrEmail) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAdmin checks if a user (by username or email) holds admin rights.
+// This is a distinct capability from impersonation: the impersonation
+// allowlist grants "act as another user", not team-wide destructive
+// maintenance actions.
+func (a *AdminConfig) IsAdmin(usernameOrEmail string) bool {
+	for _, admin := range a.Users {
+		if strings.EqualFold(admin, usernameOrEmail) {
 			return true
 		}
 	}
@@ -335,6 +349,19 @@ func LoadConfigWithViper() (*Config, error) {
 		cfg.Admin.ImpersonationAllowedUsers = cleanUsers
 	}
 
+	// Load Admin users allowed to perform team-wide destructive maintenance
+	// actions (e.g. RemoveAllResolvedAlerts) from environment variable (comma-separated)
+	if adminUsersEnv := os.Getenv("NOTIFICATOR_ADMIN_USERS"); adminUsersEnv != "" {
+		users := strings.Split(adminUsersEnv, ",")
+		var cleanUsers []string
+		for _, u := range users {
+			if trimmed := strings.TrimSpace(u); trimmed != "" {
+				cleanUsers = append(cleanUsers, trimmed)
+			}
+		}
+		cfg.Admin.Users = cleanUsers
+	}
+
 	// Load Sentry configuration if enabled
 	if viper.GetBool("sentry.enabled") {
 		cfg.Sentry = &SentryConfig{
@@ -562,9 +589,11 @@ func setViperDefaults(cfg *Config) {
 
 	// Admin defaults
 	viper.SetDefault("admin.impersonation_allowed_users", []string{})
+	viper.SetDefault("admin.users", []string{})
 
 	// Admin environment variable bindings
 	viper.BindEnv("admin.impersonation_allowed_users", "NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS")
+	viper.BindEnv("admin.users", "NOTIFICATOR_ADMIN_USERS")
 
 	// Alertmanager defaults - DISABLED to allow JSON config to work properly
 	// The alertmanager configuration should come from the config file, not defaults

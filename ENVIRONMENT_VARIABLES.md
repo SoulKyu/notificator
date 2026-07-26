@@ -53,6 +53,16 @@ The following standard database environment variables are also supported:
   Rotating this key makes previously stored Sentry personal tokens unrecoverable; affected users
   must re-enter their token via the Sentry settings modal.
 
+## Admin Configuration
+
+- `NOTIFICATOR_ADMIN_USERS` - Comma-separated usernames/emails allowed to perform team-wide
+  destructive maintenance actions (e.g. `RemoveAllResolvedAlerts`). Empty by default, meaning
+  no one can perform these actions until explicitly configured. Distinct from
+  `NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS`, which only grants the ability to act as
+  another user and does not imply admin rights.
+- `NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS` - Comma-separated usernames/emails allowed to
+  impersonate other users via `impersonate_user_id` on gRPC RPCs.
+
 ## WebUI Configuration
 
 - `NOTIFICATOR_WEBUI_LISTEN` - WebUI server listen address (default: ":8081")
