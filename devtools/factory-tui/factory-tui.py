@@ -8,7 +8,8 @@ timers/services, `gh` (PRs/issues), newest agent log as chatter ticker.
 
 Run:      python3 factory-tui.py
 Test:     python3 factory-tui.py --once     (one frame, no curses)
-Keys:     arrows select desk · Enter zoom · l follow log · s summon · Esc back · q quit
+          python3 factory-tui.py --legend   (dump the label legend)
+Keys:     arrows select desk · Enter zoom · ? labels legend · l follow log · s summon · Esc back · q quit
 """
 import calendar
 import curses
@@ -353,6 +354,62 @@ def compute_pending(prs, issues, now):
         t = iso_ts(i.get("updatedAt")) or now
         rows.append((t, f"⛔ #{i['number']} {i.get('title', '')[:50]} — attend ton go"))
     return [r for _, r in sorted(rows, key=lambda x: x[0])]
+
+
+# Label reference for the `?` legend. Each entry: (label, meaning, action).
+# action != "" ⇒ the label is BLOCKING and needs YOU; action spells out exactly what.
+LABEL_BLOCKING = [
+    ("ready-to-merge",       "tous les gates verts, la PR n'attend que le merge humain",
+                             "merge la PR (gh pr merge --squash) — allowAutoMerge=false"),
+    ("looper:hold",          "frein universel posé sur une issue/PR",
+                             "décide : retire le hold pour laisser repartir, ou ferme"),
+    ("rebase:conflict",      "le rebaser n'a pas pu résoudre les conflits tout seul",
+                             "résous les conflits à la main (ou relance le rebaser)"),
+    ("needs-info",           "le coordinator manque d'infos pour trier",
+                             "réponds dans l'issue ; il re-triera à ta réponse"),
+    ("wontfix",              "le coordinator a jugé l'issue hors-scope",
+                             "confirme la fermeture, ou rouvre si tu n'es pas d'accord"),
+]
+LABEL_PIPELINE = [
+    ("agent:proposed",       "scout a créé cette issue (bug/perf trouvé)"),
+    ("roast:approved",       "roast a validé l'issue → part au triage"),
+    ("roast:needs-work",     "roast juge l'issue incomplète → scout l'amende (auto)"),
+    ("roast:rejected",       "roast a rejeté (faux positif) → sera fermée"),
+    ("triaged / kind/* / area/* / complexity/* / dispatch/*",
+                             "coordinator a trié et catégorisé"),
+    ("looper:plan",          "planner va écrire la spec"),
+    ("looper:spec-reviewing","reviewer relit la spec"),
+    ("looper:spec-ready",    "spec validée → promoter passe le relais au worker"),
+    ("looper:worker-ready",  "worker va implémenter"),
+    ("looper:review",        "reviewer traite la PR (posé/gardé par le promoter)"),
+    ("qa:passed",            "QA : tous les critères d'acceptation vérifiés ✓"),
+    ("qa:failed",            "QA : un critère échoue → fixer dispatché (auto)"),
+    ("groomed",              "groomer a proposé une spec sur une issue humaine"),
+    ("feature-proposal",     "un ideator a proposé cette feature"),
+]
+
+
+def legend_lines(width):
+    """The `?` label legend -> [(text, color)]. Blocking labels first with their action.
+
+    Lines are left-aligned and kept short; the caller pads each to display width with
+    dpad(). We never str.center() with emoji in the text — that pads by character count,
+    not display columns, and the double-width glyph would overflow the box border.
+    """
+    out = [("", 0), (" 🏷  LABELS — que veut dire chaque étiquette", 2), ("", 0)]
+    out.append((" 🔴 BLOQUANT — attend une action de TOI :", 4))
+    for lbl, meaning, action in LABEL_BLOCKING:
+        out.append((f"   {lbl}", 4))
+        out.append((f"      {meaning}", 0))
+        out.append((f"      → {action}", 5))
+    out.append(("", 0))
+    out.append((" ⚙️  PIPELINE — automatique, rien à faire :", 3))
+    for lbl, meaning in LABEL_PIPELINE:
+        out.append((f"   {lbl}", 0))
+        out.append((f"      {meaning}", 0))
+    out.append(("", 0))
+    out.append((" (? ou Échap pour fermer)", 3))
+    return out
 
 
 def compute_score(issues, prs, now):
@@ -1016,6 +1073,7 @@ def main_curses(scr):
         curses.init_pair(i, fg, -1)
     tick, sel, follow, frozen, note = 0, 0, True, (None, []), ""
     sel_id = zoom_id = None
+    show_legend = False
     while True:
         ch = scr.getch()
         h, w = scr.getmaxyx()
@@ -1032,8 +1090,14 @@ def main_curses(scr):
         zoom = desk_index(desks, zoom_id) if zoom_id else None
         if zoom is None and zoom_id:
             zoom_id, ch = None, -1  # -1 is getch()'s "no key" in nodelay mode → every branch no-ops
+        if show_legend:  # legend overlay swallows navigation; ? or Esc closes it (q already quit above)
+            if ch in (ord("?"), 27):
+                show_legend = False
+            ch = -1  # no key falls through to navigation while the legend is up
         if zoom is None:
-            if ch == 27:
+            if ch == ord("?"):
+                show_legend = True
+            elif ch == 27:
                 return
             if ch == curses.KEY_LEFT:
                 sel = (sel - 1) % len(desks)
@@ -1074,6 +1138,20 @@ def main_curses(scr):
             for i, line in enumerate(zl):
                 try:
                     scr.addstr(y0 + i, x0, line, curses.color_pair(5))
+                except curses.error:
+                    pass
+        if show_legend:  # centered label reference; blocking section is first so it never truncates
+            lw = min(98, max(52, w - 4))
+            box = [("┌" + "─" * (lw - 2) + "┐", 0)]
+            for text, color in legend_lines(lw):
+                box.append(("│ " + dpad(text, lw - 4) + " │", color))
+            box.append(("└" + "─" * (lw - 2) + "┘", 0))
+            ly, lx = max(0, (h - len(box)) // 2), max(0, (w - lw) // 2)
+            for i, (line, color) in enumerate(box):
+                if ly + i >= h - 1:
+                    break
+                try:
+                    scr.addstr(ly + i, lx, line, curses.color_pair(color) if color else 0)
                 except curses.error:
                     pass
         scr.refresh()
@@ -1651,11 +1729,27 @@ def selfcheck():
         fails += 1
     with LOCK:
         STATE["loops"], STATE["svc"] = [], {}
+    # label legend: every blocking label spells out an action; the whole guide renders
+    leg = legend_lines(96)
+    if not any("BLOQUANT" in t for t, _ in leg) or not any("PIPELINE" in t for t, _ in leg):
+        print("FAIL legend: missing blocking/pipeline sections")
+        fails += 1
+    if any(not action.strip() for _, _, action in LABEL_BLOCKING):
+        print("FAIL legend: a blocking label has no action")
+        fails += 1
+    for text, _ in leg:  # the box wraps each line at lw-4; nothing may overflow the frame
+        if dwidth(text) > 96 - 4:
+            print(f"FAIL legend row too wide: {text!r}")
+            fails += 1
     print("selfcheck: OK" if fails == 0 else f"selfcheck: {fails} FAILURES")
     return fails
 
 
 if __name__ == "__main__":
+    if "--legend" in sys.argv:  # headless dump of the `?` label legend
+        for text, _ in legend_lines(96):
+            print(text)
+        sys.exit(0)
     if "--check" in sys.argv:
         sys.exit(1 if selfcheck() else 0)
     threading.Thread(target=poller, daemon=True).start()
