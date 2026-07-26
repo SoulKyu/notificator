@@ -60,6 +60,10 @@ backend:
     # without it). 64 lowercase hex characters, generate with: openssl rand -hex 32
     # NOTIFICATOR_ENCRYPTION_KEY: "your-64-character-hex-secret-here"
 
+    # Comma-separated usernames/emails allowed to perform team-wide destructive maintenance
+    # actions (e.g. deleting all resolved alerts). Empty by default (no one is admin).
+    # NOTIFICATOR_ADMIN_USERS: "alice,bob@example.com"
+
     # Database configuration - PostgreSQL URL (recommended)
     # POSTGRES_URL: "postgres://user:password@host:5432/database?sslmode=require"
     
