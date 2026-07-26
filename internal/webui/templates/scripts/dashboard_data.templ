@@ -513,6 +513,12 @@ templ DashboardData() {
 				});
 			},
 
+			// A snooze (hidden-alert expiresAt) that has passed no longer applies.
+			// Mirrors the server's "expires_at IS NULL OR expires_at > now()" query.
+			isSnoozeExpired(expiresAt) {
+				return !!expiresAt && new Date(expiresAt) <= new Date();
+			},
+
 			// Check if an alert matches current filter settings
 			// Used to filter SSE updates which arrive unfiltered
 			alertMatchesFilters(alert) {
@@ -579,7 +585,7 @@ templ DashboardData() {
 				// Global rules serialize camelCase (labelKey/labelValue/isRegex/enabled),
 				// unlike preset rules — normalize before reusing the matcher
 				const isGlobalHidden =
-					(window.currentSettingsModal?.hiddenAlerts || []).some(hidden => hidden.fingerprint === alert.fingerprint) ||
+					(window.currentSettingsModal?.hiddenAlerts || []).some(hidden => hidden.fingerprint === alert.fingerprint && !this.isSnoozeExpired(hidden.expiresAt)) ||
 					(window.currentSettingsModal?.hiddenRules || []).some(rule => this.alertMatchesHiddenRule(alert, {
 						is_enabled: rule.enabled,
 						label_key: rule.labelKey,

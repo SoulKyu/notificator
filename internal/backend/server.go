@@ -345,6 +345,13 @@ func (s *Server) performResolvedAlertCleanup() {
 	} else {
 		log.Println("✅ No expired resolved alerts to clean up")
 	}
+
+	purgedHidden, err := s.db.PurgeExpiredHiddenAlerts()
+	if err != nil {
+		log.Printf("❌ Error purging expired snoozed alerts: %v", err)
+	} else if purgedHidden > 0 {
+		log.Printf("✅ Purged %d expired snoozed alerts", purgedHidden)
+	}
 }
 
 func (s *Server) stopResolvedAlertCleanup() {

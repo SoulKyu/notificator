@@ -16,6 +16,9 @@ type UserHiddenAlert struct {
 	Reason      string    `gorm:"type:text" json:"reason"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// ExpiresAt is nil for a permanent hide ("forever"); a snooze sets it to the
+	// wake-up time. Indexed so the expiry filter in GetUserHiddenAlerts stays cheap.
+	ExpiresAt *time.Time `gorm:"index" json:"expiresAt,omitempty"`
 
 	// Relations
 	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`

@@ -3,6 +3,7 @@ package handlers
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	alertpb "notificator/internal/backend/proto/alert"
 	webuimodels "notificator/internal/webui/models"
@@ -23,7 +24,7 @@ func (s stubHiddenBackend) GetUserHiddenRules(string, ...string) ([]*alertpb.Use
 	return s.rules, nil
 }
 
-func (s stubHiddenBackend) HideAlert(string, string, string, string, string, ...string) error {
+func (s stubHiddenBackend) HideAlert(string, string, string, string, string, *time.Time, ...string) error {
 	return nil
 }
 func (s stubHiddenBackend) UnhideAlert(string, string, ...string) error { return nil }

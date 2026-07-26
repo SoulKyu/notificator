@@ -731,20 +731,40 @@ func generateUUID() string {
 
 // Hidden Alerts Methods
 
-// CreateUserHiddenAlert creates a new hidden alert for a user
-func (gdb *GormDB) CreateUserHiddenAlert(userID, fingerprint, alertName, instance, reason string) (*models.UserHiddenAlert, error) {
+// CreateUserHiddenAlert hides (or re-hides/extends) an alert for a user. Hiding
+// an already-hidden fingerprint updates the existing row instead of creating a
+// duplicate, which is what lets the "extend" and "re-snooze" flows just call
+// this again with a new expiresAt. expiresAt nil means "forever".
+func (gdb *GormDB) CreateUserHiddenAlert(userID, fingerprint, alertName, instance, reason string, expiresAt *time.Time) (*models.UserHiddenAlert, error) {
+	var existing models.UserHiddenAlert
+	err := gdb.db.Where("user_id = ? AND fingerprint = ?", userID, fingerprint).First(&existing).Error
+	if err == nil {
+		existing.AlertName = alertName
+		existing.Instance = instance
+		existing.Reason = reason
+		existing.ExpiresAt = expiresAt
+		if err := gdb.db.Save(&existing).Error; err != nil {
+			return nil, fmt.Errorf("failed to update hidden alert: %w", err)
+		}
+		return &existing, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to query existing hidden alert: %w", err)
+	}
+
 	hiddenAlert := &models.UserHiddenAlert{
 		UserID:      userID,
 		Fingerprint: fingerprint,
 		AlertName:   alertName,
 		Instance:    instance,
 		Reason:      reason,
+		ExpiresAt:   expiresAt,
 	}
 
 	if err := gdb.db.Create(hiddenAlert).Error; err != nil {
 		return nil, fmt.Errorf("failed to create hidden alert: %w", err)
 	}
-	
+
 	return hiddenAlert, nil
 }
 
@@ -761,7 +781,7 @@ func (gdb *GormDB) SaveHiddenAlert(userID, fingerprint, alertName, instance, rea
 	// Check if already exists
 	var existing models.UserHiddenAlert
 	err := gdb.db.Where("user_id = ? AND fingerprint = ?", userID, fingerprint).First(&existing).Error
-	
+
 	if err == gorm.ErrRecordNotFound {
 		// Create new
 		if err := gdb.db.Create(hiddenAlert).Error; err != nil {
@@ -778,7 +798,7 @@ func (gdb *GormDB) SaveHiddenAlert(userID, fingerprint, alertName, instance, rea
 			return fmt.Errorf("failed to update hidden alert: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -796,24 +816,34 @@ func (gdb *GormDB) RemoveUserHiddenAlert(userID, fingerprint string) error {
 	return gdb.RemoveHiddenAlert(userID, fingerprint)
 }
 
-// GetUserHiddenAlerts gets all hidden alerts for a user
+// GetUserHiddenAlerts gets all non-expired hidden alerts for a user. A snooze
+// whose expires_at has passed is excluded so it stops applying immediately,
+// without waiting on a sweeper.
 func (gdb *GormDB) GetUserHiddenAlerts(userID string) ([]models.UserHiddenAlert, error) {
 	var hiddenAlerts []models.UserHiddenAlert
-	err := gdb.db.Where("user_id = ?", userID).
+	err := gdb.db.Where("user_id = ? AND (expires_at IS NULL OR expires_at > ?)", userID, time.Now()).
 		Order("created_at DESC").
 		Find(&hiddenAlerts).Error
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user hidden alerts: %w", err)
 	}
-	
+
 	return hiddenAlerts, nil
+}
+
+// PurgeExpiredHiddenAlerts deletes snoozed alerts whose expiry has passed,
+// keeping the table bounded. Rows with a null expires_at ("forever") are never
+// purged.
+func (gdb *GormDB) PurgeExpiredHiddenAlerts() (int64, error) {
+	result := gdb.db.Where("expires_at IS NOT NULL AND expires_at < ?", time.Now()).Delete(&models.UserHiddenAlert{})
+	return result.RowsAffected, result.Error
 }
 
 // SaveHiddenRule saves or updates a hidden rule for a user
 func (gdb *GormDB) SaveHiddenRule(userID string, rule *models.UserHiddenRule) error {
 	rule.UserID = userID
-	
+
 	if rule.ID == "" {
 		// Create new
 		if err := gdb.db.Create(rule).Error; err != nil {
@@ -825,14 +855,14 @@ func (gdb *GormDB) SaveHiddenRule(userID string, rule *models.UserHiddenRule) er
 			return fmt.Errorf("failed to update hidden rule: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
 // SaveUserHiddenRule saves or updates a hidden rule for a user (alias for consistency)
 func (gdb *GormDB) SaveUserHiddenRule(userID string, rule *models.UserHiddenRule) (*models.UserHiddenRule, error) {
 	rule.UserID = userID
-	
+
 	if rule.ID == "" {
 		// Create new
 		if err := gdb.db.Create(rule).Error; err != nil {
@@ -844,7 +874,7 @@ func (gdb *GormDB) SaveUserHiddenRule(userID string, rule *models.UserHiddenRule
 			return nil, fmt.Errorf("failed to update hidden rule: %w", err)
 		}
 	}
-	
+
 	return rule, nil
 }
 
@@ -871,11 +901,11 @@ func (gdb *GormDB) GetUserHiddenRules(userID string) ([]models.UserHiddenRule, e
 	err := gdb.db.Where("user_id = ? AND is_enabled = ?", userID, true).
 		Order("priority DESC, created_at ASC").
 		Find(&rules).Error
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user hidden rules: %w", err)
 	}
-	
+
 	return rules, nil
 }
 

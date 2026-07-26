@@ -357,6 +357,7 @@ message HideAlertRequest {
   string instance = 4;
   string reason = 5;
   string impersonate_user_id = 6;  // Optional: hide for this user instead
+  google.protobuf.Timestamp expires_at = 7;  // Optional: snooze expiry, absent/zero means forever
 }
 
 message HideAlertResponse {
@@ -396,6 +397,7 @@ message UserHiddenAlert {
   string reason = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp expires_at = 9;  // Optional: snooze expiry, absent/zero means forever
 }
 
 // User Hidden Rules Messages

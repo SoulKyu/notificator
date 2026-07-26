@@ -583,6 +583,32 @@ templ DashboardSettings() {
 					await this.unhideAlert(fingerprint);
 				},
 
+				// Human-readable remaining snooze time, or "Never" for a permanent hide
+				formatExpiry(alert) {
+					if (!alert.expiresAt) {
+						return 'Never';
+					}
+					const diffMs = new Date(alert.expiresAt) - new Date();
+					if (diffMs <= 0) {
+						return 'Expired';
+					}
+					const hours = diffMs / 3600000;
+					if (hours < 1) {
+						return `${Math.max(1, Math.round(diffMs / 60000))}m`;
+					}
+					if (hours < 24) {
+						return `${Math.round(hours)}h`;
+					}
+					return `${Math.round(hours / 24)}d`;
+				},
+
+				// Open the main dashboard's snooze picker prefilled for this already-hidden alert
+				extendSnooze(alert) {
+					if (window.dashboardInstance) {
+						window.dashboardInstance.snoozeAlertData(alert);
+					}
+				},
+
 				removeLabelCondition(preference, key) {
 					if (preference.labelConditions) {
 						delete preference.labelConditions[key];

@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"notificator/internal/backend/models"
 	alertpb "notificator/internal/backend/proto/alert"
 	webuimodels "notificator/internal/webui/models"
@@ -28,7 +30,7 @@ const hiddenAlertsCacheTTL = 30 * time.Second
 type hiddenAlertsBackend interface {
 	GetUserHiddenAlerts(sessionID string, impersonateUserID ...string) ([]*alertpb.UserHiddenAlert, error)
 	GetUserHiddenRules(sessionID string, impersonateUserID ...string) ([]*alertpb.UserHiddenRule, error)
-	HideAlert(sessionID, fingerprint, alertName, instance, reason string, impersonateUserID ...string) error
+	HideAlert(sessionID, fingerprint, alertName, instance, reason string, expiresAt *time.Time, impersonateUserID ...string) error
 	UnhideAlert(sessionID, fingerprint string, impersonateUserID ...string) error
 	SaveHiddenRule(sessionID string, rule *alertpb.UserHiddenRule, impersonateUserID ...string) (*alertpb.UserHiddenRule, error)
 	RemoveHiddenRule(sessionID, ruleID string, impersonateUserID ...string) error
@@ -39,7 +41,7 @@ type hiddenAlertsBackend interface {
 type HiddenAlertsService struct {
 	backendClient      hiddenAlertsBackend
 	mu                 sync.RWMutex
-	userHiddenAlerts   map[string]map[string]bool           // userID -> fingerprint -> hidden
+	userHiddenAlerts   map[string]map[string]*time.Time     // userID -> fingerprint -> expiresAt (nil = forever)
 	userHiddenRules    map[string][]models.UserHiddenRule   // userID -> rules
 	compiledRegexRules map[string]map[string]*regexp.Regexp // userID -> ruleID -> compiled regex
 	lastAccess         map[string]time.Time                 // userID -> last successful LoadUserData fetch
@@ -51,18 +53,35 @@ type HiddenAlertsService struct {
 func NewHiddenAlertsService(backendClient hiddenAlertsBackend) *HiddenAlertsService {
 	service := &HiddenAlertsService{
 		backendClient:      backendClient,
-		userHiddenAlerts:   make(map[string]map[string]bool),
+		userHiddenAlerts:   make(map[string]map[string]*time.Time),
 		userHiddenRules:    make(map[string][]models.UserHiddenRule),
 		compiledRegexRules: make(map[string]map[string]*regexp.Regexp),
 		lastAccess:         make(map[string]time.Time),
 		generation:         make(map[string]uint64),
 		cacheTTL:           hiddenAlertsCacheTTL,
 	}
-	
+
 	// Load initial data
 	service.LoadAllUserData()
-	
+
 	return service
+}
+
+// snoozeExpired reports whether a cached expiry (nil = forever) has passed.
+// Evaluated at read time so an entry does not need to be refetched or purged
+// from the cache the instant it expires.
+func snoozeExpired(expiresAt *time.Time) bool {
+	return expiresAt != nil && !expiresAt.After(time.Now())
+}
+
+// protoTimestampToTimePtr converts an optional proto timestamp to *time.Time.
+// A nil/zero timestamp means "forever" and maps to a nil *time.Time.
+func protoTimestampToTimePtr(ts *timestamppb.Timestamp) *time.Time {
+	if ts == nil || !ts.IsValid() || ts.AsTime().IsZero() {
+		return nil
+	}
+	t := ts.AsTime()
+	return &t
 }
 
 // LoadAllUserData loads all hidden alerts and rules for all users
@@ -140,13 +159,13 @@ func (s *HiddenAlertsService) LoadUserData(sessionID string) error {
 	// Replace cached hidden alerts wholesale so entries removed in the backend
 	// (or stale regexes for deleted rules) do not accumulate.
 	if hiddenAlertsErr == nil {
-		freshAlerts := make(map[string]bool, len(hiddenAlerts))
+		freshAlerts := make(map[string]*time.Time, len(hiddenAlerts))
 		for _, alert := range hiddenAlerts {
-			freshAlerts[alert.Fingerprint] = true
+			freshAlerts[alert.Fingerprint] = alert.ExpiresAt
 		}
 		s.userHiddenAlerts[sessionID] = freshAlerts
 	} else if s.userHiddenAlerts[sessionID] == nil {
-		s.userHiddenAlerts[sessionID] = make(map[string]bool)
+		s.userHiddenAlerts[sessionID] = make(map[string]*time.Time)
 	}
 
 	if hiddenRulesErr == nil {
@@ -204,27 +223,25 @@ func (s *HiddenAlertsService) IsAlertHidden(sessionID string, alert *webuimodels
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Check specific hidden alerts
-	if s.userHiddenAlerts[sessionID] != nil {
-		if s.userHiddenAlerts[sessionID][alert.Fingerprint] {
-			return true
-		}
+	if expiresAt, hidden := s.userHiddenAlerts[sessionID][alert.Fingerprint]; hidden && !snoozeExpired(expiresAt) {
+		return true
 	}
-	
+
 	// Check hidden rules
 	rules := s.userHiddenRules[sessionID]
 	for _, rule := range rules {
 		if !rule.IsEnabled {
 			continue
 		}
-		
+
 		// Check if the alert has the label
 		labelValue, exists := alert.Labels[rule.LabelKey]
 		if !exists {
 			continue
 		}
-		
+
 		// Check if the label value matches
 		if rule.IsRegex {
 			// Use compiled regex
@@ -240,7 +257,7 @@ func (s *HiddenAlertsService) IsAlertHidden(sessionID string, alert *webuimodels
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -322,9 +339,11 @@ func isImpersonating(impersonateUserID []string) bool {
 	return len(impersonateUserID) > 0 && impersonateUserID[0] != ""
 }
 
-// HideAlert hides a specific alert for a user
-func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.DashboardAlert, reason string, impersonateUserID ...string) error {
-	err := s.backendClient.HideAlert(sessionID, alert.Fingerprint, alert.AlertName, alert.Instance, reason, impersonateUserID...)
+// HideAlert hides a specific alert for a user. expiresAt is nil for a
+// permanent hide ("forever"); a snooze passes its wake-up time. Hiding an
+// already-hidden alert again (e.g. "extend") replaces its expiry.
+func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.DashboardAlert, reason string, expiresAt *time.Time, impersonateUserID ...string) error {
+	err := s.backendClient.HideAlert(sessionID, alert.Fingerprint, alert.AlertName, alert.Instance, reason, expiresAt, impersonateUserID...)
 	if err != nil {
 		return fmt.Errorf("failed to hide alert in backend: %w", err)
 	}
@@ -336,9 +355,9 @@ func (s *HiddenAlertsService) HideAlert(sessionID string, alert *webuimodels.Das
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.userHiddenAlerts[sessionID] == nil {
-		s.userHiddenAlerts[sessionID] = make(map[string]bool)
+		s.userHiddenAlerts[sessionID] = make(map[string]*time.Time)
 	}
-	s.userHiddenAlerts[sessionID][alert.Fingerprint] = true
+	s.userHiddenAlerts[sessionID][alert.Fingerprint] = expiresAt
 	s.generation[sessionID]++
 
 	return nil
@@ -371,7 +390,7 @@ func (s *HiddenAlertsService) GetUserHiddenAlerts(sessionID string, impersonateU
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch hidden alerts from backend: %w", err)
 	}
-	
+
 	// Convert protobuf models to regular models
 	var hiddenAlerts []models.UserHiddenAlert
 	for _, pbAlert := range pbHiddenAlerts {
@@ -384,9 +403,10 @@ func (s *HiddenAlertsService) GetUserHiddenAlerts(sessionID string, impersonateU
 			Reason:      pbAlert.Reason,
 			CreatedAt:   pbAlert.CreatedAt.AsTime(),
 			UpdatedAt:   pbAlert.UpdatedAt.AsTime(),
+			ExpiresAt:   protoTimestampToTimePtr(pbAlert.ExpiresAt),
 		})
 	}
-	
+
 	return hiddenAlerts, nil
 }
 
@@ -417,10 +437,10 @@ func (s *HiddenAlertsService) SaveHiddenRule(sessionID string, rule *models.User
 	if err != nil {
 		return fmt.Errorf("failed to save hidden rule in backend: %w", err)
 	}
-	
+
 	// Invalidate the cache to force reload
 	s.InvalidateCache(sessionID)
-	
+
 	return nil
 }
 
@@ -430,10 +450,10 @@ func (s *HiddenAlertsService) RemoveHiddenRule(sessionID, ruleID string, imperso
 	if err != nil {
 		return fmt.Errorf("failed to remove hidden rule in backend: %w", err)
 	}
-	
+
 	// Invalidate the cache to force reload
 	s.InvalidateCache(sessionID)
-	
+
 	return nil
 }
 
@@ -463,7 +483,7 @@ func (s *HiddenAlertsService) GetUserHiddenRules(sessionID string, impersonateUs
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch hidden rules from backend: %w", err)
 	}
-	
+
 	// Convert protobuf models to regular models
 	var rules []models.UserHiddenRule
 	for _, pbRule := range pbRules {
@@ -481,7 +501,7 @@ func (s *HiddenAlertsService) GetUserHiddenRules(sessionID string, impersonateUs
 			UpdatedAt:   pbRule.UpdatedAt.AsTime(),
 		})
 	}
-	
+
 	return rules, nil
 }
 
@@ -499,7 +519,7 @@ func (s *HiddenAlertsService) ClearAllHiddenAlerts(sessionID string, impersonate
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.userHiddenAlerts[sessionID] != nil {
-		s.userHiddenAlerts[sessionID] = make(map[string]bool)
+		s.userHiddenAlerts[sessionID] = make(map[string]*time.Time)
 	}
 	s.generation[sessionID]++
 
@@ -510,7 +530,7 @@ func (s *HiddenAlertsService) ClearAllHiddenAlerts(sessionID string, impersonate
 func (s *HiddenAlertsService) FilterHiddenAlerts(sessionID string, alerts []*webuimodels.DashboardAlert, includeHidden bool) []*webuimodels.DashboardAlert {
 	// Ensure user data is loaded
 	s.LoadUserData(sessionID)
-	
+
 	if includeHidden {
 		// Return only hidden alerts
 		var hiddenAlerts []*webuimodels.DashboardAlert
@@ -549,8 +569,10 @@ func (s *HiddenAlertsService) HasHiddenEntries(sessionID string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if len(s.userHiddenAlerts[sessionID]) > 0 {
-		return true
+	for _, expiresAt := range s.userHiddenAlerts[sessionID] {
+		if !snoozeExpired(expiresAt) {
+			return true
+		}
 	}
 	for _, rule := range s.userHiddenRules[sessionID] {
 		if rule.IsEnabled {
@@ -560,13 +582,16 @@ func (s *HiddenAlertsService) HasHiddenEntries(sessionID string) bool {
 	return false
 }
 
-// GetHiddenAlertsCount returns the count of hidden alerts for a user
-func (s *HiddenAlertsService) GetHiddenAlertsCount(userID string) int {
+// GetHiddenAlertsCount returns the count of non-expired hidden alerts for a session
+func (s *HiddenAlertsService) GetHiddenAlertsCount(sessionID string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
-	if s.userHiddenAlerts[userID] != nil {
-		return len(s.userHiddenAlerts[userID])
+
+	count := 0
+	for _, expiresAt := range s.userHiddenAlerts[sessionID] {
+		if !snoozeExpired(expiresAt) {
+			count++
+		}
 	}
-	return 0
+	return count
 }

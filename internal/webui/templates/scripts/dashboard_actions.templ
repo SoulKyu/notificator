@@ -298,6 +298,95 @@ templ DashboardActions() {
 				}
 			},
 
+			// Open the snooze modal for a single alert (row action or detail modal)
+			snoozeAlert(fingerprint) {
+				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+				if (!alert) { return; }
+				this.snoozeAlertData(alert);
+			},
+
+			// Open the snooze modal for an alert object directly, e.g. an already-hidden
+			// entry from Settings -> Hidden (which won't be in this.alerts) being extended.
+			snoozeAlertData(alert) {
+				if (!alert) { return; }
+				this.currentSnoozeAlert = alert;
+				this.snoozeDuration = '4h';
+				this.snoozeReason = alert.reason || '';
+				this.snoozeError = '';
+				this.showSnoozeModal = true;
+			},
+
+			// Count of the current user's non-expired hidden (snoozed) alerts, kept in
+			// sync with window.currentSettingsModal.hiddenAlerts (the Settings -> Hidden
+			// list). Re-evaluated on every Alpine tick, so it follows the same refresh
+			// cadence as the rest of the dashboard rather than needing its own timer.
+			snoozedCount() {
+				return (window.currentSettingsModal?.hiddenAlerts || [])
+					.filter(hidden => !this.isSnoozeExpired(hidden.expiresAt)).length;
+			},
+
+			openSnoozedAlerts() {
+				if (window.currentSettingsModal) {
+					window.currentSettingsModal.activeTab = 'hidden';
+					window.currentSettingsModal.loadHiddenAlerts();
+				}
+				this.showSettings = true;
+			},
+
+			cancelSnooze() {
+				this.showSnoozeModal = false;
+				this.currentSnoozeAlert = null;
+				this.snoozeReason = '';
+				this.snoozeError = '';
+				this.snoozeSubmitting = false;
+			},
+
+			async submitSnooze() {
+				if (!this.currentSnoozeAlert) { return; }
+
+				this.snoozeSubmitting = true;
+				this.snoozeError = '';
+
+				try {
+					const response = await fetch('/api/v1/dashboard/hidden-alerts', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							fingerprint: this.currentSnoozeAlert.fingerprint,
+							alertName: this.currentSnoozeAlert.alertName,
+							instance: this.currentSnoozeAlert.instance,
+							reason: this.snoozeReason,
+							duration: this.snoozeDuration
+						})
+					});
+
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
+					const result = await response.json();
+
+					if (result.success) {
+						this.showSnoozeModal = false;
+						this.showAlertModal = false;
+						if (window.currentSettingsModal) {
+							window.currentSettingsModal.loadHiddenAlerts();
+						}
+						this.loadDashboardData();
+					} else {
+						this.snoozeError = result.error || 'Failed to snooze alert';
+					}
+				} catch (error) {
+					console.error('Error snoozing alert:', error);
+					this.snoozeError = 'Network error: Failed to snooze alert';
+				} finally {
+					this.snoozeSubmitting = false;
+				}
+			},
+
 			acknowledgeAlert(fingerprint) {
 				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
 				if (!alert) { return; }
@@ -1017,8 +1106,8 @@ templ DashboardActions() {
 			isAlertHidden(alert) {
 				// Check against cached hidden alerts in settings modal if available
 				if (window.currentSettingsModal && window.currentSettingsModal.hiddenAlerts) {
-					return window.currentSettingsModal.hiddenAlerts.some(hiddenAlert => 
-						hiddenAlert.fingerprint === alert.fingerprint
+					return window.currentSettingsModal.hiddenAlerts.some(hiddenAlert =>
+						hiddenAlert.fingerprint === alert.fingerprint && !this.isSnoozeExpired(hiddenAlert.expiresAt)
 					);
 				}
 				
