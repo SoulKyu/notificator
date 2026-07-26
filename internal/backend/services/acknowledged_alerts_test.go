@@ -19,7 +19,7 @@ func TestGetAllAcknowledgedAlerts_SurfacesDatabaseError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create test database: %v", err)
 	}
-	svc := NewAlertServiceGorm(db)
+	svc := NewAlertServiceGorm(db, &config.AdminConfig{})
 
 	resp, err := svc.GetAllAcknowledgedAlerts(context.Background(), &alertpb.GetAllAcknowledgedAlertsRequest{
 		AlertKeys: []string{"fp-1"},
