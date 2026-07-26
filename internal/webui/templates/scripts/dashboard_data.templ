@@ -364,6 +364,9 @@ templ DashboardData() {
 
 					// Track indices to remove (alerts that no longer match filters)
 					const indicesToRemove = [];
+					// Alerts that newly match the view (e.g. unacked in classic mode)
+					// but aren't in the current list yet
+					const alertsToAdd = [];
 
 					update.updatedAlerts.forEach(updatedAlert => {
 						const existing = newAlertMap.get(updatedAlert.fingerprint);
@@ -377,6 +380,8 @@ templ DashboardData() {
 								indicesToRemove.push(existing.index);
 								console.log('Alert no longer matches filters, removing:', updatedAlert.alertName, 'status:', updatedAlert.status?.state);
 							}
+						} else if (this.alertMatchesFilters(updatedAlert)) {
+							alertsToAdd.push(updatedAlert);
 						}
 					});
 
@@ -391,6 +396,11 @@ templ DashboardData() {
 							.filter((_, i) => indicesToRemove.includes(newAlertMap.get(update.updatedAlerts[i]?.fingerprint)?.index))
 							.map(a => a.fingerprint);
 						this.selectedAlerts = this.selectedAlerts.filter(fp => !removedFingerprints.includes(fp));
+					}
+
+					if (alertsToAdd.length > 0) {
+						this.alerts.push(...alertsToAdd);
+						this.alerts = this.sortAlerts(this.alerts);
 					}
 				}
 				
@@ -582,10 +592,15 @@ templ DashboardData() {
 					return false;
 				}
 
-				// Check display mode - don't show resolved in classic mode
+				// Check display mode - mirrors getStandardAlerts/getAcknowledgedAlerts:
+				// classic is !IsAcknowledged && !IsResolved, acknowledge is IsAcknowledged only
 				if (this.displayMode === 'classic') {
 					const isResolved = alert.isResolved || (alert.status?.state || alert.status || '').toLowerCase() === 'resolved';
-					if (isResolved) {
+					if (isResolved || alert.isAcknowledged) {
+						return false;
+					}
+				} else if (this.displayMode === 'acknowledge') {
+					if (!alert.isAcknowledged) {
 						return false;
 					}
 				}
