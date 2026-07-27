@@ -143,9 +143,10 @@ type WebUIConfig struct {
 }
 
 type SentryConfig struct {
-	Enabled     bool   `json:"enabled"`
-	BaseURL     string `json:"base_url"`     // Default Sentry instance URL (e.g., "https://sentry.io")
-	GlobalToken string `json:"global_token"` // Admin-configured fallback token
+	Enabled      bool     `json:"enabled"`
+	BaseURL      string   `json:"base_url"`               // Default Sentry instance URL (e.g., "https://sentry.io")
+	GlobalToken  string   `json:"global_token"`            // Admin-configured fallback token
+	AllowedHosts []string `json:"allowed_hosts,omitempty"` // Additional Sentry hosts (scheme+host) allowed to receive tokens, for multi-instance setups
 }
 
 func DefaultConfig() *Config {
@@ -365,9 +366,10 @@ func LoadConfigWithViper() (*Config, error) {
 	// Load Sentry configuration if enabled
 	if viper.GetBool("sentry.enabled") {
 		cfg.Sentry = &SentryConfig{
-			Enabled:     true,
-			BaseURL:     viper.GetString("sentry.base_url"),
-			GlobalToken: viper.GetString("sentry.global_token"),
+			Enabled:      true,
+			BaseURL:      viper.GetString("sentry.base_url"),
+			GlobalToken:  viper.GetString("sentry.global_token"),
+			AllowedHosts: viper.GetStringSlice("sentry.allowed_hosts"),
 		}
 		log.Printf("DEBUG: Sentry config loaded - enabled: %v, base_url: %v", cfg.Sentry.Enabled, cfg.Sentry.BaseURL)
 	}
@@ -586,6 +588,7 @@ func setViperDefaults(cfg *Config) {
 	viper.BindEnv("sentry.enabled", "NOTIFICATOR_SENTRY_ENABLED")
 	viper.BindEnv("sentry.base_url", "NOTIFICATOR_SENTRY_BASE_URL")
 	viper.BindEnv("sentry.global_token", "NOTIFICATOR_SENTRY_GLOBAL_TOKEN")
+	viper.BindEnv("sentry.allowed_hosts", "NOTIFICATOR_SENTRY_ALLOWED_HOSTS")
 
 	// Admin defaults
 	viper.SetDefault("admin.impersonation_allowed_users", []string{})
