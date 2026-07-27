@@ -63,14 +63,18 @@ primitives this feature needs (`compileMatchers`, `matchLabels`,
 
 **`POST /api/v1/dashboard/silences/preview`**
 Request: `{sources: string[], matchers: SilenceMatcher[]}`.
-For each requested source, build a throwaway `models.Silence{Matchers:
-matchers}`, run it through the existing `compileMatchers` /
-`countMatchedAlerts` against `alertCache.GetAllAlerts()`, and return counts
-per source plus a capped sample list (alertname + a handful of key labels,
-e.g. first 20) for the expandable preview. Invalid regex → `compileMatchers`
-already returns `ok=false`; surface that as a per-matcher validation error
-rather than a silent 0-count, so the client can flag the bad row instead of
-misreading "no matches" as "not matching yet".
+`compileMatchers`/`countMatchedAlerts` only report an aggregate `ok bool` for
+the whole matcher set — they don't say which matcher failed, so they can't be
+reused as-is for per-row validation. `PreviewSilence` instead compiles each
+matcher individually (regex matchers through the same `^(?:...)$` anchoring
+`compileMatchers` uses) to build a `{matcherIndex, error}` list for the rows
+that fail to compile, then feeds only the matchers that compiled
+successfully into a `compiledMatcher` slice passed to `matchLabels` (bypassing
+`countMatchedAlerts`'s own compile step) against `alertCache.GetAllAlerts()`
+per requested source, returning counts plus a capped sample list (alertname +
+a handful of key labels, e.g. first 20) for the expandable preview. This way
+an invalid regex on one row surfaces as a validation error on that specific
+row instead of silently zeroing the whole preview's count.
 
 **`POST /api/v1/dashboard/silences`**
 Request: `{sources: string[], matchers: SilenceMatcher[], startsAt, endsAt,
@@ -86,12 +90,15 @@ comment: string}`. Validation is syntactic only, per the issue:
   if the user leaves it blank).
 
 For each source, call `alertmanagerClient.CreateSilenceOnAlertmanager(source,
-silence)` with `CreatedBy` set to the session's username (same
-`middleware.GetSessionIDFromContext` + backend lookup pattern
-`annotateSilenceOrigins` already uses, or simply the already-authenticated
-`middleware.GetCurrentUserFromContext(c).Username` — cheaper, no extra
-backend round-trip, and this is the user acting right now rather than a
-historical record needing resolution). Collect per-source
+silence)` with `CreatedBy` resolved the same way `processSilenceAction`
+already does it (`internal/webui/handlers/dashboard_handlers.go:1996-2004`):
+`middleware.GetEffectiveUser(c)` (impersonation-aware), with an explicit nil
+check and a `Username` → `Email` → session `userID` fallback chain.
+`GetCurrentUserFromContext(c).Username` is not used directly — the current
+user pointer can be `nil`, so calling `.Username` on it would panic, and
+skipping `GetEffectiveUser` would make this endpoint diverge from
+`processSilenceAction` on impersonation for what should be the same
+`createdBy` concept across both silence-creation paths. Collect per-source
 `{source, success, silenceID?, error?}` and return the full list — never
 collapse to one status the way `processSilenceAction` currently does.
 
@@ -191,11 +198,14 @@ After editing `Silences.templ`, regenerate with `make webui-templates`
   beyond the issue's "no artificial limits" ask — the preview response caps
   the *sample list* at ~20 alerts (bandwidth, not policy) while the *count*
   stays exact and uncapped.
-- **CreatedBy divergence**: using `GetCurrentUserFromContext(c).Username`
-  directly (vs. the backend-resolved-from-ID path `annotateSilenceOrigins`
-  uses for display) is fine here because this is the live authenticated
-  session creating the silence right now, not a historical `createdBy`
-  string being reinterpreted later — no resolution ambiguity to guard against.
+- **CreatedBy stays consistent with the bulk path**: using
+  `GetEffectiveUser(c)`'s `Username`/`Email`/`userID` fallback chain (same as
+  `processSilenceAction`), rather than `annotateSilenceOrigins`'s
+  backend-resolved-from-ID path, is fine here because this is the live
+  authenticated session creating the silence right now, not a historical
+  `createdBy` string being reinterpreted later — no resolution ambiguity to
+  guard against, and impersonation behaves identically across both
+  silence-creation flows.
 - **Duplicating an expired silence** reuses its matchers/comment but not its
   `startsAt`/`endsAt` (those default fresh, per the issue: recreation is the
   documented alternative to extending an expired silence, not a verbatim
