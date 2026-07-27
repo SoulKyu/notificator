@@ -401,5 +401,9 @@ func (gdb *GormDB) cleanupResolvedAcknowledgments() error {
 // migrateCommentsCreatedAtIndex indexes comments.created_at so the activity feed's
 // time-ordered global scan uses an index instead of scanning the whole table.
 func (gdb *GormDB) migrateCommentsCreatedAtIndex() error {
+	if !gdb.db.Migrator().HasTable("comments") {
+		log.Println("ℹ️  comments table doesn't exist yet, skipping created_at index")
+		return nil
+	}
 	return gdb.db.Exec(`CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments (created_at)`).Error
 }
