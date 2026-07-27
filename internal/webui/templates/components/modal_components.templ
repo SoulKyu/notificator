@@ -1277,8 +1277,9 @@ templ AlertDetailsModal() {
 										</div>
 										<div class="space-y-4">
 											<div class="relative">
-												<textarea x-model="newCommentContent" 
-														  rows="4" 
+												<textarea x-model="newCommentContent"
+														  x-ref="commentInput"
+														  rows="4"
 														  placeholder="Share your thoughts, add notes, or provide updates about this alert..."
 														  class="w-full px-4 py-3 bg-white dark:bg-dark-bg-secondary border-2 border-gray-200 dark:border-dark-border-DEFAULT rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white resize-none placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"></textarea>
 												<div class="absolute bottom-3 right-3 text-xs text-gray-400 dark:text-gray-500" x-text="newCommentContent.length + '/500'"></div>

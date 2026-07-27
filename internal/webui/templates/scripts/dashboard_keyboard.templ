@@ -1,0 +1,204 @@
+package scripts
+
+templ DashboardKeyboardMixin() {
+	<script>
+		window.dashboardKeyboardMixin = {
+			cursorFingerprint: null,
+			showShortcutsHelp: false,
+
+			// Every dashboard modal that should swallow shortcuts, in one place so
+			// focusSearch() and handleDashboardKeydown() can't drift apart.
+			modalOpen() {
+				return this.showSettings || this.showAckModal || this.showSilenceModal ||
+					this.showAlertModal || this.showFilterPresetsModal ||
+					this.showColumnConfigModal || this.showShortcutsHelp;
+			},
+
+			isTypingTarget(target) {
+				return !!(target && target.closest && target.closest('input, textarea, select, [contenteditable]'));
+			},
+
+			// Shared guard: no modal open, and focus isn't inside a text input.
+			shortcutsActive(event) {
+				if (this.modalOpen()) return false;
+				if (event && this.isTypingTarget(event.target)) return false;
+				return true;
+			},
+
+			cursorAlertIndex() {
+				return this.alerts.findIndex(a => a.fingerprint === this.cursorFingerprint);
+			},
+
+			cursorAlert() {
+				const idx = this.cursorAlertIndex();
+				return idx === -1 ? null : this.alerts[idx];
+			},
+
+			// Called after every full reload/incremental merge so the cursor stays
+			// on its row when still present, and resets to the first row otherwise.
+			normalizeCursor() {
+				if (this.viewMode !== 'list' || this.alerts.length === 0) {
+					this.cursorFingerprint = null;
+					return;
+				}
+				if (this.cursorAlertIndex() === -1) {
+					this.cursorFingerprint = this.alerts[0].fingerprint;
+				}
+			},
+
+			moveCursor(delta) {
+				if (!this.requireListView() || this.alerts.length === 0) return;
+				const current = this.cursorAlertIndex();
+				const idx = current === -1 ? 0 : Math.min(Math.max(current + delta, 0), this.alerts.length - 1);
+				this.cursorFingerprint = this.alerts[idx].fingerprint;
+				this.$nextTick(() => {
+					document.querySelector('[data-alert-cursor="true"]')?.scrollIntoView({ block: 'nearest' });
+				});
+			},
+
+			// Row-scoped shortcuts (cursor, selection toggle, ack/silence/hide) only
+			// make sense against rendered rows, which the grouped view doesn't have.
+			requireListView() {
+				if (this.viewMode === 'group') {
+					this.showActionError('Row shortcuts are only available in List view — switch views to use them', true);
+					return false;
+				}
+				return true;
+			},
+
+			toggleCursorSelection() {
+				if (!this.requireListView()) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.toggleAlert(alert.fingerprint);
+			},
+
+			toggleSelectAllRows() {
+				if (!this.requireListView()) return;
+				if (this.selectedAlerts.length === this.alerts.length) {
+					this.clearSelection();
+				} else {
+					this.selectAll();
+				}
+			},
+
+			openCursorDetails() {
+				if (!this.requireListView()) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.showAlertDetails(alert.fingerprint);
+			},
+
+			async openCursorComments() {
+				if (!this.requireListView()) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				await this.showAlertDetails(alert.fingerprint);
+				this.currentAlertTab = 'comments';
+				this.$nextTick(() => this.$refs.commentInput?.focus());
+			},
+
+			acknowledgeCursorOrSelection() {
+				if (!this.requireListView()) return;
+				if (this.selectedAlerts.length > 0 || this.selectedGroups.length > 0) {
+					this.acknowledgeSelected();
+					return;
+				}
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.acknowledgeAlert(alert.fingerprint);
+			},
+
+			silenceCursorOrSelection() {
+				if (!this.requireListView()) return;
+				if (this.selectedAlerts.length > 0 || this.selectedGroups.length > 0) {
+					this.silenceSelected();
+					return;
+				}
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.silenceAlert(alert.fingerprint);
+			},
+
+			// Hides exactly the cursor row via the existing bulk-hide path, without
+			// disturbing a pre-existing checkbox selection.
+			async hideCursorRow() {
+				if (!this.requireListView()) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				const savedAlerts = this.selectedAlerts.slice();
+				const savedGroups = this.selectedGroups.slice();
+				this.selectedAlerts = [alert.fingerprint];
+				this.selectedGroups = [];
+				await this.hideSelected();
+				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
+					this.selectedAlerts = savedAlerts.filter(fp => fp !== alert.fingerprint);
+					this.selectedGroups = savedGroups;
+				}
+			},
+
+			handleDashboardKeydown(event) {
+				if (event.key === 'Escape') {
+					if (this.showShortcutsHelp) {
+						this.showShortcutsHelp = false;
+						return;
+					}
+					// A dashboard modal is open — let its own Escape handler close it
+					// instead of also clearing the selection underneath it.
+					if (this.showSettings || this.showAckModal || this.showSilenceModal ||
+						this.showAlertModal || this.showFilterPresetsModal || this.showColumnConfigModal) {
+						return;
+					}
+					if (this.selectedAlerts.length > 0 || this.selectedGroups.length > 0) {
+						this.clearSelection();
+					}
+					return;
+				}
+
+				if (event.key === '?') {
+					if (!this.shortcutsActive(event)) return;
+					event.preventDefault();
+					this.showShortcutsHelp = !this.showShortcutsHelp;
+					return;
+				}
+
+				if (!this.shortcutsActive(event)) return;
+
+				switch (event.key) {
+					case 'j':
+						event.preventDefault();
+						this.moveCursor(1);
+						break;
+					case 'k':
+						event.preventDefault();
+						this.moveCursor(-1);
+						break;
+					case 'Enter':
+					case 'o':
+						this.openCursorDetails();
+						break;
+					case 'x':
+					case 'X':
+						if (event.shiftKey) {
+							this.toggleSelectAllRows();
+						} else {
+							this.toggleCursorSelection();
+						}
+						break;
+					case 'a':
+						this.acknowledgeCursorOrSelection();
+						break;
+					case 's':
+						this.silenceCursorOrSelection();
+						break;
+					case 'c':
+						this.openCursorComments();
+						break;
+					case 'h':
+						this.hideCursorRow();
+						break;
+				}
+			}
+		};
+	</script>
+}

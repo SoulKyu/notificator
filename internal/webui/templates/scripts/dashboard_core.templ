@@ -172,15 +172,11 @@ templ DashboardCore() {
 				focusSearch(event) {
 					// All shortcuts are inert while a modal is open — the search input is
 					// hidden behind the overlay, so focusing it would be invisible/confusing.
-					if (this.showSettings || this.showAckModal || this.showSilenceModal ||
-						this.showAlertModal || this.showFilterPresetsModal ||
-						this.showColumnConfigModal) {
+					if (this.modalOpen()) {
 						return;
 					}
 					// '/' must not fire while typing elsewhere; Ctrl/Cmd+F always wins.
-					const t = event.target;
-					if (event.key === '/' &&
-						(t.closest('input, textarea, select, [contenteditable]'))) {
+					if (event.key === '/' && this.isTypingTarget(event.target)) {
 						return;
 					}
 					event.preventDefault();
@@ -325,6 +321,7 @@ templ DashboardCore() {
 					Object.assign(this, window.dashboardModalMixin || {});
 					Object.assign(this, window.dashboardFilterPresetsMixin || {});
 					Object.assign(this, window.dashboardResolvedAlertsMixin || {});
+					Object.assign(this, window.dashboardKeyboardMixin || {});
 
 					window.dashboardInstance = this;
 

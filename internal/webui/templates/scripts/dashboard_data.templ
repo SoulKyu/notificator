@@ -67,6 +67,7 @@ templ DashboardData() {
 						this.totalItems = result.data.metadata.totalCount || result.data.metadata.totalAlerts || 0;
 						this.settings = { ...this.settings, ...result.data.settings };
 						this.lastUpdateTime = Date.now();
+						this.normalizeCursor();
 
 						// Fallback only if the server didn't embed colors
 						if (!result.data.colors) {
@@ -448,6 +449,8 @@ templ DashboardData() {
 				
 				// Update timestamp
 				this.lastUpdateTime = update.lastUpdateTime * 1000; // Convert to milliseconds
+
+				this.normalizeCursor();
 
 				// Process new alerts for notifications
 				if (window.notificationService && this.currentUser) {
