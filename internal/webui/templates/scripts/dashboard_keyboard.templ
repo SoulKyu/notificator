@@ -18,9 +18,11 @@ templ DashboardKeyboardMixin() {
 				return !!(target && target.closest && target.closest('input, textarea, select, [contenteditable]'));
 			},
 
-			// Shared guard: no modal open, and focus isn't inside a text input.
+			// Shared guard: no modal open, no Ctrl/Cmd/Alt modifier (so we don't
+			// hijack browser/OS shortcuts), and focus isn't inside a text input.
 			shortcutsActive(event) {
 				if (this.modalOpen()) return false;
+				if (event && (event.ctrlKey || event.metaKey || event.altKey)) return false;
 				if (event && this.isTypingTarget(event.target)) return false;
 				return true;
 			},
@@ -131,10 +133,13 @@ templ DashboardKeyboardMixin() {
 				this.selectedAlerts = [alert.fingerprint];
 				this.selectedGroups = [];
 				await this.hideSelected();
-				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
-					this.selectedAlerts = savedAlerts.filter(fp => fp !== alert.fingerprint);
-					this.selectedGroups = savedGroups;
-				}
+				// hideSelected() only clears selectedAlerts on full success; on a
+				// rejected or failed hide it leaves the cursor's fingerprint there.
+				// Restore the saved selection unconditionally, dropping the cursor's
+				// fingerprint only if the hide actually succeeded.
+				const stillSelected = this.selectedAlerts;
+				this.selectedAlerts = savedAlerts.filter(fp => fp !== alert.fingerprint).concat(stillSelected);
+				this.selectedGroups = savedGroups;
 			},
 
 			handleDashboardKeydown(event) {
@@ -149,6 +154,9 @@ templ DashboardKeyboardMixin() {
 						this.showAlertModal || this.showFilterPresetsModal || this.showColumnConfigModal) {
 						return;
 					}
+					// Escape on a text field (e.g. the search box) should not clear the
+					// alert selection as a side effect of blurring/clearing that field.
+					if (this.isTypingTarget(event.target)) return;
 					if (this.selectedAlerts.length > 0 || this.selectedGroups.length > 0) {
 						this.clearSelection();
 					}
