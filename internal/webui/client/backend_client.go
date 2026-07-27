@@ -513,6 +513,26 @@ func (c *BackendClient) DeleteComment(sessionID, commentID string) error {
 	return err
 }
 
+// GetRecentActivity fetches recent cross-alert collaboration events for the activity feed.
+func (c *BackendClient) GetRecentActivity(sessionID string, since time.Time, limit int) ([]*alertpb.ActivityEvent, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.alertClient.GetRecentActivity(ctx, &alertpb.GetRecentActivityRequest{
+		SessionId: sessionID,
+		Since:     timestamppb.New(since),
+		Limit:     int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Events, nil
+}
+
 // CreateResolvedAlert stores a resolved alert in the backend
 func (c *BackendClient) CreateResolvedAlert(fingerprint, source string, alertData, comments, acknowledgments []byte, ttlHours int) error {
 	if c.alertClient == nil {
