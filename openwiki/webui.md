@@ -54,7 +54,14 @@ alerts** and the SSE hub:
   the in-memory `map[fingerprint]*DashboardAlert`, and normalizes upstream quirks
   (`suppressed`→`silenced`, `information`→`info`).
 - Tracks `UpdatedAt` only on *meaningful* change (`hasAlertChanged`) to avoid UI churn — this is
-  what `alert_cache_test.go` primarily verifies.
+  what `alert_cache_test.go` primarily verifies. The poll diff itself compares with the narrower
+  `hasPolledStateChanged` (state/summary/annotations only) instead, since a fresh poll result
+  carries no acknowledgement/comment state and comparing it against the enriched cache entry
+  would report a change every cycle for every acked or commented alert.
+- **SSE payloads carry the merged cache entry, not the raw poll result** — both the poll path and
+  `MutateAlert` (acks/comments/manual resolve) push a snapshot of the cache-resident alert, so
+  acknowledgement state survives the next SSE `update` instead of being clobbered by a
+  collaboration-blind poll.
 - Maintains a **per-user color cache** (rule-based alert coloring) refreshed after each poll.
 - On resolve, asynchronously archives the alert (with comments/acks) to the backend and fires
   `CaptureAlertFired`/`UpdateAlertResolved` statistics events.

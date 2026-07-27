@@ -33,9 +33,15 @@ The entire auth model is: **every RPC takes a `session_id` string and calls
 - `Login` creates a bcrypt-checked `User` session with a random hex `session_id`, 7-day expiry
   (`internal/backend/services/services.go`). `User` supports both local password and OAuth
   identity (`OAuthProvider`/`OAuthID`, `internal/backend/models/models.go`).
-- **No enforced RBAC.** `models/oauth_models.go` defines `UserRole` and OAuth group-sync
-  machinery, but nothing gates an RPC by role. `GetConnectedUsers` is commented "admin only"
-  yet only checks that *some* valid session exists. Do not trust "admin only" comments.
+- **No enforced RBAC**, with one exception. `models/oauth_models.go` defines `UserRole` and OAuth
+  group-sync machinery, but nothing gates an RPC by role. `GetConnectedUsers` is commented "admin
+  only" yet only checks that *some* valid session exists. Do not trust "admin only" comments. The
+  one real gate is `AdminConfig.IsAdmin` (`config/config.go`) — a `NOTIFICATOR_ADMIN_USERS`
+  username/email allowlist, unrelated to `UserRole` — which `RemoveAllResolvedAlerts` checks before
+  deleting all resolved alerts; empty by default, so no one can call it until configured. Distinct
+  from the impersonation allowlist (`NOTIFICATOR_ADMIN_IMPERSONATION_ALLOWED_USERS`, see
+  [architecture](architecture.md#real-time)), which grants acting as another user, not admin
+  rights.
 
 ## Database
 
@@ -121,7 +127,9 @@ only** (no cross-replica fan-out). See [architecture](architecture.md#real-time)
 ## Gotchas {#gotchas}
 
 - **No auth interceptor** — forgetting the per-RPC `session_id` check = an unauthenticated RPC.
-- **"Admin only" is not enforced** anywhere despite the `UserRole`/group infra existing.
+- **"Admin only" is not enforced by `UserRole`** despite the group infra existing — the one
+  exception is `RemoveAllResolvedAlerts`, gated by the separate `NOTIFICATOR_ADMIN_USERS`
+  allowlist (see [auth](#auth)).
 - **Dead code:** `services/comment_service.go` and `services/acknowledgment_service.go` define
   `CommentService`/`AcknowledgmentService` whose constructors are never called — the real logic
   is inline in `AlertServiceGorm`.
