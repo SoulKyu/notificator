@@ -135,10 +135,12 @@ templ DashboardKeyboardMixin() {
 				await this.hideSelected();
 				// hideSelected() only clears selectedAlerts on full success; on a
 				// rejected or failed hide it leaves the cursor's fingerprint there.
-				// Restore the saved selection unconditionally, dropping the cursor's
-				// fingerprint only if the hide actually succeeded.
-				const stillSelected = this.selectedAlerts;
-				this.selectedAlerts = savedAlerts.filter(fp => fp !== alert.fingerprint).concat(stillSelected);
+				// Restore the saved selection unconditionally: drop the cursor's
+				// fingerprint if the hide succeeded, otherwise leave the saved
+				// selection untouched (don't add the cursor row if it was never
+				// part of it to begin with).
+				const hideFailed = this.selectedAlerts.includes(alert.fingerprint);
+				this.selectedAlerts = hideFailed ? savedAlerts : savedAlerts.filter(fp => fp !== alert.fingerprint);
 				this.selectedGroups = savedGroups;
 			},
 
