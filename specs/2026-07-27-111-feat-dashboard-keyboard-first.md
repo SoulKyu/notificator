@@ -73,12 +73,15 @@ Client-side only, Alpine.js mixin, no proto/API change.
    (`dashboard_core.templ:160-169` — the `showSettings || showAckModal || showSilenceModal ||
    showAlertModal || showFilterPresetsModal || showColumnConfigModal` check, plus the
    `input, textarea, select, [contenteditable]` check) into a shared `shortcutsActive(event)`
-   helper. `focusSearch()` and the new keyboard mixin both call it — one guard, not two copies that
-   can drift.
+   helper, extending the check with the new `showShortcutsHelp` state (step 7) so the cheat-sheet
+   overlay blocks row shortcuts the same way every other modal does. `focusSearch()` and the new
+   keyboard mixin both call it — one guard, not two copies that can drift.
 
 4. **Bindings**: window-level `@keydown.*` on the outer `x-data` div in `NewDashboard.templ`, next
-   to the existing `@keydown.slash.window`/`@keydown.ctrl.f.window.prevent`. Each handler is a
-   one-line call into `shortcutsActive()` + an existing mixin method:
+   to the existing `@keydown.slash.window`/`@keydown.ctrl.f.window.prevent`. Every row shortcut
+   (`j`/`k`/`x`/`a`/`s`/`h`/`Enter`/`o`) is a no-op when `alerts.length === 0` (empty filter/search
+   results) — checked before the handler body runs, alongside the `shortcutsActive()` guard. Each
+   handler is otherwise a one-line call into `shortcutsActive()` + an existing mixin method:
    - `j`/`k` → `moveCursor(1)` / `moveCursor(-1)` (new, mixin-local: clamps to `[0, alerts.length-1]`,
      scrolls the row into view via `scrollIntoView({block: 'nearest'})`).
    - `Enter`/`o` → `showAlertDetails(this.alerts[this.cursorIndex].fingerprint)`.
@@ -113,9 +116,11 @@ Client-side only, Alpine.js mixin, no proto/API change.
 
 6. **Grouped view**: `components/group_components.templ` renders groups, not individual alert rows
    — there's no 1:1 mapping from a group row to a single acknowledge/silence/hide target. Rather
-   than guess a semantic, row shortcuts (`j`/`k`/`x`/`a`/`s`/`h`) are inert while
-   `viewMode === 'group'`, and `?` cheat-sheet shows a note that navigation is list-view-only. `c`,
-   `Esc` and `?` still work in group view since they don't depend on a cursor row.
+   than guess a semantic, row shortcuts (`j`/`k`/`x`/`a`/`s`/`h`) — and `Shift+X`, since
+   `selectAll()`/`clearSelection()` operate on `selectedAlerts`, not the `selectedGroups` that drive
+   grouped-view selection — are inert while `viewMode === 'group'`, and `?` cheat-sheet shows a note
+   that navigation is list-view-only. `c`, `Esc` and `?` still work in group view since they don't
+   depend on a cursor row.
 
 7. **Cheat-sheet overlay**: small templ component (e.g. `components/shortcuts_help.templ`) gated on
    `showShortcutsHelp`, listing the table above; included from `NewDashboard.templ` like the other
@@ -158,9 +163,13 @@ Client-side only, Alpine.js mixin, no proto/API change.
 - Open the ack modal, silence modal, and detail modal one at a time; confirm no row shortcut (`j`,
   `k`, `x`, `a`, `s`, `h`, `Enter`, `o`) does anything while each is open, and that typing in the
   search box or the comment textarea doesn't trigger any binding either.
-- `?` opens the cheat-sheet; `Esc` closes it without affecting selection.
-- Switch to grouped view: confirm `j`/`k`/`x`/`a`/`s`/`h` are inert (not silently mismapped to
-  groups) and that this is visible in the cheat-sheet, not just silent.
+- `?` opens the cheat-sheet; `Esc` closes it without affecting selection. While it's open, confirm
+  `j`/`k`/`x`/`a`/`s`/`h`/`Enter`/`o` are all no-ops (the extended `shortcutsActive()` guard covers
+  `showShortcutsHelp`).
+- Switch to grouped view: confirm `j`/`k`/`x`/`a`/`s`/`h`/`Shift+X` are inert (not silently
+  mismapped to groups) and that this is visible in the cheat-sheet, not just silent.
 - Trigger an SSE update while the cursor sits mid-list: cursor stays on the same alert if it's still
   present, resets to row 0 if it was removed.
+- Filter/search down to zero results: confirm `j`/`k`/`x`/`a`/`s`/`h`/`Enter`/`o` are all no-ops
+  (no error thrown reaching into an empty `alerts` array).
 - `make webui-templates` regenerates `*_templ.go` cleanly; `go build ./...` passes.
