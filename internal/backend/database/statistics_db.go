@@ -5,34 +5,26 @@ import (
 	"fmt"
 	"time"
 
+	"gorm.io/gorm/clause"
+
 	"notificator/internal/backend/models"
 )
 
 // ==================== Alert Statistics Operations ====================
 
-// CreateAlertStatistic creates a new alert statistics record
-func (gdb *GormDB) CreateAlertStatistic(stat *models.AlertStatistic) error {
-	if err := gdb.db.Create(stat).Error; err != nil {
-		return fmt.Errorf("failed to create alert statistic: %w", err)
-	}
-	return nil
-}
-
-// UpsertAlertStatistic creates or ignores an alert statistic based on unique constraint
-// If a record with the same (fingerprint, fired_at) exists, it does nothing (idempotent)
-// This prevents duplicate statistics for the same alert occurrence
+// UpsertAlertStatistic creates an alert statistic, ignoring the insert when a
+// record with the same (fingerprint, fired_at) already exists — the same alert
+// occurrence re-announced (webui cache rebuild, reconnect) is normal, not an
+// error. ON CONFLICT DO NOTHING is atomic, unlike the previous FirstOrCreate
+// whose SELECT-then-INSERT still raced into 23505 under concurrent captures.
 func (gdb *GormDB) UpsertAlertStatistic(stat *models.AlertStatistic) error {
-	// Use FirstOrCreate with the unique key combination
-	// This is atomic and handles concurrent calls safely
-	result := gdb.db.Where(models.AlertStatistic{
-		Fingerprint: stat.Fingerprint,
-		FiredAt:     stat.FiredAt,
-	}).FirstOrCreate(stat)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to upsert alert statistic: %w", result.Error)
+	err := gdb.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "fingerprint"}, {Name: "fired_at"}},
+		DoNothing: true,
+	}).Create(stat).Error
+	if err != nil {
+		return fmt.Errorf("failed to upsert alert statistic: %w", err)
 	}
-
 	return nil
 }
 

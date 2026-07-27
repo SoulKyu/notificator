@@ -395,8 +395,10 @@ func (s *StatisticsServiceGorm) CaptureAlertFired(ctx context.Context, req *aler
 		SilencedAtFire: req.SilencedAtFire,
 	}
 
-	// Save to database
-	if err := s.db.CreateAlertStatistic(stat); err != nil {
+	// Save to database — idempotent: the webui re-announces every live alert
+	// whenever it rebuilds its cache (restart, reconnect), so a duplicate
+	// (fingerprint, fired_at) is routine and must not error
+	if err := s.db.UpsertAlertStatistic(stat); err != nil {
 		log.Printf("❌ Failed to capture alert statistic for %s: %v", req.Fingerprint, err)
 		return &alertpb.CaptureAlertFiredResponse{
 			Success: false,
