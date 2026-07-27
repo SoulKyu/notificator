@@ -261,6 +261,9 @@ type Silence struct {
 	Status    SilenceStatus    `json:"status"`
 	// MatchedAlerts is how many cached alerts of the same source the silence currently matches
 	MatchedAlerts int `json:"matchedAlerts"`
+	// Origin is "notificator" when createdBy resolved to a known user,
+	// "external" when it did not, "" when resolution was unavailable
+	Origin string `json:"origin,omitempty"`
 }
 
 // SilenceMatcher represents a silence matcher

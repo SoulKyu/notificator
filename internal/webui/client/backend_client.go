@@ -246,6 +246,29 @@ func (c *BackendClient) ValidateSession(sessionID string) (*User, error) {
 	return user, nil
 }
 
+// ResolveSilenceCreators maps raw Alertmanager createdBy values to notificator
+// usernames; values absent from the result belong to no known user (external).
+func (c *BackendClient) ResolveSilenceCreators(sessionID string, creators []string) (map[string]string, error) {
+	if c.authClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.authClient.ResolveSilenceCreators(ctx, &authpb.ResolveSilenceCreatorsRequest{
+		SessionId: sessionID,
+		Creators:  creators,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Usernames, nil
+}
+
 func (c *BackendClient) GetProfile(sessionID string) (*User, error) {
 	if c.authClient == nil {
 		return nil, fmt.Errorf("not connected to backend")

@@ -204,6 +204,7 @@ func GetSilences(c *gin.Context) {
 	}
 
 	sortSilences(silences)
+	annotateSilenceOrigins(c, silences)
 
 	failed := make(map[string]string, len(failedSources))
 	for name, err := range failedSources {
@@ -219,6 +220,52 @@ func GetSilences(c *gin.Context) {
 		"sources":       sources,
 		"failedSources": failed,
 	}))
+}
+
+// annotateSilenceOrigins resolves each silence's raw createdBy against the
+// notificator user base: a match becomes the username with origin
+// "notificator" (old silences stored opaque user IDs — this also fixes their
+// display), anything else is tagged "external" (amtool, karma, the Alertmanager
+// UI…). Resolution unavailable → origins stay "" and the UI shows no badge.
+func annotateSilenceOrigins(c *gin.Context, silences []webuimodels.Silence) {
+	if backendClient == nil || !backendClient.IsConnected() {
+		return
+	}
+	sessionID := middleware.GetSessionIDFromContext(c)
+	if sessionID == "" {
+		return
+	}
+
+	seen := make(map[string]bool)
+	creators := make([]string, 0, 8)
+	for i := range silences {
+		if cb := silences[i].CreatedBy; cb != "" && !seen[cb] {
+			seen[cb] = true
+			creators = append(creators, cb)
+		}
+	}
+	if len(creators) == 0 {
+		return
+	}
+
+	resolved, err := backendClient.ResolveSilenceCreators(sessionID, creators)
+	if err != nil {
+		log.Printf("⚠️  Failed to resolve silence creators: %v", err)
+		return
+	}
+
+	for i := range silences {
+		cb := silences[i].CreatedBy
+		if cb == "" {
+			continue
+		}
+		if username, ok := resolved[cb]; ok {
+			silences[i].CreatedBy = username
+			silences[i].Origin = "notificator"
+		} else {
+			silences[i].Origin = "external"
+		}
+	}
 }
 
 // silenceErrorStatus maps a silence lookup failure to an HTTP status. A stale silence ID is

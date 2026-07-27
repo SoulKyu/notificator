@@ -29,6 +29,7 @@ const (
 	AuthService_UpdateTimezone_FullMethodName         = "/notificator.auth.AuthService/UpdateTimezone"
 	AuthService_SearchUsers_FullMethodName            = "/notificator.auth.AuthService/SearchUsers"
 	AuthService_ListUsers_FullMethodName              = "/notificator.auth.AuthService/ListUsers"
+	AuthService_ResolveSilenceCreators_FullMethodName = "/notificator.auth.AuthService/ResolveSilenceCreators"
 	AuthService_GetOAuthAuthURL_FullMethodName        = "/notificator.auth.AuthService/GetOAuthAuthURL"
 	AuthService_OAuthCallback_FullMethodName          = "/notificator.auth.AuthService/OAuthCallback"
 	AuthService_GetOAuthProviders_FullMethodName      = "/notificator.auth.AuthService/GetOAuthProviders"
@@ -56,6 +57,7 @@ type AuthServiceClient interface {
 	UpdateTimezone(ctx context.Context, in *UpdateTimezoneRequest, opts ...grpc.CallOption) (*UpdateTimezoneResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
+	ResolveSilenceCreators(ctx context.Context, in *ResolveSilenceCreatorsRequest, opts ...grpc.CallOption) (*ResolveSilenceCreatorsResponse, error)
 	// OAuth Methods
 	GetOAuthAuthURL(ctx context.Context, in *OAuthAuthURLRequest, opts ...grpc.CallOption) (*OAuthAuthURLResponse, error)
 	OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*LoginResponse, error)
@@ -155,6 +157,16 @@ func (c *authServiceClient) ListUsers(ctx context.Context, in *ListUsersRequest,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListUsersResponse)
 	err := c.cc.Invoke(ctx, AuthService_ListUsers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ResolveSilenceCreators(ctx context.Context, in *ResolveSilenceCreatorsRequest, opts ...grpc.CallOption) (*ResolveSilenceCreatorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveSilenceCreatorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ResolveSilenceCreators_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -285,6 +297,7 @@ type AuthServiceServer interface {
 	UpdateTimezone(context.Context, *UpdateTimezoneRequest) (*UpdateTimezoneResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
+	ResolveSilenceCreators(context.Context, *ResolveSilenceCreatorsRequest) (*ResolveSilenceCreatorsResponse, error)
 	// OAuth Methods
 	GetOAuthAuthURL(context.Context, *OAuthAuthURLRequest) (*OAuthAuthURLResponse, error)
 	OAuthCallback(context.Context, *OAuthCallbackRequest) (*LoginResponse, error)
@@ -333,6 +346,9 @@ func (UnimplementedAuthServiceServer) SearchUsers(context.Context, *SearchUsersR
 }
 func (UnimplementedAuthServiceServer) ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
+}
+func (UnimplementedAuthServiceServer) ResolveSilenceCreators(context.Context, *ResolveSilenceCreatorsRequest) (*ResolveSilenceCreatorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveSilenceCreators not implemented")
 }
 func (UnimplementedAuthServiceServer) GetOAuthAuthURL(context.Context, *OAuthAuthURLRequest) (*OAuthAuthURLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOAuthAuthURL not implemented")
@@ -528,6 +544,24 @@ func _AuthService_ListUsers_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).ListUsers(ctx, req.(*ListUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ResolveSilenceCreators_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveSilenceCreatorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ResolveSilenceCreators(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ResolveSilenceCreators_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ResolveSilenceCreators(ctx, req.(*ResolveSilenceCreatorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -768,6 +802,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUsers",
 			Handler:    _AuthService_ListUsers_Handler,
+		},
+		{
+			MethodName: "ResolveSilenceCreators",
+			Handler:    _AuthService_ResolveSilenceCreators_Handler,
 		},
 		{
 			MethodName: "GetOAuthAuthURL",

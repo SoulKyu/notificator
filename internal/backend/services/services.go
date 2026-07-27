@@ -367,6 +367,60 @@ func (s *AuthServiceGorm) ListUsers(ctx context.Context, req *authpb.ListUsersRe
 	}, nil
 }
 
+// resolveCreators matches raw Alertmanager createdBy values against known users
+// by id, username or email (email case-insensitively — mail tooling rewrites
+// case). -> createdBy -> username, only for values that matched.
+func resolveCreators(users []models.User, creators []string) map[string]string {
+	byIdentity := make(map[string]string, len(users)*3)
+	for _, u := range users {
+		byIdentity[u.ID] = u.Username
+		byIdentity[u.Username] = u.Username
+		if u.Email != "" {
+			byIdentity[strings.ToLower(u.Email)] = u.Username
+		}
+	}
+	resolved := make(map[string]string, len(creators))
+	for _, c := range creators {
+		if c == "" {
+			continue
+		}
+		if username, ok := byIdentity[c]; ok {
+			resolved[c] = username
+		} else if username, ok := byIdentity[strings.ToLower(c)]; ok {
+			resolved[c] = username
+		}
+	}
+	return resolved
+}
+
+// ResolveSilenceCreators maps Alertmanager createdBy values to notificator
+// usernames so the UI can show who created a silence and tag the rest as
+// external. Session-gated; only usernames leave the backend, never emails.
+func (s *AuthServiceGorm) ResolveSilenceCreators(ctx context.Context, req *authpb.ResolveSilenceCreatorsRequest) (*authpb.ResolveSilenceCreatorsResponse, error) {
+	if _, err := s.db.GetUserBySession(req.SessionId); err != nil {
+		return &authpb.ResolveSilenceCreatorsResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	// ponytail: full user list per call — company-sized table, one indexed scan;
+	// cache in the webui if it ever shows up in profiles
+	users, _, err := s.db.ListUsers(10000, 0)
+	if err != nil {
+		log.Printf("Error listing users for silence creator resolution: %v", err)
+		return &authpb.ResolveSilenceCreatorsResponse{
+			Success: false,
+			Error:   "Failed to load users",
+		}, nil
+	}
+
+	return &authpb.ResolveSilenceCreatorsResponse{
+		Success:   true,
+		Usernames: resolveCreators(users, req.Creators),
+	}, nil
+}
+
 // ValidateSessionByID is a helper method for internal use
 func (s *AuthServiceGorm) ValidateSessionByID(sessionID string) (*authpb.User, error) {
 	user, err := s.db.GetUserBySession(sessionID)

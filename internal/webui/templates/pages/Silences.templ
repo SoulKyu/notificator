@@ -124,7 +124,11 @@ templ SilencesContent(data SilencesData) {
 										</template>
 									</div>
 								</td>
-								<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap" x-text="silence.createdBy || '-'"></td>
+								<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">
+									<span x-text="silence.createdBy || '-'"></span>
+									<span x-show="silence.origin === 'external'" title="Not created through notificator (amtool, karma, Alertmanager UI…)"
+										class="ml-1 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">external</span>
+								</td>
 								<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 max-w-xs truncate" :title="silence.comment" x-text="silence.comment || '-'"></td>
 								<td class="px-4 py-3 text-sm whitespace-nowrap">
 									<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize"

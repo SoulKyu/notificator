@@ -17,6 +17,7 @@ service AuthService {
   rpc UpdateTimezone(UpdateTimezoneRequest) returns (UpdateTimezoneResponse);
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc ResolveSilenceCreators(ResolveSilenceCreatorsRequest) returns (ResolveSilenceCreatorsResponse);
 
   // OAuth Methods
   rpc GetOAuthAuthURL(OAuthAuthURLRequest) returns (OAuthAuthURLResponse);
@@ -138,6 +139,17 @@ message ListUsersResponse {
   string message = 2;
   repeated User users = 3;
   int32 total_count = 4;
+}
+
+message ResolveSilenceCreatorsRequest {
+  string session_id = 1;
+  repeated string creators = 2;                                     // raw Alertmanager createdBy values
+}
+
+message ResolveSilenceCreatorsResponse {
+  bool success = 1;
+  string error = 2;
+  map<string, string> usernames = 3;                                // createdBy -> username, only for values matching a known user (id, username or email)
 }
 
 // OAuth Messages
