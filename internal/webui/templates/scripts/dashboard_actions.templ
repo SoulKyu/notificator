@@ -316,13 +316,14 @@ templ DashboardActions() {
 				this.showSnoozeModal = true;
 			},
 
-			// Count of the current user's non-expired hidden (snoozed) alerts, kept in
-			// sync with window.currentSettingsModal.hiddenAlerts (the Settings -> Hidden
-			// list). Re-evaluated on every Alpine tick, so it follows the same refresh
-			// cadence as the rest of the dashboard rather than needing its own timer.
+			// Count of the current user's non-expired hidden (snoozed) alerts. Reads
+			// this component's own snoozedAlertsCount so Alpine can track it as a
+			// dependency; the settings modal (a separate Alpine component) pushes
+			// updates into it via syncSnoozedCount() whenever its hiddenAlerts list
+			// changes, since a plain window.currentSettingsModal.hiddenAlerts read
+			// here wouldn't be tracked if it were undefined on first evaluation.
 			snoozedCount() {
-				return (window.currentSettingsModal?.hiddenAlerts || [])
-					.filter(hidden => !this.isSnoozeExpired(hidden.expiresAt)).length;
+				return this.snoozedAlertsCount;
 			},
 
 			openSnoozedAlerts() {

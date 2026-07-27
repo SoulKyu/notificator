@@ -531,7 +531,19 @@ templ DashboardSettings() {
 						console.error('Error loading hidden alerts:', error);
 					} finally {
 						this.hiddenAlertsLoading = false;
+						this.syncSnoozedCount();
 					}
+				},
+
+				// Push the non-expired count of this.hiddenAlerts into the dashboard's own
+				// reactive snoozedAlertsCount, since that's a different Alpine component and
+				// its "N snoozed" badge can't track a read of this component's state directly.
+				syncSnoozedCount() {
+					if (!window.dashboardInstance || !window.dashboardInstance.isSnoozeExpired) {
+						return;
+					}
+					window.dashboardInstance.snoozedAlertsCount = this.hiddenAlerts
+						.filter(a => !window.dashboardInstance.isSnoozeExpired(a.expiresAt)).length;
 				},
 
 				async loadHiddenRules() {
@@ -566,9 +578,10 @@ templ DashboardSettings() {
 						if (result.success) {
 							// Remove from local array
 							this.hiddenAlerts = this.hiddenAlerts.filter(alert => alert.fingerprint !== fingerprint);
-							
+							this.syncSnoozedCount();
+
 							// Show success message
-							
+
 							// Refresh dashboard data if visible
 							if (window.dashboardInstance && window.dashboardInstance.loadDashboardData) {
 								window.dashboardInstance.loadDashboardData();

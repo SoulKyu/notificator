@@ -84,6 +84,10 @@ templ DashboardCore() {
 				snoozeReason: '',
 				snoozeError: '',
 				snoozeSubmitting: false,
+				// Own reactive copy of the non-expired snooze count, kept in sync by the
+				// settings modal (a separate Alpine component) via syncSnoozedCount() so
+				// the badge's x-show/x-text bindings have a dependency they can track.
+				snoozedAlertsCount: 0,
 
 				showAlertModal: false,
 				alertModalPushedHistory: false,

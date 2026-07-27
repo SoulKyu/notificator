@@ -892,6 +892,15 @@ templ DashboardUtilities() {
 					</svg>
 				</button>`;
 
+				html += `<button
+					onclick="event.stopPropagation(); window.dashboardInstance.snoozeAlert('${this.escapeHtml(alert.fingerprint)}')"
+					class="p-1.5 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30 transition-all duration-150"
+					title="Snooze Alert">
+					<svg class="w-4 h-4" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+					</svg>
+				</button>`;
+
 				html += '</div>';
 				return html;
 			},
