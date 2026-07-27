@@ -337,7 +337,7 @@ templ ActivityContent(data ActivityData) {
 				},
 
 				detailText(event) {
-					const content = (event.content || '').trim().replace(/^[🔔🔕🔇✅]\s*/, '');
+					const content = (event.content || '').trim().replace(/^[🔔🔕🔇✅]\s*/u, '');
 					return content || '—';
 				},
 
