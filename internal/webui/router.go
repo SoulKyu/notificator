@@ -15,6 +15,7 @@ import (
 	"notificator/internal/webui/middleware"
 	"notificator/internal/webui/services"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -131,6 +132,12 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.LoggingMiddleware())
 	r.Use(gin.Recovery())
+	// The SSE stream must stay uncompressed: gzip buffering would hold events back
+	// instead of flushing them as they happen. Images and audio are already
+	// compressed formats — recompressing wastes CPU for ~0 gain.
+	r.Use(gzip.Gzip(gzip.DefaultCompression,
+		gzip.WithExcludedPaths([]string{"/api/v1/dashboard/stream"}),
+		gzip.WithExcludedExtensions([]string{".png", ".jpg", ".jpeg", ".gif", ".ico", ".mp3", ".woff", ".woff2"})))
 	r.Use(middleware.SessionMiddleware(sessionSecret))
 
 	// Static files - handle both development and container environments
