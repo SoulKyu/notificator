@@ -98,6 +98,42 @@ func TestCreateCommentStoresKind(t *testing.T) {
 	}
 }
 
+// TestLegacyCommentKindStaysEmpty guards against a regression where the
+// `kind` column carried a `NOT NULL DEFAULT 'comment'` gorm tag. On an
+// existing database, AutoMigrate's ALTER TABLE ADD COLUMN would then
+// backfill every pre-existing row (including legacy 🔇/🔔/✅ comments
+// written before `kind` existed) to "comment", permanently defeating the
+// emoji-prefix fallback in deriveActivityKind/deriveCommentKind. The column
+// must have no default so legacy rows read back with Kind == "".
+func TestLegacyCommentKindStaysEmpty(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	// Raw insert bypassing CreateComment's "" -> "comment" coercion, simulating
+	// a legacy row written before the kind column existed.
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := gdb.db.Exec(
+		"INSERT INTO comments (id, alert_key, user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+		"legacy-1", "key-a", u.ID, "🔇 Alert silenced for 2h: x", now, now,
+	).Error; err != nil {
+		t.Fatalf("raw insert: %v", err)
+	}
+
+	got, err := gdb.GetRecentActivity(now.Add(-time.Minute), 100)
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "legacy-1" {
+		t.Fatalf("got %v, want [legacy-1]", ids(got))
+	}
+	if got[0].Kind != "" {
+		t.Fatalf("Kind = %q, want empty (legacy row must not be defaulted to 'comment')", got[0].Kind)
+	}
+}
+
 func TestAcknowledgmentCompositeIndexExists(t *testing.T) {
 	gdb := newTestDB(t)
 	if !gdb.db.Migrator().HasIndex(&models.Acknowledgment{}, "idx_acknowledgments_alert_key_created_at") {
