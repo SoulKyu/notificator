@@ -1150,7 +1150,7 @@ Renders POC variant C. The layout was validated with the user during brainstormi
 - Test: manual (browser) via the running stack
 
 **Interfaces:**
-- Consumes: `GET /api/v1/dashboard/activity`; `@components.PageNavigator`; `@components.FilterDropdown`.
+- Consumes: `GET /api/v1/dashboard/activity`; `@components.PageNavigator`. (Filters are hand-rolled `<details>` dropdowns matching `Silences.templ`'s convention; the earlier note about reusing `@components.FilterDropdown` proved impractical — that component is unused repo-wide, needs server-side `metadata.availableFilters` infra, and the sibling page hand-rolls its own filters. The substantive reuse is the shared server-side predicate `alertPassesAlertLevelFilters`.)
 - Produces: `pages.Activity(data ActivityData)`, `pages.ActivityData{User ProfileUser}`.
 
 - [ ] **Step 1: Create the page templ (do this before Task 8 Step 5)**
