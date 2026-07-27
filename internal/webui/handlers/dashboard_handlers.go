@@ -30,7 +30,7 @@ var (
 	userSettingsMu sync.RWMutex
 )
 
-// parseExtendedDuration parses duration strings with extended units (d, y)
+// parseExtendedDuration parses duration strings with extended units (d, w, y)
 // in addition to Go's standard units (ns, µs, ms, s, m, h)
 func parseExtendedDuration(s string) (time.Duration, error) {
 	if s == "" {
@@ -46,6 +46,13 @@ func parseExtendedDuration(s string) (time.Duration, error) {
 		var years int
 		fmt.Sscanf(match, "%dy", &years)
 		return fmt.Sprintf("%dh", years*365*24)
+	})
+
+	// Replace weeks
+	s = regexp.MustCompile(`(\d+)w`).ReplaceAllStringFunc(s, func(match string) string {
+		var weeks int
+		fmt.Sscanf(match, "%dw", &weeks)
+		return fmt.Sprintf("%dh", weeks*7*24)
 	})
 
 	// Replace days

@@ -288,6 +288,8 @@ func SetupRouter(backendAddress string) *gin.Engine {
 
 			// Silence inventory routes
 			dashboard.GET("/silences", handlers.GetSilences)
+			dashboard.POST("/silences", handlers.CreateSilence)
+			dashboard.POST("/silences/preview", handlers.PreviewSilence)
 			dashboard.POST("/silences/:id/extend", handlers.ExtendSilence)
 			dashboard.DELETE("/silences/:id", handlers.ExpireSilence)
 
