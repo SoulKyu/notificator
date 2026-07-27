@@ -35,6 +35,13 @@ templ SilencesContent(data SilencesData) {
 					</div>
 
 					<div class="flex items-center gap-2 flex-1 justify-end">
+						<button @click="openCreate()"
+							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+							</svg>
+							<span class="hidden sm:inline">Create silence</span>
+						</button>
 						<button @click="loadSilences()" :disabled="loading"
 							class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 							<svg class="w-4 h-4" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,6 +155,12 @@ templ SilencesContent(data SilencesData) {
 										class="block text-xs text-amber-600 dark:text-amber-400">Suppressing nothing</span>
 								</td>
 								<td class="px-4 py-3 text-sm text-right whitespace-nowrap">
+									<div class="inline-flex items-center gap-1">
+										<button @click="duplicate(silence)" title="Recreate this silence: prefill the creation modal with its matchers and comment"
+											class="px-2 py-1 text-xs font-medium rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+											Duplicate
+										</button>
+									</div>
 									<div class="inline-flex items-center gap-1" x-show="silence.status?.state !== 'expired'">
 										<template x-for="option in extendOptions" :key="option">
 											<button @click="extend(silence, option)" :disabled="busyId === silence.source + '/' + silence.id"
@@ -168,6 +181,202 @@ templ SilencesContent(data SilencesData) {
 
 			<p x-show="error" class="text-sm text-red-600 dark:text-red-400" x-text="error"></p>
 		</div>
+
+		<!-- Create silence modal -->
+		<div x-show="showCreateModal" style="display: none" class="fixed inset-0 z-50 overflow-y-auto"
+			@keydown.escape.window="showCreateModal && closeCreate()"
+			@keydown.ctrl.enter.window="showCreateModal && submitCreate()">
+			<div class="fixed inset-0 bg-slate-900/60" @click="closeCreate()"></div>
+			<div class="relative min-h-full flex items-start justify-center p-4 sm:p-8">
+				<div class="relative w-full max-w-3xl bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-2xl">
+					<!-- Modal header -->
+					<div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700/50">
+						<div>
+							<h2 class="text-lg font-semibold text-slate-900 dark:text-white">Create silence</h2>
+							<p class="text-sm text-slate-500 dark:text-slate-400">Esc closes &bull; Ctrl+Enter creates</p>
+						</div>
+						<button @click="closeCreate()" class="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+							</svg>
+						</button>
+					</div>
+
+					<div class="px-6 py-5 space-y-6 max-h-[70vh] overflow-y-auto">
+						<!-- Matchers -->
+						<section>
+							<div class="flex items-center justify-between mb-2">
+								<h3 class="text-sm font-semibold text-slate-900 dark:text-white">Matchers</h3>
+								<button @click="addMatcher()" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">+ Add matcher</button>
+							</div>
+							<datalist id="silence-label-names">
+								<template x-for="name in Object.keys(labelOptions)" :key="name">
+									<option :value="name"></option>
+								</template>
+							</datalist>
+							<div class="space-y-2">
+								<template x-for="(row, idx) in form.matchers" :key="idx">
+									<div>
+										<div class="flex items-center gap-2">
+											<input type="text" x-model="row.name" @input="schedulePreview()" list="silence-label-names" placeholder="label name"
+												class="flex-1 min-w-0 px-3 py-2 text-sm font-mono rounded-lg border bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+												:class="matcherErrorAt(idx) ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'"/>
+											<select x-model="row.op" @change="schedulePreview()"
+												class="px-2 py-2 text-sm font-mono rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white">
+												<option value="=">=</option>
+												<option value="!=">!=</option>
+												<option value="=~">=~</option>
+												<option value="!~">!~</option>
+											</select>
+											<input type="text" x-model="row.value" @input="schedulePreview()" :list="'silence-label-values-' + idx" placeholder="value"
+												class="flex-1 min-w-0 px-3 py-2 text-sm font-mono rounded-lg border bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+												:class="matcherErrorAt(idx) ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'"/>
+											<datalist :id="'silence-label-values-' + idx">
+												<template x-for="value in (labelOptions[row.name] || [])" :key="value">
+													<option :value="value"></option>
+												</template>
+											</datalist>
+											<button @click="removeMatcher(idx)" class="p-2 rounded-lg text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+												</svg>
+											</button>
+										</div>
+										<p x-show="matcherErrorAt(idx)" class="mt-1 text-xs text-red-600 dark:text-red-400" x-text="matcherErrorAt(idx)"></p>
+									</div>
+								</template>
+							</div>
+							<input type="text" x-model="pasteText" @change="importPaste()"
+								placeholder='Paste to import: {alertname=~"Vault.*", team!="infra"}'
+								class="mt-2 w-full px-3 py-2 text-sm font-mono rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-dark-bg-tertiary text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+						</section>
+
+						<!-- Sources -->
+						<section>
+							<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Alertmanager sources</h3>
+							<div class="flex flex-wrap gap-3">
+								<template x-for="source in sources" :key="source">
+									<label class="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 cursor-pointer"
+										:class="form.sources.includes(source) ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 dark:border-blue-600' : 'bg-white dark:bg-dark-bg-tertiary'">
+										<input type="checkbox" :value="source" x-model="form.sources" @change="schedulePreview()"
+											class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+										<span class="text-slate-900 dark:text-white font-mono" x-text="source"></span>
+									</label>
+								</template>
+							</div>
+							<p x-show="!form.sources.length" class="mt-1 text-xs text-red-600 dark:text-red-400">Select at least one source.</p>
+						</section>
+
+						<!-- Schedule -->
+						<section class="grid sm:grid-cols-2 gap-4">
+							<div>
+								<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Starts</h3>
+								<div class="flex items-center gap-4 mb-2">
+									<label class="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+										<input type="radio" value="now" x-model="form.startMode" class="text-blue-600 focus:ring-blue-500"/> Now
+									</label>
+									<label class="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+										<input type="radio" value="later" x-model="form.startMode" class="text-blue-600 focus:ring-blue-500"/> Later (pending)
+									</label>
+								</div>
+								<input type="datetime-local" x-model="form.startsAt" x-show="form.startMode === 'later'"
+									class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white"/>
+							</div>
+							<div>
+								<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Ends</h3>
+								<div class="flex items-center gap-1 mb-2">
+									<template x-for="preset in ['1h', '4h', '24h', '7d']" :key="preset">
+										<button @click="form.endMode = 'duration'; form.duration = preset"
+											:class="form.endMode === 'duration' && form.duration === preset ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'"
+											class="px-2.5 py-1.5 text-xs font-medium rounded-md" x-text="preset"></button>
+									</template>
+								</div>
+								<div class="flex items-center gap-2">
+									<input type="text" x-model="form.duration" @input="form.endMode = 'duration'" placeholder="90m, 36h, 2w, 60d…"
+										:class="form.endMode === 'duration' ? 'border-blue-400 dark:border-blue-600' : 'border-slate-300 dark:border-slate-600'"
+										class="flex-1 min-w-0 px-3 py-2 text-sm font-mono rounded-lg border bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white"/>
+									<span class="text-xs text-slate-400">or</span>
+									<input type="datetime-local" x-model="form.endsAt" @input="form.endMode = 'absolute'"
+										:class="form.endMode === 'absolute' ? 'border-blue-400 dark:border-blue-600' : 'border-slate-300 dark:border-slate-600'"
+										class="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white"/>
+								</div>
+								<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">No maximum duration — silences longer than 30 days are allowed.</p>
+							</div>
+						</section>
+
+						<!-- Comment -->
+						<section>
+							<h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Comment</h3>
+							<textarea x-model="form.comment" rows="2"
+								class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+						</section>
+
+						<!-- Preview -->
+						<section class="rounded-lg border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-dark-bg-tertiary p-4">
+							<div class="flex items-center justify-between mb-2">
+								<h3 class="text-sm font-semibold text-slate-900 dark:text-white">Preview — alerts this silence would match</h3>
+								<span x-show="preview.loading" class="text-xs text-slate-400">updating…</span>
+							</div>
+							<p x-show="preview.error" class="text-sm text-red-600 dark:text-red-400" x-text="preview.error"></p>
+							<div class="space-y-2">
+								<template x-for="entry in preview.sources" :key="entry.source">
+									<div>
+										<button @click="expandedPreview = expandedPreview === entry.source ? '' : entry.source"
+											class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+											<svg class="w-3.5 h-3.5 transition-transform" :class="expandedPreview === entry.source ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+											</svg>
+											<span class="font-mono" x-text="entry.source"></span>
+											<span class="font-semibold" x-text="entry.count"></span> matching alert(s)
+										</button>
+										<p x-show="entry.count === 0" class="ml-5 text-xs text-amber-600 dark:text-amber-400">Matches no alerts right now — it may still match future ones.</p>
+										<p x-show="entry.count > 200" class="ml-5 text-xs text-amber-600 dark:text-amber-400">Unusually broad — double-check the matchers.</p>
+										<div x-show="expandedPreview === entry.source" class="ml-5 mt-1 space-y-1">
+											<template x-for="(alert, alertIdx) in entry.sample" :key="alertIdx">
+												<div class="text-xs font-mono text-slate-600 dark:text-slate-400 truncate">
+													<span class="font-semibold text-slate-800 dark:text-slate-200" x-text="alert.alertname || '(no alertname)'"></span>
+													<span x-text="sampleLabels(alert)"></span>
+												</div>
+											</template>
+											<p x-show="entry.count > entry.sample.length" class="text-xs text-slate-400">
+												…and <span x-text="entry.count - entry.sample.length"></span> more
+											</p>
+										</div>
+									</div>
+								</template>
+							</div>
+						</section>
+
+						<!-- Per-source creation result -->
+						<template x-if="createResult">
+							<section class="space-y-1">
+								<template x-for="result in createResult" :key="result.source">
+									<div class="flex items-start gap-2 text-sm px-3 py-2 rounded-lg"
+										:class="result.success ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'">
+										<span x-text="result.success ? '✓' : '✗'"></span>
+										<span class="font-mono" x-text="result.source"></span>
+										<span x-show="result.success" class="truncate" x-text="result.silenceId ? 'silence ' + result.silenceId : 'created'"></span>
+										<span x-show="!result.success" class="break-all" x-text="result.error"></span>
+									</div>
+								</template>
+							</section>
+						</template>
+						<p x-show="createError" class="text-sm text-red-600 dark:text-red-400" x-text="createError"></p>
+					</div>
+
+					<!-- Modal footer -->
+					<div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700/50">
+						<button @click="closeCreate()"
+							class="px-4 py-2 text-sm font-medium rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+						<button @click="submitCreate()" :disabled="creating || !canSubmit"
+							class="px-4 py-2 text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+							<span x-show="!creating">Create silence</span>
+							<span x-show="creating">Creating…</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<script>
@@ -184,6 +393,18 @@ templ SilencesContent(data SilencesData) {
 				extendOptions: ['1h', '4h', '24h'],
 				busyId: null,
 				now: Date.now(),
+
+				// Creation modal state
+				showCreateModal: false,
+				form: { matchers: [], sources: [], startMode: 'now', startsAt: '', endMode: 'duration', duration: '4h', endsAt: '', comment: '' },
+				labelOptions: {},
+				pasteText: '',
+				preview: { loading: false, sources: [], matcherErrors: [], error: '' },
+				previewTimer: null,
+				expandedPreview: '',
+				createResult: null,
+				createError: '',
+				creating: false,
 
 				init() {
 					this.loadSilences();
@@ -289,6 +510,223 @@ templ SilencesContent(data SilencesData) {
 						return prefix + hours + 'h ' + (minutes % 60) + 'm' + suffix;
 					}
 					return prefix + Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h' + suffix;
+				},
+
+				emptyMatcher() {
+					return { name: '', op: '=', value: '' };
+				},
+
+				openCreate() {
+					this.form = {
+						matchers: [this.emptyMatcher()],
+						sources: [...this.sources],
+						startMode: 'now', startsAt: '',
+						endMode: 'duration', duration: '4h', endsAt: '',
+						comment: 'Silenced from /silences'
+					};
+					this.pasteText = '';
+					this.createResult = null;
+					this.createError = '';
+					this.expandedPreview = '';
+					this.preview = { loading: false, sources: [], matcherErrors: [], error: '' };
+					this.showCreateModal = true;
+					this.loadLabelOptions();
+					this.schedulePreview();
+				},
+
+				closeCreate() {
+					this.showCreateModal = false;
+				},
+
+				duplicate(silence) {
+					this.openCreate();
+					const rows = (silence.matchers || []).map(matcher => {
+						let op = matcher.isEqual === false ? '!' : '=';
+						op = matcher.isRegex ? (matcher.isEqual === false ? '!~' : '=~') : (matcher.isEqual === false ? '!=' : '=');
+						return { name: matcher.name, op: op, value: matcher.value };
+					});
+					if (rows.length) {
+						this.form.matchers = rows;
+					}
+					if (silence.comment) {
+						this.form.comment = silence.comment;
+					}
+					this.schedulePreview();
+				},
+
+				async loadLabelOptions() {
+					if (Object.keys(this.labelOptions).length) {
+						return;
+					}
+					try {
+						const response = await fetch('/api/v1/dashboard/available-labels');
+						const payload = await response.json();
+						if (response.ok && payload.success) {
+							this.labelOptions = payload.data.labels || {};
+						}
+					} catch (err) {
+						// Autocomplete is best-effort; the modal works without it.
+					}
+				},
+
+				addMatcher() {
+					this.form.matchers.push(this.emptyMatcher());
+				},
+
+				removeMatcher(idx) {
+					this.form.matchers.splice(idx, 1);
+					if (!this.form.matchers.length) {
+						this.form.matchers.push(this.emptyMatcher());
+					}
+					this.schedulePreview();
+				},
+
+				// All rows go to the preview (the server skips unnamed ones) so the
+				// server's matcherErrors indexes line up with the visible rows.
+				previewPayloadMatchers() {
+					return this.form.matchers.map(row => ({
+						name: row.name,
+						value: row.value,
+						isRegex: row.op.includes('~'),
+						isEqual: !row.op.startsWith('!')
+					}));
+				},
+
+				createPayloadMatchers() {
+					return this.previewPayloadMatchers().filter(m => m.name || m.value);
+				},
+
+				matcherErrorAt(idx) {
+					const found = this.preview.matcherErrors.find(e => e.index === idx);
+					return found ? found.error : '';
+				},
+
+				importPaste() {
+					const text = this.pasteText.trim();
+					if (!text) {
+						return;
+					}
+					const inner = text.replace(/^\{/, '').replace(/\}$/, '');
+					const segments = [];
+					let current = '', inQuotes = false;
+					for (const ch of inner) {
+						if (ch === '"') {
+							inQuotes = !inQuotes;
+						}
+						if (ch === ',' && !inQuotes) {
+							segments.push(current);
+							current = '';
+						} else {
+							current += ch;
+						}
+					}
+					if (current.trim()) {
+						segments.push(current);
+					}
+					const rows = [];
+					for (const segment of segments) {
+						const match = segment.trim().match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*(=~|!~|!=|=)\s*"(.*)"$/);
+						if (match) {
+							rows.push({ name: match[1], op: match[2], value: match[3] });
+						}
+					}
+					if (rows.length) {
+						this.form.matchers = rows;
+						this.pasteText = '';
+						this.schedulePreview();
+					}
+				},
+
+				schedulePreview() {
+					clearTimeout(this.previewTimer);
+					this.previewTimer = setTimeout(() => this.runPreview(), 300);
+				},
+
+				async runPreview() {
+					if (!this.showCreateModal) {
+						return;
+					}
+					if (!this.form.sources.length) {
+						this.preview.sources = [];
+						return;
+					}
+					this.preview.loading = true;
+					try {
+						const response = await fetch('/api/v1/dashboard/silences/preview', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ sources: this.form.sources, matchers: this.previewPayloadMatchers() })
+						});
+						const payload = await response.json();
+						if (!response.ok || !payload.success) {
+							throw new Error(payload.error || 'Preview failed');
+						}
+						this.preview.sources = payload.data.sources || [];
+						this.preview.matcherErrors = payload.data.matcherErrors || [];
+						this.preview.error = '';
+					} catch (err) {
+						this.preview.error = err.message;
+					} finally {
+						this.preview.loading = false;
+					}
+				},
+
+				sampleLabels(alert) {
+					const labels = alert.labels || {};
+					return Object.keys(labels)
+						.filter(key => key !== 'alertname')
+						.slice(0, 4)
+						.map(key => ' ' + key + '=' + labels[key])
+						.join('');
+				},
+
+				get canSubmit() {
+					return this.form.sources.length > 0
+						&& this.form.matchers.some(row => row.name)
+						&& this.preview.matcherErrors.length === 0;
+				},
+
+				async submitCreate() {
+					if (this.creating || !this.canSubmit) {
+						return;
+					}
+					this.creating = true;
+					this.createResult = null;
+					this.createError = '';
+					try {
+						const body = {
+							sources: this.form.sources,
+							matchers: this.createPayloadMatchers(),
+							startsAt: this.form.startMode === 'later' && this.form.startsAt ? new Date(this.form.startsAt).toISOString() : '',
+							endsAt: this.form.endMode === 'absolute' && this.form.endsAt ? new Date(this.form.endsAt).toISOString() : '',
+							duration: this.form.endMode === 'duration' ? this.form.duration.trim() : '',
+							comment: this.form.comment.trim() || 'Silenced from /silences'
+						};
+						const response = await fetch('/api/v1/dashboard/silences', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(body)
+						});
+						const payload = await response.json();
+						if (!response.ok || !payload.success) {
+							if (payload.matcherErrors && payload.matcherErrors.length) {
+								this.preview.matcherErrors = payload.matcherErrors;
+							}
+							throw new Error(payload.error || 'Failed to create silence');
+						}
+						this.createResult = payload.data.results || [];
+						await this.loadSilences();
+						// Full success: leave the per-source ✓ list visible for a beat, then
+						// close. Partial failure keeps the modal open so the failed source
+						// can be retried.
+						if (payload.data.allSucceeded) {
+							setTimeout(() => { this.closeCreate(); }, 1200);
+						}
+					} catch (err) {
+						this.createError = err.message;
+					} finally {
+						this.creating = false;
+					}
 				},
 
 				async extend(silence, duration) {
