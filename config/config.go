@@ -146,7 +146,7 @@ type SentryConfig struct {
 	Enabled      bool     `json:"enabled"`
 	BaseURL      string   `json:"base_url"`               // Default Sentry instance URL (e.g., "https://sentry.io")
 	GlobalToken  string   `json:"global_token"`            // Admin-configured fallback token
-	AllowedHosts []string `json:"allowed_hosts,omitempty"` // Additional Sentry hosts (scheme+host) allowed to receive tokens, for multi-instance setups
+	AllowedHosts []string `json:"allowed_hosts,omitempty"` // Additional Sentry hosts (host[:port], scheme optional) allowed to receive tokens, for multi-instance setups. Env var NOTIFICATOR_SENTRY_ALLOWED_HOSTS is space-separated (e.g. "a.example.com b.example.com").
 }
 
 func DefaultConfig() *Config {

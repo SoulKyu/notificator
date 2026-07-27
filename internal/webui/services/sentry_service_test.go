@@ -104,7 +104,7 @@ func TestSentryDataAllowsConfiguredHost(t *testing.T) {
 func TestIsAllowedSentryHost(t *testing.T) {
 	service := NewSentryService(&config.SentryConfig{
 		BaseURL:      "https://sentry.example.com",
-		AllowedHosts: []string{"sentry-eu.example.com", "https://sentry-us.example.com"},
+		AllowedHosts: []string{"sentry-eu.example.com", "https://sentry-apac.example.com"},
 	}, nil)
 
 	cases := []struct {
@@ -114,7 +114,7 @@ func TestIsAllowedSentryHost(t *testing.T) {
 	}{
 		{"configured host", "https://sentry.example.com/organizations/o/projects/p", true},
 		{"allowlisted bare host", "https://sentry-eu.example.com/organizations/o/projects/p", true},
-		{"allowlisted scheme-prefixed host", "https://sentry-us.example.com/organizations/o/projects/p", true},
+		{"allowlisted host with scheme prefix in config", "https://sentry-apac.example.com/organizations/o/projects/p", true},
 		{"attacker host", "https://attacker.example/organizations/o/projects/p", false},
 		{"non-http(s) scheme", "file:///organizations/o/projects/p", false},
 		{"scheme downgrade on configured host", "http://sentry.example.com/organizations/o/projects/p", false},
