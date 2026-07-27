@@ -466,6 +466,17 @@ func (c *BackendClient) GetCommentCountsBatch(fingerprints []string) (map[string
 
 // AddComment adds a comment to an alert
 func (c *BackendClient) AddComment(sessionID, alertKey, content string) error {
+	return c.addComment(sessionID, alertKey, content, "comment")
+}
+
+// AddSystemComment records an audit comment (ack/unack/silence/resolve) with a
+// structured kind so the activity feed and the modal badge can categorise it
+// without parsing the emoji prefix.
+func (c *BackendClient) AddSystemComment(sessionID, alertKey, kind, content string) error {
+	return c.addComment(sessionID, alertKey, content, kind)
+}
+
+func (c *BackendClient) addComment(sessionID, alertKey, content, kind string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -477,6 +488,7 @@ func (c *BackendClient) AddComment(sessionID, alertKey, content string) error {
 		SessionId: sessionID,
 		AlertKey:  alertKey,
 		Content:   content,
+		Kind:      kind,
 	}
 
 	_, err := c.alertClient.AddComment(ctx, req)

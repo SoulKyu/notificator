@@ -912,7 +912,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 
 			// Also add the acknowledgment reason as a comment for audit trail
 			commentContent := fmt.Sprintf("🔔 Alert acknowledged: %s", reason)
-			if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			if err := backendClient.AddSystemComment(sessionID, fingerprint, "ack", commentContent); err != nil {
 				// Log the error but don't fail the acknowledgment if comment fails
 				fmt.Printf("Warning: failed to add acknowledgment comment: %v\n", err)
 			}
@@ -955,7 +955,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				unackReason = "removed acknowledgment"
 			}
 			commentContent := fmt.Sprintf("🔕 Alert unacknowledged: %s", unackReason)
-			if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			if err := backendClient.AddSystemComment(sessionID, fingerprint, "unack", commentContent); err != nil {
 				// Log the error but don't fail the unacknowledgment if comment fails
 				fmt.Printf("Warning: failed to add unacknowledgment comment: %v\n", err)
 			}
@@ -988,7 +988,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				resolveReason = "resolved from dashboard"
 			}
 			commentContent := fmt.Sprintf("✅ Alert resolved: %s", resolveReason)
-			if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			if err := backendClient.AddSystemComment(sessionID, fingerprint, "resolve", commentContent); err != nil {
 				// Log the error but don't fail the resolution if comment fails
 				fmt.Printf("Warning: failed to add resolution comment: %v\n", err)
 			} else {
@@ -1338,6 +1338,7 @@ func GetAlertDetails(c *gin.Context) {
 			// Convert backend comments to webui models
 			details.Comments = make([]webuimodels.Comment, len(comments))
 			for i, comment := range comments {
+				kind := deriveCommentKind(comment.Kind, comment.Content)
 				details.Comments[i] = webuimodels.Comment{
 					ID:        comment.Id,
 					Username:  comment.Username,
@@ -1345,6 +1346,8 @@ func GetAlertDetails(c *gin.Context) {
 					Content:   comment.Content,
 					CreatedAt: comment.CreatedAt.AsTime(),
 					UpdatedAt: comment.CreatedAt.AsTime(), // Use CreatedAt if UpdatedAt not available
+					Kind:      kind,
+					IsSystem:  kind != "comment",
 				}
 			}
 		} else {
@@ -2063,7 +2066,7 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 
 		// Create comment with format: "🔇 Alert silenced for {duration}: {reason}"
 		commentContent := fmt.Sprintf("🔇 Alert silenced for %s: %s", durationStr, silenceReason)
-		if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+		if err := backendClient.AddSystemComment(sessionID, fingerprint, "silence", commentContent); err != nil {
 			// Log the error but don't fail the silence if comment fails
 			fmt.Printf("Warning: failed to add silence comment: %v\n", err)
 		} else {

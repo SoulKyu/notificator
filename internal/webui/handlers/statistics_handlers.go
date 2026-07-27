@@ -669,6 +669,7 @@ func GetResolvedAlertDetails(c *gin.Context) {
 	if err == nil && len(comments) > 0 {
 		details.Comments = make([]webuimodels.Comment, len(comments))
 		for i, comment := range comments {
+			kind := deriveCommentKind(comment.Kind, comment.Content)
 			details.Comments[i] = webuimodels.Comment{
 				ID:        comment.Id,
 				Username:  comment.Username,
@@ -676,6 +677,8 @@ func GetResolvedAlertDetails(c *gin.Context) {
 				Content:   comment.Content,
 				CreatedAt: tsToTime(comment.CreatedAt),
 				UpdatedAt: tsToTime(comment.CreatedAt),
+				Kind:      kind,
+				IsSystem:  kind != "comment",
 			}
 		}
 	} else {
