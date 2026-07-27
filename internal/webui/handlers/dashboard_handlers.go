@@ -1992,13 +1992,26 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 		return fmt.Errorf("no suitable labels found for creating silence")
 	}
 
+	// Alertmanager's createdBy is a display field (shown on the Silences page):
+	// record who, not an opaque user ID. Nothing matches on it — unsilence goes
+	// by silence ID and extend re-posts the fetched silence unchanged.
+	createdBy := userID
+	if u := middleware.GetEffectiveUser(c); u != nil {
+		switch {
+		case u.Username != "":
+			createdBy = u.Username
+		case u.Email != "":
+			createdBy = u.Email
+		}
+	}
+
 	// Create silence object
 	now := time.Now()
 	silence := models.Silence{
 		Matchers:  matchers,
 		StartsAt:  now,
 		EndsAt:    now.Add(silenceDuration),
-		CreatedBy: userID,
+		CreatedBy: createdBy,
 		Comment:   comment,
 		Status: models.SilenceStatus{
 			State: "active",
