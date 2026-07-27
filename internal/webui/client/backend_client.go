@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -1253,7 +1254,7 @@ func (c *BackendClient) GetUserSentryConfig(userID string) (*SentryConfig, error
 
 	if !resp.Success {
 		if resp.Error != "" {
-			return nil, fmt.Errorf(resp.Error)
+			return nil, errors.New(resp.Error)
 		}
 		return nil, nil // No config found
 	}
@@ -1290,7 +1291,7 @@ func (c *BackendClient) GetUserSentryToken(userID, sessionID string) (string, bo
 
 	if !resp.Success {
 		if resp.Error != "" {
-			return "", false, fmt.Errorf(resp.Error)
+			return "", false, errors.New(resp.Error)
 		}
 		return "", false, nil // No error, but no token
 	}
@@ -1794,8 +1795,8 @@ func (c *BackendClient) UpdateAlertAcknowledged(alert *models.DashboardAlert) er
 	defer cancel()
 
 	req := &alertpb.UpdateAlertAcknowledgedRequest{
-		Fingerprint:     alert.Fingerprint,
-		AcknowledgedAt:  timestamppb.New(alert.AcknowledgedAt),
+		Fingerprint:    alert.Fingerprint,
+		AcknowledgedAt: timestamppb.New(alert.AcknowledgedAt),
 	}
 
 	_, err := c.statisticsClient.UpdateAlertAcknowledged(ctx, req)
@@ -1848,22 +1849,22 @@ func (c *BackendClient) QueryRecentlyResolved(sessionID string, startDate, endDa
 			lastResolved = alert.LastResolvedAt.AsTime()
 		}
 		alerts[i] = map[string]interface{}{
-			"fingerprint":        alert.Fingerprint,
-			"alert_name":         alert.AlertName,
-			"severity":           alert.Severity,
-			"occurrence_count":   alert.OccurrenceCount,
-			"first_fired_at":     firstFired,
-			"last_resolved_at":   lastResolved,
-			"total_mttr":         alert.TotalMttr,
-			"avg_mttr":           alert.AvgMttr,
-			"total_mtta":         alert.TotalMtta,
-			"avg_mtta":           alert.AvgMtta,
-			"avg_fix_time":       alert.AvgFixTime,
-			"labels":             alert.Labels,
-			"annotations":        alert.Annotations,
-			"source":             alert.Source,
-			"instance":           alert.Instance,
-			"team":               alert.Team,
+			"fingerprint":      alert.Fingerprint,
+			"alert_name":       alert.AlertName,
+			"severity":         alert.Severity,
+			"occurrence_count": alert.OccurrenceCount,
+			"first_fired_at":   firstFired,
+			"last_resolved_at": lastResolved,
+			"total_mttr":       alert.TotalMttr,
+			"avg_mttr":         alert.AvgMttr,
+			"total_mtta":       alert.TotalMtta,
+			"avg_mtta":         alert.AvgMtta,
+			"avg_fix_time":     alert.AvgFixTime,
+			"labels":           alert.Labels,
+			"annotations":      alert.Annotations,
+			"source":           alert.Source,
+			"instance":         alert.Instance,
+			"team":             alert.Team,
 		}
 	}
 
