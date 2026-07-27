@@ -1,0 +1,396 @@
+package pages
+
+import (
+	"notificator/internal/webui/templates/components"
+	"notificator/internal/webui/templates/layouts"
+)
+
+type ActivityData struct {
+	User ProfileUser
+}
+
+templ Activity(data ActivityData) {
+	@layouts.Base("Activity - Notificator", ActivityContent(data))
+}
+
+templ ActivityContent(data ActivityData) {
+	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="activityPage()">
+		<!-- Sticky Header Bar -->
+		<header class="sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50">
+			<div class="px-6 py-4">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-4 flex-1">
+						<div>
+							<h1 class="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">Activity</h1>
+							<p class="text-sm text-slate-500 dark:text-slate-400">
+								Everything the team did across all alerts — acknowledgements, comments, silences and resolves.
+							</p>
+						</div>
+					</div>
+
+					<div class="hidden md:flex items-center justify-center">
+						@components.PageNavigator("activity")
+					</div>
+
+					<div class="flex items-center gap-2 flex-1 justify-end">
+						<span class="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+							<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+							live &bull; refreshes every 30s
+						</span>
+					</div>
+				</div>
+			</div>
+		</header>
+
+		<div class="px-6 py-6 space-y-4">
+			<!-- Filters -->
+			<div class="flex flex-wrap items-center gap-3 bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 px-4 py-3">
+				<!-- Time window segmented control -->
+				<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1" title="Time window">
+					<template x-for="option in [{ label: '15m', value: 15 }, { label: '1h', value: 60 }, { label: '8h', value: 480 }, { label: '24h', value: 1440 }]" x-key="option.value">
+						<button
+							@click="windowMinutes = option.value; load()"
+							:class="windowMinutes === option.value ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'"
+							class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+							x-text="option.label"
+						></button>
+					</template>
+				</div>
+
+				<!-- Kind chips -->
+				<div class="flex items-center gap-1.5">
+					<template x-for="kind in ['ack', 'unack', 'comment', 'silence', 'resolve']" x-key="kind">
+						<button
+							@click="toggleKind(kind)"
+							:class="kinds.length && !kinds.includes(kind) ? 'opacity-40' : ''"
+							class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border"
+							x-bind:style="'color:' + kindColor(kind) + ';background:' + kindBg(kind) + ';border-color:' + kindBorder(kind)"
+						>
+							<span class="w-1.5 h-1.5 rounded-full" x-bind:style="'background:' + kindColor(kind)"></span>
+							<span x-text="kindLabel(kind)"></span>
+						</button>
+					</template>
+				</div>
+
+				<!-- Severity / Team / Alertmanager / Alert name filters -->
+				<details class="relative">
+					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+						Severity
+						<span x-show="filters.severities.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.severities.length"></span>
+					</summary>
+					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
+						<p x-show="!metadata.availableFilters.severities.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
+						<template x-for="option in metadata.availableFilters.severities" :key="option">
+							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+								<input type="checkbox" :value="option" x-model="filters.severities" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+								<span x-text="option"></span>
+							</label>
+						</template>
+					</div>
+				</details>
+
+				<details class="relative">
+					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+						Team
+						<span x-show="filters.teams.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.teams.length"></span>
+					</summary>
+					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
+						<p x-show="!metadata.availableFilters.teams.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
+						<template x-for="option in metadata.availableFilters.teams" :key="option">
+							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+								<input type="checkbox" :value="option" x-model="filters.teams" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+								<span x-text="option"></span>
+							</label>
+						</template>
+					</div>
+				</details>
+
+				<details class="relative">
+					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+						Alertmanager
+						<span x-show="filters.alertmanagers.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.alertmanagers.length"></span>
+					</summary>
+					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
+						<p x-show="!metadata.availableFilters.alertmanagers.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
+						<template x-for="option in metadata.availableFilters.alertmanagers" :key="option">
+							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+								<input type="checkbox" :value="option" x-model="filters.alertmanagers" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+								<span x-text="option" class="font-mono"></span>
+							</label>
+						</template>
+					</div>
+				</details>
+
+				<details class="relative">
+					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+						Alert name
+						<span x-show="filters.alertNames.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.alertNames.length"></span>
+					</summary>
+					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
+						<p x-show="!metadata.availableFilters.alertNames.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
+						<template x-for="option in metadata.availableFilters.alertNames" :key="option">
+							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+								<input type="checkbox" :value="option" x-model="filters.alertNames" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+								<span x-text="option" class="font-mono"></span>
+							</label>
+						</template>
+					</div>
+				</details>
+
+				<!-- Scope toggle -->
+				<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1" title="Scope">
+					<button
+						@click="scope = 'everyone'; load()"
+						:class="scope === 'everyone' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'"
+						class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+					>Everyone</button>
+					<button
+						@click="scope = 'mine'; load()"
+						:class="scope === 'mine' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'"
+						class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+					>Mine</button>
+				</div>
+
+				<div class="relative flex-1 min-w-[200px]">
+					<input type="text" x-model="search" @input.debounce.400ms="load()" placeholder="Search alert, user or comment..."
+						class="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+					<svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+					</svg>
+				</div>
+			</div>
+
+			<!-- Log table -->
+			<div class="bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+				<div x-show="!events.length && !error" class="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+					No activity in this window.
+				</div>
+
+				<table x-show="events.length > 0" class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+					<thead class="bg-slate-50 dark:bg-dark-bg-tertiary">
+						<tr>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">User</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Action</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Alert</th>
+							<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detail</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+						<template x-for="row in displayRows" :key="row.key">
+							<tr
+								@click="if (!row.isGroup) { window.location = '/dashboard/alert/' + encodeURIComponent(row.event.alertKey); }"
+								:class="row.isGroup ? 'bg-slate-50 dark:bg-dark-bg-tertiary' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer'"
+							>
+								<template x-if="row.isGroup">
+									<td colspan="5" class="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500" x-text="row.label"></td>
+								</template>
+								<template x-if="!row.isGroup">
+									<td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono" x-text="formatTime(row.event.createdAt)"></td>
+								</template>
+								<template x-if="!row.isGroup">
+									<td class="px-4 py-3 text-sm whitespace-nowrap">
+										<span class="inline-flex items-center gap-2">
+											<span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+												x-bind:style="'background:' + avatarColor(row.event.username)"
+												x-text="(row.event.username || '?').charAt(0).toUpperCase()"></span>
+											<span class="text-slate-700 dark:text-slate-300" x-text="row.event.username || 'unknown'"></span>
+										</span>
+									</td>
+								</template>
+								<template x-if="!row.isGroup">
+									<td class="px-4 py-3 text-sm whitespace-nowrap">
+										<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border"
+											x-bind:style="'color:' + kindColor(row.event.kind) + ';background:' + kindBg(row.event.kind) + ';border-color:' + kindBorder(row.event.kind)"
+											x-text="kindLabel(row.event.kind)"></span>
+									</td>
+								</template>
+								<template x-if="!row.isGroup">
+									<td class="px-4 py-3 text-sm">
+										<span class="font-medium text-slate-900 dark:text-white" x-text="row.event.alertName"></span>
+										<span x-show="row.event.source" class="text-slate-500 dark:text-slate-400" x-text="' · ' + row.event.source"></span>
+										<span x-show="row.event.uncached" title="This alert is no longer in the cache"
+											class="ml-1 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-600">uncached</span>
+									</td>
+								</template>
+								<template x-if="!row.isGroup">
+									<td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 max-w-md truncate" :title="row.event.content" x-text="detailText(row.event)"></td>
+								</template>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+
+			<p x-show="error" class="text-sm text-red-600 dark:text-red-400" x-text="error"></p>
+		</div>
+	</div>
+
+	<script>
+		function activityPage() {
+			return {
+				events: [],
+				filters: { severities: [], teams: [], alertmanagers: [], alertNames: [] },
+				kinds: [],
+				scope: 'everyone',
+				windowMinutes: 60,
+				search: '',
+				error: '',
+				timer: null,
+				metadata: { availableFilters: { severities: [], teams: [], alertmanagers: [], alertNames: [] } },
+
+				init() {
+					this.load();
+					this.loadFilterOptions();
+					document.addEventListener('visibilitychange', () => this.syncPolling());
+					this.syncPolling();
+				},
+
+				syncPolling() {
+					clearInterval(this.timer);
+					if (document.visibilityState === 'visible') {
+						this.timer = setInterval(() => this.load(), 30000); // 30s, only while visible
+					}
+				},
+
+				async load() {
+					const params = new URLSearchParams();
+					params.set('windowMinutes', this.windowMinutes);
+					if (this.scope === 'mine') params.set('scope', 'mine');
+					if (this.kinds.length) params.set('kinds', this.kinds.join(','));
+					if (this.filters.severities.length) params.set('severities', this.filters.severities.join(','));
+					if (this.filters.teams.length) params.set('teams', this.filters.teams.join(','));
+					if (this.filters.alertmanagers.length) params.set('alertmanagers', this.filters.alertmanagers.join(','));
+					if (this.filters.alertNames.length) params.set('alertNames', this.filters.alertNames.join(','));
+					if (this.search) params.set('search', this.search);
+					try {
+						const r = await fetch('/api/v1/dashboard/activity?' + params.toString());
+						const p = await r.json();
+						if (!r.ok || !p.success) { this.error = p.error || 'Failed to load activity'; return; }
+						this.events = p.data.events || [];
+						this.error = '';
+					} catch (err) {
+						this.error = err.message;
+					}
+				},
+
+				async loadFilterOptions() {
+					try {
+						const r = await fetch('/api/v1/dashboard/available-labels');
+						const p = await r.json();
+						if (r.ok && p.success) {
+							const labels = p.data.labels || {};
+							this.metadata.availableFilters.severities = labels.severity || [];
+							this.metadata.availableFilters.teams = labels.team || [];
+							this.metadata.availableFilters.alertNames = labels.alertname || [];
+						}
+					} catch (err) {
+						// Filter option lists are best-effort; the page works without them.
+					}
+					try {
+						const r = await fetch('/api/v1/dashboard/silences');
+						const p = await r.json();
+						if (r.ok && p.success) {
+							this.metadata.availableFilters.alertmanagers = p.data.sources || [];
+						}
+					} catch (err) {
+						// Best-effort as well.
+					}
+				},
+
+				toggleKind(kind) {
+					if (this.kinds.includes(kind)) {
+						this.kinds = this.kinds.filter(k => k !== kind);
+					} else {
+						this.kinds = [...this.kinds, kind];
+					}
+					this.load();
+				},
+
+				kindLabel(kind) {
+					return {
+						ack: 'acknowledged',
+						unack: 'unacknowledged',
+						comment: 'commented',
+						silence: 'silenced',
+						resolve: 'resolved'
+					}[kind] || kind;
+				},
+
+				kindColor(kind) {
+					return {
+						ack: '#16a34a',
+						unack: '#64748b',
+						comment: '#2563eb',
+						silence: '#d97706',
+						resolve: '#059669'
+					}[kind] || '#64748b';
+				},
+
+				kindBg(kind) {
+					return {
+						ack: '#dcfce7',
+						unack: '#f1f5f9',
+						comment: '#dbeafe',
+						silence: '#fef3c7',
+						resolve: '#d1fae5'
+					}[kind] || '#f1f5f9';
+				},
+
+				kindBorder(kind) {
+					return {
+						ack: '#bbf7d0',
+						unack: '#e2e8f0',
+						comment: '#bfdbfe',
+						silence: '#fde68a',
+						resolve: '#a7f3d0'
+					}[kind] || '#e2e8f0';
+				},
+
+				avatarColor(username) {
+					const palette = ['#6366f1', '#0ea5e9', '#f43f5e', '#8b5cf6', '#14b8a6', '#f59e0b'];
+					const name = username || '?';
+					let hash = 0;
+					for (let i = 0; i < name.length; i++) {
+						hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+					}
+					return palette[hash % palette.length];
+				},
+
+				detailText(event) {
+					const content = (event.content || '').trim().replace(/^[🔔🔕🔇✅]\s*/, '');
+					return content || '—';
+				},
+
+				formatTime(value) {
+					if (!value) return '';
+					return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+				},
+
+				dayLabel(value) {
+					const d = new Date(value);
+					const now = new Date();
+					const startOfDay = date => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+					const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+					if (diffDays === 0) return 'Today';
+					if (diffDays === 1) return 'Yesterday';
+					return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+				},
+
+				get displayRows() {
+					const rows = [];
+					let lastDay = null;
+					for (const event of this.events) {
+						const label = this.dayLabel(event.createdAt);
+						if (label !== lastDay) {
+							rows.push({ isGroup: true, label: label, key: 'group-' + label + '-' + event.id });
+							lastDay = label;
+						}
+						rows.push({ isGroup: false, event: event, key: event.id });
+					}
+					return rows;
+				}
+			};
+		}
+	</script>
+}
