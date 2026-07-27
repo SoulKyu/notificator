@@ -342,11 +342,15 @@ func (gdb *GormDB) GetConnectedUsers() ([]ConnectedUserInfo, error) {
 	return results, nil
 }
 
-func (gdb *GormDB) CreateComment(alertKey, userID, content string) (*models.CommentWithUser, error) {
+func (gdb *GormDB) CreateComment(alertKey, userID, content, kind string) (*models.CommentWithUser, error) {
+	if kind == "" {
+		kind = "comment"
+	}
 	comment := &models.Comment{
 		AlertKey: alertKey,
 		UserID:   userID,
 		Content:  content,
+		Kind:     kind,
 	}
 
 	if err := gdb.db.Create(comment).Error; err != nil {

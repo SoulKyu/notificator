@@ -20,7 +20,7 @@ func newTestDB(t *testing.T) *GormDB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}, &models.ResolvedAlert{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}, &models.ResolvedAlert{}, &models.Comment{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return &GormDB{db: db, dbType: "sqlite"}
@@ -71,6 +71,30 @@ func TestGetAllAcknowledgedAlerts(t *testing.T) {
 	}
 	if len(empty) != 0 {
 		t.Fatalf("expected no acks for empty key list, got %v", empty)
+	}
+}
+
+func TestCreateCommentStoresKind(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	got, err := gdb.CreateComment("key-a", u.ID, "🔇 Alert silenced for 2h: x", "silence")
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if got.Kind != "silence" {
+		t.Fatalf("Kind = %q, want silence", got.Kind)
+	}
+
+	plain, err := gdb.CreateComment("key-a", u.ID, "looks fine", "comment")
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if plain.Kind != "comment" {
+		t.Fatalf("Kind = %q, want comment", plain.Kind)
 	}
 }
 

@@ -533,7 +533,7 @@ func (s *AlertServiceGorm) AddComment(ctx context.Context, req *alertpb.AddComme
 	}
 
 	// Create comment
-	comment, err := s.db.CreateComment(req.AlertKey, user.ID, req.Content)
+	comment, err := s.db.CreateComment(req.AlertKey, user.ID, req.Content, req.Kind)
 	if err != nil {
 		log.Printf("Error creating comment: %v", err)
 		return &alertpb.AddCommentResponse{
@@ -550,6 +550,7 @@ func (s *AlertServiceGorm) AddComment(ctx context.Context, req *alertpb.AddComme
 		Username:  comment.Username,
 		Content:   comment.Content,
 		CreatedAt: timestamppb.New(comment.CreatedAt),
+		Kind:      comment.Kind,
 	}
 
 	// Broadcast to subscribers

@@ -76,6 +76,7 @@ type Comment struct {
 	AlertKey  string    `gorm:"not null;size:500;index" json:"alert_key"`
 	UserID    string    `gorm:"not null;size:32" json:"user_id"`
 	Content   string    `gorm:"not null;type:text" json:"content"`
+	Kind      string    `gorm:"size:16;not null;default:comment" json:"kind"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 

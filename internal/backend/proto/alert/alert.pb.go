@@ -134,6 +134,7 @@ type AddCommentRequest struct {
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	AlertKey      string                 `protobuf:"bytes,2,opt,name=alert_key,json=alertKey,proto3" json:"alert_key,omitempty"`
 	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	Kind          string                 `protobuf:"bytes,4,opt,name=kind,proto3" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -185,6 +186,13 @@ func (x *AddCommentRequest) GetAlertKey() string {
 func (x *AddCommentRequest) GetContent() string {
 	if x != nil {
 		return x.Content
+	}
+	return ""
+}
+
+func (x *AddCommentRequest) GetKind() string {
+	if x != nil {
+		return x.Kind
 	}
 	return ""
 }
@@ -546,6 +554,7 @@ type Comment struct {
 	Username      string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
 	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	Kind          string                 `protobuf:"bytes,7,opt,name=kind,proto3" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -620,6 +629,13 @@ func (x *Comment) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *Comment) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
 }
 
 // Acknowledgment Messages
@@ -9896,12 +9912,13 @@ var File_proto_alert_proto protoreflect.FileDescriptor
 
 const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
-	"\x11proto/alert.proto\x12\x11notificator.alert\x1a\x1fgoogle/protobuf/timestamp.proto\"i\n" +
+	"\x11proto/alert.proto\x12\x11notificator.alert\x1a\x1fgoogle/protobuf/timestamp.proto\"}\n" +
 	"\x11AddCommentRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
 	"\talert_key\x18\x02 \x01(\tR\balertKey\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\"~\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12\x12\n" +
+	"\x04kind\x18\x04 \x01(\tR\x04kind\"~\n" +
 	"\x12AddCommentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x124\n" +
 	"\acomment\x18\x02 \x01(\v2\x1a.notificator.alert.CommentR\acomment\x12\x18\n" +
@@ -9926,7 +9943,7 @@ const file_proto_alert_proto_rawDesc = "" +
 	"comment_id\x18\x02 \x01(\tR\tcommentId\"K\n" +
 	"\x15DeleteCommentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xc0\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xd4\x01\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\talert_key\x18\x02 \x01(\tR\balertKey\x12\x17\n" +
@@ -9934,7 +9951,8 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\busername\x18\x04 \x01(\tR\busername\x12\x18\n" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x129\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"n\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x12\n" +
+	"\x04kind\x18\a \x01(\tR\x04kind\"n\n" +
 	"\x18AddAcknowledgmentRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +

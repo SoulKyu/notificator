@@ -75,6 +75,7 @@ message AddCommentRequest {
   string session_id = 1;
   string alert_key = 2;
   string content = 3;
+  string kind = 4;
 }
 
 message AddCommentResponse {
@@ -118,6 +119,7 @@ message Comment {
   string username = 4;
   string content = 5;
   google.protobuf.Timestamp created_at = 6;
+  string kind = 7;
 }
 
 // Acknowledgment Messages
