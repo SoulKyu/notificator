@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,7 @@ func hasAlertLevelFilter(f webuimodels.DashboardFilters) bool {
 
 // buildActivityFeed resolves each backend event's alert name from the cache and applies
 // the shared alert-level filter predicate, honouring the uncached pass-through/hide rule.
-func buildActivityFeed(events []*alert.ActivityEvent, filters webuimodels.DashboardFilters, resolve alertResolver, now time.Time) []webuimodels.ActivityEvent {
+func buildActivityFeed(events []*alert.ActivityEvent, filters webuimodels.DashboardFilters, resolve alertResolver) []webuimodels.ActivityEvent {
 	filterActive := hasAlertLevelFilter(filters)
 	out := make([]webuimodels.ActivityEvent, 0, len(events))
 	for _, e := range events {
@@ -56,6 +57,19 @@ func buildActivityFeed(events []*alert.ActivityEvent, filters webuimodels.Dashbo
 	return out
 }
 
+// matchesActivitySearch reports whether an activity event's content, username, or
+// alert name contains term (case-insensitive). An empty term always matches, so
+// callers can apply this unconditionally.
+func matchesActivitySearch(ev webuimodels.ActivityEvent, term string) bool {
+	if term == "" {
+		return true
+	}
+	term = strings.ToLower(term)
+	return strings.Contains(strings.ToLower(ev.Content), term) ||
+		strings.Contains(strings.ToLower(ev.Username), term) ||
+		strings.Contains(strings.ToLower(ev.AlertName), term)
+}
+
 // GetActivity serves the activity feed JSON.
 func GetActivity(c *gin.Context) {
 	if backendClient == nil || !backendClient.IsConnected() {
@@ -68,7 +82,8 @@ func GetActivity(c *gin.Context) {
 		return
 	}
 
-	// window: minutes back from now, default 60, clamp to a sane ceiling
+	// window: minutes back from now, default 60. Only guarded for n > 0; there is no
+	// upper bound here — result size is instead bounded by the backend query's limit=200.
 	minutes := 60
 	if v := c.Query("windowMinutes"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -84,6 +99,12 @@ func GetActivity(c *gin.Context) {
 	}
 
 	filters := parseDashboardFilters(c)
+	// Search targets comment content/username/alertName (applied below, post-resolution),
+	// not the alert-level fields alertPassesAlertLevelFilters checks. Clear it here so it
+	// neither gets applied at the alert level nor counts toward hasAlertLevelFilter -
+	// otherwise a search term would incorrectly hide every uncached event.
+	searchTerm := filters.Search
+	filters.Search = ""
 	resolve := func(key string) (string, string, string, string, bool) {
 		if alertCache == nil {
 			return "", "", "", "", false
@@ -95,9 +116,18 @@ func GetActivity(c *gin.Context) {
 		return a.AlertName, a.Source, a.Severity, a.Team, true
 	}
 
-	feed := buildActivityFeed(events, filters, resolve, time.Now())
+	feed := buildActivityFeed(events, filters, resolve)
 
-	// Scope (Mine/Everyone) and action-type (kinds) are applied here, post-resolution.
+	// Scope (Mine/Everyone), search, and action-type (kinds) are applied here, post-resolution.
+	if searchTerm != "" {
+		kept := feed[:0]
+		for _, ev := range feed {
+			if matchesActivitySearch(ev, searchTerm) {
+				kept = append(kept, ev)
+			}
+		}
+		feed = kept
+	}
 	if c.Query("scope") == "mine" {
 		if u := middleware.GetEffectiveUser(c); u != nil {
 			mineName := u.Username
