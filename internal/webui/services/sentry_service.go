@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"notificator/config"
@@ -76,10 +78,14 @@ func (s *SentryService) GetSentryDataForAlert(alert *models.Alert, userID, sessi
 	projectInfo, err := s.parseSentryURL(sentryURL)
 	if err != nil {
 		log.Printf("Failed to parse Sentry URL %s: %v", sentryURL, err)
+		message := "Invalid Sentry URL format"
+		if errors.Is(err, errSentryHostNotAllowed) {
+			message = "Sentry host not allowed: the alert points at a different host than the configured Sentry instance"
+		}
 		return &webuimodels.SentryData{
 			HasSentryLabel: true,
 			SentryURL:      sentryURL,
-			Error:          "Invalid Sentry URL format",
+			Error:          message,
 		}
 	}
 
@@ -217,6 +223,10 @@ func (s *SentryService) getAuthForUser(userID, sessionID string) SentryAuthResul
 	}
 }
 
+// errSentryHostNotAllowed marks an alert-supplied Sentry URL pointing away from the
+// configured Sentry instance.
+var errSentryHostNotAllowed = errors.New("sentry host not allowed")
+
 // parseSentryURL extracts organization, project info from a Sentry URL
 func (s *SentryService) parseSentryURL(sentryURL string) (*SentryProjectInfo, error) {
 	// Expected format: https://your-sentry-instance.com/organizations/your-org/projects/your-project/?project=39
@@ -225,6 +235,22 @@ func (s *SentryService) parseSentryURL(sentryURL string) (*SentryProjectInfo, er
 	parsedURL, err := url.Parse(sentryURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// The URL comes from alert annotations/labels — attacker-influenceable payload,
+	// not configuration. Every request built downstream carries the viewer's bearer
+	// token, so only the configured Sentry instance may ever be targeted, and only
+	// over http(s). Without this check a crafted alert exfiltrates the token of
+	// every user who opens it.
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, fmt.Errorf("%w: scheme %q", errSentryHostNotAllowed, parsedURL.Scheme)
+	}
+	configured, cfgErr := url.Parse(s.config.BaseURL)
+	if cfgErr != nil || configured.Host == "" ||
+		!strings.EqualFold(parsedURL.Scheme, configured.Scheme) ||
+		!strings.EqualFold(parsedURL.Host, configured.Host) {
+		return nil, fmt.Errorf("%w: %s://%s does not match the configured instance %s",
+			errSentryHostNotAllowed, parsedURL.Scheme, parsedURL.Host, s.config.BaseURL)
 	}
 
 	// Extract base URL (scheme + host)
