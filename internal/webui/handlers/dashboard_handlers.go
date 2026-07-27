@@ -397,6 +397,28 @@ func filtersAffectResolvedCount(filters webuimodels.DashboardFilters, sessionID 
 	return hiddenAlertsService != nil && hiddenAlertsService.HasHiddenEntries(sessionID)
 }
 
+// alertPassesAlertLevelFilters reports whether an alert matches the label-level
+// filters shared between the dashboard and the activity feed. It deliberately
+// excludes dashboard-only concerns (hidden rules, statuses, ack/comment filters).
+func alertPassesAlertLevelFilters(alert *webuimodels.DashboardAlert, filters webuimodels.DashboardFilters) bool {
+	if filters.Search != "" && !matchesSearch(alert, filters.Search) {
+		return false
+	}
+	if len(filters.Alertmanagers) > 0 && !contains(filters.Alertmanagers, alert.Source) {
+		return false
+	}
+	if len(filters.Severities) > 0 && !contains(filters.Severities, alert.Severity) {
+		return false
+	}
+	if len(filters.Teams) > 0 && !contains(filters.Teams, alert.Team) {
+		return false
+	}
+	if len(filters.AlertNames) > 0 && !contains(filters.AlertNames, alert.AlertName) {
+		return false
+	}
+	return true
+}
+
 func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string) []*webuimodels.DashboardAlert {
 	var filtered []*webuimodels.DashboardAlert
 
@@ -433,33 +455,13 @@ func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimo
 			}
 		}
 
-		// Apply search filter
-		if filters.Search != "" && !matchesSearch(alert, filters.Search) {
+		// Shared alert-level filters (search, alertmanager, severity, team, alertName)
+		if !alertPassesAlertLevelFilters(alert, filters) {
 			continue
 		}
 
-		// Apply alertmanager filter
-		if len(filters.Alertmanagers) > 0 && !contains(filters.Alertmanagers, alert.Source) {
-			continue
-		}
-
-		// Apply severity filter
-		if len(filters.Severities) > 0 && !contains(filters.Severities, alert.Severity) {
-			continue
-		}
-
-		// Apply status filter
+		// Apply status filter (dashboard-only)
 		if len(filters.Statuses) > 0 && !contains(filters.Statuses, alert.Status.State) {
-			continue
-		}
-
-		// Apply team filter
-		if len(filters.Teams) > 0 && !contains(filters.Teams, alert.Team) {
-			continue
-		}
-
-		// Apply alert name filter
-		if len(filters.AlertNames) > 0 && !contains(filters.AlertNames, alert.AlertName) {
 			continue
 		}
 
