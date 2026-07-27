@@ -5,6 +5,36 @@
 > (the autonomous agent loop), never ships to users, and has no impact on builds
 > or releases.
 
+## ⭐ factory.py — the modern control room (Textual)
+
+The main dashboard: a [Textual](https://textual.textualize.io/) app with real
+navigation, five pages, and the human actions built in. Single file, PEP 723
+inline dependencies — `uv` handles everything:
+
+```bash
+uv run devtools/factory-tui/factory.py           # the app (or ./factory.py)
+uv run devtools/factory-tui/factory.py --check   # headless smoke test, exit 0/1
+```
+
+| Page | Key | Content |
+|---|---|---|
+| 🏭 Usine | `1` | stats bar, one live card per agent (state-colored border, current loops, next wake-up, 📬 badge), 🚨 alarms, 🙋 waiting-on-you queue, 🏆 24h scoreboard |
+| 🚢 Pipeline | `2` | PR + issue tables with colored label chips; the detail pane explains every label of the selected item and spells out in red **exactly what YOU must do** when one is blocking |
+| 🔄 Loops | `3` | `looper ps` live table + the selected loop's agent log (falls back to the loop's last run — the log you need when it's parked on `manual_intervention`) |
+| 💬 Intercom | `4` | full inter-agent event feed (`events.jsonl`), pending inboxes, 📻 log ticker |
+| 🏷 Labels | `5` | the label legend: blocking labels with their required human action, then the automatic pipeline labels |
+
+Actions (footer keys): `m` merge a `ready-to-merge` PR (squash, with confirm),
+`h` lift a `looper:hold` (confirm), `o` open the selection on GitHub,
+`s` summon an agent (modal), `r` refresh, `q` quit, `Ctrl-P` command palette.
+Every write goes through the same paths as the agents (`gh`, `summon.sh`) and
+always behind an explicit confirm.
+
+It reuses the data core of `factory-tui.py` below (pollers, alarms, legend) —
+same sources, same intervals, same graceful degradation.
+
+## factory-tui.py — the gamified office (stdlib curses, zero deps)
+
 A zero-dependency terminal dashboard (Python stdlib `curses`) showing the agent
 "office" in real time, top-down 2D style: who is working, who is on a coffee
 break, who is asleep until their next timer, and what is on the team board
@@ -106,11 +136,17 @@ Observable transitions feed a render-side event queue (no extra pollers):
 - `looper`, `gh` (authenticated) and the systemd user timers of the agent loop —
   missing sources degrade gracefully (desks show "?" instead of crashing)
 
-## For agents improving this file
+## For agents improving these files
 
-Keep it **stdlib-only** and **read-only** (this dashboard must never mutate GitHub,
-looper state, or files outside its own process). Preserve the `--once` mode — it is
-the testable path (`python3 factory-tui.py --once` must always print a frame and
-exit 0). Emoji are double-width: any new cell rendering must go through `dpad()`,
-and `--check` must stay green — it asserts the alignment invariants (11-col monitor
-segment in every state, all frame rows at identical display width).
+`factory-tui.py`: keep it **stdlib-only** and **read-only** (it must never mutate
+GitHub, looper state, or files outside its own process). Preserve the `--once`
+mode — it is the testable path (`python3 factory-tui.py --once` must always print
+a frame and exit 0). Emoji are double-width: any new cell rendering must go
+through `dpad()`, and `--check` must stay green — it asserts the alignment
+invariants (11-col monitor segment in every state, all frame rows at identical
+display width). It is also the **data core imported by `factory.py`** (pollers,
+alarms, legend): renaming or reshaping those functions breaks the Textual app.
+
+`factory.py`: writes are allowed but only the deliberate human actions (merge,
+un-hold, summon) and always behind a confirm modal. Keep the PEP 723 header
+working (`uv run factory.py` with no other setup) and `--check` green.
