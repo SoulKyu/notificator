@@ -30,7 +30,8 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
-from textual.screen import ModalScreen
+from textual.message import Message
+from textual.screen import ModalScreen, Screen
 from textual.widgets import (Button, DataTable, Footer, Header, Input, Label,
                              RichLog, Select, Static, TabbedContent, TabPane)
 
@@ -141,6 +142,26 @@ def loop_tail_any(lp: dict, n: int) -> tuple[str | None, list[str]]:
     return core.newest_tail(paths, n)
 
 
+LOOPER_DB = os.environ.get("FACTORY_LOOPER_DB", os.path.expanduser("~/.looper/looper.sqlite"))
+
+
+def role_last_run_tail(role: str, n: int) -> tuple[str | None, list[str]]:
+    """Newest run log of a looper ROLE, active loop or not — 'what did it do
+    last'. Read-only sqlite lookup; any failure degrades to (None, [])."""
+    import sqlite3
+    try:
+        db = sqlite3.connect(f"file:{LOOPER_DB}?mode=ro", uri=True)
+        row = db.execute(
+            "SELECT r.loop_id, r.id FROM runs r JOIN loops l ON l.id = r.loop_id "
+            "WHERE l.type = ? ORDER BY r.started_at DESC LIMIT 1", (role,)).fetchone()
+        db.close()
+        if not row:
+            return None, []
+        return core.loop_tail({"loopId": row[0], "runId": row[1]}, n)
+    except Exception:
+        return None, []
+
+
 def read_events():
     """events.jsonl (summon.sh append-only log) -> parsed dicts, oldest first."""
     path = os.path.join(core.INBOX_DIR, "events.jsonl")
@@ -160,12 +181,27 @@ def read_events():
 # ── widgets ──────────────────────────────────────────────────────────────────
 
 class AgentCard(Static):
-    """One roster agent: state-colored border, live status body."""
+    """One roster agent: state-colored border, live status body.
+    Enter/click opens the live work view (what the agent is doing right now)."""
+
+    can_focus = True
+    BINDINGS = [Binding("enter", "open", "Voir le travail", show=False)]
+
+    class Open(Message):
+        def __init__(self, card: "AgentCard"):
+            self.card = card
+            super().__init__()
 
     def __init__(self, key: str, emoji: str, name: str, kind: str):
         super().__init__("", classes="agent-card")
         self.key, self.emoji, self.agent_name, self.kind = key, emoji, name, kind
         self.border_title = f"{emoji} {name}"
+
+    def action_open(self):
+        self.post_message(self.Open(self))
+
+    def on_click(self):
+        self.post_message(self.Open(self))
 
     def refresh_state(self):
         role = self.kind.split(":")[1] if self.kind.startswith("looper:") else None
@@ -192,6 +228,64 @@ class AgentCard(Static):
             if nxt:
                 body.append(f"\n⏰ {nxt}", style=C["dim"])
         self.update(body)
+
+
+class AgentViewScreen(Screen):
+    """Full-screen live view of one agent's work: its transcript streaming as it
+    happens (looper run stdout, or the agent's newest log for systemd agents)."""
+
+    BINDINGS = [Binding("escape", "app.pop_screen", "Retour"),
+                Binding("q", "app.pop_screen", "Retour", show=False)]
+
+    def __init__(self, key: str, emoji: str, name: str, kind: str):
+        super().__init__()
+        self.key, self.emoji, self.agent_name, self.kind = key, emoji, name, kind
+        self._last: tuple = ()
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        yield Static(id="av-info", classes="panel")
+        yield RichLog(id="av-log", wrap=True, highlight=False, markup=False)
+        yield Footer()
+
+    def on_mount(self):
+        self.query_one("#av-info").border_title = f"{self.emoji} {self.agent_name} — en direct"
+        self.refresh_view()
+        self.set_interval(2, self.refresh_view)
+
+    def refresh_view(self):
+        role = self.kind.split(":")[1] if self.kind.startswith("looper:") else None
+        with core.LOCK:
+            loops = [l for l in core.STATE["loops"] if role and l["type"] == role]
+            nxt = core.STATE["timers"].get(core.TIMER_OF.get(self.key, ""), "")
+        loops.sort(key=core.loop_order)
+        state, status, detail = (core.loop_state(loops[0]) if loops
+                                 else core.agent_state(self.key, self.kind))
+        icon, word, tone = STATE_FR.get(state, ("·", state, "dim"))
+        # a running loop streams its own run log; otherwise the newest agent log
+        lp = next((l for l in loops if l["status"] == "running"), loops[0] if loops else None)
+        if lp:
+            name, tail = loop_tail_any(lp, 300)
+        elif role:  # looper role, currently idle → its most recent run
+            name, tail = role_last_run_tail(role, 300)
+        else:
+            name, tail = core.log_tail(core.LOG_PREFIX_OF.get(self.key, self.key), 300)
+        info = Text()
+        info.append(f"{icon} {word}", style=f"bold {C[tone]}")
+        info.append(f"  {status} {detail}".rstrip(), style=C["dim"])
+        for l in loops:
+            info.append(f"\n#{core.loop_num(l)} · {l['step']} · {l['status']}", style=C["info"])
+        if nxt:
+            info.append(f"\n⏰ prochain réveil : {nxt}", style=C["dim"])
+        info.append(f"\n📜 {name or '(aucun log)'}", style=C["accent"])
+        self.query_one("#av-info", Static).update(info)
+        if (name, tuple(tail or ())) == self._last:
+            return  # unchanged: no rewrite, keeps the scroll position stable
+        self._last = (name, tuple(tail or ()))
+        log = self.query_one("#av-log", RichLog)
+        log.clear()
+        for line in tail or ["(rien à montrer — l'agent n'a pas encore écrit de log)"]:
+            log.write(line)
 
 
 class ConfirmScreen(ModalScreen[bool]):
@@ -279,12 +373,19 @@ class FactoryApp(App):
     .agent-card.st-error { border: round #f85149; background: #2d1416; }
     .agent-card.st-wait { border: round #d29922; }
     .agent-card.st-sleep, .agent-card.st-break { color: #8b949e; }
+    .agent-card:focus { border: double #f0b429; }
+
+    AgentViewScreen { background: #0d1117; }
+    #av-info { margin: 1 2 0 2; }
+    #av-log { border: round #30363d; background: #10151c; height: 1fr; margin: 0 2 1 2;
+              padding: 0 1; }
 
     .panel { border: round #30363d; background: #161b22; padding: 0 1; height: auto;
              margin-bottom: 1; border-title-color: #e6edf3; }
     #alarms-panel.alert { border: round #f85149; border-title-color: #f85149; }
 
-    DataTable { background: #0d1117; height: 1fr; margin-bottom: 1; }
+    DataTable { background: #0d1117; height: 1fr; margin-bottom: 1;
+                border: round #30363d; border-title-color: #f0b429; }
     DataTable > .datatable--header { background: #161b22; color: #f0b429; }
     #detail-panel { height: auto; max-height: 14; }
     #loop-table { height: 40%; }
@@ -342,6 +443,10 @@ class FactoryApp(App):
             t.cursor_type = "row"
             t.zebra_stripes = True
             t.add_columns(*cols)
+        # visible before the first slow poll fills in the counts
+        self.query_one("#pr-table", DataTable).border_title = "🚢 Pull Requests"
+        self.query_one("#issue-table", DataTable).border_title = "🐛 Issues"
+        self.query_one("#loop-table", DataTable).border_title = "🔄 Loops looper"
         for wid, title in (("#alarms-panel", "🚨 Alarmes"), ("#pending-panel", "🙋 En attente de toi"),
                            ("#score-panel", "🏆 Scoreboard 24h"), ("#detail-panel", "🔍 Détail"),
                            ("#inbox-panel", "📬 Inbox agents"), ("#ticker-panel", "📻 Radio atelier"),
@@ -412,7 +517,7 @@ class FactoryApp(App):
                         "manual_intervention": f"bold {C['err']}"}.get(lp["status"], C["dim"])
             table.add_row(Text(lp["type"], style="bold"), core.loop_num(lp), lp["step"],
                           Text(lp["status"], style=st_style), age)
-        table.border_title = f"looper {'✅' if ps_ok else '🔴 injoignable'}"
+        table.border_title = f"🔄 Loops — looper {'✅' if ps_ok else '🔴 injoignable'}"
         if self._loops:
             table.move_cursor(row=min(max(cur, 0), len(self._loops) - 1))
         self._render_loop_log()
@@ -512,6 +617,11 @@ class FactoryApp(App):
             sc.update(Text("pas encore d'activité sur 24h", style=C["dim"]))
         self._render_detail()
 
+    @on(AgentCard.Open)
+    def _open_agent(self, ev: AgentCard.Open):
+        c = ev.card
+        self.push_screen(AgentViewScreen(c.key, c.emoji, c.agent_name, c.kind))
+
     # ── pipeline selection + detail ──
     @on(DataTable.RowHighlighted, "#pr-table")
     def _sel_pr(self, ev: DataTable.RowHighlighted):
@@ -561,6 +671,9 @@ class FactoryApp(App):
 
     # ── actions ──
     def action_tab(self, tab_id: str):
+        # switching silently no-ops while focus sits inside the outgoing pane
+        # (e.g. on an AgentCard) — blur first, the switch always wins
+        self.set_focus(None)
         self.query_one(TabbedContent).active = tab_id
 
     def action_refresh_all(self):
@@ -671,6 +784,18 @@ def selfcheck() -> int:
             assert isinstance(app.screen, SummonScreen)
             await pilot.press("escape")
             await pilot.pause()
+            # live agent view: focus a card, Enter opens, Esc closes
+            app.query(AgentCard).first().focus()
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, AgentViewScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert not isinstance(app.screen, AgentViewScreen)
+            # regression: tab keys must still work while a card holds focus
+            await pilot.press("2")
+            await pilot.pause()
+            assert app.query_one(TabbedContent).active == "tab-pipeline"
             # renderers must survive an empty world (no looper, no gh, no inbox)
             app.render_fast()
             app.render_med()

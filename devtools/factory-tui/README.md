@@ -18,7 +18,7 @@ uv run devtools/factory-tui/factory.py --check   # headless smoke test, exit 0/1
 
 | Page | Key | Content |
 |---|---|---|
-| 🏭 Usine | `1` | stats bar, one live card per agent (state-colored border, current loops, next wake-up, 📬 badge), 🚨 alarms, 🙋 waiting-on-you queue, 🏆 24h scoreboard |
+| 🏭 Usine | `1` | stats bar, one live card per agent (state-colored border, current loops, next wake-up, 📬 badge), 🚨 alarms, 🙋 waiting-on-you queue, 🏆 24h scoreboard. **Enter/click on a card → full-screen live view of what that agent is doing right now** (its transcript streaming, à la Claude Code; Esc back) |
 | 🚢 Pipeline | `2` | PR + issue tables with colored label chips; the detail pane explains every label of the selected item and spells out in red **exactly what YOU must do** when one is blocking |
 | 🔄 Loops | `3` | `looper ps` live table + the selected loop's agent log (falls back to the loop's last run — the log you need when it's parked on `manual_intervention`) |
 | 💬 Intercom | `4` | full inter-agent event feed (`events.jsonl`), pending inboxes, 📻 log ticker |
