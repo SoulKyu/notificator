@@ -13,7 +13,8 @@ Run:      uv run devtools/factory-tui/factory.py      (or ./factory.py)
 Test:     uv run devtools/factory-tui/factory.py --check
 Pages:    1 Usine · 2 Pipeline · 3 Loops · 4 Intercom · 5 Labels
 Actions:  m merge (PR ready-to-merge) · h lever un hold · o ouvrir sur GitHub
-          s summon un agent · r rafraîchir · q quitter · Ctrl-P palette
+          u débloquer un loop parqué (sweep scratch + retry) · s summon un agent
+          r rafraîchir · q quitter · Ctrl-P palette
 """
 from __future__ import annotations
 
@@ -143,6 +144,39 @@ def loop_tail_any(lp: dict, n: int) -> tuple[str | None, list[str]]:
 
 
 LOOPER_DB = os.environ.get("FACTORY_LOOPER_DB", os.path.expanduser("~/.looper/looper.sqlite"))
+
+
+def loop_park_reason(loop_id: str) -> str:
+    """Last run error of a loop (why it parked) — read-only sqlite lookup."""
+    import sqlite3
+    try:
+        db = sqlite3.connect(f"file:{LOOPER_DB}?mode=ro", uri=True)
+        row = db.execute("SELECT error_message FROM runs WHERE loop_id = ? "
+                         "ORDER BY started_at DESC LIMIT 1", (loop_id,)).fetchone()
+        db.close()
+        return (row[0] or "") if row else ""
+    except Exception:
+        return ""
+
+
+def sweep_scratch_files(worktree: str) -> list[str]:
+    """Remove UNTRACKED .review*.json scratch files from a worktree (the
+    reviewer's leftovers that cause 'worktree dirty' parks; naming varies:
+    .review_payload.json, .review116.json…). git-status-driven, so a tracked
+    file can never match. -> basenames removed."""
+    import re as _re
+    swept = []
+    try:
+        out = subprocess.run(["git", "-C", worktree, "status", "--porcelain"],
+                             capture_output=True, text=True, timeout=15).stdout
+        for line in out.splitlines():
+            m = _re.match(r"^\?\? (\.review[^/]*\.json)$", line)
+            if m:
+                os.remove(os.path.join(worktree, m.group(1)))
+                swept.append(m.group(1))
+    except Exception:
+        pass
+    return swept
 
 
 def role_last_run_tail(role: str, n: int) -> tuple[str | None, list[str]]:
@@ -352,6 +386,7 @@ class FactoryApp(App):
         Binding("m", "merge", "Merger"),
         Binding("h", "unhold", "Lever hold"),
         Binding("o", "open_web", "Ouvrir GH"),
+        Binding("u", "unblock", "Débloquer"),
         Binding("1", "tab('tab-usine')", "Usine", show=False),
         Binding("2", "tab('tab-pipeline')", "Pipeline", show=False),
         Binding("3", "tab('tab-loops')", "Loops", show=False),
@@ -438,7 +473,7 @@ class FactoryApp(App):
     def on_mount(self):
         for tid, cols in (("#pr-table", ("#", "titre", "labels", "état", "maj")),
                           ("#issue-table", ("#", "titre", "labels", "maj")),
-                          ("#loop-table", ("rôle", "cible", "étape", "statut", "depuis"))):
+                          ("#loop-table", ("rôle", "cible", "étape", "statut", "depuis", "raison"))):
             t = self.query_one(tid, DataTable)
             t.cursor_type = "row"
             t.zebra_stripes = True
@@ -515,8 +550,12 @@ class FactoryApp(App):
             age = core.ago(now - lp["since"], fine=True) if lp.get("since") else "—"
             st_style = {"running": C["ok"], "queued": C["warn"],
                         "manual_intervention": f"bold {C['err']}"}.get(lp["status"], C["dim"])
+            reason = Text("")
+            if lp["status"] == "manual_intervention" and lp.get("loopId"):
+                reason = Text(loop_park_reason(lp["loopId"])[:70] + "  → u débloque",
+                              style=C["err"])
             table.add_row(Text(lp["type"], style="bold"), core.loop_num(lp), lp["step"],
-                          Text(lp["status"], style=st_style), age)
+                          Text(lp["status"], style=st_style), age, reason)
         table.border_title = f"🔄 Loops — looper {'✅' if ps_ok else '🔴 injoignable'}"
         if self._loops:
             table.move_cursor(row=min(max(cur, 0), len(self._loops) - 1))
@@ -737,6 +776,49 @@ class FactoryApp(App):
         self._run_gh([kind if kind == "pr" else "issue", "view", str(item["number"]),
                       "-R", REPO, "--web"], f"#{item['number']} ouvert dans le navigateur")
 
+    def action_unblock(self):
+        idx = self.query_one("#loop-table", DataTable).cursor_row
+        if not self._loops or idx < 0 or idx >= len(self._loops):
+            self.notify("sélectionne un loop (page Loops [3])", severity="warning")
+            return
+        lp = self._loops[idx]
+        if lp["status"] != "manual_intervention":
+            self.notify(f"{lp['type']} #{core.loop_num(lp)} n'attend pas d'intervention", severity="warning")
+            return
+        reason = loop_park_reason(lp.get("loopId") or "") or "raison inconnue"
+
+        def done(ok):
+            if ok:
+                self._do_unblock(dict(lp))
+        self.push_screen(ConfirmScreen(
+            f"Débloquer {lp['type']} #{core.loop_num(lp)} ?\n\n« {reason[:160]} »\n\n"
+            "→ sweep des fichiers scratch non-trackés (.review*.json) puis looper retry",
+            "Débloquer"), done)
+
+    @work(thread=True, group="action")
+    def _do_unblock(self, lp: dict):
+        swept: list[str] = []
+        try:
+            out = core.sh("looper ps --json 2>/dev/null")
+            for item in json.loads(out).get("items", []):
+                if item.get("loopId") == lp.get("loopId"):
+                    wt = (item.get("worktree") or {}).get("path") or ""
+                    if wt and os.path.isdir(wt):
+                        swept = sweep_scratch_files(wt)
+                    break
+        except Exception:
+            pass
+        r = subprocess.run(["looper", "retry", lp.get("loopId") or ""],
+                           capture_output=True, text=True, timeout=30)
+        if r.returncode == 0:
+            what = f"{len(swept)} scratch supprimé(s) · " if swept else ""
+            self.call_from_thread(self.notify,
+                                  f"{lp['type']} #{core.loop_num(lp)} : {what}retry en file ✓")
+            self.poll_fast()
+        else:
+            err = (r.stderr or r.stdout or "échec").strip()[:120]
+            self.call_from_thread(self.notify, f"looper retry : {err}", severity="error", timeout=8)
+
     @work(thread=True, group="action")
     def _run_gh(self, args: list[str], ok_msg: str):
         try:
@@ -796,6 +878,12 @@ def selfcheck() -> int:
             await pilot.press("2")
             await pilot.pause()
             assert app.query_one(TabbedContent).active == "tab-pipeline"
+            # unblock on an empty loops table warns instead of crashing
+            await pilot.press("3")
+            await pilot.pause()
+            await pilot.press("u")
+            await pilot.pause()
+            assert sweep_scratch_files("/nonexistent-worktree") == []
             # renderers must survive an empty world (no looper, no gh, no inbox)
             app.render_fast()
             app.render_med()
