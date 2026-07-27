@@ -652,13 +652,10 @@ func (ac *AlertCache) loadCommentCountsEfficiently() {
 	// Step 2: call gRPC with NO lock held
 	counts, err := ac.collabClient.GetCommentCountsBatch(fingerprints)
 	if err != nil {
-		log.Printf("Failed to load comment counts batch: %v", err)
-		// Reset all comment counts to 0 on error
-		ac.mu.Lock()
-		for _, alert := range ac.alerts {
-			alert.CommentCount = 0
-		}
-		ac.mu.Unlock()
+		// Keep the last known counts: a transient backend/DB failure must not wipe
+		// every comment badge on every connected dashboard (same policy as the
+		// acknowledgement loader). Counts refresh on the next successful batch.
+		log.Printf("Failed to load comment counts batch, keeping previous counts: %v", err)
 		return
 	}
 

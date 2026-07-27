@@ -615,13 +615,14 @@ func (s *AlertServiceGorm) GetCommentCountsBatch(ctx context.Context, req *alert
 		}, nil
 	}
 
-	// Get counts from database
+	// Get counts from database. Callers treat the response as authoritative — an
+	// absent fingerprint means "no comments" — so a DB failure must surface as a
+	// gRPC error, never as an empty map that would zero every badge (same
+	// invariant as GetAllAcknowledgedAlerts).
 	counts, err := s.db.GetCommentCountsBatch(req.AlertKeys)
 	if err != nil {
 		log.Printf("Error getting comment counts batch: %v", err)
-		return &alertpb.GetCommentCountsBatchResponse{
-			Counts: make(map[string]int32),
-		}, nil
+		return nil, status.Errorf(codes.Internal, "failed to load comment counts: %v", err)
 	}
 
 	// Convert to protobuf format (int -> int32)

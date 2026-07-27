@@ -1088,7 +1088,8 @@ func TestAlertCache_LoadCommentCountsPushesOnlyRealChanges(t *testing.T) {
 	cache.loadCommentCountsEfficiently()
 	expectNoUpdate(t, updates)
 
-	// The error branch zeroes every cached count and notifies nobody.
+	// A failing batch keeps the last known counts and stays silent: a transient
+	// backend problem must not wipe every comment badge on connected dashboards.
 	loader.countsErr = errors.New("backend down")
 	cache.loadCommentCountsEfficiently()
 	expectNoUpdate(t, updates)
@@ -1097,8 +1098,19 @@ func TestAlertCache_LoadCommentCountsPushesOnlyRealChanges(t *testing.T) {
 	if !ok {
 		t.Fatal("alert disappeared from the cache")
 	}
-	if cached.CommentCount != 0 {
-		t.Errorf("comment counts should be zeroed when the batch query fails, got %d", cached.CommentCount)
+	if cached.CommentCount != 2 {
+		t.Errorf("comment counts must survive a failed batch query, got %d", cached.CommentCount)
+	}
+
+	// Recovery: a successful response genuinely missing the fingerprint still
+	// resolves to 0 — absence in a healthy snapshot means "no comments".
+	loader.countsErr = nil
+	loader.counts = map[string]int{}
+	cache.loadCommentCountsEfficiently()
+
+	pushed = nextUpdate(t, updates).UpdatedAlerts
+	if len(pushed) != 1 || pushed[0].CommentCount != 0 {
+		t.Fatalf("an absent fingerprint in a healthy response should reset to 0, got %+v", pushed)
 	}
 }
 
