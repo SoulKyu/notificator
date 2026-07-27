@@ -165,6 +165,11 @@ func (gdb *GormDB) AutoMigrate() error {
 		}
 	}
 
+	// Create the activity-feed index now that the comments table exists.
+	if err := gdb.migrateCommentsCreatedAtIndex(); err != nil {
+		log.Printf("⚠️  Warning: Failed to create comments created_at index: %v", err)
+	}
+
 	log.Println("✅ Database migrations completed")
 	return nil
 }

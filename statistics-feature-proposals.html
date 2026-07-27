@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statistics Dashboard — Feature Proposals (POC Previews)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  tailwind.config = { darkMode: 'class' };
+</script>
+<style>
+  body { background: #0b1120; }
+  .card { background: #111827; border: 1px solid #1f2937; }
+  @keyframes kpi-worse { 0% { background-color: rgba(239,68,68,.22); } 100% { background-color: transparent; } }
+  @keyframes kpi-better { 0% { background-color: rgba(16,185,129,.22); } 100% { background-color: transparent; } }
+  .kpi-diff-worse { animation: kpi-worse 3s ease-out infinite; border-radius: 8px; }
+  .kpi-diff-better { animation: kpi-better 3s ease-out infinite; border-radius: 8px; }
+  .pulse-dot { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .hm-cell { width: 26px; height: 26px; border-radius: 4px; }
+</style>
+</head>
+<body class="text-slate-300 font-sans antialiased">
+
+<!-- ── Header ─────────────────────────────────────── -->
+<header class="max-w-6xl mx-auto px-6 pt-10 pb-6">
+  <p class="text-xs uppercase tracking-widest text-indigo-400 font-semibold mb-2">Notificator · Statistics Dashboard</p>
+  <h1 class="text-3xl font-bold text-white">Feature Proposals — POC Previews</h1>
+  <p class="mt-2 text-slate-400 max-w-2xl">6 propositions issues de 2 agents de review (3 analytics + 3 UX/productivité). Chaque preview est un mockup statique — données factices — pour visualiser l'intégration avant build.</p>
+  <div class="mt-4 flex flex-wrap gap-2 text-xs">
+    <span class="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">Analytics ×3</span>
+    <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">UX / Productivité ×3</span>
+    <span class="px-2.5 py-1 rounded-full bg-slate-700/40 text-slate-400 border border-slate-600/40">Réutilise l'infra existante (Chart.js, Alpine, Views)</span>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 pb-24 space-y-10">
+
+<!-- ══════════ ANALYTICS ══════════ -->
+<h2 class="text-sm font-semibold uppercase tracking-wider text-amber-400 border-b border-amber-500/20 pb-2">Analytics &amp; Insights</h2>
+
+<!-- F1: Heatmap -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div>
+      <h3 class="text-lg font-semibold text-white">1 · Alert Noise Heatmap</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">7×24 (jour × heure) — voir <em>quand</em> les alertes mordent. Tune des règles, maintenance windows, rotations on-call basées sur les patterns réels. Aucune migration : <code class="text-indigo-300">EXTRACT(DOW/HOUR FROM fired_at)</code> existe déjà.</p>
+    </div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">No schema change</span>
+  </div>
+
+  <!-- preview -->
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-sm font-medium text-white">Alert Heatmap</span>
+      <div class="flex gap-1 text-xs">
+        <button class="px-2.5 py-1 rounded-full bg-red-500/20 text-red-300 font-medium">Volume</button>
+        <button class="px-2.5 py-1 rounded-full text-slate-400 hover:bg-slate-800">MTTR</button>
+      </div>
+    </div>
+    <div id="heatmap" class="text-xs"></div>
+    <div class="flex items-center gap-2 mt-4 text-xs text-slate-500">
+      <span>0</span>
+      <div class="h-2 w-40 rounded" style="background:linear-gradient(90deg,#1e293b,#fcd34d,#dc2626)"></div>
+      <span>max</span>
+      <span class="ml-auto">Hover une cellule → "Tuesday 14:00 — 42 alerts, avg MTTR 8m30s"</span>
+    </div>
+  </div>
+</section>
+
+<!-- F2: Flapping -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div>
+      <h3 class="text-lg font-semibold text-white">2 · Alert Flapping Detector</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Top des alertes les plus bruyantes (fire→resolve→re-fire). Flap score = <code class="text-indigo-300">fire_count × (1/avg_gap_h)</code>. Window function sur <code class="text-indigo-300">fired_at</code>, calcul au query-time.</p>
+    </div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">No schema change</span>
+  </div>
+
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+      <span class="text-sm font-medium text-white">Top Flapping Alerts</span>
+      <span class="text-xs text-slate-500">re-firing the most in selected window</span>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="text-xs text-slate-500 bg-slate-900/40">
+        <tr><th class="text-left font-medium px-4 py-2">#</th><th class="text-left font-medium px-4 py-2">Alert</th><th class="text-left font-medium px-4 py-2">Fires</th><th class="text-left font-medium px-4 py-2">Avg gap</th><th class="text-left font-medium px-4 py-2">Rate</th><th class="text-left font-medium px-4 py-2">MTTR</th><th class="text-left font-medium px-4 py-2">Score</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        <tr class="hover:bg-amber-500/5">
+          <td class="px-4 py-3 text-slate-500">#1</td>
+          <td class="px-4 py-3"><div class="font-semibold text-white">DiskUsageHigh</div><div class="mt-0.5 flex gap-1"><span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">database</span><span class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-300">critical</span></div></td>
+          <td class="px-4 py-3 text-red-400 font-medium">🔥 23</td>
+          <td class="px-4 py-3 text-slate-300">3m 10s</td>
+          <td class="px-4 py-3"><div class="flex items-center gap-2"><span>18.9/h</span><div class="h-1.5 w-16 rounded bg-slate-800"><div class="h-full rounded bg-red-500" style="width:100%"></div></div></div></td>
+          <td class="px-4 py-3 text-slate-300">2m</td>
+          <td class="px-4 py-3"><span class="text-xs font-bold px-2 py-1 rounded bg-red-500/20 text-red-300">87</span></td>
+        </tr>
+        <tr class="hover:bg-amber-500/5">
+          <td class="px-4 py-3 text-slate-500">#2</td>
+          <td class="px-4 py-3"><div class="font-semibold text-white">PodCrashLoop</div><div class="mt-0.5 flex gap-1"><span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">platform</span><span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300">warning</span></div></td>
+          <td class="px-4 py-3 text-red-400 font-medium">🔥 14</td>
+          <td class="px-4 py-3 text-slate-300">7m 02s</td>
+          <td class="px-4 py-3"><div class="flex items-center gap-2"><span>8.5/h</span><div class="h-1.5 w-16 rounded bg-slate-800"><div class="h-full rounded bg-amber-500" style="width:45%"></div></div></div></td>
+          <td class="px-4 py-3 text-slate-300">5m</td>
+          <td class="px-4 py-3"><span class="text-xs font-bold px-2 py-1 rounded bg-amber-500/20 text-amber-300">41</span></td>
+        </tr>
+        <tr class="hover:bg-amber-500/5">
+          <td class="px-4 py-3 text-slate-500">#3</td>
+          <td class="px-4 py-3"><div class="font-semibold text-white">CertExpirySoon</div><div class="mt-0.5 flex gap-1"><span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">frontend</span><span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300">info</span></div></td>
+          <td class="px-4 py-3 text-slate-300">6</td>
+          <td class="px-4 py-3 text-slate-300">52m</td>
+          <td class="px-4 py-3"><div class="flex items-center gap-2"><span>1.1/h</span><div class="h-1.5 w-16 rounded bg-slate-800"><div class="h-full rounded bg-slate-500" style="width:8%"></div></div></div></td>
+          <td class="px-4 py-3 text-slate-300">12m</td>
+          <td class="px-4 py-3"><span class="text-xs font-bold px-2 py-1 rounded bg-slate-600/30 text-slate-300">9</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="px-4 py-2 text-xs text-slate-500 border-t border-slate-800">Clic ligne → ouvre le modal alerte existant (<code>openAlertModal</code>). Empty state : "No flapping alerts detected ✓"</div>
+  </div>
+</section>
+
+<!-- F3: Team Burden -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div>
+      <h3 class="text-lg font-semibold text-white">3 · Team On-Call Burden + Week-over-Week</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Quelle équipe porte le plus de charge, et ça s'améliore ou pas ? Burden = volume × ratio hors-heures × MTTR. Réutilise le mode Compare existant (<code class="text-indigo-300">loadComparisonData</code>) pour le delta période.</p>
+    </div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">Réutilise Compare mode</span>
+  </div>
+
+  <div class="mt-5 grid md:grid-cols-2 gap-5">
+    <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-5">
+      <div class="flex items-center justify-between mb-3"><span class="text-sm font-medium text-white">Burden Score</span><span class="text-xs text-slate-500">vs. previous 7d</span></div>
+      <canvas id="burdenChart" height="180"></canvas>
+    </div>
+    <div class="rounded-xl bg-slate-900/60 border border-slate-800 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="text-xs text-slate-500 bg-slate-900/40"><tr><th class="text-left font-medium px-3 py-2">Team</th><th class="text-left font-medium px-3 py-2">Alerts</th><th class="text-left font-medium px-3 py-2">On-Call %</th><th class="text-left font-medium px-3 py-2">MTTR</th><th class="text-left font-medium px-3 py-2">Burden</th></tr></thead>
+        <tbody class="divide-y divide-slate-800">
+          <tr class="hover:bg-indigo-500/5"><td class="px-3 py-3 font-medium text-white">database</td><td class="px-3 py-3">234</td><td class="px-3 py-3"><span class="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">68%</span></td><td class="px-3 py-3">14m</td><td class="px-3 py-3"><span class="text-xs font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300">82</span> <span class="text-xs text-red-400">▲+12</span></td></tr>
+          <tr class="hover:bg-indigo-500/5"><td class="px-3 py-3 font-medium text-white">platform</td><td class="px-3 py-3">87</td><td class="px-3 py-3"><span class="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">31%</span></td><td class="px-3 py-3">6m</td><td class="px-3 py-3"><span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">41</span> <span class="text-xs text-emerald-400">▼-5</span></td></tr>
+          <tr class="hover:bg-indigo-500/5"><td class="px-3 py-3 font-medium text-white">frontend</td><td class="px-3 py-3">12</td><td class="px-3 py-3"><span class="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">8%</span></td><td class="px-3 py-3">2m</td><td class="px-3 py-3"><span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">9</span> <span class="text-xs text-slate-500">—</span></td></tr>
+        </tbody>
+      </table>
+      <div class="px-3 py-2 text-xs text-slate-500 border-t border-slate-800">Clic team → applique le filtre <code>filters.teams=[team]</code></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ UX ══════════ -->
+<h2 class="text-sm font-semibold uppercase tracking-wider text-emerald-400 border-b border-emerald-500/20 pb-2 pt-4">UX, Interactivité &amp; Productivité</h2>
+
+<!-- F4: Share URL -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div>
+      <h3 class="text-lg font-semibold text-white">4 · Shareable Filter State (URL Deep-Link)</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Sérialise tous les filtres dans <code class="text-indigo-300">URLSearchParams</code> + <code>history.replaceState</code> (pattern <code>updateURL()</code> déjà présent). Un lien Slack → tout le monde atterrit sur la même vue. S'intègre au système Views.</p>
+    </div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Réutilise updateURL()</span>
+  </div>
+
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 p-5 space-y-4">
+    <div class="flex items-center gap-2">
+      <button id="shareBtn" onclick="copyShare()" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm">
+        <span id="shareIcon">🔗</span><span id="shareLabel">Share</span>
+      </button>
+      <button class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm">↓ Export</button>
+      <span class="text-xs text-slate-500 ml-2">← live: clique "Share"</span>
+    </div>
+    <div class="font-mono text-xs bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-400 overflow-x-auto">
+      /statistics?<span class="text-indigo-300">from=7&fromUnit=days</span>&<span class="text-amber-300">severities=critical,warning</span>&<span class="text-emerald-300">teams=platform</span>&groupBy=alert_name&limit=20
+    </div>
+  </div>
+</section>
+
+<!-- F5: Drill-down -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div>
+      <h3 class="text-lg font-semibold text-white">5 · Chart Segment Click-Through Drill-Down</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Clic sur une part du donut → applique le filtre (<code>filters.teams</code>/<code>severities</code>) + re-query. Chart.js expose déjà <code>onClick</code> avec l'index. Breadcrumb de drill avec chips ×.</p>
+    </div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Chart.js onClick</span>
+  </div>
+
+  <div class="mt-5 grid md:grid-cols-2 gap-5 items-center">
+    <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-5">
+      <canvas id="donutChart" height="200"></canvas>
+      <p class="text-center text-xs text-slate-500 mt-2 cursor-pointer">Click to drill down ▸</p>
+    </div>
+    <div>
+      <p class="text-xs text-slate-500 mb-2">État après clic — breadcrumb sous la barre de query :</p>
+      <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-5 py-3 flex items-center gap-2 text-sm flex-wrap">
+        <span class="text-indigo-300">⚡ Drill-down</span>
+        <span class="text-slate-500">›</span>
+        <span class="bg-slate-800 border border-indigo-700/50 text-indigo-300 px-2.5 py-1 rounded-lg text-xs font-medium">Team: platform <span class="text-slate-500 cursor-pointer">×</span></span>
+        <span class="text-slate-500">›</span>
+        <span class="bg-slate-800 border border-indigo-700/50 text-indigo-300 px-2.5 py-1 rounded-lg text-xs font-medium">Severity: critical <span class="text-slate-500 cursor-pointer">×</span></span>
+        <button class="ml-auto text-indigo-400 hover:text-indigo-200 text-xs">Clear all</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- F6: Auto-refresh -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div>
+      <h3 class="text-lg font-semibold text-white">6 · Auto-Refresh + Live Diff Highlighting</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Toggle OFF→30s→1m→5m (<code>setInterval</code>). Snapshot du KPI précédent → flash vert (mieux) / rouge (pire) sur chaque carte. Dashboard d'incident live, zéro backend.</p>
+    </div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">No backend change</span>
+  </div>
+
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 p-5">
+    <div class="flex justify-end mb-4">
+      <button class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-sm">
+        <span class="pulse-dot w-2 h-2 rounded-full bg-emerald-400"></span> Live · 1m ▾
+      </button>
+    </div>
+    <div class="grid grid-cols-3 gap-4">
+      <div class="rounded-lg bg-slate-950/50 border border-slate-800 p-4">
+        <div class="text-xs text-slate-500">Total Alerts</div>
+        <div class="mt-1 flex items-baseline gap-2"><span class="kpi-diff-worse text-2xl font-bold text-white px-1">1,247</span><span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">▲ +34</span></div>
+      </div>
+      <div class="rounded-lg bg-slate-950/50 border border-slate-800 p-4">
+        <div class="text-xs text-slate-500">Avg MTTR</div>
+        <div class="mt-1 flex items-baseline gap-2"><span class="kpi-diff-better text-2xl font-bold text-white px-1">8m 12s</span><span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">▼ -42s</span></div>
+      </div>
+      <div class="rounded-lg bg-slate-950/50 border border-slate-800 p-4">
+        <div class="text-xs text-slate-500">Avg MTTA</div>
+        <div class="mt-1 flex items-baseline gap-2"><span class="text-2xl font-bold text-white px-1">2m 05s</span><span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-700/40 text-slate-400">—</span></div>
+      </div>
+    </div>
+    <p class="text-xs text-slate-500 mt-3">Flash 3s : vert = amélioration, rouge = dégradation (MTTR/MTTA : plus haut = pire).</p>
+  </div>
+</section>
+
+<footer class="text-center text-xs text-slate-600 pt-6 border-t border-slate-800">
+  Mockups statiques · données factices · généré par 2 agents de review feature · Notificator Statistics Dashboard
+</footer>
+</main>
+
+<script>
+// ── Heatmap (7×24, valeurs factices) ──
+(function(){
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  // pseudo pattern: weekday business hours hot, nights low
+  function val(d,h){
+    const weekend = d>=5;
+    let base = weekend ? 3 : (h>=8 && h<=18 ? 35 + (h-8)*2 : 6);
+    if(!weekend && h===9) base = 58;
+    if(!weekend && h>=2 && h<=4) base = 14; // night cluster
+    return Math.round(base + (h%3)*2);
+  }
+  const max = 58;
+  function color(v){
+    const t = v/max;
+    // slate -> amber -> red
+    if(t<0.5){ const u=t/0.5; return lerp([30,41,59],[252,211,77],u); }
+    const u=(t-0.5)/0.5; return lerp([252,211,77],[220,38,38],u);
+  }
+  function lerp(a,b,u){ return `rgb(${a.map((x,i)=>Math.round(x+(b[i]-x)*u)).join(',')})`; }
+  let html = '<div style="display:flex;gap:6px">';
+  html += '<div style="display:flex;flex-direction:column;gap:3px;padding-top:0">';
+  days.forEach(d=>html+=`<div style="height:26px;line-height:26px;color:#64748b;width:30px">${d}</div>`);
+  html += '</div><div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(24,1fr);gap:3px">';
+  for(let d=0;d<7;d++) for(let h=0;h<24;h++){
+    const v=val(d,h);
+    html+=`<div class="hm-cell" style="background:${color(v)}" title="${days[d]} ${String(h).padStart(2,'0')}:00 — ${v} alerts"></div>`;
+  }
+  html+='</div><div style="display:grid;grid-template-columns:repeat(4,1fr);margin-top:6px;color:#64748b;font-size:10px"><span>00</span><span>06</span><span>12</span><span style="text-align:right">18</span></div>';
+  html += '</div></div>';
+  document.getElementById('heatmap').innerHTML = html;
+})();
+
+// ── Burden horizontal bar ──
+new Chart(document.getElementById('burdenChart'), {
+  type:'bar',
+  data:{ labels:['database','platform','frontend'], datasets:[{ data:[82,41,9], backgroundColor:['#dc2626','#f59e0b','#10b981'], borderRadius:6 }] },
+  options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{max:100,grid:{color:'#1f2937'},ticks:{color:'#64748b'}}, y:{grid:{display:false},ticks:{color:'#cbd5e1'}} } }
+});
+
+// ── Donut distribution ──
+new Chart(document.getElementById('donutChart'), {
+  type:'doughnut',
+  data:{ labels:['platform','database','frontend','network'], datasets:[{ data:[42,28,18,12], backgroundColor:['#6366f1','#dc2626','#10b981','#f59e0b'], borderColor:'#0b1120', borderWidth:2 }] },
+  options:{ plugins:{ legend:{ position:'bottom', labels:{color:'#94a3b8',font:{size:11}} } } }
+});
+
+// ── Share button live demo ──
+function copyShare(){
+  const url = location.origin + '/statistics?from=7&fromUnit=days&severities=critical,warning&teams=platform&groupBy=alert_name&limit=20';
+  navigator.clipboard?.writeText(url);
+  const btn=document.getElementById('shareBtn'), ic=document.getElementById('shareIcon'), lb=document.getElementById('shareLabel');
+  btn.className='inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 text-sm';
+  ic.textContent='✓'; lb.textContent='Copied!';
+  setTimeout(()=>{ btn.className='inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm'; ic.textContent='🔗'; lb.textContent='Share'; },1500);
+}
+</script>
+</body>
+</html>

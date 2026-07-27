@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Feature Proposals (POC Previews)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+<style>
+  body { background:#0b1120; }
+  .card { background:#111827; border:1px solid #1f2937; }
+  kbd { background:#374151; border-radius:4px; padding:1px 6px; font-size:11px; font-family:monospace; border:1px solid #4b5563; }
+  .pulse { animation:pulse 1.4s ease-in-out infinite; } @keyframes pulse{50%{opacity:.4;}}
+  .seg { transition:width .5s ease; }
+  .spark{stroke:#6366f1;fill:none;stroke-width:1.5;}
+</style>
+</head>
+<body class="text-slate-300 font-sans antialiased">
+
+<header class="max-w-6xl mx-auto px-6 pt-10 pb-6">
+  <p class="text-xs uppercase tracking-widest text-indigo-400 font-semibold mb-2">Notificator · /dashboard</p>
+  <h1 class="text-3xl font-bold text-white">Feature Proposals — POC Previews</h1>
+  <p class="mt-2 text-slate-400 max-w-2xl">6 propositions de 2 agents (3 triage/on-call + 3 visualisation/UX). Mockups statiques, données factices, pour visualiser avant build.</p>
+  <div class="mt-4 flex flex-wrap gap-2 text-xs">
+    <span class="px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20">Triage / On-call ×3</span>
+    <span class="px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20">Visualisation / UX ×3</span>
+    <span class="px-2.5 py-1 rounded-full bg-slate-700/40 text-slate-400 border border-slate-600/40">Réutilise SSE, bulk-action, column-prefs existants</span>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 pb-24 space-y-10">
+
+<h2 class="text-sm font-semibold uppercase tracking-wider text-rose-400 border-b border-rose-500/20 pb-2">Triage &amp; On-Call Workflow</h2>
+
+<!-- F1 Keyboard nav -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div><h3 class="text-lg font-semibold text-white">1 · Keyboard-Driven Navigation &amp; Quick Actions</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Trier sans la souris : <kbd>↑</kbd><kbd>↓</kbd> naviguer, <kbd>Space</kbd> sélectionner, <kbd>A</kbd> ack, <kbd>S</kbd> silence, <kbd>U</kbd> unack, <kbd>?</kbd> aide. Réutilise les modals ack/silence existants.</p></div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Frontend only</span>
+  </div>
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-xs text-slate-500 bg-slate-900/40"><tr><th class="text-left font-medium px-3 py-2 w-8"></th><th class="text-left font-medium px-3 py-2">Severity</th><th class="text-left font-medium px-3 py-2">Alert</th><th class="text-left font-medium px-3 py-2">Team</th><th class="text-left font-medium px-3 py-2">Age</th></tr></thead>
+      <tbody class="divide-y divide-slate-800">
+        <tr class="text-slate-400"><td class="px-3 py-2">☐</td><td class="px-3 py-2"><span class="text-xs px-1.5 py-0.5 rounded bg-red-500/15 text-red-300">critical</span></td><td class="px-3 py-2 text-white">DiskUsageHigh</td><td class="px-3 py-2">infra</td><td class="px-3 py-2">2h34m</td></tr>
+        <tr class="ring-2 ring-blue-400 bg-blue-500/5 text-slate-200"><td class="px-3 py-2">☑</td><td class="px-3 py-2"><span class="text-xs px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300">warning</span></td><td class="px-3 py-2 text-white font-medium">PodCrashLoop ◀ curseur</td><td class="px-3 py-2">platform</td><td class="px-3 py-2">12m</td></tr>
+        <tr class="text-slate-400"><td class="px-3 py-2">☐</td><td class="px-3 py-2"><span class="text-xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300">info</span></td><td class="px-3 py-2 text-white">CertExpirySoon</td><td class="px-3 py-2">frontend</td><td class="px-3 py-2">5h</td></tr>
+      </tbody>
+    </table>
+    <div class="flex justify-end p-3">
+      <div class="bg-slate-950 text-slate-300 text-xs rounded px-3 py-2 shadow-xl border border-slate-700 font-mono">
+        <kbd>↑↓</kbd> navigate &nbsp; <kbd>Space</kbd> select &nbsp; <kbd>A</kbd> ack &nbsp; <kbd>S</kbd> silence &nbsp; <kbd>U</kbd> unack &nbsp; <kbd>?</kbd> help
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- F2 Snooze -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div><h3 class="text-lg font-semibold text-white">2 · Snooze / Remind-Me avec Motif</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Alternative légère au silence Alertmanager : masque l'alerte X minutes puis la fait revenir avec un badge "REVENU" + motif. Pas de matcher Alertmanager créé.</p></div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">Backend léger + FE</span>
+  </div>
+  <div class="mt-5 grid md:grid-cols-2 gap-5 items-start">
+    <div class="rounded-xl bg-slate-800/70 border border-slate-700 p-5">
+      <div class="flex items-center gap-2 text-white font-medium mb-1">⏱ Snooze alert</div>
+      <div class="text-xs text-slate-400 mb-4">DiskUsageHigh / team-infra</div>
+      <div class="text-xs text-slate-400 mb-1">Duration</div>
+      <div class="flex gap-2 mb-4">
+        <span class="px-3 py-1 rounded-full text-sm bg-slate-700 text-slate-300">5m</span>
+        <span class="px-3 py-1 rounded-full text-sm bg-slate-700 text-slate-300">15m</span>
+        <span class="px-3 py-1 rounded-full text-sm bg-blue-600 text-white">1h</span>
+        <span class="px-3 py-1 rounded-full text-sm bg-slate-700 text-slate-300">Custom</span>
+      </div>
+      <div class="text-xs text-slate-400 mb-1">Reason (optional)</div>
+      <div class="bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-slate-300">Ticket ouvert #1234</div>
+      <div class="flex justify-end gap-2 mt-4 text-sm">
+        <span class="px-3 py-1.5 rounded text-slate-400">Cancel</span>
+        <span class="px-3 py-1.5 rounded bg-blue-600 text-white">Snooze →</span>
+      </div>
+    </div>
+    <div>
+      <p class="text-xs text-slate-500 mb-2">Header : compteur snoozed (cliquable). Alerte revenue : badge pulsant + fond ambré.</p>
+      <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-2">
+        <div class="text-xs text-amber-400 font-mono">⏱ 3 snoozed</div>
+        <div class="flex items-center gap-2 bg-amber-500/10 border-l-4 border-amber-400 rounded px-3 py-2 text-sm">
+          <span class="pulse text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-black font-bold">REVENU</span>
+          <span class="text-white">DiskUsageHigh</span><span class="text-slate-400 text-xs ml-auto">snooze expiré il y a 1m</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- F3 Grouping -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div><h3 class="text-lg font-semibold text-white">3 · Alert Grouping &amp; Correlation (collapse)</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Group-by dynamique par label (alertname/team/namespace), collapse/expand, résumé par groupe, "Ack all". <code>BulkActionAlerts</code> accepte déjà les fingerprints du groupe.</p></div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">FE (bulk existant)</span>
+  </div>
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 overflow-hidden">
+    <div class="flex items-center gap-3 px-4 py-2 text-xs text-slate-400 border-b border-slate-800">
+      <span class="px-2 py-1 rounded bg-slate-800">List</span><span class="px-2 py-1 rounded bg-blue-600 text-white">Group ▾ alertname</span>
+      <span class="ml-auto">23 alerts in 4 groups</span><span class="text-slate-500">Expand all · Collapse all</span>
+    </div>
+    <!-- collapsed group -->
+    <div class="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-l-4 border-red-500">
+      <span class="text-slate-400">▶</span><span class="text-white font-medium">CriticalDiskUsage</span>
+      <span class="text-xs px-2 py-0.5 rounded bg-red-600 text-white ml-2">🔴 12 firing</span>
+      <span class="text-xs px-2 py-0.5 rounded bg-emerald-700 text-white">✓ 3 acked</span>
+      <span class="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-300">🔕 1 silenced</span>
+      <span class="text-xs text-orange-400 font-mono">Age 2h34m</span>
+      <span class="ml-auto text-xs px-3 py-1 rounded bg-emerald-600 text-white">Ack all</span>
+    </div>
+    <!-- expanded group -->
+    <div class="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-l-4 border-yellow-500">
+      <span class="text-slate-400">▼</span><span class="text-white font-medium">PodCrashLoopBackOff</span>
+      <span class="text-xs px-2 py-0.5 rounded bg-yellow-600 text-white ml-2">🟡 4 firing</span>
+      <span class="ml-auto text-xs px-3 py-1 rounded bg-emerald-600 text-white">Ack all</span>
+    </div>
+    <div class="pl-8 border-l-2 border-yellow-500/40 ml-4 divide-y divide-slate-800 text-sm">
+      <div class="flex items-center gap-3 px-3 py-2 text-slate-300"><span class="text-yellow-400">●</span> prod-eu · payments · 3m12s <span class="ml-auto text-xs text-slate-500">Ack · Silence · ⏱</span></div>
+      <div class="flex items-center gap-3 px-3 py-2 text-slate-300"><span class="text-yellow-400">●</span> prod-us · payments · 2m48s <span class="ml-auto text-xs text-slate-500">Ack · Silence · ⏱</span></div>
+    </div>
+  </div>
+</section>
+
+<h2 class="text-sm font-semibold uppercase tracking-wider text-sky-400 border-b border-sky-500/20 pb-2 pt-4">Visualisation &amp; Information Density</h2>
+
+<!-- F4 Heat bar -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div><h3 class="text-lg font-semibold text-white">4 · Live Severity Heat Bar</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Bandeau proportionnel sous le header, animé à chaque update SSE. Lit <code>metadata.counters.severityCounters</code> déjà présent — zéro endpoint. Badge "+N new" en delta.</p></div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">No endpoint</span>
+  </div>
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 p-5">
+    <div class="flex items-center gap-3">
+      <div class="flex-1 h-8 rounded overflow-hidden flex text-[11px] font-semibold text-white">
+        <div class="seg bg-red-500 flex items-center justify-center" style="width:30%">7 CRITICAL</div>
+        <div class="seg bg-amber-400 flex items-center justify-center text-black" style="width:50%">18 WARNING</div>
+        <div class="seg bg-blue-400 flex items-center justify-center" style="width:12%">3 INFO</div>
+        <div class="seg bg-slate-600 flex items-center justify-center" style="width:8%">res</div>
+      </div>
+      <span class="text-xs px-2 py-1 rounded-full bg-orange-500/20 text-orange-300">+3 new</span>
+    </div>
+    <p class="text-xs text-slate-500 mt-2">Hover → labels inline + tooltip "7 critical · 12.4%". Tout calme → bandeau vert "All clear".</p>
+  </div>
+</section>
+
+<!-- F5 Age heatmap column -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div><h3 class="text-lg font-semibold text-white">5 · Age Heatmap Column + Sparkline</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Colonne "age" visuelle : barre green→red selon seuils (1h/4h/12h) + mini-sparkline 12h. Nouveau formatter dans le column-config existant ; sparkline réutilise le cache history.</p></div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">Reuse history</span>
+  </div>
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 overflow-hidden">
+    <table class="w-full text-sm"><tbody class="divide-y divide-slate-800">
+      <tr><td class="px-4 py-3 text-white">DiskUsageHigh</td><td class="px-4 py-3 w-48">
+        <div class="text-xs font-mono text-slate-300 mb-1">14h 02m</div>
+        <div class="flex items-center gap-2"><div class="h-1.5 flex-1 rounded-full bg-slate-700"><div class="h-full rounded-full bg-red-500" style="width:100%"></div></div>
+        <svg width="48" height="16" viewBox="0 0 48 16"><polyline class="spark" points="0,12 6,10 12,13 18,4 24,11 30,9 36,12 42,2 48,8"/></svg></div></td></tr>
+      <tr><td class="px-4 py-3 text-white">PodCrashLoop</td><td class="px-4 py-3 w-48">
+        <div class="text-xs font-mono text-slate-300 mb-1">2h 14m</div>
+        <div class="flex items-center gap-2"><div class="h-1.5 flex-1 rounded-full bg-slate-700"><div class="h-full rounded-full bg-orange-400" style="width:18%"></div></div>
+        <svg width="48" height="16" viewBox="0 0 48 16"><polyline class="spark" points="0,8 6,9 12,7 18,10 24,6 30,8 36,5 42,9 48,7"/></svg></div></td></tr>
+      <tr><td class="px-4 py-3 text-white">CertExpirySoon</td><td class="px-4 py-3 w-48">
+        <div class="text-xs font-mono text-slate-300 mb-1">42m</div>
+        <div class="flex items-center gap-2"><div class="h-1.5 flex-1 rounded-full bg-slate-700"><div class="h-full rounded-full bg-green-400" style="width:6%"></div></div>
+        <svg width="48" height="16" viewBox="0 0 48 16"><polyline class="spark" points="0,10 6,11 12,9 18,12 24,10 30,11 36,9 42,12 48,10"/></svg></div></td></tr>
+    </tbody></table>
+  </div>
+</section>
+
+<!-- F6 Density + presets -->
+<section class="card rounded-2xl p-6">
+  <div class="flex items-start justify-between gap-4 mb-1">
+    <div><h3 class="text-lg font-semibold text-white">6 · Compact Density + Smart Column Presets</h3>
+      <p class="text-sm text-slate-400 mt-1 max-w-2xl">Mode compact (×3 lignes visibles) + 3 presets de colonnes ("Incident Response", "Capacity", "On-Call") en un clic. Réutilise l'API column-preferences existante.</p></div>
+    <span class="shrink-0 text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Reuse column-prefs</span>
+  </div>
+  <div class="mt-5 rounded-xl bg-slate-900/60 border border-slate-800 p-5">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="flex rounded-lg overflow-hidden border border-slate-700 text-xs">
+        <span class="px-3 py-1.5 text-slate-400">Comfort</span><span class="px-3 py-1.5 bg-slate-700 text-white">Compact</span><span class="px-3 py-1.5 text-slate-400">Spacious</span>
+      </div>
+      <span class="px-3 py-1 text-xs rounded-full border border-purple-500/40 text-purple-300 bg-purple-500/10">⚡ Incident Response</span>
+      <span class="px-3 py-1 text-xs rounded-full border border-slate-600 text-slate-400">📊 Capacity</span>
+      <span class="px-3 py-1 text-xs rounded-full border border-slate-600 text-slate-400">🔧 On-Call</span>
+    </div>
+    <div class="rounded-lg bg-slate-950/50 border border-slate-800 font-mono text-[11px] divide-y divide-slate-800/60">
+      <div class="px-3 py-1 text-slate-300">☐ <span class="text-red-400">CRIT</span> PodCrashLoopBackOff · prod-k8s-eu · payments · 3m12s · 💬3 · Ack ⋯</div>
+      <div class="px-3 py-1 text-slate-300">☐ <span class="text-amber-400">WARN</span> HighMemoryUsage · prod-k8s-us · search · 11m · Ack ⋯</div>
+      <div class="px-3 py-1 text-slate-300">☐ <span class="text-red-400">CRIT</span> DiskUsageHigh · db-01 · infra · 2h34m · 💬1 · Ack ⋯</div>
+      <div class="px-3 py-1 text-slate-300">☐ <span class="text-blue-400">INFO</span> CertExpirySoon · lb-03 · frontend · 5h · Ack ⋯</div>
+      <div class="px-3 py-1 text-slate-300">☐ <span class="text-amber-400">WARN</span> LatencyP99High · api-gw · platform · 22m · Ack ⋯</div>
+    </div>
+    <p class="text-xs text-slate-500 mt-2">~28px/row vs ~68px → ~22 alertes sans scroll en 1080p.</p>
+  </div>
+</section>
+
+<footer class="text-center text-xs text-slate-600 pt-6 border-t border-slate-800">
+  Mockups statiques · données factices · 2 agents feature · Notificator /dashboard
+</footer>
+</main>
+</body>
+</html>
