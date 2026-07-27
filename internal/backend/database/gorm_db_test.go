@@ -236,3 +236,52 @@ func TestCleanupResolvedAcknowledgments(t *testing.T) {
 		t.Errorf("acknowledgment created after the resolution belongs to the live firing, got %d", len(refired))
 	}
 }
+
+func TestGetRecentActivity(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	base := time.Now().UTC().Truncate(time.Second)
+	// three comments at -3h, -1h, -10m
+	seed := []models.Comment{
+		{ID: "c1", AlertKey: "k1", UserID: u.ID, Content: "old", Kind: "comment", CreatedAt: base.Add(-3 * time.Hour)},
+		{ID: "c2", AlertKey: "k1", UserID: u.ID, Content: "🔇 silenced", Kind: "silence", CreatedAt: base.Add(-1 * time.Hour)},
+		{ID: "c3", AlertKey: "k2", UserID: u.ID, Content: "recent", Kind: "comment", CreatedAt: base.Add(-10 * time.Minute)},
+	}
+	for i := range seed {
+		if err := gdb.db.Create(&seed[i]).Error; err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	// window = last 2h → excludes c1; newest first → c3, c2
+	got, err := gdb.GetRecentActivity(base.Add(-2*time.Hour), 100)
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 2 || got[0].ID != "c3" || got[1].ID != "c2" {
+		t.Fatalf("got %d rows %v, want [c3 c2]", len(got), ids(got))
+	}
+	if got[0].Username != "alice" {
+		t.Fatalf("username = %q, want alice", got[0].Username)
+	}
+
+	// limit caps the result
+	got, err = gdb.GetRecentActivity(base.Add(-4*time.Hour), 1)
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "c3" {
+		t.Fatalf("limit=1 got %v, want [c3]", ids(got))
+	}
+}
+
+func ids(rows []models.CommentWithUser) []string {
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		out[i] = r.ID
+	}
+	return out
+}
