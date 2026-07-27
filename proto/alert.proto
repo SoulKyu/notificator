@@ -14,7 +14,8 @@ service AlertService {
   rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
   rpc GetCommentCountsBatch(GetCommentCountsBatchRequest) returns (GetCommentCountsBatchResponse);
   rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
-  
+  rpc GetRecentActivity(GetRecentActivityRequest) returns (GetRecentActivityResponse);
+
   // Acknowledgments
   rpc AddAcknowledgment(AddAcknowledgmentRequest) returns (AddAcknowledgmentResponse);
   rpc GetAcknowledgments(GetAcknowledgmentsRequest) returns (GetAcknowledgmentsResponse);
@@ -120,6 +121,26 @@ message Comment {
   string content = 5;
   google.protobuf.Timestamp created_at = 6;
   string kind = 7;
+}
+
+message GetRecentActivityRequest {
+  string session_id = 1;
+  google.protobuf.Timestamp since = 2;
+  int32 limit = 3;
+}
+
+message ActivityEvent {
+  string id = 1;
+  string alert_key = 2;
+  string kind = 3;
+  string user_id = 4;
+  string username = 5;
+  string content = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message GetRecentActivityResponse {
+  repeated ActivityEvent events = 1;
 }
 
 // Acknowledgment Messages

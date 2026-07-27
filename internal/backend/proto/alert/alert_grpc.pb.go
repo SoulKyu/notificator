@@ -25,6 +25,7 @@ const (
 	AlertService_GetComments_FullMethodName                  = "/notificator.alert.AlertService/GetComments"
 	AlertService_GetCommentCountsBatch_FullMethodName        = "/notificator.alert.AlertService/GetCommentCountsBatch"
 	AlertService_DeleteComment_FullMethodName                = "/notificator.alert.AlertService/DeleteComment"
+	AlertService_GetRecentActivity_FullMethodName            = "/notificator.alert.AlertService/GetRecentActivity"
 	AlertService_AddAcknowledgment_FullMethodName            = "/notificator.alert.AlertService/AddAcknowledgment"
 	AlertService_GetAcknowledgments_FullMethodName           = "/notificator.alert.AlertService/GetAcknowledgments"
 	AlertService_GetAllAcknowledgedAlerts_FullMethodName     = "/notificator.alert.AlertService/GetAllAcknowledgedAlerts"
@@ -72,6 +73,7 @@ type AlertServiceClient interface {
 	GetComments(ctx context.Context, in *GetCommentsRequest, opts ...grpc.CallOption) (*GetCommentsResponse, error)
 	GetCommentCountsBatch(ctx context.Context, in *GetCommentCountsBatchRequest, opts ...grpc.CallOption) (*GetCommentCountsBatchResponse, error)
 	DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*DeleteCommentResponse, error)
+	GetRecentActivity(ctx context.Context, in *GetRecentActivityRequest, opts ...grpc.CallOption) (*GetRecentActivityResponse, error)
 	// Acknowledgments
 	AddAcknowledgment(ctx context.Context, in *AddAcknowledgmentRequest, opts ...grpc.CallOption) (*AddAcknowledgmentResponse, error)
 	GetAcknowledgments(ctx context.Context, in *GetAcknowledgmentsRequest, opts ...grpc.CallOption) (*GetAcknowledgmentsResponse, error)
@@ -160,6 +162,16 @@ func (c *alertServiceClient) DeleteComment(ctx context.Context, in *DeleteCommen
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteCommentResponse)
 	err := c.cc.Invoke(ctx, AlertService_DeleteComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alertServiceClient) GetRecentActivity(ctx context.Context, in *GetRecentActivityRequest, opts ...grpc.CallOption) (*GetRecentActivityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRecentActivityResponse)
+	err := c.cc.Invoke(ctx, AlertService_GetRecentActivity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -535,6 +547,7 @@ type AlertServiceServer interface {
 	GetComments(context.Context, *GetCommentsRequest) (*GetCommentsResponse, error)
 	GetCommentCountsBatch(context.Context, *GetCommentCountsBatchRequest) (*GetCommentCountsBatchResponse, error)
 	DeleteComment(context.Context, *DeleteCommentRequest) (*DeleteCommentResponse, error)
+	GetRecentActivity(context.Context, *GetRecentActivityRequest) (*GetRecentActivityResponse, error)
 	// Acknowledgments
 	AddAcknowledgment(context.Context, *AddAcknowledgmentRequest) (*AddAcknowledgmentResponse, error)
 	GetAcknowledgments(context.Context, *GetAcknowledgmentsRequest) (*GetAcknowledgmentsResponse, error)
@@ -600,6 +613,9 @@ func (UnimplementedAlertServiceServer) GetCommentCountsBatch(context.Context, *G
 }
 func (UnimplementedAlertServiceServer) DeleteComment(context.Context, *DeleteCommentRequest) (*DeleteCommentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteComment not implemented")
+}
+func (UnimplementedAlertServiceServer) GetRecentActivity(context.Context, *GetRecentActivityRequest) (*GetRecentActivityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRecentActivity not implemented")
 }
 func (UnimplementedAlertServiceServer) AddAcknowledgment(context.Context, *AddAcknowledgmentRequest) (*AddAcknowledgmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddAcknowledgment not implemented")
@@ -792,6 +808,24 @@ func _AlertService_DeleteComment_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AlertServiceServer).DeleteComment(ctx, req.(*DeleteCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlertService_GetRecentActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRecentActivityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetRecentActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlertService_GetRecentActivity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetRecentActivity(ctx, req.(*GetRecentActivityRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1416,6 +1450,10 @@ var AlertService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteComment",
 			Handler:    _AlertService_DeleteComment_Handler,
+		},
+		{
+			MethodName: "GetRecentActivity",
+			Handler:    _AlertService_GetRecentActivity_Handler,
 		},
 		{
 			MethodName: "AddAcknowledgment",
