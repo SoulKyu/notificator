@@ -598,9 +598,10 @@ templ DashboardModal() {
 					{ credentials: 'include' }
 				);
 
+				if (this.alertDetails?.alert?.fingerprint !== requestedFingerprint) return;
+
 				if (response.ok) {
 					const result = await response.json();
-					if (this.alertDetails?.alert?.fingerprint !== requestedFingerprint) return;
 					if (result.success) {
 						this.alertHistory = result.data;
 					} else {
