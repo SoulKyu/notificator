@@ -972,15 +972,27 @@ templ AlertDetailsModal() {
 					<div x-show="alertDetails" class="flex flex-col h-full">
 						<!-- Modern Header with gradient background -->
 						<div class="relative bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 px-6 py-6 border-b border-gray-200/50 dark:border-dark-border-subtle/50">
+							<!-- Copy alert link button -->
+							<button @click="copyAlertLink()"
+									title="Copy alert link"
+									class="absolute top-4 right-14 p-2 rounded-full hover:bg-white/80 dark:hover:bg-black/20 transition-colors duration-200 group">
+								<svg x-show="!alertLinkCopied" class="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.102-1.101m9.554-1.899l1.102-1.101a4 4 0 10-5.656-5.656l-4 4a4 4 0 001.885 6.727"/>
+								</svg>
+								<svg x-show="alertLinkCopied" style="display: none;" class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+								</svg>
+							</button>
+
 							<!-- Close button - positioned absolutely for modern look -->
-							<button @click="closeAlertModal()" 
+							<button @click="closeAlertModal()"
 									class="absolute top-4 right-4 p-2 rounded-full hover:bg-white/80 dark:hover:bg-black/20 transition-colors duration-200 group">
 								<svg class="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
 								</svg>
 							</button>
 							
-							<div class="flex items-start space-x-4 pr-12">
+							<div class="flex items-start space-x-4 pr-24">
 								<!-- Enhanced Status Icon with modern design -->
 								@AlertModalStatusIcon("alertDetails?.alert")
 
@@ -1117,7 +1129,7 @@ templ AlertDetailsModal() {
 										</span>
 									}
 									<!-- History tab with special click handler -->
-									<button @click="currentAlertTab = 'history'; loadAlertHistory()"
+									<button @click="currentAlertTab = 'history'; if (!alertHistory && !historyLoading) loadAlertHistory()"
 											:class="currentAlertTab === 'history' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
 											class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
 										<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1156,6 +1168,35 @@ templ AlertDetailsModal() {
 											@AlertModalStatusCard("alertDetails?.alert")
 											@AlertModalTimelineCard("alertDetails?.alert", false)
 											@AlertModalMetadataCard("alertDetails?.alert")
+										</div>
+
+										<!-- Frequency sparkline (30-day occurrence histogram, hidden when no history) -->
+										<div x-show="sparkline" class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50 mb-8">
+											<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+												<svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+												</svg>
+												Frequency
+											</h4>
+											<div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+												<span class="text-sm font-semibold text-gray-900 dark:text-white"
+													  x-text="sparkline ? (sparkline.capped ? '≥' + sparkline.total : sparkline.total) + ' occurrences in the last 30 days' : ''"></span>
+												<span class="text-xs font-semibold"
+													  :class="sparkline?.trendUp ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'"
+													  x-text="sparkline ? (sparkline.trendUp ? '▲ ' : '▼ ') + sparkline.last7 + ' this week (vs ' + sparkline.prev7 + ' last week)' : ''"></span>
+											</div>
+											<div class="flex items-end gap-0.5 h-12">
+												<template x-for="(bin, i) in sparkline?.bins || []" :key="i">
+													<div class="flex-1 rounded-sm transition-colors"
+														 :class="i === 29 ? 'bg-red-400 dark:bg-red-500' : (bin.count > 0 ? 'bg-blue-300 dark:bg-blue-600 hover:bg-blue-500 dark:hover:bg-blue-400' : 'bg-gray-200 dark:bg-gray-700')"
+														 :style="'height: ' + bin.pct + '%'"
+														 :title="bin.label"></div>
+												</template>
+											</div>
+											<div class="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+												<span>30 days ago</span>
+												<span>today</span>
+											</div>
 										</div>
 
 										<!-- Summary and Description Cards -->
