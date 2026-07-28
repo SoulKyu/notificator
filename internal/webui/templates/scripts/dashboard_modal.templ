@@ -54,6 +54,9 @@ templ DashboardModal() {
 				this.showAlertModal = true;
 				this.currentAlertTab = 'overview';
 				this.alertDetails = null;
+				this.alertHistory = null;
+				this.sparkline = null;
+				this.alertLinkCopied = false;
 
 				if (!options?.skipHistory) {
 					this.pushAlertHistoryEntry(fingerprint);
@@ -70,9 +73,10 @@ templ DashboardModal() {
 					}
 
 					const result = await response.json();
-					
+
 					if (result.success) {
 						this.alertDetails = result.data;
+						this.loadAlertHistory();
 					} else {
 						console.error('Failed to load alert details: ' + result.error);
 						this.closeAlertModal(options);
@@ -610,7 +614,52 @@ templ DashboardModal() {
 				this.alertHistory = null;
 			} finally {
 				this.historyLoading = false;
+				this.computeSparkline();
 			}
+		};
+
+		window.dashboardModalMixin.computeSparkline = function() {
+			const entries = this.alertHistory?.history || [];
+			const DAYS = 30;
+			const dayMs = 24 * 60 * 60 * 1000;
+			const todayStart = new Date();
+			todayStart.setHours(0, 0, 0, 0);
+			const counts = new Array(DAYS).fill(0);
+			for (const e of entries) {
+				const t = Date.parse(e.fired_at);
+				if (isNaN(t)) continue;
+				const d = new Date(t);
+				d.setHours(0, 0, 0, 0);
+				// Math.round absorbs DST hour shifts in the day delta
+				const daysAgo = Math.round((todayStart.getTime() - d.getTime()) / dayMs);
+				if (daysAgo < 0 || daysAgo >= DAYS) continue;
+				counts[DAYS - 1 - daysAgo]++;
+			}
+			const total = counts.reduce((a, b) => a + b, 0);
+			if (total === 0) {
+				this.sparkline = null;
+				return;
+			}
+			const max = Math.max(...counts);
+			const bins = counts.map((count, i) => {
+				const daysAgo = DAYS - 1 - i;
+				return {
+					count: count,
+					pct: count === 0 ? 4 : Math.max(10, Math.round((count / max) * 100)),
+					label: (daysAgo === 0 ? 'Today' : daysAgo + 'd ago') + ' — ' + count + ' occurrence' + (count === 1 ? '' : 's')
+				};
+			});
+			const last7 = counts.slice(-7).reduce((a, b) => a + b, 0);
+			const prev7 = counts.slice(-14, -7).reduce((a, b) => a + b, 0);
+			this.sparkline = {
+				bins: bins,
+				total: total,
+				// ponytail: history endpoint caps at 50 entries; a flapper shows "≥N". Add a limit param server-side if this ever matters.
+				capped: entries.length >= 50,
+				last7: last7,
+				prev7: prev7,
+				trendUp: last7 > prev7
+			};
 		};
 
 		window.dashboardModalMixin.formatDuration = function(seconds) {
