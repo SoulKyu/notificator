@@ -671,11 +671,11 @@ func convertToResponseAlerts(alerts []*webuimodels.DashboardAlert) []webuimodels
 	return result
 }
 
-func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
-	counters := webuimodels.DashboardCounters{
-		SeverityCounters: make(map[string]int),
-	}
-	availableFilters := webuimodels.DashboardAvailableFilters{
+// computeAvailableFilters collects the distinct filter option values (alertmanager,
+// severity, status, team, alert name) present across the given alerts, sorted. Shared by
+// the dashboard metadata and the activity feed so both offer the same option lists.
+func computeAvailableFilters(alerts []*webuimodels.DashboardAlert) webuimodels.DashboardAvailableFilters {
+	available := webuimodels.DashboardAvailableFilters{
 		Alertmanagers: []string{},
 		Severities:    []string{},
 		Statuses:      []string{},
@@ -683,12 +683,60 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		AlertNames:    []string{},
 	}
 
-	// Track unique values for filters
 	alertmanagerSet := make(map[string]bool)
 	severitySet := make(map[string]bool)
 	statusSet := make(map[string]bool)
 	teamSet := make(map[string]bool)
 	alertNameSet := make(map[string]bool)
+
+	for _, alert := range alerts {
+		alertmanagerSet[alert.Source] = true
+		severitySet[alert.Severity] = true
+		statusSet[alert.Status.State] = true
+		teamSet[alert.Team] = true
+		if alert.AlertName != "" {
+			alertNameSet[alert.AlertName] = true
+		}
+	}
+
+	for am := range alertmanagerSet {
+		if am != "" {
+			available.Alertmanagers = append(available.Alertmanagers, am)
+		}
+	}
+	for sev := range severitySet {
+		if sev != "" {
+			available.Severities = append(available.Severities, sev)
+		}
+	}
+	for status := range statusSet {
+		if status != "" {
+			available.Statuses = append(available.Statuses, status)
+		}
+	}
+	for team := range teamSet {
+		if team != "" {
+			available.Teams = append(available.Teams, team)
+		}
+	}
+	for alertName := range alertNameSet {
+		available.AlertNames = append(available.AlertNames, alertName)
+	}
+
+	sort.Strings(available.Alertmanagers)
+	sort.Strings(available.Severities)
+	sort.Strings(available.Statuses)
+	sort.Strings(available.Teams)
+	sort.Strings(available.AlertNames)
+
+	return available
+}
+
+func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
+	counters := webuimodels.DashboardCounters{
+		SeverityCounters: make(map[string]int),
+	}
+	availableFilters := computeAvailableFilters(allAlerts)
 
 	// Count statistics from filtered alerts only
 	for _, alert := range filteredAlerts {
@@ -768,40 +816,6 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 			}
 		}
 	}
-
-	// Collect unique values for filters from all alerts to show available options
-	for _, alert := range allAlerts {
-		alertmanagerSet[alert.Source] = true
-		severitySet[alert.Severity] = true
-		statusSet[alert.Status.State] = true
-		teamSet[alert.Team] = true
-		if alert.AlertName != "" {
-			alertNameSet[alert.AlertName] = true
-		}
-	}
-
-	for am := range alertmanagerSet {
-		availableFilters.Alertmanagers = append(availableFilters.Alertmanagers, am)
-	}
-	for sev := range severitySet {
-		availableFilters.Severities = append(availableFilters.Severities, sev)
-	}
-	for status := range statusSet {
-		availableFilters.Statuses = append(availableFilters.Statuses, status)
-	}
-	for team := range teamSet {
-		availableFilters.Teams = append(availableFilters.Teams, team)
-	}
-	for alertName := range alertNameSet {
-		availableFilters.AlertNames = append(availableFilters.AlertNames, alertName)
-	}
-
-	// Sort filter options
-	sort.Strings(availableFilters.Alertmanagers)
-	sort.Strings(availableFilters.Severities)
-	sort.Strings(availableFilters.Statuses)
-	sort.Strings(availableFilters.Teams)
-	sort.Strings(availableFilters.AlertNames)
 
 	return webuimodels.DashboardMetadata{
 		TotalAlerts:      len(filteredAlerts), // Now respects filtering

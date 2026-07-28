@@ -13,6 +13,63 @@ templ Activity(data ActivityData) {
 	@layouts.Base("Activity - Notificator", ActivityContent(data))
 }
 
+// activityFilterDropdown renders one alert-level filter dropdown using the same
+// button + searchable panel pattern as the dashboard, wired to the activity page's
+// filters/metadata/load state.
+templ activityFilterDropdown(label, title, key, placeholder string, severityDots, mono bool) {
+	<div class="relative" x-data="{ open: false, searchTerm: '' }">
+		<button @click="open = !open" type="button"
+			class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
+			:class={ "{ 'ring-2 ring-blue-500 ring-opacity-50': filters." + key + ".length }" }>
+			<span>{ label }</span>
+			<span x-show={ "filters." + key + ".length" } class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" x-text={ "filters." + key + ".length" }></span>
+			<svg class="ml-2 -mr-1 h-4 w-4" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+				<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"></path>
+			</svg>
+		</button>
+		<div x-show="open" x-cloak @click.away="open = false; searchTerm = ''" x-transition
+			class="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
+			<div class="py-2">
+				<div class="px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT">
+					<div class="flex items-center justify-between mb-2">
+						<span class="text-sm font-medium text-gray-700 dark:text-gray-200">{ title }</span>
+						<button x-text={ "`Clear (${filters." + key + ".length})`" } @click={ "clearFilter('" + key + "'); searchTerm = ''" } class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500" x-show={ "filters." + key + ".length" }></button>
+					</div>
+					<div class="relative">
+						<input type="text" x-model="searchTerm" placeholder={ placeholder }
+							class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"/>
+						<svg class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+							<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"></path>
+						</svg>
+					</div>
+				</div>
+				<div class="max-h-48 overflow-y-auto">
+					<template x-for={ "option in metadata.availableFilters." + key + ".filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))" } :key="option">
+						<label class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer">
+							<input type="checkbox" x-model={ "filters." + key } :value="option" @change="load()" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3"/>
+							if severityDots {
+								<span class="flex items-center">
+									<span class="w-2 h-2 rounded-full mr-2" :class="{ 'bg-red-500': option === 'critical', 'bg-yellow-500': option === 'warning', 'bg-blue-500': option === 'info' }"></span>
+									<span x-text="option"></span>
+								</span>
+							} else if mono {
+								<span x-text="option" class="font-mono truncate"></span>
+							} else {
+								<span x-text="option" class="truncate"></span>
+							}
+						</label>
+					</template>
+					<div x-show={ "metadata.availableFilters." + key + ".filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase())).length === 0" }
+						class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+						<span x-show="searchTerm === ''">No options available</span>
+						<span x-show="searchTerm !== ''">No matches</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
 templ ActivityContent(data ActivityData) {
 	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="activityPage()">
 		<!-- Sticky Header Bar -->
@@ -71,70 +128,11 @@ templ ActivityContent(data ActivityData) {
 					</template>
 				</div>
 
-				<!-- Severity / Team / Alertmanager / Alert name filters -->
-				<details class="relative">
-					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-						Severity
-						<span x-show="filters.severities.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.severities.length"></span>
-					</summary>
-					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
-						<p x-show="!metadata.availableFilters.severities.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
-						<template x-for="option in metadata.availableFilters.severities" :key="option">
-							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
-								<input type="checkbox" :value="option" x-model="filters.severities" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-								<span x-text="option"></span>
-							</label>
-						</template>
-					</div>
-				</details>
-
-				<details class="relative">
-					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-						Team
-						<span x-show="filters.teams.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.teams.length"></span>
-					</summary>
-					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
-						<p x-show="!metadata.availableFilters.teams.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
-						<template x-for="option in metadata.availableFilters.teams" :key="option">
-							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
-								<input type="checkbox" :value="option" x-model="filters.teams" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-								<span x-text="option"></span>
-							</label>
-						</template>
-					</div>
-				</details>
-
-				<details class="relative">
-					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-						Alertmanager
-						<span x-show="filters.alertmanagers.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.alertmanagers.length"></span>
-					</summary>
-					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
-						<p x-show="!metadata.availableFilters.alertmanagers.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
-						<template x-for="option in metadata.availableFilters.alertmanagers" :key="option">
-							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
-								<input type="checkbox" :value="option" x-model="filters.alertmanagers" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-								<span x-text="option" class="font-mono"></span>
-							</label>
-						</template>
-					</div>
-				</details>
-
-				<details class="relative">
-					<summary class="list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-						Alert name
-						<span x-show="filters.alertNames.length" class="inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white" x-text="filters.alertNames.length"></span>
-					</summary>
-					<div class="absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1">
-						<p x-show="!metadata.availableFilters.alertNames.length" class="px-2 py-1 text-xs text-slate-400">No options available.</p>
-						<template x-for="option in metadata.availableFilters.alertNames" :key="option">
-							<label class="flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
-								<input type="checkbox" :value="option" x-model="filters.alertNames" @change="load()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-								<span x-text="option" class="font-mono"></span>
-							</label>
-						</template>
-					</div>
-				</details>
+				<!-- Severity / Team / Alertmanager / Alert name filters — same pattern as the dashboard -->
+				@activityFilterDropdown("Severity", "Severity Levels", "severities", "Search severities...", true, false)
+				@activityFilterDropdown("Team", "Teams", "teams", "Search teams...", false, false)
+				@activityFilterDropdown("Alertmanager", "Alertmanagers", "alertmanagers", "Search alertmanagers...", false, true)
+				@activityFilterDropdown("Alert name", "Alert names", "alertNames", "Search alert names...", false, true)
 
 				<!-- Scope toggle -->
 				<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1" title="Scope">
@@ -240,7 +238,6 @@ templ ActivityContent(data ActivityData) {
 
 				init() {
 					this.load();
-					this.loadFilterOptions();
 					document.addEventListener('visibilitychange', () => this.syncPolling());
 					this.syncPolling();
 				},
@@ -267,34 +264,24 @@ templ ActivityContent(data ActivityData) {
 						const p = await r.json();
 						if (!r.ok || !p.success) { this.error = p.error || 'Failed to load activity'; return; }
 						this.events = p.data.events || [];
+						// Same option lists as the dashboard, computed server-side from the
+						// alert cache. Stable across filtering (not derived from the feed).
+						const af = p.data.availableFilters || {};
+						this.metadata.availableFilters = {
+							severities: af.severities || [],
+							teams: af.teams || [],
+							alertmanagers: af.alertmanagers || [],
+							alertNames: af.alertNames || []
+						};
 						this.error = '';
 					} catch (err) {
 						this.error = err.message;
 					}
 				},
 
-				async loadFilterOptions() {
-					try {
-						const r = await fetch('/api/v1/dashboard/available-labels');
-						const p = await r.json();
-						if (r.ok && p.success) {
-							const labels = p.data.labels || {};
-							this.metadata.availableFilters.severities = labels.severity || [];
-							this.metadata.availableFilters.teams = labels.team || [];
-							this.metadata.availableFilters.alertNames = labels.alertname || [];
-						}
-					} catch (err) {
-						// Filter option lists are best-effort; the page works without them.
-					}
-					try {
-						const r = await fetch('/api/v1/dashboard/silences');
-						const p = await r.json();
-						if (r.ok && p.success) {
-							this.metadata.availableFilters.alertmanagers = p.data.sources || [];
-						}
-					} catch (err) {
-						// Best-effort as well.
-					}
+				clearFilter(type) {
+					this.filters[type] = [];
+					this.load();
 				},
 
 				toggleKind(kind) {

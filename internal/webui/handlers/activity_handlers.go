@@ -150,7 +150,17 @@ func GetActivity(c *gin.Context) {
 		feed = kept
 	}
 
-	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{"events": feed}))
+	// Offer the same filter option lists the dashboard does, computed from the same
+	// alert cache, so the two filter bars stay in lockstep.
+	available := webuimodels.DashboardAvailableFilters{}
+	if alertCache != nil {
+		available = computeAvailableFilters(alertCache.GetAllAlerts())
+	}
+
+	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
+		"events":           feed,
+		"availableFilters": available,
+	}))
 }
 
 // ActivityPage serves the activity page shell.

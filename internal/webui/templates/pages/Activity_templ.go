@@ -46,7 +46,10 @@ func Activity(data ActivityData) templ.Component {
 	})
 }
 
-func ActivityContent(data ActivityData) templ.Component {
+// activityFilterDropdown renders one alert-level filter dropdown using the same
+// button + searchable panel pattern as the dashboard, wired to the activity page's
+// filters/metadata/load state.
+func activityFilterDropdown(label, title, key, placeholder string, severityDots, mono bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -67,7 +70,212 @@ func ActivityContent(data ActivityData) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"min-h-screen bg-slate-50 dark:bg-dark-bg-primary\" x-data=\"activityPage()\"><!-- Sticky Header Bar --><header class=\"sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50\"><div class=\"px-6 py-4\"><div class=\"flex items-center justify-between\"><div class=\"flex items-center gap-4 flex-1\"><div><h1 class=\"text-xl font-semibold text-slate-900 dark:text-white tracking-tight\">Activity</h1><p class=\"text-sm text-slate-500 dark:text-slate-400\">Everything the team did across all alerts — acknowledgements, comments, silences and resolves.</p></div></div><div class=\"hidden md:flex items-center justify-center\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"relative\" x-data=\"{ open: false, searchTerm: '' }\"><button @click=\"open = !open\" type=\"button\" class=\"inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative\" :class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("{ 'ring-2 ring-blue-500 ring-opacity-50': filters." + key + ".length }")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 23, Col: 84}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(label)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 24, Col: 16}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</span> <span x-show=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("filters." + key + ".length")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 25, Col: 46}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" class=\"ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200\" x-text=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("filters." + key + ".length")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 25, Col: 231}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"></span> <svg class=\"ml-2 -mr-1 h-4 w-4\" viewBox=\"0 0 24 24\" stroke-width=\"1.5\" stroke=\"currentColor\" fill=\"none\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"m19.5 8.25-7.5 7.5-7.5-7.5\"></path></svg></button><div x-show=\"open\" x-cloak @click.away=\"open = false; searchTerm = ''\" x-transition class=\"absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50\"><div class=\"py-2\"><div class=\"px-4 py-2 border-b border-gray-200 dark:border-dark-border-DEFAULT\"><div class=\"flex items-center justify-between mb-2\"><span class=\"text-sm font-medium text-gray-700 dark:text-gray-200\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(title)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 35, Col: 80}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span> <button x-text=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("`Clear (${filters." + key + ".length})`")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 36, Col: 64}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" @click=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs("clearFilter('" + key + "'); searchTerm = ''")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 36, Col: 121}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" class=\"text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500\" x-show=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs("filters." + key + ".length")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 36, Col: 230}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"></button></div><div class=\"relative\"><input type=\"text\" x-model=\"searchTerm\" placeholder=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var11 string
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(placeholder)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 39, Col: 71}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" class=\"w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border-DEFAULT rounded-md bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500\"> <svg class=\"absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400\" viewBox=\"0 0 24 24\" stroke-width=\"1.5\" stroke=\"currentColor\" fill=\"none\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z\"></path></svg></div></div><div class=\"max-h-48 overflow-y-auto\"><template x-for=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var12 string
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("option in metadata.availableFilters." + key + ".filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase()))")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 47, Col: 163}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" :key=\"option\"><label class=\"flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary cursor-pointer\"><input type=\"checkbox\" x-model=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var13 string
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("filters." + key)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 49, Col: 56}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" :value=\"option\" @change=\"load()\" class=\"h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3\"> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if severityDots {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<span class=\"flex items-center\"><span class=\"w-2 h-2 rounded-full mr-2\" :class=\"{ 'bg-red-500': option === 'critical', 'bg-yellow-500': option === 'warning', 'bg-blue-500': option === 'info' }\"></span> <span x-text=\"option\"></span></span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else if mono {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span x-text=\"option\" class=\"font-mono truncate\"></span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<span x-text=\"option\" class=\"truncate\"></span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</label></template><div x-show=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var14 string
+		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs("metadata.availableFilters." + key + ".filter(item => searchTerm === '' || item.toLowerCase().includes(searchTerm.toLowerCase())).length === 0")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/Activity.templ`, Line: 62, Col: 162}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" class=\"px-4 py-2 text-sm text-gray-500 dark:text-gray-400\"><span x-show=\"searchTerm === ''\">No options available</span> <span x-show=\"searchTerm !== ''\">No matches</span></div></div></div></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func ActivityContent(data ActivityData) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var15 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var15 == nil {
+			templ_7745c5c3_Var15 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"min-h-screen bg-slate-50 dark:bg-dark-bg-primary\" x-data=\"activityPage()\"><!-- Sticky Header Bar --><header class=\"sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50\"><div class=\"px-6 py-4\"><div class=\"flex items-center justify-between\"><div class=\"flex items-center gap-4 flex-1\"><div><h1 class=\"text-xl font-semibold text-slate-900 dark:text-white tracking-tight\">Activity</h1><p class=\"text-sm text-slate-500 dark:text-slate-400\">Everything the team did across all alerts — acknowledgements, comments, silences and resolves.</p></div></div><div class=\"hidden md:flex items-center justify-center\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -75,7 +283,27 @@ func ActivityContent(data ActivityData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div class=\"flex items-center gap-2 flex-1 justify-end\"><span class=\"inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400\"><span class=\"w-2 h-2 rounded-full bg-green-500 animate-pulse\"></span> live &bull; refreshes every 30s</span></div></div></div></header><div class=\"px-6 py-6 space-y-4\"><!-- Filters --><div class=\"flex flex-wrap items-center gap-3 bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 px-4 py-3\"><!-- Time window segmented control --><div class=\"flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1\" title=\"Time window\"><template x-for=\"option in [{ label: '15m', value: 15 }, { label: '1h', value: 60 }, { label: '8h', value: 480 }, { label: '24h', value: 1440 }]\" x-key=\"option.value\"><button @click=\"windowMinutes = option.value; load()\" :class=\"windowMinutes === option.value ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'\" class=\"px-3 py-1.5 text-sm font-medium rounded-md transition-colors\" x-text=\"option.label\"></button></template></div><!-- Kind chips --><div class=\"flex items-center gap-1.5\"><template x-for=\"kind in ['ack', 'unack', 'comment', 'silence', 'resolve']\" x-key=\"kind\"><button @click=\"toggleKind(kind)\" :class=\"(kinds.length && !kinds.includes(kind) ? 'opacity-40 ' : '') + kindClasses(kind)\" class=\"inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border\"><span class=\"w-1.5 h-1.5 rounded-full bg-current\"></span> <span x-text=\"kindLabel(kind)\"></span></button></template></div><!-- Severity / Team / Alertmanager / Alert name filters --><details class=\"relative\"><summary class=\"list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800\">Severity <span x-show=\"filters.severities.length\" class=\"inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white\" x-text=\"filters.severities.length\"></span></summary><div class=\"absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1\"><p x-show=\"!metadata.availableFilters.severities.length\" class=\"px-2 py-1 text-xs text-slate-400\">No options available.</p><template x-for=\"option in metadata.availableFilters.severities\" :key=\"option\"><label class=\"flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer\"><input type=\"checkbox\" :value=\"option\" x-model=\"filters.severities\" @change=\"load()\" class=\"rounded border-slate-300 text-blue-600 focus:ring-blue-500\"> <span x-text=\"option\"></span></label></template></div></details> <details class=\"relative\"><summary class=\"list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800\">Team <span x-show=\"filters.teams.length\" class=\"inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white\" x-text=\"filters.teams.length\"></span></summary><div class=\"absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1\"><p x-show=\"!metadata.availableFilters.teams.length\" class=\"px-2 py-1 text-xs text-slate-400\">No options available.</p><template x-for=\"option in metadata.availableFilters.teams\" :key=\"option\"><label class=\"flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer\"><input type=\"checkbox\" :value=\"option\" x-model=\"filters.teams\" @change=\"load()\" class=\"rounded border-slate-300 text-blue-600 focus:ring-blue-500\"> <span x-text=\"option\"></span></label></template></div></details> <details class=\"relative\"><summary class=\"list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800\">Alertmanager <span x-show=\"filters.alertmanagers.length\" class=\"inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white\" x-text=\"filters.alertmanagers.length\"></span></summary><div class=\"absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1\"><p x-show=\"!metadata.availableFilters.alertmanagers.length\" class=\"px-2 py-1 text-xs text-slate-400\">No options available.</p><template x-for=\"option in metadata.availableFilters.alertmanagers\" :key=\"option\"><label class=\"flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer\"><input type=\"checkbox\" :value=\"option\" x-model=\"filters.alertmanagers\" @change=\"load()\" class=\"rounded border-slate-300 text-blue-600 focus:ring-blue-500\"> <span x-text=\"option\" class=\"font-mono\"></span></label></template></div></details> <details class=\"relative\"><summary class=\"list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800\">Alert name <span x-show=\"filters.alertNames.length\" class=\"inline-flex items-center justify-center w-4 h-4 text-xs rounded-full bg-blue-600 text-white\" x-text=\"filters.alertNames.length\"></span></summary><div class=\"absolute z-30 mt-2 w-56 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-bg-secondary shadow-lg p-2 space-y-1\"><p x-show=\"!metadata.availableFilters.alertNames.length\" class=\"px-2 py-1 text-xs text-slate-400\">No options available.</p><template x-for=\"option in metadata.availableFilters.alertNames\" :key=\"option\"><label class=\"flex items-center gap-2 px-2 py-1 text-sm rounded text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer\"><input type=\"checkbox\" :value=\"option\" x-model=\"filters.alertNames\" @change=\"load()\" class=\"rounded border-slate-300 text-blue-600 focus:ring-blue-500\"> <span x-text=\"option\" class=\"font-mono\"></span></label></template></div></details><!-- Scope toggle --><div class=\"flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1\" title=\"Scope\"><button @click=\"scope = 'everyone'; load()\" :class=\"scope === 'everyone' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'\" class=\"px-3 py-1.5 text-sm font-medium rounded-md transition-colors\">Everyone</button> <button @click=\"scope = 'mine'; load()\" :class=\"scope === 'mine' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'\" class=\"px-3 py-1.5 text-sm font-medium rounded-md transition-colors\">Mine</button></div><div class=\"relative flex-1 min-w-[200px]\"><input type=\"text\" x-model=\"search\" @input.debounce.400ms=\"load()\" placeholder=\"Search alert, user or comment...\" class=\"w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent\"> <svg class=\"w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z\"></path></svg></div></div><!-- Log table --><div class=\"bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 overflow-hidden\"><div x-show=\"!events.length && !error\" class=\"px-6 py-12 text-center text-slate-500 dark:text-slate-400\">No activity in this window.</div><table x-show=\"events.length > 0\" class=\"min-w-full divide-y divide-slate-200 dark:divide-slate-700\"><thead class=\"bg-slate-50 dark:bg-dark-bg-tertiary\"><tr><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Time</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">User</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Action</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Alert</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Detail</th></tr></thead> <tbody class=\"divide-y divide-slate-200 dark:divide-slate-700\"><template x-for=\"row in displayRows\" :key=\"row.key\"><tr @click=\"if (!row.isGroup) { window.location = '/dashboard/alert/' + encodeURIComponent(row.event.alertKey); }\" :class=\"row.isGroup ? 'bg-slate-50 dark:bg-dark-bg-tertiary' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer'\"><template x-if=\"row.isGroup\"><td colspan=\"5\" class=\"px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500\" x-text=\"row.label\"></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono\" x-text=\"formatTime(row.event.createdAt)\"></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm whitespace-nowrap\"><span class=\"inline-flex items-center gap-2\"><span class=\"w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0\" x-bind:style=\"'background:' + avatarColor(row.event.username)\" x-text=\"(row.event.username || '?').charAt(0).toUpperCase()\"></span> <span class=\"text-slate-700 dark:text-slate-300\" x-text=\"row.event.username || 'unknown'\"></span></span></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm whitespace-nowrap\"><span class=\"inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border\" :class=\"kindClasses(row.event.kind)\" x-text=\"kindLabel(row.event.kind)\"></span></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm\"><span class=\"font-medium text-slate-900 dark:text-white\" x-text=\"row.event.alertName\"></span> <span x-show=\"row.event.source\" class=\"text-slate-500 dark:text-slate-400\" x-text=\"' · ' + row.event.source\"></span> <span x-show=\"row.event.uncached\" title=\"This alert is no longer in the cache\" class=\"ml-1 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-600\">uncached</span></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm text-slate-500 dark:text-slate-400 max-w-md truncate\" :title=\"row.event.content\" x-text=\"detailText(row.event)\"></td></template></tr></template></tbody></table></div><p x-show=\"error\" class=\"text-sm text-red-600 dark:text-red-400\" x-text=\"error\"></p></div></div><script>\n\t\tfunction activityPage() {\n\t\t\treturn {\n\t\t\t\tevents: [],\n\t\t\t\tfilters: { severities: [], teams: [], alertmanagers: [], alertNames: [] },\n\t\t\t\tkinds: [],\n\t\t\t\tscope: 'everyone',\n\t\t\t\twindowMinutes: 60,\n\t\t\t\tsearch: '',\n\t\t\t\terror: '',\n\t\t\t\ttimer: null,\n\t\t\t\tmetadata: { availableFilters: { severities: [], teams: [], alertmanagers: [], alertNames: [] } },\n\n\t\t\t\tinit() {\n\t\t\t\t\tthis.load();\n\t\t\t\t\tthis.loadFilterOptions();\n\t\t\t\t\tdocument.addEventListener('visibilitychange', () => this.syncPolling());\n\t\t\t\t\tthis.syncPolling();\n\t\t\t\t},\n\n\t\t\t\tsyncPolling() {\n\t\t\t\t\tclearInterval(this.timer);\n\t\t\t\t\tif (document.visibilityState === 'visible') {\n\t\t\t\t\t\tthis.timer = setInterval(() => this.load(), 30000); // 30s, only while visible\n\t\t\t\t\t}\n\t\t\t\t},\n\n\t\t\t\tasync load() {\n\t\t\t\t\tconst params = new URLSearchParams();\n\t\t\t\t\tparams.set('windowMinutes', this.windowMinutes);\n\t\t\t\t\tif (this.scope === 'mine') params.set('scope', 'mine');\n\t\t\t\t\tif (this.kinds.length) params.set('kinds', this.kinds.join(','));\n\t\t\t\t\tif (this.filters.severities.length) params.set('severities', this.filters.severities.join(','));\n\t\t\t\t\tif (this.filters.teams.length) params.set('teams', this.filters.teams.join(','));\n\t\t\t\t\tif (this.filters.alertmanagers.length) params.set('alertmanagers', this.filters.alertmanagers.join(','));\n\t\t\t\t\tif (this.filters.alertNames.length) params.set('alertNames', this.filters.alertNames.join(','));\n\t\t\t\t\tif (this.search) params.set('search', this.search);\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst r = await fetch('/api/v1/dashboard/activity?' + params.toString());\n\t\t\t\t\t\tconst p = await r.json();\n\t\t\t\t\t\tif (!r.ok || !p.success) { this.error = p.error || 'Failed to load activity'; return; }\n\t\t\t\t\t\tthis.events = p.data.events || [];\n\t\t\t\t\t\tthis.error = '';\n\t\t\t\t\t} catch (err) {\n\t\t\t\t\t\tthis.error = err.message;\n\t\t\t\t\t}\n\t\t\t\t},\n\n\t\t\t\tasync loadFilterOptions() {\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst r = await fetch('/api/v1/dashboard/available-labels');\n\t\t\t\t\t\tconst p = await r.json();\n\t\t\t\t\t\tif (r.ok && p.success) {\n\t\t\t\t\t\t\tconst labels = p.data.labels || {};\n\t\t\t\t\t\t\tthis.metadata.availableFilters.severities = labels.severity || [];\n\t\t\t\t\t\t\tthis.metadata.availableFilters.teams = labels.team || [];\n\t\t\t\t\t\t\tthis.metadata.availableFilters.alertNames = labels.alertname || [];\n\t\t\t\t\t\t}\n\t\t\t\t\t} catch (err) {\n\t\t\t\t\t\t// Filter option lists are best-effort; the page works without them.\n\t\t\t\t\t}\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst r = await fetch('/api/v1/dashboard/silences');\n\t\t\t\t\t\tconst p = await r.json();\n\t\t\t\t\t\tif (r.ok && p.success) {\n\t\t\t\t\t\t\tthis.metadata.availableFilters.alertmanagers = p.data.sources || [];\n\t\t\t\t\t\t}\n\t\t\t\t\t} catch (err) {\n\t\t\t\t\t\t// Best-effort as well.\n\t\t\t\t\t}\n\t\t\t\t},\n\n\t\t\t\ttoggleKind(kind) {\n\t\t\t\t\tif (this.kinds.includes(kind)) {\n\t\t\t\t\t\tthis.kinds = this.kinds.filter(k => k !== kind);\n\t\t\t\t\t} else {\n\t\t\t\t\t\tthis.kinds = [...this.kinds, kind];\n\t\t\t\t\t}\n\t\t\t\t\tthis.load();\n\t\t\t\t},\n\n\t\t\t\tkindLabel(kind) {\n\t\t\t\t\treturn {\n\t\t\t\t\t\tack: 'acknowledged',\n\t\t\t\t\t\tunack: 'unacknowledged',\n\t\t\t\t\t\tcomment: 'commented',\n\t\t\t\t\t\tsilence: 'silenced',\n\t\t\t\t\t\tresolve: 'resolved'\n\t\t\t\t\t}[kind] || kind;\n\t\t\t\t},\n\n\t\t\t\tkindClasses(kind) {\n\t\t\t\t\treturn {\n\t\t\t\t\t\tack: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800',\n\t\t\t\t\t\tunack: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',\n\t\t\t\t\t\tcomment: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',\n\t\t\t\t\t\tsilence: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800',\n\t\t\t\t\t\tresolve: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800'\n\t\t\t\t\t}[kind] || 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';\n\t\t\t\t},\n\n\t\t\t\tavatarColor(username) {\n\t\t\t\t\tconst palette = ['#6366f1', '#0ea5e9', '#f43f5e', '#8b5cf6', '#14b8a6', '#f59e0b'];\n\t\t\t\t\tconst name = username || '?';\n\t\t\t\t\tlet hash = 0;\n\t\t\t\t\tfor (let i = 0; i < name.length; i++) {\n\t\t\t\t\t\thash = (hash * 31 + name.charCodeAt(i)) >>> 0;\n\t\t\t\t\t}\n\t\t\t\t\treturn palette[hash % palette.length];\n\t\t\t\t},\n\n\t\t\t\tdetailText(event) {\n\t\t\t\t\tconst content = (event.content || '').trim().replace(/^[🔔🔕🔇✅]\\s*/u, '');\n\t\t\t\t\treturn content || '—';\n\t\t\t\t},\n\n\t\t\t\tformatTime(value) {\n\t\t\t\t\tif (!value) return '';\n\t\t\t\t\treturn new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });\n\t\t\t\t},\n\n\t\t\t\tdayLabel(value) {\n\t\t\t\t\tconst d = new Date(value);\n\t\t\t\t\tconst now = new Date();\n\t\t\t\t\tconst startOfDay = date => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();\n\t\t\t\t\tconst diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);\n\t\t\t\t\tif (diffDays === 0) return 'Today';\n\t\t\t\t\tif (diffDays === 1) return 'Yesterday';\n\t\t\t\t\treturn d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });\n\t\t\t\t},\n\n\t\t\t\tget displayRows() {\n\t\t\t\t\tconst rows = [];\n\t\t\t\t\tlet lastDay = null;\n\t\t\t\t\tfor (const event of this.events) {\n\t\t\t\t\t\tconst label = this.dayLabel(event.createdAt);\n\t\t\t\t\t\tif (label !== lastDay) {\n\t\t\t\t\t\t\trows.push({ isGroup: true, label: label, key: 'group-' + label + '-' + event.id });\n\t\t\t\t\t\t\tlastDay = label;\n\t\t\t\t\t\t}\n\t\t\t\t\t\trows.push({ isGroup: false, event: event, key: event.id });\n\t\t\t\t\t}\n\t\t\t\t\treturn rows;\n\t\t\t\t}\n\t\t\t};\n\t\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div><div class=\"flex items-center gap-2 flex-1 justify-end\"><span class=\"inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400\"><span class=\"w-2 h-2 rounded-full bg-green-500 animate-pulse\"></span> live &bull; refreshes every 30s</span></div></div></div></header><div class=\"px-6 py-6 space-y-4\"><!-- Filters --><div class=\"flex flex-wrap items-center gap-3 bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 px-4 py-3\"><!-- Time window segmented control --><div class=\"flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1\" title=\"Time window\"><template x-for=\"option in [{ label: '15m', value: 15 }, { label: '1h', value: 60 }, { label: '8h', value: 480 }, { label: '24h', value: 1440 }]\" x-key=\"option.value\"><button @click=\"windowMinutes = option.value; load()\" :class=\"windowMinutes === option.value ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'\" class=\"px-3 py-1.5 text-sm font-medium rounded-md transition-colors\" x-text=\"option.label\"></button></template></div><!-- Kind chips --><div class=\"flex items-center gap-1.5\"><template x-for=\"kind in ['ack', 'unack', 'comment', 'silence', 'resolve']\" x-key=\"kind\"><button @click=\"toggleKind(kind)\" :class=\"(kinds.length && !kinds.includes(kind) ? 'opacity-40 ' : '') + kindClasses(kind)\" class=\"inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border\"><span class=\"w-1.5 h-1.5 rounded-full bg-current\"></span> <span x-text=\"kindLabel(kind)\"></span></button></template></div><!-- Severity / Team / Alertmanager / Alert name filters — same pattern as the dashboard -->")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = activityFilterDropdown("Severity", "Severity Levels", "severities", "Search severities...", true, false).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = activityFilterDropdown("Team", "Teams", "teams", "Search teams...", false, false).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = activityFilterDropdown("Alertmanager", "Alertmanagers", "alertmanagers", "Search alertmanagers...", false, true).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = activityFilterDropdown("Alert name", "Alert names", "alertNames", "Search alert names...", false, true).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<!-- Scope toggle --><div class=\"flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-1\" title=\"Scope\"><button @click=\"scope = 'everyone'; load()\" :class=\"scope === 'everyone' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'\" class=\"px-3 py-1.5 text-sm font-medium rounded-md transition-colors\">Everyone</button> <button @click=\"scope = 'mine'; load()\" :class=\"scope === 'mine' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'\" class=\"px-3 py-1.5 text-sm font-medium rounded-md transition-colors\">Mine</button></div><div class=\"relative flex-1 min-w-[200px]\"><input type=\"text\" x-model=\"search\" @input.debounce.400ms=\"load()\" placeholder=\"Search alert, user or comment...\" class=\"w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent\"> <svg class=\"w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z\"></path></svg></div></div><!-- Log table --><div class=\"bg-white dark:bg-dark-bg-secondary rounded-xl border border-slate-200 dark:border-slate-700/50 overflow-hidden\"><div x-show=\"!events.length && !error\" class=\"px-6 py-12 text-center text-slate-500 dark:text-slate-400\">No activity in this window.</div><table x-show=\"events.length > 0\" class=\"min-w-full divide-y divide-slate-200 dark:divide-slate-700\"><thead class=\"bg-slate-50 dark:bg-dark-bg-tertiary\"><tr><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Time</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">User</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Action</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Alert</th><th class=\"px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400\">Detail</th></tr></thead> <tbody class=\"divide-y divide-slate-200 dark:divide-slate-700\"><template x-for=\"row in displayRows\" :key=\"row.key\"><tr @click=\"if (!row.isGroup) { window.location = '/dashboard/alert/' + encodeURIComponent(row.event.alertKey); }\" :class=\"row.isGroup ? 'bg-slate-50 dark:bg-dark-bg-tertiary' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer'\"><template x-if=\"row.isGroup\"><td colspan=\"5\" class=\"px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500\" x-text=\"row.label\"></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono\" x-text=\"formatTime(row.event.createdAt)\"></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm whitespace-nowrap\"><span class=\"inline-flex items-center gap-2\"><span class=\"w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0\" x-bind:style=\"'background:' + avatarColor(row.event.username)\" x-text=\"(row.event.username || '?').charAt(0).toUpperCase()\"></span> <span class=\"text-slate-700 dark:text-slate-300\" x-text=\"row.event.username || 'unknown'\"></span></span></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm whitespace-nowrap\"><span class=\"inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border\" :class=\"kindClasses(row.event.kind)\" x-text=\"kindLabel(row.event.kind)\"></span></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm\"><span class=\"font-medium text-slate-900 dark:text-white\" x-text=\"row.event.alertName\"></span> <span x-show=\"row.event.source\" class=\"text-slate-500 dark:text-slate-400\" x-text=\"' · ' + row.event.source\"></span> <span x-show=\"row.event.uncached\" title=\"This alert is no longer in the cache\" class=\"ml-1 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-dashed border-slate-300 dark:border-slate-600\">uncached</span></td></template><template x-if=\"!row.isGroup\"><td class=\"px-4 py-3 text-sm text-slate-500 dark:text-slate-400 max-w-md truncate\" :title=\"row.event.content\" x-text=\"detailText(row.event)\"></td></template></tr></template></tbody></table></div><p x-show=\"error\" class=\"text-sm text-red-600 dark:text-red-400\" x-text=\"error\"></p></div></div><script>\n\t\tfunction activityPage() {\n\t\t\treturn {\n\t\t\t\tevents: [],\n\t\t\t\tfilters: { severities: [], teams: [], alertmanagers: [], alertNames: [] },\n\t\t\t\tkinds: [],\n\t\t\t\tscope: 'everyone',\n\t\t\t\twindowMinutes: 60,\n\t\t\t\tsearch: '',\n\t\t\t\terror: '',\n\t\t\t\ttimer: null,\n\t\t\t\tmetadata: { availableFilters: { severities: [], teams: [], alertmanagers: [], alertNames: [] } },\n\n\t\t\t\tinit() {\n\t\t\t\t\tthis.load();\n\t\t\t\t\tdocument.addEventListener('visibilitychange', () => this.syncPolling());\n\t\t\t\t\tthis.syncPolling();\n\t\t\t\t},\n\n\t\t\t\tsyncPolling() {\n\t\t\t\t\tclearInterval(this.timer);\n\t\t\t\t\tif (document.visibilityState === 'visible') {\n\t\t\t\t\t\tthis.timer = setInterval(() => this.load(), 30000); // 30s, only while visible\n\t\t\t\t\t}\n\t\t\t\t},\n\n\t\t\t\tasync load() {\n\t\t\t\t\tconst params = new URLSearchParams();\n\t\t\t\t\tparams.set('windowMinutes', this.windowMinutes);\n\t\t\t\t\tif (this.scope === 'mine') params.set('scope', 'mine');\n\t\t\t\t\tif (this.kinds.length) params.set('kinds', this.kinds.join(','));\n\t\t\t\t\tif (this.filters.severities.length) params.set('severities', this.filters.severities.join(','));\n\t\t\t\t\tif (this.filters.teams.length) params.set('teams', this.filters.teams.join(','));\n\t\t\t\t\tif (this.filters.alertmanagers.length) params.set('alertmanagers', this.filters.alertmanagers.join(','));\n\t\t\t\t\tif (this.filters.alertNames.length) params.set('alertNames', this.filters.alertNames.join(','));\n\t\t\t\t\tif (this.search) params.set('search', this.search);\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst r = await fetch('/api/v1/dashboard/activity?' + params.toString());\n\t\t\t\t\t\tconst p = await r.json();\n\t\t\t\t\t\tif (!r.ok || !p.success) { this.error = p.error || 'Failed to load activity'; return; }\n\t\t\t\t\t\tthis.events = p.data.events || [];\n\t\t\t\t\t\t// Same option lists as the dashboard, computed server-side from the\n\t\t\t\t\t\t// alert cache. Stable across filtering (not derived from the feed).\n\t\t\t\t\t\tconst af = p.data.availableFilters || {};\n\t\t\t\t\t\tthis.metadata.availableFilters = {\n\t\t\t\t\t\t\tseverities: af.severities || [],\n\t\t\t\t\t\t\tteams: af.teams || [],\n\t\t\t\t\t\t\talertmanagers: af.alertmanagers || [],\n\t\t\t\t\t\t\talertNames: af.alertNames || []\n\t\t\t\t\t\t};\n\t\t\t\t\t\tthis.error = '';\n\t\t\t\t\t} catch (err) {\n\t\t\t\t\t\tthis.error = err.message;\n\t\t\t\t\t}\n\t\t\t\t},\n\n\t\t\t\tclearFilter(type) {\n\t\t\t\t\tthis.filters[type] = [];\n\t\t\t\t\tthis.load();\n\t\t\t\t},\n\n\t\t\t\ttoggleKind(kind) {\n\t\t\t\t\tif (this.kinds.includes(kind)) {\n\t\t\t\t\t\tthis.kinds = this.kinds.filter(k => k !== kind);\n\t\t\t\t\t} else {\n\t\t\t\t\t\tthis.kinds = [...this.kinds, kind];\n\t\t\t\t\t}\n\t\t\t\t\tthis.load();\n\t\t\t\t},\n\n\t\t\t\tkindLabel(kind) {\n\t\t\t\t\treturn {\n\t\t\t\t\t\tack: 'acknowledged',\n\t\t\t\t\t\tunack: 'unacknowledged',\n\t\t\t\t\t\tcomment: 'commented',\n\t\t\t\t\t\tsilence: 'silenced',\n\t\t\t\t\t\tresolve: 'resolved'\n\t\t\t\t\t}[kind] || kind;\n\t\t\t\t},\n\n\t\t\t\tkindClasses(kind) {\n\t\t\t\t\treturn {\n\t\t\t\t\t\tack: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800',\n\t\t\t\t\t\tunack: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',\n\t\t\t\t\t\tcomment: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800',\n\t\t\t\t\t\tsilence: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800',\n\t\t\t\t\t\tresolve: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800'\n\t\t\t\t\t}[kind] || 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';\n\t\t\t\t},\n\n\t\t\t\tavatarColor(username) {\n\t\t\t\t\tconst palette = ['#6366f1', '#0ea5e9', '#f43f5e', '#8b5cf6', '#14b8a6', '#f59e0b'];\n\t\t\t\t\tconst name = username || '?';\n\t\t\t\t\tlet hash = 0;\n\t\t\t\t\tfor (let i = 0; i < name.length; i++) {\n\t\t\t\t\t\thash = (hash * 31 + name.charCodeAt(i)) >>> 0;\n\t\t\t\t\t}\n\t\t\t\t\treturn palette[hash % palette.length];\n\t\t\t\t},\n\n\t\t\t\tdetailText(event) {\n\t\t\t\t\tconst content = (event.content || '').trim().replace(/^[🔔🔕🔇✅]\\s*/u, '');\n\t\t\t\t\treturn content || '—';\n\t\t\t\t},\n\n\t\t\t\tformatTime(value) {\n\t\t\t\t\tif (!value) return '';\n\t\t\t\t\treturn new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });\n\t\t\t\t},\n\n\t\t\t\tdayLabel(value) {\n\t\t\t\t\tconst d = new Date(value);\n\t\t\t\t\tconst now = new Date();\n\t\t\t\t\tconst startOfDay = date => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();\n\t\t\t\t\tconst diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);\n\t\t\t\t\tif (diffDays === 0) return 'Today';\n\t\t\t\t\tif (diffDays === 1) return 'Yesterday';\n\t\t\t\t\treturn d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });\n\t\t\t\t},\n\n\t\t\t\tget displayRows() {\n\t\t\t\t\tconst rows = [];\n\t\t\t\t\tlet lastDay = null;\n\t\t\t\t\tfor (const event of this.events) {\n\t\t\t\t\t\tconst label = this.dayLabel(event.createdAt);\n\t\t\t\t\t\tif (label !== lastDay) {\n\t\t\t\t\t\t\trows.push({ isGroup: true, label: label, key: 'group-' + label + '-' + event.id });\n\t\t\t\t\t\t\tlastDay = label;\n\t\t\t\t\t\t}\n\t\t\t\t\t\trows.push({ isGroup: false, event: event, key: event.id });\n\t\t\t\t\t}\n\t\t\t\t\treturn rows;\n\t\t\t\t}\n\t\t\t};\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
