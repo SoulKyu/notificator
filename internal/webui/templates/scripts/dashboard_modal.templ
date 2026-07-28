@@ -121,6 +121,14 @@ templ DashboardModal() {
 				}
 			},
 
+			copyAlertLink() {
+				const fingerprint = this.alertDetails?.alert?.fingerprint;
+				if (!fingerprint) return;
+				this.copyToClipboard(`${window.location.origin}/dashboard/alert/${fingerprint}`);
+				this.alertLinkCopied = true;
+				setTimeout(() => { this.alertLinkCopied = false; }, 2000);
+			},
+
 			acknowledgeCurrentAlert() {
 				if (this.alertDetails?.alert) {
 					this.currentAckAlert = this.alertDetails.alert;
