@@ -21,7 +21,7 @@ func (s *CommentService) AddComment(ctx context.Context, alertKey, userID, conte
 		return nil, fmt.Errorf("comment too long (max 2000 characters)")
 	}
 
-	return s.db.CreateComment(alertKey, userID, content)
+	return s.db.CreateComment(alertKey, userID, content, "comment")
 }
 
 func (s *CommentService) GetComments(ctx context.Context, alertKey string) ([]models.CommentWithUser, error) {

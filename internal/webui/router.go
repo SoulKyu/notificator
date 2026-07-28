@@ -293,6 +293,9 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.DELETE("/filter-presets/:id", handlers.DeleteFilterPreset)
 			dashboard.POST("/filter-presets/:id/default", handlers.SetDefaultFilterPreset)
 
+			// Activity feed route
+			dashboard.GET("/activity", handlers.GetActivity)
+
 			// Silence inventory routes
 			dashboard.GET("/silences", handlers.GetSilences)
 			dashboard.POST("/silences", handlers.CreateSilence)
@@ -371,6 +374,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		protectedPages.GET("/profile", handlers.ProfilePage)
 		protectedPages.GET("/statistics", handlers.StatisticsDashboardPage)
 		protectedPages.GET("/silences", handlers.SilencesPage)
+		protectedPages.GET("/activity", handlers.ActivityPage)
 	}
 
 	return r

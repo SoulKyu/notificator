@@ -20,7 +20,7 @@ func newTestDB(t *testing.T) *GormDB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}, &models.ResolvedAlert{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}, &models.ResolvedAlert{}, &models.Comment{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return &GormDB{db: db, dbType: "sqlite"}
@@ -71,6 +71,66 @@ func TestGetAllAcknowledgedAlerts(t *testing.T) {
 	}
 	if len(empty) != 0 {
 		t.Fatalf("expected no acks for empty key list, got %v", empty)
+	}
+}
+
+func TestCreateCommentStoresKind(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	got, err := gdb.CreateComment("key-a", u.ID, "🔇 Alert silenced for 2h: x", "silence")
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if got.Kind != "silence" {
+		t.Fatalf("Kind = %q, want silence", got.Kind)
+	}
+
+	plain, err := gdb.CreateComment("key-a", u.ID, "looks fine", "comment")
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if plain.Kind != "comment" {
+		t.Fatalf("Kind = %q, want comment", plain.Kind)
+	}
+}
+
+// TestLegacyCommentKindStaysEmpty guards against a regression where the
+// `kind` column carried a `NOT NULL DEFAULT 'comment'` gorm tag. On an
+// existing database, AutoMigrate's ALTER TABLE ADD COLUMN would then
+// backfill every pre-existing row (including legacy 🔇/🔔/✅ comments
+// written before `kind` existed) to "comment", permanently defeating the
+// emoji-prefix fallback in deriveActivityKind/deriveCommentKind. The column
+// must have no default so legacy rows read back with Kind == "".
+func TestLegacyCommentKindStaysEmpty(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	// Raw insert bypassing CreateComment's "" -> "comment" coercion, simulating
+	// a legacy row written before the kind column existed.
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := gdb.db.Exec(
+		"INSERT INTO comments (id, alert_key, user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+		"legacy-1", "key-a", u.ID, "🔇 Alert silenced for 2h: x", now, now,
+	).Error; err != nil {
+		t.Fatalf("raw insert: %v", err)
+	}
+
+	got, err := gdb.GetRecentActivity(now.Add(-time.Minute), 100)
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "legacy-1" {
+		t.Fatalf("got %v, want [legacy-1]", ids(got))
+	}
+	if got[0].Kind != "" {
+		t.Fatalf("Kind = %q, want empty (legacy row must not be defaulted to 'comment')", got[0].Kind)
 	}
 }
 
@@ -211,4 +271,53 @@ func TestCleanupResolvedAcknowledgments(t *testing.T) {
 	if refired, _ := gdb.GetAcknowledgments("refired-key"); len(refired) != 1 {
 		t.Errorf("acknowledgment created after the resolution belongs to the live firing, got %d", len(refired))
 	}
+}
+
+func TestGetRecentActivity(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	base := time.Now().UTC().Truncate(time.Second)
+	// three comments at -3h, -1h, -10m
+	seed := []models.Comment{
+		{ID: "c1", AlertKey: "k1", UserID: u.ID, Content: "old", Kind: "comment", CreatedAt: base.Add(-3 * time.Hour)},
+		{ID: "c2", AlertKey: "k1", UserID: u.ID, Content: "🔇 silenced", Kind: "silence", CreatedAt: base.Add(-1 * time.Hour)},
+		{ID: "c3", AlertKey: "k2", UserID: u.ID, Content: "recent", Kind: "comment", CreatedAt: base.Add(-10 * time.Minute)},
+	}
+	for i := range seed {
+		if err := gdb.db.Create(&seed[i]).Error; err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	// window = last 2h → excludes c1; newest first → c3, c2
+	got, err := gdb.GetRecentActivity(base.Add(-2*time.Hour), 100)
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 2 || got[0].ID != "c3" || got[1].ID != "c2" {
+		t.Fatalf("got %d rows %v, want [c3 c2]", len(got), ids(got))
+	}
+	if got[0].Username != "alice" {
+		t.Fatalf("username = %q, want alice", got[0].Username)
+	}
+
+	// limit caps the result
+	got, err = gdb.GetRecentActivity(base.Add(-4*time.Hour), 1)
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "c3" {
+		t.Fatalf("limit=1 got %v, want [c3]", ids(got))
+	}
+}
+
+func ids(rows []models.CommentWithUser) []string {
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		out[i] = r.ID
+	}
+	return out
 }

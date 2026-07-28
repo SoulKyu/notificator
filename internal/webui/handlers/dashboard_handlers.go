@@ -397,6 +397,28 @@ func filtersAffectResolvedCount(filters webuimodels.DashboardFilters, sessionID 
 	return hiddenAlertsService != nil && hiddenAlertsService.HasHiddenEntries(sessionID)
 }
 
+// alertPassesAlertLevelFilters reports whether an alert matches the label-level
+// filters shared between the dashboard and the activity feed. It deliberately
+// excludes dashboard-only concerns (hidden rules, statuses, ack/comment filters).
+func alertPassesAlertLevelFilters(alert *webuimodels.DashboardAlert, filters webuimodels.DashboardFilters) bool {
+	if filters.Search != "" && !matchesSearch(alert, filters.Search) {
+		return false
+	}
+	if len(filters.Alertmanagers) > 0 && !contains(filters.Alertmanagers, alert.Source) {
+		return false
+	}
+	if len(filters.Severities) > 0 && !contains(filters.Severities, alert.Severity) {
+		return false
+	}
+	if len(filters.Teams) > 0 && !contains(filters.Teams, alert.Team) {
+		return false
+	}
+	if len(filters.AlertNames) > 0 && !contains(filters.AlertNames, alert.AlertName) {
+		return false
+	}
+	return true
+}
+
 func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string) []*webuimodels.DashboardAlert {
 	var filtered []*webuimodels.DashboardAlert
 
@@ -433,33 +455,13 @@ func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimo
 			}
 		}
 
-		// Apply search filter
-		if filters.Search != "" && !matchesSearch(alert, filters.Search) {
+		// Shared alert-level filters (search, alertmanager, severity, team, alertName)
+		if !alertPassesAlertLevelFilters(alert, filters) {
 			continue
 		}
 
-		// Apply alertmanager filter
-		if len(filters.Alertmanagers) > 0 && !contains(filters.Alertmanagers, alert.Source) {
-			continue
-		}
-
-		// Apply severity filter
-		if len(filters.Severities) > 0 && !contains(filters.Severities, alert.Severity) {
-			continue
-		}
-
-		// Apply status filter
+		// Apply status filter (dashboard-only)
 		if len(filters.Statuses) > 0 && !contains(filters.Statuses, alert.Status.State) {
-			continue
-		}
-
-		// Apply team filter
-		if len(filters.Teams) > 0 && !contains(filters.Teams, alert.Team) {
-			continue
-		}
-
-		// Apply alert name filter
-		if len(filters.AlertNames) > 0 && !contains(filters.AlertNames, alert.AlertName) {
 			continue
 		}
 
@@ -669,11 +671,11 @@ func convertToResponseAlerts(alerts []*webuimodels.DashboardAlert) []webuimodels
 	return result
 }
 
-func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
-	counters := webuimodels.DashboardCounters{
-		SeverityCounters: make(map[string]int),
-	}
-	availableFilters := webuimodels.DashboardAvailableFilters{
+// computeAvailableFilters collects the distinct filter option values (alertmanager,
+// severity, status, team, alert name) present across the given alerts, sorted. Shared by
+// the dashboard metadata and the activity feed so both offer the same option lists.
+func computeAvailableFilters(alerts []*webuimodels.DashboardAlert) webuimodels.DashboardAvailableFilters {
+	available := webuimodels.DashboardAvailableFilters{
 		Alertmanagers: []string{},
 		Severities:    []string{},
 		Statuses:      []string{},
@@ -681,12 +683,60 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		AlertNames:    []string{},
 	}
 
-	// Track unique values for filters
 	alertmanagerSet := make(map[string]bool)
 	severitySet := make(map[string]bool)
 	statusSet := make(map[string]bool)
 	teamSet := make(map[string]bool)
 	alertNameSet := make(map[string]bool)
+
+	for _, alert := range alerts {
+		alertmanagerSet[alert.Source] = true
+		severitySet[alert.Severity] = true
+		statusSet[alert.Status.State] = true
+		teamSet[alert.Team] = true
+		if alert.AlertName != "" {
+			alertNameSet[alert.AlertName] = true
+		}
+	}
+
+	for am := range alertmanagerSet {
+		if am != "" {
+			available.Alertmanagers = append(available.Alertmanagers, am)
+		}
+	}
+	for sev := range severitySet {
+		if sev != "" {
+			available.Severities = append(available.Severities, sev)
+		}
+	}
+	for status := range statusSet {
+		if status != "" {
+			available.Statuses = append(available.Statuses, status)
+		}
+	}
+	for team := range teamSet {
+		if team != "" {
+			available.Teams = append(available.Teams, team)
+		}
+	}
+	for alertName := range alertNameSet {
+		available.AlertNames = append(available.AlertNames, alertName)
+	}
+
+	sort.Strings(available.Alertmanagers)
+	sort.Strings(available.Severities)
+	sort.Strings(available.Statuses)
+	sort.Strings(available.Teams)
+	sort.Strings(available.AlertNames)
+
+	return available
+}
+
+func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
+	counters := webuimodels.DashboardCounters{
+		SeverityCounters: make(map[string]int),
+	}
+	availableFilters := computeAvailableFilters(allAlerts)
 
 	// Count statistics from filtered alerts only
 	for _, alert := range filteredAlerts {
@@ -766,40 +816,6 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 			}
 		}
 	}
-
-	// Collect unique values for filters from all alerts to show available options
-	for _, alert := range allAlerts {
-		alertmanagerSet[alert.Source] = true
-		severitySet[alert.Severity] = true
-		statusSet[alert.Status.State] = true
-		teamSet[alert.Team] = true
-		if alert.AlertName != "" {
-			alertNameSet[alert.AlertName] = true
-		}
-	}
-
-	for am := range alertmanagerSet {
-		availableFilters.Alertmanagers = append(availableFilters.Alertmanagers, am)
-	}
-	for sev := range severitySet {
-		availableFilters.Severities = append(availableFilters.Severities, sev)
-	}
-	for status := range statusSet {
-		availableFilters.Statuses = append(availableFilters.Statuses, status)
-	}
-	for team := range teamSet {
-		availableFilters.Teams = append(availableFilters.Teams, team)
-	}
-	for alertName := range alertNameSet {
-		availableFilters.AlertNames = append(availableFilters.AlertNames, alertName)
-	}
-
-	// Sort filter options
-	sort.Strings(availableFilters.Alertmanagers)
-	sort.Strings(availableFilters.Severities)
-	sort.Strings(availableFilters.Statuses)
-	sort.Strings(availableFilters.Teams)
-	sort.Strings(availableFilters.AlertNames)
 
 	return webuimodels.DashboardMetadata{
 		TotalAlerts:      len(filteredAlerts), // Now respects filtering
@@ -912,7 +928,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 
 			// Also add the acknowledgment reason as a comment for audit trail
 			commentContent := fmt.Sprintf("🔔 Alert acknowledged: %s", reason)
-			if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			if err := backendClient.AddSystemComment(sessionID, fingerprint, "ack", commentContent); err != nil {
 				// Log the error but don't fail the acknowledgment if comment fails
 				fmt.Printf("Warning: failed to add acknowledgment comment: %v\n", err)
 			}
@@ -955,7 +971,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				unackReason = "removed acknowledgment"
 			}
 			commentContent := fmt.Sprintf("🔕 Alert unacknowledged: %s", unackReason)
-			if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			if err := backendClient.AddSystemComment(sessionID, fingerprint, "unack", commentContent); err != nil {
 				// Log the error but don't fail the unacknowledgment if comment fails
 				fmt.Printf("Warning: failed to add unacknowledgment comment: %v\n", err)
 			}
@@ -988,7 +1004,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 				resolveReason = "resolved from dashboard"
 			}
 			commentContent := fmt.Sprintf("✅ Alert resolved: %s", resolveReason)
-			if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+			if err := backendClient.AddSystemComment(sessionID, fingerprint, "resolve", commentContent); err != nil {
 				// Log the error but don't fail the resolution if comment fails
 				fmt.Printf("Warning: failed to add resolution comment: %v\n", err)
 			} else {
@@ -1338,6 +1354,7 @@ func GetAlertDetails(c *gin.Context) {
 			// Convert backend comments to webui models
 			details.Comments = make([]webuimodels.Comment, len(comments))
 			for i, comment := range comments {
+				kind := deriveCommentKind(comment.Kind, comment.Content)
 				details.Comments[i] = webuimodels.Comment{
 					ID:        comment.Id,
 					Username:  comment.Username,
@@ -1345,6 +1362,8 @@ func GetAlertDetails(c *gin.Context) {
 					Content:   comment.Content,
 					CreatedAt: comment.CreatedAt.AsTime(),
 					UpdatedAt: comment.CreatedAt.AsTime(), // Use CreatedAt if UpdatedAt not available
+					Kind:      kind,
+					IsSystem:  kind != "comment",
 				}
 			}
 		} else {
@@ -2063,7 +2082,7 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 
 		// Create comment with format: "🔇 Alert silenced for {duration}: {reason}"
 		commentContent := fmt.Sprintf("🔇 Alert silenced for %s: %s", durationStr, silenceReason)
-		if err := backendClient.AddComment(sessionID, fingerprint, commentContent); err != nil {
+		if err := backendClient.AddSystemComment(sessionID, fingerprint, "silence", commentContent); err != nil {
 			// Log the error but don't fail the silence if comment fails
 			fmt.Printf("Warning: failed to add silence comment: %v\n", err)
 		} else {

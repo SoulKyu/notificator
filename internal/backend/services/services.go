@@ -533,7 +533,7 @@ func (s *AlertServiceGorm) AddComment(ctx context.Context, req *alertpb.AddComme
 	}
 
 	// Create comment
-	comment, err := s.db.CreateComment(req.AlertKey, user.ID, req.Content)
+	comment, err := s.db.CreateComment(req.AlertKey, user.ID, req.Content, req.Kind)
 	if err != nil {
 		log.Printf("Error creating comment: %v", err)
 		return &alertpb.AddCommentResponse{
@@ -550,6 +550,7 @@ func (s *AlertServiceGorm) AddComment(ctx context.Context, req *alertpb.AddComme
 		Username:  comment.Username,
 		Content:   comment.Content,
 		CreatedAt: timestamppb.New(comment.CreatedAt),
+		Kind:      comment.Kind,
 	}
 
 	// Broadcast to subscribers
@@ -602,6 +603,76 @@ func (s *AlertServiceGorm) GetComments(ctx context.Context, req *alertpb.GetComm
 		Comments: pbComments,
 		Count:    int32(len(pbComments)),
 	}, nil
+}
+
+const (
+	activityDefaultLimit = 100
+	activityMaxLimit     = 200
+)
+
+// GetRecentActivity returns recent cross-alert collaboration events (acks, unacks,
+// comments, silences, resolves) for the activity feed. Read-only. The AlertService has
+// no auth interceptor, so the session is validated here explicitly.
+func (s *AlertServiceGorm) GetRecentActivity(ctx context.Context, req *alertpb.GetRecentActivityRequest) (*alertpb.GetRecentActivityResponse, error) {
+	if req.SessionId == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "session ID is required")
+	}
+	if _, err := s.db.GetUserBySession(req.SessionId); err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid session")
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = activityDefaultLimit
+	}
+	if limit > activityMaxLimit {
+		limit = activityMaxLimit
+	}
+
+	since := time.Time{}
+	if req.Since != nil {
+		since = req.Since.AsTime()
+	}
+
+	rows, err := s.db.GetRecentActivity(since, limit)
+	if err != nil {
+		log.Printf("Error getting recent activity: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to load activity: %v", err)
+	}
+
+	events := make([]*alertpb.ActivityEvent, 0, len(rows))
+	for _, r := range rows {
+		events = append(events, &alertpb.ActivityEvent{
+			Id:        r.ID,
+			AlertKey:  r.AlertKey,
+			Kind:      deriveActivityKind(r.Kind, r.Content),
+			UserId:    r.UserID,
+			Username:  r.Username,
+			Content:   r.Content,
+			CreatedAt: timestamppb.New(r.CreatedAt),
+		})
+	}
+	return &alertpb.GetRecentActivityResponse{Events: events}, nil
+}
+
+// deriveActivityKind returns the stored kind, falling back to the emoji prefix for
+// legacy rows written before the kind column existed.
+func deriveActivityKind(kind, content string) string {
+	if kind != "" {
+		return kind
+	}
+	switch {
+	case strings.HasPrefix(content, "🔔"):
+		return "ack"
+	case strings.HasPrefix(content, "🔕"):
+		return "unack"
+	case strings.HasPrefix(content, "🔇"):
+		return "silence"
+	case strings.HasPrefix(content, "✅"):
+		return "resolve"
+	default:
+		return "comment"
+	}
 }
 
 // GetCommentCountsBatch implements the GetCommentCountsBatch RPC method

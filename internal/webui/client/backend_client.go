@@ -466,6 +466,17 @@ func (c *BackendClient) GetCommentCountsBatch(fingerprints []string) (map[string
 
 // AddComment adds a comment to an alert
 func (c *BackendClient) AddComment(sessionID, alertKey, content string) error {
+	return c.addComment(sessionID, alertKey, content, "comment")
+}
+
+// AddSystemComment records an audit comment (ack/unack/silence/resolve) with a
+// structured kind so the activity feed and the modal badge can categorise it
+// without parsing the emoji prefix.
+func (c *BackendClient) AddSystemComment(sessionID, alertKey, kind, content string) error {
+	return c.addComment(sessionID, alertKey, content, kind)
+}
+
+func (c *BackendClient) addComment(sessionID, alertKey, content, kind string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -477,6 +488,7 @@ func (c *BackendClient) AddComment(sessionID, alertKey, content string) error {
 		SessionId: sessionID,
 		AlertKey:  alertKey,
 		Content:   content,
+		Kind:      kind,
 	}
 
 	_, err := c.alertClient.AddComment(ctx, req)
@@ -499,6 +511,26 @@ func (c *BackendClient) DeleteComment(sessionID, commentID string) error {
 
 	_, err := c.alertClient.DeleteComment(ctx, req)
 	return err
+}
+
+// GetRecentActivity fetches recent cross-alert collaboration events for the activity feed.
+func (c *BackendClient) GetRecentActivity(sessionID string, since time.Time, limit int) ([]*alertpb.ActivityEvent, error) {
+	if c.alertClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.alertClient.GetRecentActivity(ctx, &alertpb.GetRecentActivityRequest{
+		SessionId: sessionID,
+		Since:     timestamppb.New(since),
+		Limit:     int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Events, nil
 }
 
 // CreateResolvedAlert stores a resolved alert in the backend

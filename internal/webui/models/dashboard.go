@@ -246,6 +246,8 @@ type Comment struct {
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+	Kind      string    `json:"kind"`
+	IsSystem  bool      `json:"isSystem"`
 }
 
 // Silence represents a silence affecting an alert

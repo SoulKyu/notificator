@@ -392,3 +392,9 @@ func (gdb *GormDB) cleanupResolvedAcknowledgments() error {
 
 	return nil
 }
+
+// migrateCommentsCreatedAtIndex indexes comments.created_at so the activity feed's
+// time-ordered global scan uses an index instead of scanning the whole table.
+func (gdb *GormDB) migrateCommentsCreatedAtIndex() error {
+	return gdb.db.Exec(`CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments (created_at)`).Error
+}

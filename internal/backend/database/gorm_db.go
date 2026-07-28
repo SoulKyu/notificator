@@ -165,6 +165,11 @@ func (gdb *GormDB) AutoMigrate() error {
 		}
 	}
 
+	// Create the activity-feed index now that the comments table exists.
+	if err := gdb.migrateCommentsCreatedAtIndex(); err != nil {
+		log.Printf("⚠️  Warning: Failed to create comments created_at index: %v", err)
+	}
+
 	log.Println("✅ Database migrations completed")
 	return nil
 }
@@ -342,11 +347,15 @@ func (gdb *GormDB) GetConnectedUsers() ([]ConnectedUserInfo, error) {
 	return results, nil
 }
 
-func (gdb *GormDB) CreateComment(alertKey, userID, content string) (*models.CommentWithUser, error) {
+func (gdb *GormDB) CreateComment(alertKey, userID, content, kind string) (*models.CommentWithUser, error) {
+	if kind == "" {
+		kind = "comment"
+	}
 	comment := &models.Comment{
 		AlertKey: alertKey,
 		UserID:   userID,
 		Content:  content,
+		Kind:     kind,
 	}
 
 	if err := gdb.db.Create(comment).Error; err != nil {
@@ -380,6 +389,22 @@ func (gdb *GormDB) GetComments(alertKey string) ([]models.CommentWithUser, error
 		Find(&comments).Error
 
 	return comments, err
+}
+
+// GetRecentActivity returns comments created at or after `since`, newest first,
+// capped at `limit`, joined to users for the username. It is the single source for
+// the cross-alert activity feed: every ack/unack/silence/resolve already writes a
+// comment, so no merge with the acknowledgments table is needed.
+func (gdb *GormDB) GetRecentActivity(since time.Time, limit int) ([]models.CommentWithUser, error) {
+	var rows []models.CommentWithUser
+	err := gdb.db.Table("comments").
+		Select("comments.*, users.username").
+		Joins("JOIN users ON users.id = comments.user_id").
+		Where("comments.created_at >= ?", since).
+		Order("comments.created_at DESC").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
 }
 
 // GetCommentCountsBatch retrieves comment counts for multiple alert keys in a single query.
