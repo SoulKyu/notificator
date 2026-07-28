@@ -248,6 +248,9 @@ templ DashboardResolvedAlertsMixin() {
 				this.showAlertModal = true;
 				this.currentAlertTab = 'overview';
 				this.alertDetails = null;
+				this.alertHistory = null;
+				this.sparkline = null;
+				this.alertLinkCopied = false;
 
 				const fingerprint = alert.fingerprint;
 				if (!options?.skipHistory) {
