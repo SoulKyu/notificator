@@ -59,7 +59,8 @@ services:
       - NOTIFICATOR_BACKEND_DATABASE_USER=notificator
       - NOTIFICATOR_BACKEND_DATABASE_PASSWORD=notificator_password
       - NOTIFICATOR_BACKEND_DATABASE_SSL_MODE=disable
-      - NOTIFICATOR_ENCRYPTION_KEY=51f64f844ed0a772d10c2184b02a682ab6b5348f50181a9faaaecfb1446c8dcf
+      # dev-only key — generate your own: openssl rand -hex 32
+      - NOTIFICATOR_ENCRYPTION_KEY=${NOTIFICATOR_ENCRYPTION_KEY:-badbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadb}
 
       # Alertmanager configuration
       - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager

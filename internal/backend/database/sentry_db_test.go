@@ -1,6 +1,12 @@
 package database
 
-import "testing"
+import (
+	"bytes"
+	"log"
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestValidateEncryptionKey(t *testing.T) {
 	cases := map[string]struct {
@@ -26,6 +32,21 @@ func TestValidateEncryptionKey(t *testing.T) {
 				t.Fatalf("expected no error for key %q, got %v", tc.key, err)
 			}
 		})
+	}
+}
+
+func TestValidateEncryptionKeyWarnsOnDevDefault(t *testing.T) {
+	t.Setenv(EncryptionKeyEnvVar, devDefaultEncryptionKey)
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	if err := ValidateEncryptionKey(); err != nil {
+		t.Fatalf("expected no error for dev default key, got %v", err)
+	}
+	if !strings.Contains(buf.String(), "WARNING") {
+		t.Fatalf("expected a startup warning for the dev default key, got log output: %q", buf.String())
 	}
 }
 
