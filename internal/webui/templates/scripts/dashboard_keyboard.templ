@@ -60,9 +60,15 @@ templ DashboardKeyboardMixin() {
 
 			// Row-scoped shortcuts (cursor, selection toggle, ack/silence/hide) only
 			// make sense against rendered rows, which the grouped view doesn't have.
+			// The Resolved tab hides that table entirely without reloading/renormalizing
+			// this.alerts, so it'd otherwise act on stale, invisible rows.
 			requireListView() {
 				if (this.viewMode === 'group') {
 					this.showActionError('Row shortcuts are only available in List view — switch views to use them', true);
+					return false;
+				}
+				if (this.displayMode === 'resolved') {
+					this.showActionError('Row shortcuts are not available on the Resolved tab', true);
 					return false;
 				}
 				return true;
@@ -77,7 +83,12 @@ templ DashboardKeyboardMixin() {
 
 			toggleSelectAllRows() {
 				if (!this.requireListView()) return;
-				if (this.selectedAlerts.length === this.alerts.length) {
+				// A raw length comparison isn't a subset check: a full reload can replace
+				// this.alerts with a different set of the same size without pruning
+				// selectedAlerts, making stale counts look "already fully selected".
+				const allSelected = this.alerts.length > 0 &&
+					this.alerts.every(a => this.selectedAlerts.includes(a.fingerprint));
+				if (allSelected) {
 					this.clearSelection();
 				} else {
 					this.selectAll();
@@ -126,22 +137,31 @@ templ DashboardKeyboardMixin() {
 			// disturbing a pre-existing checkbox selection.
 			async hideCursorRow() {
 				if (!this.requireListView()) return;
+				// OS key-repeat fires keydown every 20-50ms, well inside a hideSelected()
+				// fetch round-trip — without this guard, a held 'h' races two calls over
+				// the same shared selectedAlerts/selectedGroups state.
+				if (this._hidingCursorRow) return;
 				const alert = this.cursorAlert();
 				if (!alert) return;
-				const savedAlerts = this.selectedAlerts.slice();
-				const savedGroups = this.selectedGroups.slice();
-				this.selectedAlerts = [alert.fingerprint];
-				this.selectedGroups = [];
-				await this.hideSelected();
-				// hideSelected() only clears selectedAlerts on full success; on a
-				// rejected or failed hide it leaves the cursor's fingerprint there.
-				// Restore the saved selection unconditionally: drop the cursor's
-				// fingerprint if the hide succeeded, otherwise leave the saved
-				// selection untouched (don't add the cursor row if it was never
-				// part of it to begin with).
-				const hideFailed = this.selectedAlerts.includes(alert.fingerprint);
-				this.selectedAlerts = hideFailed ? savedAlerts : savedAlerts.filter(fp => fp !== alert.fingerprint);
-				this.selectedGroups = savedGroups;
+				this._hidingCursorRow = true;
+				try {
+					const savedAlerts = this.selectedAlerts.slice();
+					const savedGroups = this.selectedGroups.slice();
+					this.selectedAlerts = [alert.fingerprint];
+					this.selectedGroups = [];
+					await this.hideSelected();
+					// hideSelected() only clears selectedAlerts on full success; on a
+					// rejected or failed hide it leaves the cursor's fingerprint there.
+					// Restore the saved selection unconditionally: drop the cursor's
+					// fingerprint if the hide succeeded, otherwise leave the saved
+					// selection untouched (don't add the cursor row if it was never
+					// part of it to begin with).
+					const hideFailed = this.selectedAlerts.includes(alert.fingerprint);
+					this.selectedAlerts = hideFailed ? savedAlerts : savedAlerts.filter(fp => fp !== alert.fingerprint);
+					this.selectedGroups = savedGroups;
+				} finally {
+					this._hidingCursorRow = false;
+				}
 			},
 
 			handleDashboardKeydown(event) {
