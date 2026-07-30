@@ -153,10 +153,10 @@ management page, separate from the dashboard's quick Silence/Unsilence action:
   autocomplete and paste-to-import; per-source checkboxes to fan the silence out to a subset of
   configured Alertmanagers (`POST /api/v1/dashboard/silences` → `fanOutSilence`, per-source
   success/failure); a debounced live preview (`POST /api/v1/dashboard/silences/preview`) showing
-  match count and a capped alert sample before submitting; duration via presets (now `1h`–`90d`,
-  including `14d`/`30d`/`90d`), free-form (`parseExtendedDuration`, e.g. `2w`), or an absolute end
-  time; and a "Duplicate" action on any existing row (including expired ones) that prefills the
-  modal.
+  match count and a capped alert sample before submitting; duration via presets (`1h`/`4h`/`24h`/`7d`),
+  free-form (`parseExtendedDuration`, e.g. `2w`), or an absolute end time; and a "Duplicate" action
+  on any existing row (including expired ones) that prefills the modal. (The dashboard's quick
+  `SilenceModal()` offers a wider `1h`–`90d` preset range, including `14d`/`30d`/`90d`.)
 - **Creator attribution**: silences created through notificator record the effective **username**
   (not the internal user ID — a prior bug displayed raw IDs). Silences created outside notificator
   (amtool, Alertmanager UI, karma) carry no origin metadata; the backend `ResolveSilenceCreators`
@@ -192,8 +192,8 @@ host is validated against the configured `sentry.base_url` and a mismatch is rej
 fetched, see [Sentry SSRF fix](#gotchas)). Header offers Silence/Unsilence, configurable per-user
 **annotation buttons**, Ack/Unack, "Source" (`generatorURL`), "Copy as Issue" (builds a Markdown
 issue and copies it), and **"Copy link"** (`copyAlertLink()`, `dashboard_modal.templ:128` — copies
-the same `/dashboard/alert/:fingerprint` deep-link URL used for `pushState`, with a 2s confirmation
-toast).
+the same `/dashboard/alert/:fingerprint` deep-link URL used for `pushState`, with a 2s inline
+checkmark icon swap on the button itself).
 
 The **History** tab's data also feeds a client-only **30-day frequency sparkline**
 (`computeSparkline()`, `dashboard_modal.templ:627`): a pure-JS histogram over the already
