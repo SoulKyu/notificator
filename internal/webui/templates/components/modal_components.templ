@@ -1786,15 +1786,64 @@ templ SilenceModal() {
 									</span>
 								</p>
 								
-								<!-- Alert/Group Information -->
+								<!-- Alert Information + editable matchers -->
 								<div x-show="silenceAction === 'single' && currentSilenceAlert" class="mb-4 p-3 bg-gray-50 dark:bg-dark-bg-tertiary rounded-md">
 									<div class="flex items-center space-x-2 text-sm">
 										<span class="font-medium text-gray-900 dark:text-white">Alert:</span>
 										<span class="text-gray-600 dark:text-gray-300" x-text="currentSilenceAlert?.alertName"></span>
 									</div>
-									<div class="flex items-center space-x-2 text-sm mt-1">
-										<span class="font-medium text-gray-900 dark:text-white">Instance:</span>
-										<span class="text-gray-600 dark:text-gray-300" x-text="currentSilenceAlert?.instance"></span>
+
+									<button type="button" @click="showSilenceMatchers = !showSilenceMatchers"
+											class="mt-2 flex items-center gap-1 text-sm font-medium text-purple-700 dark:text-purple-300 hover:underline">
+										<svg class="w-3.5 h-3.5 transition-transform" :class="showSilenceMatchers ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+										</svg>
+										<span x-text="'Matchers (' + silenceMatcherRows.length + ')'"></span>
+									</button>
+
+									<div x-show="showSilenceMatchers" class="mt-2 space-y-2">
+										<datalist id="dashboard-silence-label-names">
+											<template x-for="name in Object.keys(silenceLabelOptions)" :key="name">
+												<option :value="name"></option>
+											</template>
+										</datalist>
+										<template x-for="(row, idx) in silenceMatcherRows" :key="idx">
+											<div>
+												<div class="flex items-center gap-2">
+													<input type="text" x-model="row.name" @input="scheduleSilencePreview()" list="dashboard-silence-label-names" placeholder="label name"
+														class="flex-1 min-w-0 px-2 py-1.5 text-xs font-mono rounded-md border bg-white dark:bg-dark-bg-secondary text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+														:class="silenceMatcherErrorAt(idx) ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-dark-border-DEFAULT'"/>
+													<select x-model="row.op" @change="scheduleSilencePreview()"
+														class="px-1.5 py-1.5 text-xs font-mono rounded-md border border-gray-300 dark:border-dark-border-DEFAULT bg-white dark:bg-dark-bg-secondary text-gray-900 dark:text-white">
+														<option value="=">=</option>
+														<option value="!=">!=</option>
+														<option value="=~">=~</option>
+														<option value="!~">!~</option>
+													</select>
+													<input type="text" x-model="row.value" @input="scheduleSilencePreview()" :list="'dashboard-silence-label-values-' + idx" placeholder="value"
+														class="flex-1 min-w-0 px-2 py-1.5 text-xs font-mono rounded-md border bg-white dark:bg-dark-bg-secondary text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+														:class="silenceMatcherErrorAt(idx) ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-dark-border-DEFAULT'"/>
+													<datalist :id="'dashboard-silence-label-values-' + idx">
+														<template x-for="value in (silenceLabelOptions[row.name] || [])" :key="value">
+															<option :value="value"></option>
+														</template>
+													</datalist>
+													<button type="button" @click="removeSilenceMatcher(idx)" class="p-1.5 rounded-md text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-dark-bg-secondary">
+														<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+														</svg>
+													</button>
+												</div>
+												<p x-show="silenceMatcherErrorAt(idx)" class="mt-0.5 text-xs text-red-600 dark:text-red-400" x-text="silenceMatcherErrorAt(idx)"></p>
+											</div>
+										</template>
+										<button type="button" @click="addSilenceMatcher()" class="text-xs font-medium text-purple-700 dark:text-purple-300 hover:underline">+ Add matcher</button>
+
+										<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+											<span x-show="silencePreviewLoading">Updating match count…</span>
+											<span x-show="!silencePreviewLoading && silencePreviewCount !== null">Will match <strong x-text="silencePreviewCount"></strong> alert(s)</span>
+											<span x-show="silencePreviewError" class="block text-red-600 dark:text-red-400" x-text="silencePreviewError"></span>
+										</div>
 									</div>
 								</div>
 								
@@ -1930,11 +1979,11 @@ templ SilenceModal() {
 				<div class="bg-gray-50 dark:bg-dark-bg-tertiary px-6 py-4 border-t border-gray-200 dark:border-dark-border-subtle sm:flex sm:flex-row-reverse sm:gap-3">
 					<button type="button"
 							@click="submitSilence()"
-							:disabled="!silenceReason.trim() || silenceSubmitting"
+							:disabled="!silenceReason.trim() || silenceSubmitting || silenceMatchersInvalid()"
 							class="w-full inline-flex justify-center items-center rounded-lg border border-transparent shadow-sm px-4 py-2 text-sm font-medium text-white sm:w-auto transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-secondary"
 							:class="{
-								'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500': silenceReason.trim() && !silenceSubmitting,
-								'bg-gray-400 cursor-not-allowed': !silenceReason.trim() || silenceSubmitting
+								'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500': silenceReason.trim() && !silenceSubmitting && !silenceMatchersInvalid(),
+								'bg-gray-400 cursor-not-allowed': !silenceReason.trim() || silenceSubmitting || silenceMatchersInvalid()
 							}">
 						<svg x-show="silenceSubmitting" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

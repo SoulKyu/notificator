@@ -843,6 +843,7 @@ func BulkActionAlerts(c *gin.Context) {
 	}
 
 	// Store silence duration in context for silence actions
+	var explicitMatchers []models.SilenceMatcher
 	if request.Action == "silence" {
 		var silenceDuration time.Duration
 		var err error
@@ -861,11 +862,37 @@ func BulkActionAlerts(c *gin.Context) {
 		}
 
 		c.Set("silenceDuration", silenceDuration)
+
+		// Explicit matchers are single-alert only: a bulk/group silence derives matchers
+		// per alert, so replaying the same explicit set across N alerts would create
+		// the same silence twice. The UI hides the editor for those flows, but the
+		// server must not trust that — reject rather than silently ignore.
+		if request.SilenceMatchers != nil {
+			if len(request.AlertFingerprints) != 1 {
+				c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("explicit silence matchers require exactly one alert fingerprint"))
+				return
+			}
+			if len(request.SilenceMatchers) == 0 {
+				c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("at least one matcher is required"))
+				return
+			}
+
+			draftMatchers := make([]webuimodels.SilenceMatcher, len(request.SilenceMatchers))
+			for i, m := range request.SilenceMatchers {
+				draftMatchers[i] = webuimodels.SilenceMatcher{Name: m.Name, Value: m.Value, IsRegex: m.IsRegex, IsEqual: m.IsEqual}
+			}
+			if _, matcherErrors := compileDraftMatchers(draftMatchers, true); len(matcherErrors) > 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "invalid matchers", "matcherErrors": matcherErrors})
+				return
+			}
+
+			explicitMatchers = request.SilenceMatchers
+		}
 	}
 
 	// Process individual alerts
 	for _, fingerprint := range request.AlertFingerprints {
-		if err := processAlertAction(c, fingerprint, request.Action, request.Comment, userID); err != nil {
+		if err := processAlertAction(c, fingerprint, request.Action, request.Comment, userID, explicitMatchers); err != nil {
 			response.FailedCount++
 			response.Failures = append(response.Failures, webuimodels.BulkActionFailure{
 				Target: fingerprint,
@@ -906,7 +933,7 @@ func BulkActionAlerts(c *gin.Context) {
 	})
 }
 
-func processAlertAction(c *gin.Context, fingerprint, action, comment, userID string) error {
+func processAlertAction(c *gin.Context, fingerprint, action, comment, userID string, silenceMatchers []models.SilenceMatcher) error {
 	alert, exists := alertCache.GetAlert(fingerprint)
 	if !exists {
 		return fmt.Errorf("alert not found: %s", fingerprint)
@@ -1021,7 +1048,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 
 	case "silence":
 		// Handle silence action
-		if err := processSilenceAction(c, fingerprint, comment, userID); err != nil {
+		if err := processSilenceAction(c, fingerprint, comment, userID, silenceMatchers); err != nil {
 			return fmt.Errorf("failed to silence alert: %w", err)
 		}
 
@@ -1045,7 +1072,8 @@ func processGroupAction(c *gin.Context, groupName, action, comment, userID strin
 	var errs []string
 	for _, alert := range allAlerts {
 		if alert.GroupName == groupName {
-			if err := processAlertAction(c, alert.Fingerprint, action, comment, userID); err != nil {
+			// Group silences always derive matchers per alert — never pass an explicit set here.
+			if err := processAlertAction(c, alert.Fingerprint, action, comment, userID, nil); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}
@@ -1976,7 +2004,7 @@ func RemoveAllResolvedAlerts(c *gin.Context) {
 	}))
 }
 
-func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) error {
+func processSilenceAction(c *gin.Context, fingerprint, comment, userID string, explicitMatchers []models.SilenceMatcher) error {
 	if alertmanagerClient == nil {
 		return fmt.Errorf("alertmanager client not available")
 	}
@@ -1998,20 +2026,24 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 		return fmt.Errorf("invalid silence duration format")
 	}
 
-	// Create silence matchers from alert labels
-	var matchers []models.SilenceMatcher
-	for key, value := range alert.Labels {
-		// Skip certain labels that shouldn't be used for silencing
-		if key == "__name__" || key == "__tmp_" {
-			continue
-		}
+	// explicitMatchers is already validated (compileDraftMatchers) and scope-guarded
+	// (single fingerprint only) by BulkActionAlerts before this is ever reached.
+	matchers := explicitMatchers
+	if matchers == nil {
+		// Create silence matchers from alert labels
+		for key, value := range alert.Labels {
+			// Skip certain labels that shouldn't be used for silencing
+			if key == "__name__" || key == "__tmp_" {
+				continue
+			}
 
-		matchers = append(matchers, models.SilenceMatcher{
-			Name:    key,
-			Value:   value,
-			IsRegex: false,
-			IsEqual: true,
-		})
+			matchers = append(matchers, models.SilenceMatcher{
+				Name:    key,
+				Value:   value,
+				IsRegex: false,
+				IsEqual: true,
+			})
+		}
 	}
 
 	if len(matchers) == 0 {
@@ -2080,8 +2112,8 @@ func processSilenceAction(c *gin.Context, fingerprint, comment, userID string) e
 		// Format the duration in human-readable format
 		durationStr := formatDuration(silenceDuration)
 
-		// Create comment with format: "🔇 Alert silenced for {duration}: {reason}"
-		commentContent := fmt.Sprintf("🔇 Alert silenced for %s: %s", durationStr, silenceReason)
+		// Create comment with format: "🔇 Alert silenced for {duration}: {reason} ({N} matcher(s))"
+		commentContent := fmt.Sprintf("🔇 Alert silenced for %s: %s (%d matcher(s))", durationStr, silenceReason, len(matchers))
 		if err := backendClient.AddSystemComment(sessionID, fingerprint, "silence", commentContent); err != nil {
 			// Log the error but don't fail the silence if comment fails
 			fmt.Printf("Warning: failed to add silence comment: %v\n", err)

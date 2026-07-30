@@ -49,6 +49,69 @@ func bulkActionRequest(t *testing.T, body string) (webuimodels.APIResponse, webu
 	return envelope, bulk
 }
 
+// bulkActionRawResponse posts a bulk-action request and returns the raw recorder,
+// for cases expecting a non-200 status (the explicit-matcher validation guard).
+func bulkActionRawResponse(t *testing.T, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("test-session", cookie.NewStore([]byte("test-secret"))))
+	router.POST("/bulk-action", BulkActionAlerts)
+
+	req := httptest.NewRequest(http.MethodPost, "/bulk-action", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestBulkActionRejectsEmptyExplicitMatcherList(t *testing.T) {
+	SetAlertCache(services.NewAlertCache(nil, nil, 0, 0))
+
+	rec := bulkActionRawResponse(t,
+		`{"alertFingerprints":["fp1"],"action":"silence","silenceDuration":3600000000000,"silenceMatchers":[]}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBulkActionRejectsExplicitMatchersWithMultipleFingerprints(t *testing.T) {
+	SetAlertCache(services.NewAlertCache(nil, nil, 0, 0))
+
+	rec := bulkActionRawResponse(t,
+		`{"alertFingerprints":["fp1","fp2"],"action":"silence","silenceDuration":3600000000000,"silenceMatchers":[{"name":"alertname","value":"Foo"}]}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBulkActionRejectsInvalidExplicitMatcherRegex(t *testing.T) {
+	SetAlertCache(services.NewAlertCache(nil, nil, 0, 0))
+
+	rec := bulkActionRawResponse(t,
+		`{"alertFingerprints":["fp1"],"action":"silence","silenceDuration":3600000000000,"silenceMatchers":[{"name":"pod","value":"(","isRegex":true}]}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body struct {
+		MatcherErrors []struct {
+			Index int    `json:"index"`
+			Error string `json:"error"`
+		} `json:"matcherErrors"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(body.MatcherErrors) != 1 || body.MatcherErrors[0].Index != 0 {
+		t.Fatalf("expected one matcherError at index 0, got %+v", body.MatcherErrors)
+	}
+}
+
 func TestBulkActionEnvelopeReportsTotalFailure(t *testing.T) {
 	cache := services.NewAlertCache(nil, nil, 0, 0)
 	// Silencing fails for this alert because no Alertmanager client is configured.

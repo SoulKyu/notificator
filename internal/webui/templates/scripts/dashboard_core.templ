@@ -67,6 +67,16 @@ templ DashboardCore() {
 				silenceDurationType: 'preset',
 				customSilenceDuration: '',
 				customDurationError: '',
+
+				// Editable matchers for single-alert silences (bulk/group keep server-side derivation)
+				showSilenceMatchers: false,
+				silenceMatcherRows: [],
+				silenceMatcherErrors: [],
+				silenceLabelOptions: {},
+				silencePreviewCount: null,
+				silencePreviewLoading: false,
+				silencePreviewError: '',
+				silencePreviewTimer: null,
 				
 				showAlertModal: false,
 				alertModalPushedHistory: false,
