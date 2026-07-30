@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"time"
+
+	coremodels "notificator/internal/models"
 )
 
 // DashboardAlert represents an enhanced alert for the dashboard with additional features
@@ -192,13 +194,14 @@ type DashboardAvailableFilters struct {
 
 // BulkActionRequest represents a request to perform actions on multiple alerts
 type BulkActionRequest struct {
-	AlertFingerprints     []string      `json:"alertFingerprints"`
-	GroupNames            []string      `json:"groupNames,omitempty"`            // For group actions
-	Action                string        `json:"action"`                          // "acknowledge", "hide", "unhide", "silence"
-	Comment               string        `json:"comment,omitempty"`               // Optional comment for acknowledgment
-	SilenceDuration       time.Duration `json:"silenceDuration,omitempty"`       // Duration for silence action (backward compatibility)
-	SilenceDurationType   string        `json:"silenceDurationType,omitempty"`   // "preset" or "custom"
-	CustomSilenceDuration string        `json:"customSilenceDuration,omitempty"` // Custom duration string (e.g., "1h30m")
+	AlertFingerprints     []string                    `json:"alertFingerprints"`
+	GroupNames            []string                    `json:"groupNames,omitempty"`            // For group actions
+	Action                string                      `json:"action"`                          // "acknowledge", "hide", "unhide", "silence"
+	Comment               string                      `json:"comment,omitempty"`               // Optional comment for acknowledgment
+	SilenceDuration       time.Duration               `json:"silenceDuration,omitempty"`       // Duration for silence action (backward compatibility)
+	SilenceDurationType   string                      `json:"silenceDurationType,omitempty"`   // "preset" or "custom"
+	CustomSilenceDuration string                      `json:"customSilenceDuration,omitempty"` // Custom duration string (e.g., "1h30m")
+	SilenceMatchers       []coremodels.SilenceMatcher `json:"silenceMatchers,omitempty"`       // Explicit matchers; single-alert silence only, falls back to label-derived matchers when absent
 }
 
 // BulkActionFailure identifies a single target that failed during a bulk action

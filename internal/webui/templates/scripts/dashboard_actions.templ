@@ -536,6 +536,12 @@ templ DashboardActions() {
 				this.currentSilenceAlert = null;
 				this.currentGroupName = '';
 				this.silenceDuration = '1h';
+				this.showSilenceMatchers = false;
+				this.silenceMatcherRows = [];
+				this.silenceMatcherErrors = [];
+				this.silencePreviewCount = null;
+				this.silencePreviewError = '';
+				clearTimeout(this.silencePreviewTimer);
 			},
 			
 			async submitSilence() {
@@ -574,6 +580,7 @@ templ DashboardActions() {
 								groupNames: [],
 								action: 'silence',
 								comment: this.silenceReason,
+								silenceMatchers: this.silenceMatcherPayload(),
 								...durationFields
 							};
 							successMessage = 'Alert silenced successfully';
@@ -638,6 +645,10 @@ templ DashboardActions() {
 						}
 						if (result.data && result.data.processedCount > 0) {
 							this.loadDashboardData();
+						}
+						if (result.matcherErrors && result.matcherErrors.length) {
+							this.silenceMatcherErrors = result.matcherErrors;
+							this.showSilenceMatchers = true;
 						}
 						this.silenceError = this.bulkActionErrorMessage(result, 'Failed to silence alert(s)');
 					}
@@ -746,6 +757,15 @@ templ DashboardActions() {
 				this.silenceDurationType = 'preset';
 				this.customSilenceDuration = '';
 				this.customDurationError = '';
+				this.showSilenceMatchers = false;
+				this.silenceMatcherRows = Object.entries(alert.labels || {})
+					.filter(([name]) => name !== '__name__' && name !== '__tmp_')
+					.map(([name, value]) => ({ name, op: '=', value }));
+				this.silenceMatcherErrors = [];
+				this.silencePreviewCount = null;
+				this.silencePreviewError = '';
+				this.loadSilenceLabelOptions();
+				this.scheduleSilencePreview();
 				this.showSilenceModal = true;
 			},
 
@@ -758,15 +778,16 @@ templ DashboardActions() {
 				this.silenceDurationType = 'preset';
 				this.customSilenceDuration = '';
 				this.customDurationError = '';
+				this.silenceMatcherRows = [];
 				this.showSilenceModal = true;
 			},
 
 			silenceSelected() {
 				if (this.selectedAlerts.length === 0 && this.selectedGroups.length === 0) {
-					
+
 					return;
 				}
-				
+
 				this.silenceAction = 'bulk';
 				this.silenceReason = '';
 				this.silenceError = '';
@@ -774,7 +795,87 @@ templ DashboardActions() {
 				this.silenceDurationType = 'preset';
 				this.customSilenceDuration = '';
 				this.customDurationError = '';
+				this.silenceMatcherRows = [];
 				this.showSilenceModal = true;
+			},
+
+			// Editable matchers (single-alert silence only) — mirrors the /silences
+			// creation modal's row pattern (Silences.templ).
+			silenceMatcherPayload() {
+				return this.silenceMatcherRows.map(row => ({
+					name: row.name,
+					value: row.value,
+					isRegex: row.op.includes('~'),
+					isEqual: !row.op.startsWith('!')
+				}));
+			},
+
+			silenceMatchersInvalid() {
+				return this.silenceAction === 'single'
+					&& this.silenceMatcherRows.filter(row => row.name.trim()).length === 0;
+			},
+
+			addSilenceMatcher() {
+				this.silenceMatcherRows.push({ name: '', op: '=', value: '' });
+			},
+
+			removeSilenceMatcher(idx) {
+				this.silenceMatcherRows.splice(idx, 1);
+				this.scheduleSilencePreview();
+			},
+
+			silenceMatcherErrorAt(idx) {
+				const found = this.silenceMatcherErrors.find(e => e.index === idx);
+				return found ? found.error : '';
+			},
+
+			async loadSilenceLabelOptions() {
+				if (Object.keys(this.silenceLabelOptions).length) {
+					return;
+				}
+				try {
+					const response = await fetch('/api/v1/dashboard/available-labels', { credentials: 'include' });
+					const payload = await response.json();
+					if (response.ok && payload.success) {
+						this.silenceLabelOptions = payload.data.labels || {};
+					}
+				} catch (err) {
+					// Autocomplete is best-effort; the modal works without it.
+				}
+			},
+
+			scheduleSilencePreview() {
+				clearTimeout(this.silencePreviewTimer);
+				this.silencePreviewTimer = setTimeout(() => this.runSilencePreview(), 300);
+			},
+
+			async runSilencePreview() {
+				if (this.silenceAction !== 'single' || !this.currentSilenceAlert) {
+					return;
+				}
+				this.silencePreviewLoading = true;
+				try {
+					const response = await fetch('/api/v1/dashboard/silences/preview', {
+						method: 'POST',
+						credentials: 'include',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							sources: [this.currentSilenceAlert.source],
+							matchers: this.silenceMatcherPayload()
+						})
+					});
+					const payload = await response.json();
+					if (!response.ok || !payload.success) {
+						throw new Error(payload.error || 'Preview failed');
+					}
+					this.silenceMatcherErrors = payload.data.matcherErrors || [];
+					this.silencePreviewCount = (payload.data.sources || []).reduce((sum, s) => sum + s.count, 0);
+					this.silencePreviewError = '';
+				} catch (err) {
+					this.silencePreviewError = err.message;
+				} finally {
+					this.silencePreviewLoading = false;
+				}
 			},
 
 			async unsilenceSelected() {
