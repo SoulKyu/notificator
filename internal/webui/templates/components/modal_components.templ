@@ -1792,6 +1792,10 @@ templ SilenceModal() {
 										<span class="font-medium text-gray-900 dark:text-white">Alert:</span>
 										<span class="text-gray-600 dark:text-gray-300" x-text="currentSilenceAlert?.alertName"></span>
 									</div>
+									<div class="flex items-center space-x-2 text-sm mt-1">
+										<span class="font-medium text-gray-900 dark:text-white">Instance:</span>
+										<span class="text-gray-600 dark:text-gray-300" x-text="currentSilenceAlert?.instance"></span>
+									</div>
 
 									<button type="button" @click="showSilenceMatchers = !showSilenceMatchers"
 											class="mt-2 flex items-center gap-1 text-sm font-medium text-purple-700 dark:text-purple-300 hover:underline">
