@@ -346,8 +346,14 @@ func (c *BackendClient) AddAcknowledgment(sessionID, alertKey, reason string) er
 		Reason:    reason,
 	}
 
-	_, err := c.alertClient.AddAcknowledgment(ctx, req)
-	return err
+	resp, err := c.alertClient.AddAcknowledgment(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.GetSuccess() {
+		return fmt.Errorf("%s", resp.GetMessage())
+	}
+	return nil
 }
 
 // DeleteAcknowledgment removes acknowledgment from an alert
@@ -364,8 +370,14 @@ func (c *BackendClient) DeleteAcknowledgment(sessionID, alertKey string) error {
 		AlertKey:  alertKey,
 	}
 
-	_, err := c.alertClient.DeleteAcknowledgment(ctx, req)
-	return err
+	resp, err := c.alertClient.DeleteAcknowledgment(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.GetSuccess() {
+		return fmt.Errorf("%s", resp.GetMessage())
+	}
+	return nil
 }
 
 // GetAcknowledgments retrieves acknowledgments for an alert
@@ -491,8 +503,14 @@ func (c *BackendClient) addComment(sessionID, alertKey, content, kind string) er
 		Kind:      kind,
 	}
 
-	_, err := c.alertClient.AddComment(ctx, req)
-	return err
+	resp, err := c.alertClient.AddComment(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.GetSuccess() {
+		return fmt.Errorf("%s", resp.GetMessage())
+	}
+	return nil
 }
 
 // DeleteComment removes a comment from an alert
@@ -509,8 +527,14 @@ func (c *BackendClient) DeleteComment(sessionID, commentID string) error {
 		CommentId: commentID,
 	}
 
-	_, err := c.alertClient.DeleteComment(ctx, req)
-	return err
+	resp, err := c.alertClient.DeleteComment(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.GetSuccess() {
+		return fmt.Errorf("%s", resp.GetMessage())
+	}
+	return nil
 }
 
 // GetRecentActivity fetches recent cross-alert collaboration events for the activity feed.
