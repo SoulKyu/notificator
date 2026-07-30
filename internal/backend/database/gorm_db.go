@@ -14,6 +14,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 
 	"notificator/config"
@@ -736,22 +737,6 @@ func generateUUID() string {
 // duplicate, which is what lets the "extend" and "re-snooze" flows just call
 // this again with a new expiresAt. expiresAt nil means "forever".
 func (gdb *GormDB) CreateUserHiddenAlert(userID, fingerprint, alertName, instance, reason string, expiresAt *time.Time) (*models.UserHiddenAlert, error) {
-	var existing models.UserHiddenAlert
-	err := gdb.db.Where("user_id = ? AND fingerprint = ?", userID, fingerprint).First(&existing).Error
-	if err == nil {
-		existing.AlertName = alertName
-		existing.Instance = instance
-		existing.Reason = reason
-		existing.ExpiresAt = expiresAt
-		if err := gdb.db.Save(&existing).Error; err != nil {
-			return nil, fmt.Errorf("failed to update hidden alert: %w", err)
-		}
-		return &existing, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to query existing hidden alert: %w", err)
-	}
-
 	hiddenAlert := &models.UserHiddenAlert{
 		UserID:      userID,
 		Fingerprint: fingerprint,
@@ -761,11 +746,25 @@ func (gdb *GormDB) CreateUserHiddenAlert(userID, fingerprint, alertName, instanc
 		ExpiresAt:   expiresAt,
 	}
 
-	if err := gdb.db.Create(hiddenAlert).Error; err != nil {
-		return nil, fmt.Errorf("failed to create hidden alert: %w", err)
+	// Upsert atomically on the (user_id, fingerprint) unique index instead of a
+	// check-then-act select+create/update, which races when two requests hide
+	// the same alert at once and both miss the same not-yet-committed row.
+	err := gdb.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "fingerprint"}},
+		DoUpdates: clause.AssignmentColumns([]string{"alert_name", "instance", "reason", "expires_at", "updated_at"}),
+	}).Create(hiddenAlert).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert hidden alert: %w", err)
 	}
 
-	return hiddenAlert, nil
+	// The driver's RETURNING support (and thus whether hiddenAlert.ID reflects
+	// the pre-existing row on an update) varies, so re-read the canonical row.
+	var result models.UserHiddenAlert
+	if err := gdb.db.Where("user_id = ? AND fingerprint = ?", userID, fingerprint).First(&result).Error; err != nil {
+		return nil, fmt.Errorf("failed to load hidden alert: %w", err)
+	}
+
+	return &result, nil
 }
 
 // SaveHiddenAlert saves or updates a hidden alert for a user

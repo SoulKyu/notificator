@@ -14,6 +14,11 @@ func (gdb *GormDB) RunCustomMigrations() error {
 		return fmt.Errorf("failed to cleanup duplicate statistics: %w", err)
 	}
 
+	// Clean up duplicate hidden alerts before adding unique constraint
+	if err := gdb.cleanupDuplicateHiddenAlerts(); err != nil {
+		return fmt.Errorf("failed to cleanup duplicate hidden alerts: %w", err)
+	}
+
 	// Add column_configs field to filter_presets table
 	if err := gdb.migrateColumnConfigs(); err != nil {
 		return fmt.Errorf("failed to migrate column configs: %w", err)
@@ -117,6 +122,70 @@ func (gdb *GormDB) cleanupDuplicateStatistics() error {
 		log.Printf("✅ Deleted %d duplicate alert statistic records", result.RowsAffected)
 	} else {
 		log.Println("ℹ️  No duplicate alert statistics found")
+	}
+
+	return nil
+}
+
+// cleanupDuplicateHiddenAlerts removes duplicate (user_id, fingerprint) rows
+// before the unique constraint is applied. Duplicates could only have been
+// created by the pre-upsert race in CreateUserHiddenAlert's old check-then-act
+// logic; keep the most recently updated row per pair.
+func (gdb *GormDB) cleanupDuplicateHiddenAlerts() error {
+	log.Println("🧹 Cleaning up duplicate hidden alerts...")
+
+	if !gdb.db.Migrator().HasTable("user_hidden_alerts") {
+		log.Println("ℹ️  user_hidden_alerts table doesn't exist yet, skipping duplicate cleanup")
+		return nil
+	}
+
+	dbName := gdb.db.Dialector.Name()
+	var constraintExists int
+	var err error
+
+	if dbName == "sqlite" {
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM sqlite_master
+			WHERE type='index' AND name='idx_user_hidden'
+			AND tbl_name='user_hidden_alerts' AND sql LIKE '%UNIQUE%'
+		`).Scan(&constraintExists).Error
+	} else {
+		// PostgreSQL
+		err = gdb.db.Raw(`
+			SELECT COUNT(*) FROM pg_indexes
+			WHERE indexname='idx_user_hidden'
+			AND tablename='user_hidden_alerts' AND indexdef LIKE '%UNIQUE%'
+		`).Scan(&constraintExists).Error
+	}
+
+	if err == nil && constraintExists > 0 {
+		log.Println("ℹ️  Unique constraint already exists, skipping duplicate cleanup")
+		return nil
+	}
+
+	result := gdb.db.Exec(`
+		DELETE FROM user_hidden_alerts
+		WHERE id IN (
+			SELECT id FROM (
+				SELECT id,
+					ROW_NUMBER() OVER (
+						PARTITION BY user_id, fingerprint
+						ORDER BY updated_at DESC
+					) as row_num
+				FROM user_hidden_alerts
+			) t
+			WHERE row_num > 1
+		)
+	`)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete duplicate hidden alerts: %w", result.Error)
+	}
+
+	if result.RowsAffected > 0 {
+		log.Printf("✅ Deleted %d duplicate hidden alert records", result.RowsAffected)
+	} else {
+		log.Println("ℹ️  No duplicate hidden alerts found")
 	}
 
 	return nil

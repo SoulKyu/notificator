@@ -9,8 +9,8 @@ import (
 // UserHiddenAlert represents a specific alert hidden by a user
 type UserHiddenAlert struct {
 	ID          string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	UserID      string    `gorm:"type:varchar(32);not null;index:idx_user_hidden,priority:1" json:"user_id"`
-	Fingerprint string    `gorm:"type:varchar(255);not null;index:idx_user_hidden,priority:2" json:"fingerprint"`
+	UserID      string    `gorm:"type:varchar(32);not null;uniqueIndex:idx_user_hidden,priority:1" json:"user_id"`
+	Fingerprint string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_user_hidden,priority:2" json:"fingerprint"`
 	AlertName   string    `gorm:"type:varchar(255)" json:"alert_name"`
 	Instance    string    `gorm:"type:varchar(255)" json:"instance"`
 	Reason      string    `gorm:"type:text" json:"reason"`

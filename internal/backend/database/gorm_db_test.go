@@ -373,6 +373,39 @@ func TestGetUserHiddenAlertsExpiry(t *testing.T) {
 	}
 }
 
+// TestCreateUserHiddenAlertUpsertsOnConflict pins CreateUserHiddenAlert as an
+// atomic DB-level upsert on (user_id, fingerprint): two calls for the same
+// pair must never leave two rows, and the second call's fields win.
+func TestCreateUserHiddenAlertUpsertsOnConflict(t *testing.T) {
+	gdb := newTestDB(t)
+
+	alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+	if err := gdb.db.Create(&alice).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	if _, err := gdb.CreateUserHiddenAlert(alice.ID, "fp1", "AlertOne", "instance-a", "first", nil); err != nil {
+		t.Fatalf("first CreateUserHiddenAlert: %v", err)
+	}
+
+	future := time.Now().Add(time.Hour)
+	if _, err := gdb.CreateUserHiddenAlert(alice.ID, "fp1", "AlertOne", "instance-b", "second", &future); err != nil {
+		t.Fatalf("second CreateUserHiddenAlert: %v", err)
+	}
+
+	var rows []models.UserHiddenAlert
+	if err := gdb.db.Where("user_id = ? AND fingerprint = ?", alice.ID, "fp1").Find(&rows).Error; err != nil {
+		t.Fatalf("query hidden alerts: %v", err)
+	}
+
+	if len(rows) != 1 {
+		t.Fatalf("expected exactly 1 row for the fingerprint, got %d", len(rows))
+	}
+	if rows[0].Instance != "instance-b" || rows[0].Reason != "second" || rows[0].ExpiresAt == nil {
+		t.Errorf("expected the second call's fields to win, got %+v", rows[0])
+	}
+}
+
 // TestPurgeExpiredHiddenAlerts pins the retention sweep: only rows whose
 // snooze has actually passed are deleted, keeping "forever" hides and
 // still-active snoozes intact.
