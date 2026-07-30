@@ -286,33 +286,39 @@ func (s *SentryService) parseSentryURL(sentryURL string) (*SentryProjectInfo, er
 // isAllowedSentryHost reports whether a URL's scheme+host matches the configured
 // Sentry instance or one of the explicitly allowlisted additional hosts. Only
 // http(s) schemes are accepted so a file:/other scheme can never reach the HTTP
-// transport used to send the request, and the scheme must match the configured
-// one so an alert cannot downgrade an https instance to plaintext http.
+// transport used to send the request. The configured BaseURL must match scheme
+// and host exactly (an alert cannot downgrade an https instance to plaintext
+// http); each AllowedHosts entry independently decides its own scheme, so a
+// bare entry inherits the configured scheme while a scheme-prefixed entry may
+// intentionally differ (e.g. an http-only legacy mirror alongside an https
+// primary).
 func (s *SentryService) isAllowedSentryHost(parsedURL *url.URL) bool {
 	if (parsedURL.Scheme != "https" && parsedURL.Scheme != "http") || parsedURL.Host == "" {
 		return false
 	}
 
 	configured, err := url.Parse(s.config.BaseURL)
-	if err != nil || configured.Host == "" || !strings.EqualFold(configured.Scheme, parsedURL.Scheme) {
+	if err != nil || configured.Host == "" {
 		return false
 	}
-	if strings.EqualFold(configured.Host, parsedURL.Host) {
+	if strings.EqualFold(configured.Scheme, parsedURL.Scheme) && strings.EqualFold(configured.Host, parsedURL.Host) {
 		return true
 	}
 
 	// AllowedHosts entries are host[:port], with an optional scheme prefix. A
-	// bare entry inherits the configured scheme, already matched above.
+	// bare entry inherits the configured scheme.
 	for _, host := range s.config.AllowedHosts {
 		entry := strings.TrimSpace(host)
+		scheme := configured.Scheme
 		if strings.Contains(entry, "://") {
 			parsedEntry, err := url.Parse(entry)
-			if err != nil || !strings.EqualFold(parsedEntry.Scheme, parsedURL.Scheme) {
+			if err != nil {
 				continue
 			}
+			scheme = parsedEntry.Scheme
 			entry = parsedEntry.Host
 		}
-		if strings.EqualFold(entry, parsedURL.Host) {
+		if strings.EqualFold(scheme, parsedURL.Scheme) && strings.EqualFold(entry, parsedURL.Host) {
 			return true
 		}
 	}
