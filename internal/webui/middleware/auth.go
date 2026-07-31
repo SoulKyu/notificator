@@ -138,6 +138,10 @@ func (am *AuthMiddleware) RedirectIfAuth(redirectTo string) gin.HandlerFunc {
 				c.Redirect(http.StatusFound, redirectTo)
 				c.Abort()
 				return
+			} else if client.IsUnavailableError(err) {
+				// Backend is unreachable, not a bad session - keep the session intact
+				c.Next()
+				return
 			} else {
 				// Clear invalid session
 				ClearSession(c)
