@@ -144,6 +144,37 @@ with `success: false` and a per-target `failures: [{target, kind, error}]` list,
 > `updateActiveFilterPreset()`. Comment/ack counts on rows are maintained by incrementing
 > `alert.CommentCount` in the cache, not re-queried.
 
+### Silences page {#silences}
+
+`/silences` (`Silences.templ`, `handlers/silence_handlers.go`) is a dedicated silence
+management page, separate from the dashboard's quick Silence/Unsilence action:
+
+- **Advanced creation modal**: dynamic matcher rows (`=`, `!=`, `=~`, `!~`) with label
+  autocomplete and paste-to-import; per-source checkboxes to fan the silence out to a subset of
+  configured Alertmanagers (`POST /api/v1/dashboard/silences` → `fanOutSilence`, per-source
+  success/failure); a debounced live preview (`POST /api/v1/dashboard/silences/preview`) showing
+  match count and a capped alert sample before submitting; duration via presets (`1h`/`4h`/`24h`/`7d`),
+  free-form (`parseExtendedDuration`, e.g. `2w`), or an absolute end time; and a "Duplicate" action
+  on any existing row (including expired ones) that prefills the modal. (The dashboard's quick
+  `SilenceModal()` offers a wider `1h`–`90d` preset range, including `14d`/`30d`/`90d`.)
+- **Creator attribution**: silences created through notificator record the effective **username**
+  (not the internal user ID — a prior bug displayed raw IDs). Silences created outside notificator
+  (amtool, Alertmanager UI, karma) carry no origin metadata; the backend `ResolveSilenceCreators`
+  RPC matches `createdBy` against known users by ID/username/email and the page tags each row
+  either with the resolved username (a "notificator" badge) or a gray "external" badge when no
+  match is found.
+
+### Team activity feed {#activity-feed}
+
+`/activity` (`Activity.templ`, `handlers/activity_handlers.go`) is a cross-alert log of
+collaboration events — comments, acks/unacks, silences, resolves — sourced from the backend's
+`GetRecentActivity` RPC (session-gated, hard 200-row limit) via `GET /api/v1/dashboard/activity`.
+Query params: `windowMinutes` (default 60, unbounded upper end — actual size still capped by the
+backend), `scope=mine`, `kinds`, plus the shared dashboard filters (search, alertmanagers,
+severities, teams, alert names). The page polls every 30s **only while visible** — no SSE. Each
+event carries a `Kind` (`comment | ack | unack | silence | resolve`) recorded directly by the
+comment/audit write sites; a `comments.Kind` column and a `comments.created_at` index back this.
+
 ## Alert detail modal
 
 `AlertDetailsModal` (`components/modal_components.templ:921`), opened by
@@ -156,9 +187,19 @@ connected, its comments and acknowledgments.
 Tabs: **Overview**, **Details** (fingerprint, generator URL), **Labels** / **Annotations**
 (copy-to-clipboard), **Acknowledgments**, **Comments** (add/delete; system comments show a badge),
 **History** (lazy `GET /alert/:fp/history` → up to 50 fire/resolve/ack occurrences with MTTR/MTTA),
-and **Sentry** (only if the alert carries a `sentry` annotation/label; lazy-loaded). Header offers
-Silence/Unsilence, configurable per-user **annotation buttons**, Ack/Unack, "Source"
-(`generatorURL`), and "Copy as Issue" (builds a Markdown issue and copies it).
+and **Sentry** (only if the alert carries a `sentry` annotation/label; lazy-loaded — the target
+host is validated against the configured `sentry.base_url` and a mismatch is rejected rather than
+fetched, see [Sentry SSRF fix](#gotchas)). Header offers Silence/Unsilence, configurable per-user
+**annotation buttons**, Ack/Unack, "Source" (`generatorURL`), "Copy as Issue" (builds a Markdown
+issue and copies it), and **"Copy link"** (`copyAlertLink()`, `dashboard_modal.templ:128` — copies
+the same `/dashboard/alert/:fingerprint` deep-link URL used for `pushState`, with a 2s inline
+checkmark icon swap on the button itself).
+
+The **History** tab's data also feeds a client-only **30-day frequency sparkline**
+(`computeSparkline()`, `dashboard_modal.templ:627`): a pure-JS histogram over the already
+lazy-loaded history entries bucketed into 30 daily bins, showing total occurrences (capped at the
+history endpoint's 50-entry limit, shown as "≥N"), and a week-over-week trend arrow. No new
+endpoint or charting library.
 
 > ⚠️ The modal's `Silences` field is **always empty** (`dashboard_handlers.go:1289`, not
 > implemented) — only `status.silencedBy` IDs are available.
@@ -190,6 +231,12 @@ dismissible banner prompts for browser-notification permission. Full behavior in
 [notifications](notifications.md).
 
 ## Gotchas {#gotchas}
+
+- **Sentry host validation (fixed SSRF-ish token leak):** the Sentry tab used to parse whatever
+  host appeared in an alert's `sentry` annotation/label — attacker-controlled Alertmanager payload
+  — and send the viewing user's personal/global Sentry token to it. `sentry_service.go` now
+  rejects any URL whose scheme+host doesn't exactly match the configured `sentry.base_url`
+  before building the request.
 
 - **`alertMatchesFilters()` (client) must mirror `applyDashboardFilters()` (server)** — or live
   updates go stale for the unmirrored filter. This is the #1 dashboard footgun.

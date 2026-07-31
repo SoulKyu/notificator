@@ -63,6 +63,11 @@ alerts** and the SSE hub:
   acknowledgement state survives the next SSE `update` instead of being clobbered by a
   collaboration-blind poll.
 - Maintains a **per-user color cache** (rule-based alert coloring) refreshed after each poll.
+- `loadCommentCountsEfficiently` batch-refreshes `CommentCount` from the backend
+  (`GetCommentCountsBatch`). A backend-side DB failure now returns a gRPC error instead of an
+  empty map — the cache keeps last-known counts and retries next cycle, instead of the old
+  behavior of treating an empty map as authoritative and zeroing every row's badge for all
+  connected browsers.
 - On resolve, asynchronously archives the alert (with comments/acks) to the backend and fires
   `CaptureAlertFired`/`UpdateAlertResolved` statistics events.
 - **SSE fan-out:** `Subscribe`/`Unsubscribe`/`notifySubscribers` push buffered (10),
@@ -76,6 +81,8 @@ This is separate from the backend's gRPC collaboration stream — see
 ## Handlers (by feature)
 
 `internal/webui/handlers/`: `dashboard_handlers` (live dashboard + bulk actions),
+`silence_handlers` (silence CRUD + preview + creator/origin tagging),
+`activity_handlers` (team activity feed, `GET /api/v1/dashboard/activity`),
 `statistics_handlers` + `statistics_view_handlers` (analytics + saved views),
 `oauth_handlers`, `profile_handlers`, `notification_handlers`, `hidden_alerts_handlers`,
 `filter_preset_handlers`, `impersonation_handlers`, `sentry_handlers`, `sse_handler`,
@@ -90,7 +97,9 @@ This is separate from the backend's gRPC collaboration stream — see
 - `pages/` — `NewDashboard` (the **live operational dashboard**, `/dashboard` — deep-dived in
   [dashboard](dashboard.md)), `StatisticsDashboard` (the **historical analytics dashboard**,
   `/statistics` — deep-dived in [statistics](statistics.md)), `Login`, `Register`, `Profile`,
-  `OAuthCallback`, `Index`, `Playground` (dev/demo landing when `WebUI.Playground` is on).
+  `OAuthCallback`, `Index`, `Playground` (dev/demo landing when `WebUI.Playground` is on),
+  `Silences` (`/silences` — creation/preview/extend/expire), `Activity` (`/activity` — the
+  cross-alert team activity feed, see [dashboard](dashboard.md#activity-feed)).
   Browser/sound alerts are covered in [notifications](notifications.md).
 - `components/` — tables, modals, filter/group views, timezone selector, page navigator, etc.
 - `scripts/` — **`.templ` files whose entire body is a `<script>` of hand-written Alpine.js**

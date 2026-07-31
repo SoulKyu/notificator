@@ -78,7 +78,8 @@ persistent (users, comments, acks, resolved-alert history, statistics, preferenc
 - [Architecture](architecture.md) — components, ports, request flow, real-time, build variants
 - [Backend](backend.md) — gRPC services, auth/sessions, database, statistics engine
 - [WebUI](webui.md) — routing, templ/HTMX/Alpine, SSE, auth, dashboards
-- [Live dashboard](dashboard.md) — the alert table: SSE merge, filters, actions, columns, modal
+- [Live dashboard](dashboard.md) — the alert table: SSE merge, filters, actions, columns, modal,
+  the [Silences page](dashboard.md#silences) and [team activity feed](dashboard.md#activity-feed)
 - [Statistics dashboard](statistics.md) — analytics: time ranges, on-call filtering, charts, saved views
 - [Notification system](notifications.md) — browser notifications + sound (and the dead desktop notifier)
 - [Domain concepts](domain.md) — alerts, fingerprints, acks/comments, resolved alerts, on-call rules
