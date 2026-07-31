@@ -35,6 +35,8 @@ POLL_FAST, POLL_MED, POLL_SLOW = 3, 10, 45
 ROSTER = [
     ("scout",       "🔍", "SCOUT",  "svc:notificator-scout"),
     ("roast",       "🔥", "ROAST",  "virtual:scout-log"),
+    ("ideator-product", "💡", "IDEA-P", "svc:notificator-ideator-product"),
+    ("ideator-tui", "🎨", "IDEA-T", "svc:notificator-ideator-tui"),
     ("coordinator", "🧭", "COORD",  "looper:coordinator"),
     ("planner",     "📐", "PLAN",   "looper:planner"),
     ("groomer",     "📋", "GROOM",  "svc:notificator-groomer"),
@@ -46,12 +48,16 @@ ROSTER = [
     ("promoter",    "⛓", "PROMO",  "svc:notificator-promoter"),
     ("docagent",    "📚", "DOC",    "svc:notificator-docagent"),
     ("reporter",    "📊", "REPORT", "svc:notificator-reporter"),
+    ("cleaner",     "🧹", "CLEAN",  "svc:notificator-cleaner"),
 ]
 TIMER_OF = {
     "scout": "notificator-scout.timer", "roast": "notificator-scout.timer",
+    "ideator-product": "notificator-ideator-product.timer",
+    "ideator-tui": "notificator-ideator-tui.timer",
     "qa": "notificator-qa.timer", "rebaser": "notificator-rebaser.timer",
     "promoter": "notificator-promoter.timer", "groomer": "notificator-groomer.timer",
     "docagent": "notificator-docagent.timer", "reporter": "notificator-reporter.timer",
+    "cleaner": "notificator-cleaner.timer",
 }
 LOG_PREFIX_OF = {"rebaser": "rebase"}  # desks whose log files are not named after their ROSTER key
 SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
