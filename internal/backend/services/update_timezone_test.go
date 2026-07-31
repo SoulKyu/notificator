@@ -31,7 +31,7 @@ func setupAuthServiceWithSession(t *testing.T) (*AuthServiceGorm, string) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	return NewAuthServiceGorm(db, nil), sessionID
+	return NewAuthServiceGorm(db, nil, nil), sessionID
 }
 
 func TestUpdateTimezone(t *testing.T) {

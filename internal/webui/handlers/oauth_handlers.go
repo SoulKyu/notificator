@@ -240,7 +240,7 @@ func GetUserGroups(c *gin.Context) {
 		return
 	}
 
-	groups, err := backendClient.GetUserGroups(user.ID)
+	groups, err := backendClient.GetUserGroups(user.ID, middleware.GetSessionIDFromContext(c))
 	if err != nil {
 		log.Printf("Failed to get user groups: %v", err)
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse("Failed to retrieve user groups"))
@@ -271,7 +271,7 @@ func SyncUserGroups(c *gin.Context) {
 	}
 
 	provider := *user.OAuthProvider
-	err := backendClient.SyncUserGroups(user.ID, provider)
+	err := backendClient.SyncUserGroups(user.ID, provider, middleware.GetSessionIDFromContext(c))
 	if err != nil {
 		log.Printf("Failed to sync user groups: %v", err)
 		logOAuthActivity(&user.ID, provider, "group_sync_failed", false, err.Error(), getClientIP(c), c.GetHeader("User-Agent"))

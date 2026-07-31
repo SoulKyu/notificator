@@ -1562,6 +1562,7 @@ func (x *OAuthProvider) GetEnabled() bool {
 type GetUserGroupsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Required for authorization
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1599,6 +1600,13 @@ func (*GetUserGroupsRequest) Descriptor() ([]byte, []int) {
 func (x *GetUserGroupsRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetUserGroupsRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -1735,6 +1743,7 @@ type SyncUserGroupsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Provider      string                 `protobuf:"bytes,2,opt,name=provider,proto3" json:"provider,omitempty"`
+	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Required for authorization
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1779,6 +1788,13 @@ func (x *SyncUserGroupsRequest) GetUserId() string {
 func (x *SyncUserGroupsRequest) GetProvider() string {
 	if x != nil {
 		return x.Provider
+	}
+	return ""
+}
+
+func (x *SyncUserGroupsRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -1847,6 +1863,7 @@ func (x *SyncUserGroupsResponse) GetGroupsSynced() int32 {
 type GetUserSentryConfigRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Required for authorization
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1884,6 +1901,13 @@ func (*GetUserSentryConfigRequest) Descriptor() ([]byte, []int) {
 func (x *GetUserSentryConfigRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetUserSentryConfigRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -2665,9 +2689,11 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\rOAuthProvider\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x18\n" +
-	"\aenabled\x18\x03 \x01(\bR\aenabled\"/\n" +
+	"\aenabled\x18\x03 \x01(\bR\aenabled\"N\n" +
 	"\x14GetUserGroupsRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"L\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"L\n" +
 	"\x15GetUserGroupsResponse\x123\n" +
 	"\x06groups\x18\x01 \x03(\v2\x1b.notificator.auth.UserGroupR\x06groups\"\x95\x01\n" +
 	"\tUserGroup\x12\x0e\n" +
@@ -2676,16 +2702,20 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\bprovider\x18\x03 \x01(\tR\bprovider\x12\x12\n" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x12\n" +
 	"\x04role\x18\x05 \x01(\tR\x04role\x12 \n" +
-	"\vpermissions\x18\x06 \x01(\tR\vpermissions\"L\n" +
+	"\vpermissions\x18\x06 \x01(\tR\vpermissions\"k\n" +
 	"\x15SyncUserGroupsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
-	"\bprovider\x18\x02 \x01(\tR\bprovider\"m\n" +
+	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\"m\n" +
 	"\x16SyncUserGroupsResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12#\n" +
-	"\rgroups_synced\x18\x03 \x01(\x05R\fgroupsSynced\"5\n" +
+	"\rgroups_synced\x18\x03 \x01(\x05R\fgroupsSynced\"T\n" +
 	"\x1aGetUserSentryConfigRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x89\x01\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"\x89\x01\n" +
 	"\x1bGetUserSentryConfigResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12:\n" +

@@ -197,6 +197,7 @@ message OAuthProvider {
 // User Groups Messages
 message GetUserGroupsRequest {
   string user_id = 1;
+  string session_id = 2; // Required for authorization
 }
 
 message GetUserGroupsResponse {
@@ -215,6 +216,7 @@ message UserGroup {
 message SyncUserGroupsRequest {
   string user_id = 1;
   string provider = 2;
+  string session_id = 3; // Required for authorization
 }
 
 message SyncUserGroupsResponse {
@@ -226,6 +228,7 @@ message SyncUserGroupsResponse {
 // Sentry Integration Messages
 message GetUserSentryConfigRequest {
   string user_id = 1;
+  string session_id = 2; // Required for authorization
 }
 
 message GetUserSentryConfigResponse {
