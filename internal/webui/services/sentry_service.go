@@ -79,6 +79,10 @@ func (s *SentryService) GetSentryDataForAlert(alert *models.Alert, userID, sessi
 	
 	log.Printf("Found Sentry URL: %s", sentryURL)
 
+	// Get authentication for user (needed up front so the host-refusal error
+	// below can report accurate auth status instead of the zero value)
+	auth := s.getAuthForUser(userID, sessionID)
+
 	// Parse Sentry URL to get project info
 	projectInfo, err := s.parseSentryURL(sentryURL)
 	if err != nil {
@@ -90,12 +94,14 @@ func (s *SentryService) GetSentryDataForAlert(alert *models.Alert, userID, sessi
 		return &webuimodels.SentryData{
 			HasSentryLabel: true,
 			SentryURL:      sentryURL,
-			Error:          errMsg,
+			AuthStatus: webuimodels.SentryAuthStatus{
+				HasAPIToken: auth.AuthMethod == "personal_token",
+				AuthMethod:  auth.AuthMethod,
+			},
+			Error: errMsg,
 		}
 	}
 
-	// Get authentication for user
-	auth := s.getAuthForUser(userID, sessionID)
 	if auth.AuthMethod == "none" {
 		return &webuimodels.SentryData{
 			HasSentryLabel: true,

@@ -61,6 +61,11 @@ func TestSentryDataRefusesForeignHosts(t *testing.T) {
 			if !strings.Contains(data.Error, "not allowed") {
 				t.Fatalf("Error = %q, want an explicit host-not-allowed message", data.Error)
 			}
+			// AuthStatus must reflect the caller's real auth, not the zero value —
+			// otherwise the frontend can't tell "host refused" from "no token configured".
+			if data.AuthStatus.AuthMethod != "global" {
+				t.Fatalf("AuthStatus.AuthMethod = %q, want %q (auth must be resolved before the refusal return)", data.AuthStatus.AuthMethod, "global")
+			}
 		})
 	}
 
