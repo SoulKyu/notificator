@@ -27,13 +27,16 @@ templ DashboardKeyboardMixin() {
 			},
 
 			// Shared guard: no modal open, no Ctrl/Cmd/Alt modifier (so we don't
-			// hijack browser/OS shortcuts), and focus isn't inside a text input or
-			// on a keyboard-activatable control.
+			// hijack browser/OS shortcuts), and focus isn't inside a text input.
+			// isActivatableTarget is deliberately NOT checked here: only Enter/Space
+			// natively re-trigger a focused button, so only the 'Enter'/'o' case (and
+			// the separately-guarded '?' branch) need that check — folding it in here
+			// would silently kill j/k/x/a/s/c/h whenever a row's Ack/Silence button
+			// still has focus after a click.
 			shortcutsActive(event) {
 				if (this.modalOpen()) return false;
 				if (event && (event.ctrlKey || event.metaKey || event.altKey)) return false;
 				if (event && this.isTypingTarget(event.target)) return false;
-				if (event && this.isActivatableTarget(event.target)) return false;
 				return true;
 			},
 
@@ -198,7 +201,9 @@ templ DashboardKeyboardMixin() {
 				if (event.key === '?') {
 					if (event.ctrlKey || event.metaKey || event.altKey) return;
 					if (this.isTypingTarget(event.target)) return;
-					if (this.isActivatableTarget(event.target)) return;
+					// No isActivatableTarget check here: unlike Enter/Space, '?' has no
+					// native button-activation semantics, so a focused button (e.g. from
+					// a prior mouse click on Ack/Silence) must not block this toggle.
 					// Don't let the sheet's own open state block its own toggle — only
 					// bail if some *other* modal is open.
 					if (this.modalOpen() && !this.showShortcutsHelp) return;
@@ -220,6 +225,9 @@ templ DashboardKeyboardMixin() {
 						break;
 					case 'Enter':
 					case 'o':
+						// A focused button/link already activates on Enter natively —
+						// don't also open the cursor row's details for that keypress.
+						if (this.isActivatableTarget(event.target)) break;
 						this.openCursorDetails();
 						break;
 					case 'x':
