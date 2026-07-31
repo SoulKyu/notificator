@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"notificator/internal/backend/models"
@@ -17,12 +18,24 @@ import (
 // used to encrypt Sentry personal tokens at rest.
 const EncryptionKeyEnvVar = "NOTIFICATOR_ENCRYPTION_KEY"
 
+// devDefaultEncryptionKey is the placeholder key shipped in docker-compose.yml
+// for zero-friction local dev/test. It must never be used in production.
+const devDefaultEncryptionKey = "badbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadb"
+
 // ValidateEncryptionKey checks that NOTIFICATOR_ENCRYPTION_KEY is set to 64
 // lowercase hex characters (32 raw bytes), returning an error naming the
-// variable and the generation command otherwise.
+// variable and the generation command otherwise. It also warns loudly when
+// the key matches the known dev default, since that means a deployment is
+// running with a publicly-known, non-secret encryption key.
 func ValidateEncryptionKey() error {
 	_, err := encryptionKeyFromEnv()
-	return err
+	if err != nil {
+		return err
+	}
+	if os.Getenv(EncryptionKeyEnvVar) == devDefaultEncryptionKey {
+		log.Printf("WARNING: %s is set to the known dev/test default from docker-compose.yml. This key is public and MUST NOT be used to protect real secrets — generate your own with `openssl rand -hex 32`.", EncryptionKeyEnvVar)
+	}
+	return nil
 }
 
 func encryptionKeyFromEnv() ([]byte, error) {
