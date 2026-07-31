@@ -188,6 +188,17 @@ func (gdb *GormDB) cleanupDuplicateHiddenAlerts() error {
 		log.Println("ℹ️  No duplicate hidden alerts found")
 	}
 
+	// idx_user_hidden may already exist as a non-unique index from before this
+	// migration; AutoMigrate only creates an index when none by that name
+	// exists yet, so it won't notice the tag changed to uniqueIndex. Drop and
+	// recreate it here so the ON CONFLICT upsert has a matching constraint.
+	if err := gdb.db.Exec(`DROP INDEX IF EXISTS idx_user_hidden`).Error; err != nil {
+		return fmt.Errorf("failed to drop legacy hidden-alert index: %w", err)
+	}
+	if err := gdb.db.Exec(`CREATE UNIQUE INDEX idx_user_hidden ON user_hidden_alerts (user_id, fingerprint)`).Error; err != nil {
+		return fmt.Errorf("failed to create unique hidden-alert index: %w", err)
+	}
+
 	return nil
 }
 
