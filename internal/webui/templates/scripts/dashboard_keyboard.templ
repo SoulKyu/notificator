@@ -18,12 +18,22 @@ templ DashboardKeyboardMixin() {
 				return !!(target && target.closest && target.closest('input, textarea, select, [contenteditable]'));
 			},
 
+			// A focused button/link/etc. already activates on Enter/Space natively;
+			// letting a global shortcut also fire for the same keypress double-fires
+			// (e.g. Enter on a row's own action button opens that action's modal AND
+			// the shortcut's own target).
+			isActivatableTarget(target) {
+				return !!(target && target.closest && target.closest('button, a, summary, [role="button"]'));
+			},
+
 			// Shared guard: no modal open, no Ctrl/Cmd/Alt modifier (so we don't
-			// hijack browser/OS shortcuts), and focus isn't inside a text input.
+			// hijack browser/OS shortcuts), and focus isn't inside a text input or
+			// on a keyboard-activatable control.
 			shortcutsActive(event) {
 				if (this.modalOpen()) return false;
 				if (event && (event.ctrlKey || event.metaKey || event.altKey)) return false;
 				if (event && this.isTypingTarget(event.target)) return false;
+				if (event && this.isActivatableTarget(event.target)) return false;
 				return true;
 			},
 
@@ -186,7 +196,12 @@ templ DashboardKeyboardMixin() {
 				}
 
 				if (event.key === '?') {
-					if (!this.shortcutsActive(event)) return;
+					if (event.ctrlKey || event.metaKey || event.altKey) return;
+					if (this.isTypingTarget(event.target)) return;
+					if (this.isActivatableTarget(event.target)) return;
+					// Don't let the sheet's own open state block its own toggle — only
+					// bail if some *other* modal is open.
+					if (this.modalOpen() && !this.showShortcutsHelp) return;
 					event.preventDefault();
 					this.showShortcutsHelp = !this.showShortcutsHelp;
 					return;
