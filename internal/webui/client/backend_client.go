@@ -939,7 +939,7 @@ func (c *BackendClient) GetOAuthConfig() (map[string]interface{}, error) {
 }
 
 // GetUserGroups retrieves user groups
-func (c *BackendClient) GetUserGroups(userID string) ([]map[string]interface{}, error) {
+func (c *BackendClient) GetUserGroups(userID, sessionID string) ([]map[string]interface{}, error) {
 	if c.authClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -948,7 +948,8 @@ func (c *BackendClient) GetUserGroups(userID string) ([]map[string]interface{}, 
 	defer cancel()
 
 	req := &authpb.GetUserGroupsRequest{
-		UserId: userID,
+		UserId:    userID,
+		SessionId: sessionID,
 	}
 
 	resp, err := c.authClient.GetUserGroups(ctx, req)
@@ -970,7 +971,7 @@ func (c *BackendClient) GetUserGroups(userID string) ([]map[string]interface{}, 
 }
 
 // SyncUserGroups synchronizes user groups with OAuth provider
-func (c *BackendClient) SyncUserGroups(userID, provider string) error {
+func (c *BackendClient) SyncUserGroups(userID, provider, sessionID string) error {
 	if c.authClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -979,8 +980,9 @@ func (c *BackendClient) SyncUserGroups(userID, provider string) error {
 	defer cancel()
 
 	req := &authpb.SyncUserGroupsRequest{
-		UserId:   userID,
-		Provider: provider,
+		UserId:    userID,
+		Provider:  provider,
+		SessionId: sessionID,
 	}
 
 	resp, err := c.authClient.SyncUserGroups(ctx, req)
@@ -1291,7 +1293,7 @@ type SentryConfig struct {
 }
 
 // GetUserSentryConfig retrieves a user's Sentry configuration
-func (c *BackendClient) GetUserSentryConfig(userID string) (*SentryConfig, error) {
+func (c *BackendClient) GetUserSentryConfig(userID, sessionID string) (*SentryConfig, error) {
 	if c.authClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -1300,7 +1302,8 @@ func (c *BackendClient) GetUserSentryConfig(userID string) (*SentryConfig, error
 	defer cancel()
 
 	req := &authpb.GetUserSentryConfigRequest{
-		UserId: userID,
+		UserId:    userID,
+		SessionId: sessionID,
 	}
 
 	resp, err := c.authClient.GetUserSentryConfig(ctx, req)

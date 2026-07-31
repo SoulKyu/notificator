@@ -85,6 +85,7 @@ func GetUserSentryConfig(c *gin.Context) {
 	}
 
 	userID := user.ID
+	sessionID := middleware.GetSessionIDFromContext(c)
 
 	// For now, return a simple response - in real implementation,
 	// we would check the database via backend client
@@ -95,7 +96,7 @@ func GetUserSentryConfig(c *gin.Context) {
 	}
 
 	// Call backend to get Sentry config
-	config, err := backendClient.GetUserSentryConfig(userID)
+	config, err := backendClient.GetUserSentryConfig(userID, sessionID)
 	if err != nil {
 		log.Printf("Failed to get user Sentry config: %v", err)
 		// Get default base URL from sentry service config
@@ -276,7 +277,7 @@ func TestSentryConnection(c *gin.Context) {
 		}
 
 		// Get user's Sentry config from database
-		config, err := backendClient.GetUserSentryConfig(userID)
+		config, err := backendClient.GetUserSentryConfig(userID, middleware.GetSessionIDFromContext(c))
 		if err != nil {
 			log.Printf("Failed to get user Sentry config: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{

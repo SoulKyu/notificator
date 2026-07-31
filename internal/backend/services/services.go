@@ -30,12 +30,14 @@ type AuthServiceGorm struct {
 	authpb.UnimplementedAuthServiceServer
 	db           *database.GormDB
 	oauthService *OAuthService
+	adminConfig  *config.AdminConfig
 }
 
-func NewAuthServiceGorm(db *database.GormDB, oauthService *OAuthService) *AuthServiceGorm {
+func NewAuthServiceGorm(db *database.GormDB, oauthService *OAuthService, adminConfig *config.AdminConfig) *AuthServiceGorm {
 	return &AuthServiceGorm{
 		db:           db,
 		oauthService: oauthService,
+		adminConfig:  adminConfig,
 	}
 }
 
@@ -1771,16 +1773,30 @@ func (s *AuthServiceGorm) OAuthCallback(ctx context.Context, req *authpb.OAuthCa
 
 // GetUserGroups implements the GetUserGroups RPC method
 func (s *AuthServiceGorm) GetUserGroups(ctx context.Context, req *authpb.GetUserGroupsRequest) (*authpb.GetUserGroupsResponse, error) {
-	if req.UserId == "" {
+	if req.UserId == "" || req.SessionId == "" {
+		return &authpb.GetUserGroupsResponse{
+			Groups: []*authpb.UserGroup{},
+		}, nil
+	}
+
+	authenticatedUser, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.GetUserGroupsResponse{
+			Groups: []*authpb.UserGroup{},
+		}, nil
+	}
+
+	targetUserID, err := resolveTargetUser(s.adminConfig, authenticatedUser, req.UserId, "GetUserGroups")
+	if err != nil {
 		return &authpb.GetUserGroupsResponse{
 			Groups: []*authpb.UserGroup{},
 		}, nil
 	}
 
 	// Get user groups from database
-	groups, err := s.db.GetUserGroups(req.UserId)
+	groups, err := s.db.GetUserGroups(targetUserID)
 	if err != nil {
-		log.Printf("Failed to get user groups for user %s: %v", req.UserId, err)
+		log.Printf("Failed to get user groups for user %s: %v", targetUserID, err)
 		return &authpb.GetUserGroupsResponse{
 			Groups: []*authpb.UserGroup{},
 		}, nil
@@ -1804,7 +1820,7 @@ func (s *AuthServiceGorm) GetUserGroups(ctx context.Context, req *authpb.GetUser
 		})
 	}
 
-	log.Printf("Retrieved %d groups for user %s", len(pbGroups), req.UserId)
+	log.Printf("Retrieved %d groups for user %s", len(pbGroups), targetUserID)
 	return &authpb.GetUserGroupsResponse{
 		Groups: pbGroups,
 	}, nil
@@ -1819,10 +1835,33 @@ func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUs
 		}, nil
 	}
 
+	if req.SessionId == "" {
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "Session ID is required",
+		}, nil
+	}
+
 	if req.Provider == "" {
 		return &authpb.SyncUserGroupsResponse{
 			Success: false,
 			Error:   "Provider is required",
+		}, nil
+	}
+
+	authenticatedUser, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	targetUserID, err := resolveTargetUser(s.adminConfig, authenticatedUser, req.UserId, "SyncUserGroups")
+	if err != nil {
+		return &authpb.SyncUserGroupsResponse{
+			Success: false,
+			Error:   "Not authorized to impersonate this user",
 		}, nil
 	}
 
@@ -1836,9 +1875,9 @@ func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUs
 	}
 
 	// Get user by ID to verify it exists and get OAuth info
-	user, err := s.db.GetUserByID(req.UserId)
+	user, err := s.db.GetUserByID(targetUserID)
 	if err != nil {
-		log.Printf("Failed to get user %s for group sync: %v", req.UserId, err)
+		log.Printf("Failed to get user %s for group sync: %v", targetUserID, err)
 		return &authpb.SyncUserGroupsResponse{
 			Success: false,
 			Error:   "User not found",
@@ -1854,9 +1893,9 @@ func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUs
 	}
 
 	// Get the user's OAuth token for group sync
-	oauthToken, err := s.db.GetOAuthToken(req.UserId, req.Provider)
+	oauthToken, err := s.db.GetOAuthToken(targetUserID, req.Provider)
 	if err != nil {
-		log.Printf("Failed to get OAuth token for user %s: %v", req.UserId, err)
+		log.Printf("Failed to get OAuth token for user %s: %v", targetUserID, err)
 		return &authpb.SyncUserGroupsResponse{
 			Success: false,
 			Error:   "OAuth token not found or expired",
@@ -1883,7 +1922,7 @@ func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUs
 
 	// Sync groups to database
 	if len(userInfo.Groups) > 0 {
-		err = s.db.SyncUserGroups(req.UserId, req.Provider, userInfo.Groups)
+		err = s.db.SyncUserGroups(targetUserID, req.Provider, userInfo.Groups)
 		if err != nil {
 			log.Printf("Failed to sync user groups: %v", err)
 			return &authpb.SyncUserGroupsResponse{
@@ -1893,7 +1932,7 @@ func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUs
 		}
 	}
 
-	log.Printf("Successfully synced %d groups for user %s from provider %s", len(userInfo.Groups), req.UserId, req.Provider)
+	log.Printf("Successfully synced %d groups for user %s from provider %s", len(userInfo.Groups), targetUserID, req.Provider)
 	return &authpb.SyncUserGroupsResponse{
 		Success:      true,
 		GroupsSynced: int32(len(userInfo.Groups)),
@@ -2269,8 +2308,31 @@ func (s *AuthServiceGorm) GetUserSentryConfig(ctx context.Context, req *authpb.G
 		}, nil
 	}
 
+	if req.SessionId == "" {
+		return &authpb.GetUserSentryConfigResponse{
+			Success: false,
+			Error:   "Session ID is required",
+		}, nil
+	}
+
+	authenticatedUser, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.GetUserSentryConfigResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	targetUserID, err := resolveTargetUser(s.adminConfig, authenticatedUser, req.UserId, "GetUserSentryConfig")
+	if err != nil {
+		return &authpb.GetUserSentryConfigResponse{
+			Success: false,
+			Error:   "Not authorized to impersonate this user",
+		}, nil
+	}
+
 	// Get user Sentry config from database using string user ID
-	config, err := s.db.GetUserSentryConfig(req.UserId)
+	config, err := s.db.GetUserSentryConfig(targetUserID)
 	if err != nil {
 		// Config not found is not an error, just return empty config
 		return &authpb.GetUserSentryConfigResponse{
@@ -2281,7 +2343,7 @@ func (s *AuthServiceGorm) GetUserSentryConfig(ctx context.Context, req *authpb.G
 
 	// Convert to protobuf format (excluding sensitive token)
 	pbConfig := &authpb.UserSentryConfig{
-		UserId:    req.UserId,
+		UserId:    targetUserID,
 		BaseUrl:   config.SentryBaseURL,
 		CreatedAt: timestamppb.New(config.CreatedAt),
 		UpdatedAt: timestamppb.New(config.UpdatedAt),
