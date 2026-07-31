@@ -128,6 +128,12 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		log.Println("✅ Using configured session secret from NOTIFICATOR_SESSION_SECRET")
 	}
 
+	// Cookie Secure flag - on by default, disable for plain-HTTP local dev
+	cookieSecure := os.Getenv("NOTIFICATOR_COOKIE_SECURE") != "false"
+	if !cookieSecure {
+		log.Println("⚠️  NOTIFICATOR_COOKIE_SECURE=false - session cookie will NOT be marked Secure")
+	}
+
 	// Middleware
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.LoggingMiddleware())
@@ -138,7 +144,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 	r.Use(gzip.Gzip(gzip.DefaultCompression,
 		gzip.WithExcludedPaths([]string{"/api/v1/dashboard/stream"}),
 		gzip.WithExcludedExtensions([]string{".png", ".jpg", ".jpeg", ".gif", ".ico", ".mp3", ".woff", ".woff2"})))
-	r.Use(middleware.SessionMiddleware(sessionSecret))
+	r.Use(middleware.SessionMiddleware(sessionSecret, cookieSecure))
 
 	// Static files - handle both development and container environments
 	var staticPath string

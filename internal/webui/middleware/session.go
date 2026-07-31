@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -17,14 +18,14 @@ const (
 	ImpersonationStartedAt    = "impersonation_started_at"
 )
 
-func SessionMiddleware(secret string) gin.HandlerFunc {
+func SessionMiddleware(secret string, secure bool) gin.HandlerFunc {
 	store := cookie.NewStore([]byte(secret))
 	store.Options(sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 7, // 7 days
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
-		SameSite: 0,     // Default SameSite behavior
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
 	})
 	return sessions.Sessions(SessionName, store)
 }
