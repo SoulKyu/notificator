@@ -19,6 +19,11 @@ import (
 	webuimodels "notificator/internal/webui/models"
 )
 
+// errSentryHostNotAllowed is returned when a Sentry URL from alert data does not
+// match the configured Sentry instance(s). Alert annotations/labels are attacker-
+// influenceable data, so the host must be validated before any token is sent.
+var errSentryHostNotAllowed = errors.New("sentry host not allowed")
+
 type SentryService struct {
 	config        *config.SentryConfig
 	backendClient *client.BackendClient
@@ -74,23 +79,29 @@ func (s *SentryService) GetSentryDataForAlert(alert *models.Alert, userID, sessi
 	
 	log.Printf("Found Sentry URL: %s", sentryURL)
 
+	// Get authentication for user (needed up front so the host-refusal error
+	// below can report accurate auth status instead of the zero value)
+	auth := s.getAuthForUser(userID, sessionID)
+
 	// Parse Sentry URL to get project info
 	projectInfo, err := s.parseSentryURL(sentryURL)
 	if err != nil {
 		log.Printf("Failed to parse Sentry URL %s: %v", sentryURL, err)
-		message := "Invalid Sentry URL format"
+		errMsg := "Invalid Sentry URL format"
 		if errors.Is(err, errSentryHostNotAllowed) {
-			message = "Sentry host not allowed: the alert points at a different host than the configured Sentry instance"
+			errMsg = "Sentry host not allowed"
 		}
 		return &webuimodels.SentryData{
 			HasSentryLabel: true,
 			SentryURL:      sentryURL,
-			Error:          message,
+			AuthStatus: webuimodels.SentryAuthStatus{
+				HasAPIToken: auth.AuthMethod == "personal_token",
+				AuthMethod:  auth.AuthMethod,
+			},
+			Error: errMsg,
 		}
 	}
 
-	// Get authentication for user
-	auth := s.getAuthForUser(userID, sessionID)
 	if auth.AuthMethod == "none" {
 		return &webuimodels.SentryData{
 			HasSentryLabel: true,
@@ -223,10 +234,6 @@ func (s *SentryService) getAuthForUser(userID, sessionID string) SentryAuthResul
 	}
 }
 
-// errSentryHostNotAllowed marks an alert-supplied Sentry URL pointing away from the
-// configured Sentry instance.
-var errSentryHostNotAllowed = errors.New("sentry host not allowed")
-
 // parseSentryURL extracts organization, project info from a Sentry URL
 func (s *SentryService) parseSentryURL(sentryURL string) (*SentryProjectInfo, error) {
 	// Expected format: https://your-sentry-instance.com/organizations/your-org/projects/your-project/?project=39
@@ -237,18 +244,12 @@ func (s *SentryService) parseSentryURL(sentryURL string) (*SentryProjectInfo, er
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
-	// The URL comes from alert annotations/labels — attacker-influenceable payload,
-	// not configuration. Every request built downstream carries the viewer's bearer
-	// token, so only the configured Sentry instance may ever be targeted, and only
-	// over http(s). Without this check a crafted alert exfiltrates the token of
-	// every user who opens it.
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, fmt.Errorf("%w: scheme %q", errSentryHostNotAllowed, parsedURL.Scheme)
-	}
-	configured, cfgErr := url.Parse(s.config.BaseURL)
-	if cfgErr != nil || configured.Host == "" ||
-		!strings.EqualFold(parsedURL.Scheme, configured.Scheme) ||
-		!strings.EqualFold(parsedURL.Host, configured.Host) {
+	// Alert annotations/labels are attacker-influenceable Alertmanager payload, not
+	// configuration. Every request built downstream carries the viewer's bearer token,
+	// so reject anything that isn't the configured Sentry instance (or an explicitly
+	// allowlisted one) before any such request is built. Without this check a crafted
+	// alert exfiltrates the token of every user who opens it.
+	if !s.isAllowedSentryHost(parsedURL) {
 		return nil, fmt.Errorf("%w: %s://%s does not match the configured instance %s",
 			errSentryHostNotAllowed, parsedURL.Scheme, parsedURL.Host, s.config.BaseURL)
 	}
@@ -286,6 +287,49 @@ func (s *SentryService) parseSentryURL(sentryURL string) (*SentryProjectInfo, er
 		ProjectSlug:  projectSlug,
 		ProjectID:    projectID,
 	}, nil
+}
+
+// isAllowedSentryHost reports whether a URL's scheme+host matches the configured
+// Sentry instance or one of the explicitly allowlisted additional hosts. Only
+// http(s) schemes are accepted so a file:/other scheme can never reach the HTTP
+// transport used to send the request. The configured BaseURL must match scheme
+// and host exactly (an alert cannot downgrade an https instance to plaintext
+// http); each AllowedHosts entry independently decides its own scheme, so a
+// bare entry inherits the configured scheme while a scheme-prefixed entry may
+// intentionally differ (e.g. an http-only legacy mirror alongside an https
+// primary).
+func (s *SentryService) isAllowedSentryHost(parsedURL *url.URL) bool {
+	if (parsedURL.Scheme != "https" && parsedURL.Scheme != "http") || parsedURL.Host == "" {
+		return false
+	}
+
+	configured, err := url.Parse(s.config.BaseURL)
+	if err != nil || configured.Host == "" {
+		return false
+	}
+	if strings.EqualFold(configured.Scheme, parsedURL.Scheme) && strings.EqualFold(configured.Host, parsedURL.Host) {
+		return true
+	}
+
+	// AllowedHosts entries are host[:port], with an optional scheme prefix. A
+	// bare entry inherits the configured scheme.
+	for _, host := range s.config.AllowedHosts {
+		entry := strings.TrimSpace(host)
+		scheme := configured.Scheme
+		if strings.Contains(entry, "://") {
+			parsedEntry, err := url.Parse(entry)
+			if err != nil {
+				continue
+			}
+			scheme = parsedEntry.Scheme
+			entry = parsedEntry.Host
+		}
+		if strings.EqualFold(scheme, parsedURL.Scheme) && strings.EqualFold(entry, parsedURL.Host) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // fetchProjectID fetches the numeric project ID from project slug using Sentry API

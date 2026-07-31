@@ -36,10 +36,10 @@ func TestSentryDataRefusesForeignHosts(t *testing.T) {
 	}, nil)
 
 	urls := map[string]string{
-		"foreign host":      attacker.URL + "/organizations/org/projects/proj/?project=39",
-		"scheme downgrade":  "http://sentry.example.com/organizations/org/projects/proj/",
-		"non-http scheme":   "ftp://sentry.example.com/organizations/org/projects/proj/",
-		"label fallback": "", // filled below, exercises the Labels path
+		"foreign host":     attacker.URL + "/organizations/org/projects/proj/?project=39",
+		"scheme downgrade": "http://sentry.example.com/organizations/org/projects/proj/",
+		"non-http scheme":  "ftp://sentry.example.com/organizations/org/projects/proj/",
+		"label fallback":   "", // filled below, exercises the Labels path
 	}
 
 	for name, sentryURL := range urls {
@@ -60,6 +60,11 @@ func TestSentryDataRefusesForeignHosts(t *testing.T) {
 			}
 			if !strings.Contains(data.Error, "not allowed") {
 				t.Fatalf("Error = %q, want an explicit host-not-allowed message", data.Error)
+			}
+			// AuthStatus must reflect the caller's real auth, not the zero value —
+			// otherwise the frontend can't tell "host refused" from "no token configured".
+			if data.AuthStatus.AuthMethod != "global" {
+				t.Fatalf("AuthStatus.AuthMethod = %q, want %q (auth must be resolved before the refusal return)", data.AuthStatus.AuthMethod, "global")
 			}
 		})
 	}
@@ -96,5 +101,39 @@ func TestSentryDataAllowsConfiguredHost(t *testing.T) {
 	}
 	if hits.Load() == 0 {
 		t.Fatal("no request reached the configured instance — the positive control failed")
+	}
+}
+
+// AllowedHosts is the multi-instance escape hatch: entries may be a bare host or
+// carry a scheme. Everything else stays refused, scheme downgrades included.
+func TestIsAllowedSentryHost(t *testing.T) {
+	service := NewSentryService(&config.SentryConfig{
+		BaseURL:      "https://sentry.example.com",
+		AllowedHosts: []string{"sentry-eu.example.com", "https://sentry-apac.example.com", "http://sentry-legacy.example.com"},
+	}, nil)
+
+	cases := []struct {
+		name  string
+		url   string
+		allow bool
+	}{
+		{"configured host", "https://sentry.example.com/organizations/o/projects/p", true},
+		{"allowlisted bare host", "https://sentry-eu.example.com/organizations/o/projects/p", true},
+		{"allowlisted host with scheme prefix in config", "https://sentry-apac.example.com/organizations/o/projects/p", true},
+		{"allowlisted host with scheme differing from BaseURL", "http://sentry-legacy.example.com/organizations/o/projects/p", true},
+		{"attacker host", "https://attacker.example/organizations/o/projects/p", false},
+		{"non-http(s) scheme", "file:///organizations/o/projects/p", false},
+		{"scheme downgrade on configured host", "http://sentry.example.com/organizations/o/projects/p", false},
+		{"scheme downgrade on allowlisted host", "http://sentry-eu.example.com/organizations/o/projects/p", false},
+		{"scheme upgrade on scheme-prefixed allowlisted host", "https://sentry-legacy.example.com/organizations/o/projects/p", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := service.parseSentryURL(tc.url)
+			if allowed := err == nil; allowed != tc.allow {
+				t.Fatalf("expected allowed=%v for %s, got err=%v", tc.allow, tc.url, err)
+			}
+		})
 	}
 }

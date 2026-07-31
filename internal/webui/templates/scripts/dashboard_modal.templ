@@ -508,7 +508,14 @@ templ DashboardModal() {
 						const result = await response.json();
 						
 						if (result.has_sentry_label) {
-							if (result.auth_status?.has_api_token) {
+							if (result.error) {
+								// Backend rejected the request (e.g. disallowed host) before it could fetch data
+								if (component) {
+									component.sentryData = null;
+									component.sentryError = result.error;
+									component.hasSentryToken = result.auth_status?.has_api_token ?? false;
+								}
+							} else if (result.auth_status?.has_api_token) {
 								// User has token and can view data
 								if (component) {
 									component.sentryData = result;
