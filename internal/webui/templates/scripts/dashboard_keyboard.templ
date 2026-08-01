@@ -15,7 +15,7 @@ templ DashboardKeyboardMixin() {
 			},
 
 			isTypingTarget(target) {
-				return !!(target && target.closest && target.closest('input, textarea, select, [contenteditable]'));
+				return !!(target && target.closest && target.closest('input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable]'));
 			},
 
 			// A focused button/link/etc. already activates on Enter/Space natively;
