@@ -88,3 +88,8 @@ enriches alerts from Sentry issue URLs found in annotations/labels.
 `NOTIFICATOR_SESSION_SECRET` (documented in `.env.example`, generate with `openssl rand -hex 32`)
 signs the WebUI session cookie. If unset, the WebUI uses a **random per-process secret**, so
 sessions don't survive a restart (see [webui](webui.md#auth)).
+
+`NOTIFICATOR_COOKIE_SECURE` controls the cookie's `Secure` flag — defaults to `true` (HTTPS
+only). Set to `false` only for plain-HTTP local development; `docker-compose.yml` already sets
+it for the bundled dev stack. The cookie's `SameSite` attribute is always `Lax` and is not
+configurable.

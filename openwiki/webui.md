@@ -23,8 +23,8 @@ Middleware order (`router.go:130-134`): `CORSMiddleware` → `LoggingMiddleware`
 - **Session store:** `gin-contrib/sessions` cookie store, secret from
   `NOTIFICATOR_SESSION_SECRET` or a **per-process random fallback** — the fallback means
   sessions don't survive a restart (logged as a warning). Cookie `notificator-session`,
-  7-day, `HttpOnly: true`, **`Secure: false` hardcoded** (`middleware/session.go`) — must be
-  fixed for HTTPS-only production.
+  7-day, `HttpOnly: true`, `Secure` (default `true`, `NOTIFICATOR_COOKIE_SECURE=false` for
+  plain-HTTP dev) and `SameSite=Lax` (`middleware/session.go`).
 - The cookie holds only an opaque `session_id` (+ cached user fields); validity is always
   re-checked against the backend via `ValidateSession` **on every request** — no local TTL
   cache, so backend load scales 1:1 with UI traffic. `middleware/auth.go` distinguishes a
@@ -122,7 +122,6 @@ Edit the `.templ`, then run `make webui-templates` (`templ generate`). Tailwind 
 - **`profile_handlers.go` `UpdateTimezone`** calls `c.MustGet("db").(*gorm.DB)`, but no
   middleware ever sets `"db"` on the gin context — the route (`PUT /profile/timezone`) will
   **panic** (surfaced as a 500). Leftover direct-DB code in an otherwise all-gRPC UI.
-- **`middleware/session.go` `Secure: false`** is hardcoded — patch for HTTPS.
 - **`middleware/cors.go`** sets `AllowOrigins: ["*"]` with `AllowCredentials: true`, which the
   Fetch spec disallows together — verify real browser behavior before relying on cross-origin
   cookies.

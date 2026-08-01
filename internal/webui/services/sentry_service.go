@@ -194,7 +194,7 @@ func (s *SentryService) GetSentryDataForAlert(alert *models.Alert, userID, sessi
 
 // getAuthForUser determines the best authentication method for a user
 func (s *SentryService) getAuthForUser(userID, sessionID string) SentryAuthResult {
-	log.Printf("Getting authentication for user %s with session %s", userID, sessionID)
+	log.Printf("Getting authentication for user %s", userID)
 	
 	// Try to get user's personal token from backend
 	if s.backendClient != nil && s.backendClient.IsConnected() {

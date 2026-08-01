@@ -136,6 +136,8 @@ services:
       - NOTIFICATOR_SENTRY_GLOBAL_TOKEN=""
       # Session persistence (generate with: openssl rand -hex 32)
       - NOTIFICATOR_SESSION_SECRET=${NOTIFICATOR_SESSION_SECRET:-}
+      # Plain-HTTP local dev - disable the Secure cookie flag (defaults to true)
+      - NOTIFICATOR_COOKIE_SECURE=false
 
     depends_on:
       backend:
