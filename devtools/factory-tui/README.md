@@ -48,10 +48,23 @@ break, who is asleep until their next timer, and what is on the team board
 │ │⌨ tak··   │ │zZ dort   │ │☕~ pause │                      │
 │ └──audit───┘ └──15min───┘ └─poll 30s─┘                      │
 │ ── TABLEAU ────────────────────────────────────────────────  │
-│ PR#43 👀review  PR#44 🧪qa                                   │
+│ issues: 12 open · 3 agents · 1 hold                          │
+│ 📐 spec    ▸ #148 #149                              ⏳ 2h     │
+│ 👀 review  ▸ #131 #144 #145 #146                    ⏳ 21h ⚠  │
+│ 🧪 qa      ▸ #147                                   ⏳ 12min  │
+│ 🚀 ready   ▸ —                                                │
+│ 💥 conflit ▸ #143                                   ⏳ 3h     │
 │ 📻 [rebase-43] go build ./... passes                         │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+The 📌 TABLEAU is a **conveyor belt**: one lane per pipeline stage (spec →
+review → qa → ready → conflit), in order, with that lane's open PR numbers and
+the age of its *oldest* PR (`⏳`, from `updatedAt`). An empty lane renders `—`
+— itself a signal (nothing in qa). A lane past `FACTORY_PR_STALE_H` gets a `⚠`
+marker — purely informational, never a 🚨 alarm row or a beep. A lane with more
+PRs than fit truncates with a `+N` tail. When GitHub is unreachable the whole
+board collapses to `(github injoignable)`, never stale lanes.
 
 ## Run
 
@@ -130,6 +143,7 @@ Observable transitions feed a render-side event queue (no extra pollers):
 | `FACTORY_LOOPER_LOG_DIR` | `~/.looper/logs/loops` | looper run logs (`<loopId>/<runId>/*.stdout.log`) for the zoom tail of a looper desk |
 | `FACTORY_INBOX_DIR` | `~/.claude-agents/notificator/inbox` | agent mailboxes for 📬 badges + 💬 INTERCOM |
 | `FACTORY_STALL_MIN` | `30` | minutes on the same looper step before a 🚨 stall alarm |
+| `FACTORY_PR_STALE_H` | `12` | hours a PR can sit at the top of its conveyor lane before the lane's `⏳` gets a `⚠` marker (no alarm, no beep) |
 
 ## Requirements
 
