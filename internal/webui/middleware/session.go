@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const SessionName = "notificator-session"
+const SessionName = "notificator-session-v2"
 
 // Impersonation session keys
 const (
