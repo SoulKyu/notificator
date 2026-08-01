@@ -9,8 +9,12 @@ templ NotificationService() {
 			preferences: {
 				browserNotificationsEnabled: false,
 				enabledSeverities: ['critical', 'warning'],
-				soundNotificationsEnabled: true
+				soundNotificationsEnabled: true,
+				notificationFilterPresetId: ''
 			},
+			// filter_data of the preset referenced by preferences.notificationFilterPresetId,
+			// fetched once on load and refreshed when the selection changes (see loadFilterPresetData).
+			notificationFilterData: null,
 			seenAlerts: new Set(),
 			seenAlertsInitialized: false, // Track if seenAlerts has been properly initialized from dashboard
 			notificationTimestamps: [], // Track recent notification times for rate limiting
@@ -34,6 +38,7 @@ templ NotificationService() {
 
 				// Load preferences from backend
 				await this.loadPreferences();
+				await this.loadFilterPresetData();
 
 				// Check current browser permission status
 				if ('Notification' in window) {
@@ -93,7 +98,8 @@ templ NotificationService() {
 							this.preferences = {
 								browserNotificationsEnabled: result.data.browser_notifications_enabled || false,
 								enabledSeverities: result.data.enabled_severities || ['critical', 'warning'],
-								soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
+								soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true,
+								notificationFilterPresetId: result.data.notification_filter_preset_id || ''
 							};
 							console.log('Loaded notification preferences:', this.preferences);
 							this.preferencesLoaded = true;
@@ -102,6 +108,58 @@ templ NotificationService() {
 				} catch (error) {
 					console.error('Failed to load notification preferences:', error);
 				}
+			},
+
+			// Fetch the filter preset referenced by preferences.notificationFilterPresetId and
+			// cache its filter_data for shouldNotify() to match against (no per-alert request).
+			// No dedicated single-preset endpoint exists, so the full list is fetched and
+			// filtered client-side, same as the filter presets modal.
+			async loadFilterPresetData() {
+				this.notificationFilterData = null;
+				if (!this.preferences.notificationFilterPresetId) {
+					return;
+				}
+
+				try {
+					const response = await fetch('/api/v1/dashboard/filter-presets?include_shared=true', {
+						credentials: 'include'
+					});
+					if (!response.ok) {
+						// Transient failure: keep the saved preset id and retry on the next
+						// load rather than treating a backend hiccup as "preset deleted".
+						return;
+					}
+					const result = await response.json();
+					if (!result.success) {
+						return;
+					}
+					const preset = (result.presets || []).find(p => p.id === this.preferences.notificationFilterPresetId);
+					if (preset) {
+						this.notificationFilterData = preset.filter_data || {};
+						return;
+					}
+				} catch (error) {
+					console.error('Failed to load notification filter preset:', error);
+					return;
+				}
+
+				// The list loaded successfully and the preset genuinely isn't in it
+				// (deleted): degrade to "All alerts" without erroring.
+				console.warn('Notification filter preset not found, falling back to All alerts');
+				this.preferences.notificationFilterPresetId = '';
+			},
+
+			// Check if an alert matches the selected notification filter preset (or always
+			// true when "All alerts" is selected). Delegates to the pure, unit-tested matcher
+			// in /static/js/notification_matcher.js.
+			matchesFilterPreset(alert) {
+				if (!this.preferences.notificationFilterPresetId) {
+					return true;
+				}
+				if (typeof matchesNotificationFilterPreset !== 'function') {
+					return true;
+				}
+				return matchesNotificationFilterPreset(alert, this.notificationFilterData);
 			},
 
 			// Save notification preferences to backend
@@ -116,7 +174,8 @@ templ NotificationService() {
 						body: JSON.stringify({
 							browser_notifications_enabled: preferences.browserNotificationsEnabled,
 							enabled_severities: preferences.enabledSeverities,
-							sound_notifications_enabled: preferences.soundNotificationsEnabled
+							sound_notifications_enabled: preferences.soundNotificationsEnabled,
+							notification_filter_preset_id: preferences.notificationFilterPresetId || ''
 						})
 					});
 
@@ -124,6 +183,7 @@ templ NotificationService() {
 						const result = await response.json();
 						if (result.success) {
 							this.preferences = preferences;
+							await this.loadFilterPresetData();
 							console.log('Saved notification preferences');
 							return true;
 						}
@@ -261,6 +321,11 @@ templ NotificationService() {
 				}
 
 				if (!this.preferences.enabledSeverities.includes(severityToCheck)) {
+					return false;
+				}
+
+				// Check if alert falls within the selected notification filter preset's scope
+				if (!this.matchesFilterPreset(alert)) {
 					return false;
 				}
 

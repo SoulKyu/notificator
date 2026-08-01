@@ -3841,6 +3841,7 @@ type SaveNotificationPreferencesRequest struct {
 	BrowserNotificationsEnabled bool                   `protobuf:"varint,2,opt,name=browser_notifications_enabled,json=browserNotificationsEnabled,proto3" json:"browser_notifications_enabled,omitempty"`
 	EnabledSeverities           []string               `protobuf:"bytes,3,rep,name=enabled_severities,json=enabledSeverities,proto3" json:"enabled_severities,omitempty"`
 	SoundNotificationsEnabled   bool                   `protobuf:"varint,4,opt,name=sound_notifications_enabled,json=soundNotificationsEnabled,proto3" json:"sound_notifications_enabled,omitempty"`
+	NotificationFilterPresetId  string                 `protobuf:"bytes,5,opt,name=notification_filter_preset_id,json=notificationFilterPresetId,proto3" json:"notification_filter_preset_id,omitempty"` // Empty = notify for all alerts (no preset scope)
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -3901,6 +3902,13 @@ func (x *SaveNotificationPreferencesRequest) GetSoundNotificationsEnabled() bool
 		return x.SoundNotificationsEnabled
 	}
 	return false
+}
+
+func (x *SaveNotificationPreferencesRequest) GetNotificationFilterPresetId() string {
+	if x != nil {
+		return x.NotificationFilterPresetId
+	}
+	return ""
 }
 
 type SaveNotificationPreferencesResponse struct {
@@ -3972,6 +3980,7 @@ type NotificationPreference struct {
 	SoundNotificationsEnabled   bool                   `protobuf:"varint,5,opt,name=sound_notifications_enabled,json=soundNotificationsEnabled,proto3" json:"sound_notifications_enabled,omitempty"`
 	CreatedAt                   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt                   *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	NotificationFilterPresetId  string                 `protobuf:"bytes,8,opt,name=notification_filter_preset_id,json=notificationFilterPresetId,proto3" json:"notification_filter_preset_id,omitempty"` // Empty = notify for all alerts (no preset scope)
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -4053,6 +4062,13 @@ func (x *NotificationPreference) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *NotificationPreference) GetNotificationFilterPresetId() string {
+	if x != nil {
+		return x.NotificationFilterPresetId
+	}
+	return ""
 }
 
 // Filter Presets Messages
@@ -10416,17 +10432,18 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\"GetNotificationPreferencesResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12K\n" +
 	"\vpreferences\x18\x02 \x01(\v2).notificator.alert.NotificationPreferenceR\vpreferences\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xf6\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xb9\x02\n" +
 	"\"SaveNotificationPreferencesRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12B\n" +
 	"\x1dbrowser_notifications_enabled\x18\x02 \x01(\bR\x1bbrowserNotificationsEnabled\x12-\n" +
 	"\x12enabled_severities\x18\x03 \x03(\tR\x11enabledSeverities\x12>\n" +
-	"\x1bsound_notifications_enabled\x18\x04 \x01(\bR\x19soundNotificationsEnabled\"\xa6\x01\n" +
+	"\x1bsound_notifications_enabled\x18\x04 \x01(\bR\x19soundNotificationsEnabled\x12A\n" +
+	"\x1dnotification_filter_preset_id\x18\x05 \x01(\tR\x1anotificationFilterPresetId\"\xa6\x01\n" +
 	"#SaveNotificationPreferencesResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12K\n" +
 	"\vpreferences\x18\x02 \x01(\v2).notificator.alert.NotificationPreferenceR\vpreferences\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xea\x02\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xad\x03\n" +
 	"\x16NotificationPreference\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12B\n" +
@@ -10436,7 +10453,8 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8f\x01\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12A\n" +
+	"\x1dnotification_filter_preset_id\x18\b \x01(\tR\x1anotificationFilterPresetId\"\x8f\x01\n" +
 	"\x17GetFilterPresetsRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12%\n" +
