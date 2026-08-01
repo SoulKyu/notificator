@@ -60,7 +60,7 @@ for the *neighbouring* goroutine twelve lines down —
 - `CaptureAlertFired` is invoked with a snapshot taken under `ac.mu`, never
   the pointer stored in `ac.alerts`.
 - A `-race`-sensitive test reproduces the bug against current code and
-  passes after the fix.
+  passes after the fix — deterministically, not most of the time.
 - The `UpdateAlertResolved` goroutine (`alert_cache.go:292-298`), which
   closes over a cache-resident pointer the same way, is checked for the same
   hazard and either fixed or documented as safe.
@@ -69,8 +69,10 @@ for the *neighbouring* goroutine twelve lines down —
 
 - No change to `CaptureAlertFired`'s or `UpdateAlertResolved`'s signature,
   or to the backend RPC contract.
-- No broader refactor of `refreshAlerts` or `runBounded` — this is a
-  targeted snapshot fix, not a redesign of the refresh pipeline.
+- No broader refactor of `refreshAlerts` — this is a targeted snapshot fix,
+  not a redesign of the refresh pipeline. `runBounded` gains a two-line
+  completion counter (§3) and nothing else: no worker pool, no lifecycle
+  wiring into `Stop()`.
 - No deep copy: per the existing convention at `alert_cache.go:695-698`,
   `Labels` is never rewritten after construction and `Annotations` is only
   ever replaced wholesale, never mutated in place, so a shallow copy is
@@ -130,7 +132,64 @@ ac.runBounded(func() {
 })
 ```
 
-### 3. Regression test
+### 3. Give `runBounded` a completion signal the test can wait on
+
+The test in §4 has to know that every spawned fire-capture goroutine has
+*actually performed its read* before it returns; otherwise the process can
+exit with the racing read still pending and `-race` reports nothing.
+
+`runBounded` currently exposes no such signal, and the semaphore is not one:
+the token is taken **inside** the goroutine (`alert_cache.go:199-201`), so
+`len(ac.backendSem) == 0` means "nothing running *right now*" — which is
+also true for a call that was spawned microseconds ago and has not been
+scheduled yet. Any signal derived from `backendSem` — polling it, or filling
+it by acquiring all `maxBackendWorkers` tokens — has the same blind spot at
+the spawn edge, and a test built on one passes spuriously whenever the
+scheduler hasn't run the goroutine yet. Measured against unfixed code, the
+`len()` poll misses the race roughly 1 run in 10.
+
+The fix is to count the goroutine in on the *caller's* goroutine, before
+`go` — the only point that is ordered with respect to the spawn:
+
+```go
+type AlertCache struct {
+    // ...
+    backendSem chan struct{}  // semaphore bounding refresh-triggered backend calls  (:71)
+    backendWG  sync.WaitGroup // counts spawned backend calls, incremented before the goroutine starts
+```
+
+```go
+// runBounded runs fn on a goroutine while holding a slot in backendSem, so at
+// most maxBackendWorkers refresh-triggered backend calls run concurrently.
+func (ac *AlertCache) runBounded(fn func()) {
+    // Counted here, on the caller's goroutine, not inside the closure: the
+    // semaphore token is only taken once the goroutine is scheduled, so
+    // len(backendSem) reads 0 for calls that are spawned but not yet running.
+    // backendWG is the only signal that covers a spawned call from the moment
+    // it is created.
+    ac.backendWG.Add(1)
+    go func() {
+        defer ac.backendWG.Done()
+        ac.backendSem <- struct{}{}
+        defer func() { <-ac.backendSem }()
+        fn()
+    }()
+}
+```
+
+Production behaviour is unchanged — nothing calls `Wait()` outside tests, and
+`Add` runs on a goroutine that already holds `ac.mu`, so the counter is never
+touched concurrently from zero. `Wait()` in the test is sound because every
+`Add` happens-before it: the refresh calls that spawn the work all return
+first.
+
+`WaitGroup.Done` releases and `Wait` acquires, so the only happens-before
+edge this adds points *from* the goroutine *to* the waiter. It does not
+order the test's `updateExistingAlert` writes against the goroutine's reads,
+so the race stays visible to the detector — the counter makes the read
+observable, it does not synchronise it away.
+
+### 4. Regression test
 
 Add `TestAlertCache_ConcurrentFireCaptureAndRefresh` to
 `internal/webui/services/alert_cache_test.go`, following the pattern
@@ -165,22 +224,24 @@ Work with the real type instead of adding one:
   exactly the bug, and `-race` flags conflicting accesses on the same
   memory regardless of how the goroutine scheduler happens to interleave
   them.
-- Before the test returns, wait for every spawned fire-capture goroutine to
-  actually finish its read — otherwise the process can exit before the race
-  detector observes it. `runBounded` doesn't expose a `WaitGroup`, but its
-  semaphore does: `cache.backendSem` (buffered channel, capacity
-  `maxBackendWorkers`) holds one token for the lifetime of each in-flight
-  call, so polling `len(cache.backendSem) == 0` on a short ticker is a
-  reliable "all goroutines done" signal.
+- Grow the fake's payload across iterations rather than serving one alert at
+  a time: a fingerprint missing from a fetch is treated as resolved
+  (`alert_cache.go:276-312`), which deletes it and spawns the resolved-path
+  goroutines instead of the one under test.
+- Close with `cache.backendWG.Wait()` (§3) as the last statement. That is the
+  whole wait — no ticker, no sleep, no `len(cache.backendSem)` poll.
 - Run: `go test -race -run TestAlertCache_ConcurrentFireCaptureAndRefresh ./internal/webui/services/...`.
   Expected: fails with `WARNING: DATA RACE` on `Status`/`Annotations` against
   today's code; passes cleanly once `refreshAlerts` snapshots before
-  spawning.
+  spawning. Verify the *failing* direction repeats — apply §3 alone, keep
+  §1 unapplied and run `-count=10`: all ten runs must report the race. A
+  recipe that detects it 9 times out of 10 is not a regression test.
 
 ### Files touched
 
 - `internal/webui/services/alert_cache.go` — snapshot before the
-  fire-capture `runBounded` call; add the safety comment on the
+  fire-capture `runBounded` call; `backendWG` field plus the two `runBounded`
+  lines that make completion observable; add the safety comment on the
   resolved-statistics goroutine.
 - `internal/webui/services/alert_cache_test.go` — new
   `TestAlertCache_ConcurrentFireCaptureAndRefresh`.
@@ -198,6 +259,13 @@ Work with the real type instead of adding one:
   (real TCP dial attempt, real JSON/proto marshalling) but exercises the
   exact production code path — a fake would risk not reproducing the read
   order that causes the race in the first place.
+- **A `WaitGroup` in production code for a test's benefit**: `backendWG` is
+  two lines and is never waited on outside tests. The alternative — leaving
+  `runBounded` alone and inferring completion from `backendSem` — was tried
+  and is unsound at the spawn edge (§3), and there is no way to close that
+  gap from outside `runBounded`. The counter also leaves the door open for
+  `Stop()` to drain in-flight backend calls later, which it currently
+  doesn't.
 - **No fix to `UpdateAlertResolved`**: relies on the delete-under-the-same-lock
   argument holding. If a future change moves the `delete(ac.alerts, ...)`
   outside the lock, or adds another lookup path that doesn't key off
