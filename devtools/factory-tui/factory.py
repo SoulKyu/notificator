@@ -237,6 +237,22 @@ class AgentCard(Static):
     def on_click(self):
         self.post_message(self.Open(self))
 
+    def _parallel(self, loops) -> int:
+        """How many workers of this agent are busy right now: running loops for
+        a looper role, live slot workdirs (/tmp/notificator-qa-<pr>-XXXX) for the
+        parallel QA, 0 elsewhere (every other custom agent is flock-single)."""
+        if self.kind.startswith("looper:"):
+            return sum(1 for l in loops if l["status"] == "running")
+        if self.key == "qa":
+            try:
+                return sum(1 for n in os.listdir("/tmp")
+                           if n.startswith("notificator-qa-")
+                           and os.path.isdir(os.path.join("/tmp", n))
+                           and n.split("-")[2].isdigit())
+            except OSError:
+                return 0
+        return 0
+
     def refresh_state(self):
         role = self.kind.split(":")[1] if self.kind.startswith("looper:") else None
         with core.LOCK:
@@ -247,7 +263,9 @@ class AgentCard(Static):
                                  else core.agent_state(self.key, self.kind))
         icon, word, tone = STATE_FR.get(state, ("·", state, "dim"))
         self.set_classes(f"agent-card st-{state}")
-        self.border_subtitle = f"📬{mail}" if mail else ""
+        par = self._parallel(loops)
+        subs = ([f"⚡{par}"] if par else []) + ([f"📬{mail}"] if mail else [])
+        self.border_subtitle = " ".join(subs)
         body = Text()
         body.append(f"{icon} {word}", style=f"bold {C[tone]}")
         if loops:
