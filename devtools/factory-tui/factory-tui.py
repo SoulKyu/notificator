@@ -76,9 +76,21 @@ def stall_min(v):
 
 STALL_MIN = stall_min(os.environ.get("FACTORY_STALL_MIN"))
 
+
+def pr_stale_h(v):
+    """FACTORY_PR_STALE_H in hours, clamped like stall_min(): a typo'd knob must not
+    crash the poller, and 0 would mark every fresh PR stale."""
+    try:
+        return max(1, int(v or 12))
+    except ValueError:
+        return 12
+
+
+PR_STALE_H = pr_stale_h(os.environ.get("FACTORY_PR_STALE_H"))
+
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
-         "ps_ok": True}
+         "ps_ok": True, "conveyor": None}
 PENDING_MAX = 5
 LOCK = threading.Lock()
 
@@ -362,6 +374,81 @@ def compute_pending(prs, issues, now):
     return [r for _, r in sorted(rows, key=lambda x: x[0])]
 
 
+# stage key, emoji, lane label, and the STATE["prs"] tag it maps to — one source of
+# truth for poll_slow's compact PR line and compute_conveyor()'s lanes.
+CONVEYOR_STAGES = [
+    ("spec", "📐", "spec", "📐spec"),
+    ("review", "👀", "review", "👀review"),
+    ("qa", "🧪", "qa", "🧪qa✗"),
+    ("ready", "🚀", "ready", "✅qa"),
+    ("conflict", "💥", "conflit", "💥conflit"),
+]
+STAGE_TAG = {key: tag for key, _, _, tag in CONVEYOR_STAGES}
+
+
+def pr_stage(p):
+    """One `gh pr list` row -> pipeline stage key."""
+    labels = {l["name"] for l in p.get("labels", [])}
+    if p.get("mergeable") == "CONFLICTING":
+        return "conflict"
+    if "qa:failed" in labels:
+        return "qa"
+    if "qa:passed" in labels:
+        return "ready"
+    if any("spec" in l for l in labels):
+        return "spec"
+    return "review"
+
+
+def compute_conveyor(prs, now):
+    """Open PRs, pipeline order -> [{key, emoji, label, numbers, oldest}], one dict per
+    stage (always all 5, even empty). Pure — no network — so --check drives it with
+    synthetic PR JSON and a fixed `now`."""
+    lanes = {key: [] for key, _, _, _ in CONVEYOR_STAGES}
+    for p in prs:
+        lanes[pr_stage(p)].append(p)
+    out = []
+    for key, emoji, label, _ in CONVEYOR_STAGES:
+        items = lanes[key]
+        out.append({"key": key, "emoji": emoji, "label": label,
+                    "numbers": sorted(p["number"] for p in items),
+                    "oldest": min((iso_ts(p.get("updatedAt")) or now for p in items), default=None)})
+    return out
+
+
+def lane_numbers(numbers, width):
+    """PR numbers of a lane, truncated to `width` display columns with a `+N` tail."""
+    if not numbers:
+        return "—"
+    toks = [f"#{n}" for n in numbers]
+    out = []
+    for i in range(len(toks)):
+        hidden = len(toks) - i - 1
+        candidate = " ".join(toks[:i + 1]) + (f" +{hidden}" if hidden else "")
+        if dwidth(candidate) > width:
+            break
+        out = toks[:i + 1]
+    hidden = len(toks) - len(out)
+    if not out:  # not even one token fits — degrade to a bare count
+        return f"+{len(toks)}"
+    return " ".join(out) + (f" +{hidden}" if hidden else "")
+
+
+def conveyor_row(lane, now, stale_h, width):
+    """One lane -> (display line at exact `width` columns, stale?)."""
+    left = f"{lane['emoji']} {lane['label']:<7} ▸ "
+    age, stale = "", False
+    if lane["oldest"] is not None:
+        stale = now - lane["oldest"] > stale_h * 3600
+        age = f"⏳ {ago(now - lane['oldest'])}" + (" ⚠" if stale else "")
+    reserve = dwidth(age) + (1 if age else 0)
+    nums = lane_numbers(lane["numbers"], max(1, width - dwidth(left) - reserve))
+    body = left + nums
+    if age:
+        body += " " * max(1, width - dwidth(body) - dwidth(age)) + age
+    return dpad(body, width), stale
+
+
 # Label reference for the `?` legend. Each entry: (label, meaning, action).
 # action != "" ⇒ the label is BLOCKING and needs YOU; action spells out exactly what.
 LABEL_BLOCKING = [
@@ -477,17 +564,14 @@ def poll_slow():
         # `gh` returns "[]" for zero PRs — an empty string means GitHub is unreachable
         with LOCK:
             STATE["prs"], STATE["issues"] = ["(github injoignable)"], "(github injoignable)"
-            STATE["score"], STATE["pending"] = "err", []
+            STATE["score"], STATE["pending"], STATE["conveyor"] = "err", [], "err"
         return
     try:
         data = open_prs = json.loads(out or "[]")
         for p in data:
-            labels = {l["name"] for l in p["labels"]}
-            tag = ("💥conflit" if p.get("mergeable") == "CONFLICTING" else
-                   "🧪qa✗" if "qa:failed" in labels else
-                   "✅qa" if "qa:passed" in labels else
-                   "📐spec" if any("spec" in l for l in labels) else "👀review")
-            prs.append(f"PR#{p['number']} {tag}")
+            prs.append(f"PR#{p['number']} {STAGE_TAG[pr_stage(p)]}")
+        with LOCK:
+            STATE["conveyor"] = compute_conveyor(data, time.time())
         now_open = {p["number"]: p.get("title", "") for p in data}
         # a PR gone from the open list may just have been merged → party
         if PR_PREV is not None:
@@ -810,9 +894,11 @@ def panel_snapshot():
     unlocked build_desks/key-dispatch/office loop in between, and a poll landing in that window
     makes the frame taller than the budget it was granted."""
     with LOCK:
+        conveyor = STATE["conveyor"]
         p = {"prs": list(STATE["prs"]), "issues": STATE["issues"], "ticker": STATE["ticker"],
              "err": STATE["err"], "intercom": list(STATE["intercom"]),
-             "score": STATE["score"], "pending": list(STATE["pending"])}
+             "score": STATE["score"], "pending": list(STATE["pending"]),
+             "conveyor": list(conveyor) if isinstance(conveyor, list) else conveyor}
     p["alarms"] = alarms()  # outside the `with`: alarms() takes LOCK itself and it is not reentrant
     return p
 
@@ -826,10 +912,10 @@ def alarm_shown(alrm):
 
 def panel_rows(p):
     """Non-office rows of the frame about to be drawn, from a panel_snapshot. Five of the six
-    panels are conditional in render_frame, so a worst-case constant charges ~23 rows that are
+    panels are conditional in render_frame, so a worst-case constant charges ~27 rows that are
     usually not drawn and pins the cap at len(ROSTER) below a 55-row terminal — the dynamic desks
     would never appear."""
-    n = 1 + 3 + 1 + 1  # title + wall board (header + PRs + issues) + radio + bottom border
+    n = 1 + 7 + 1 + 1  # title + wall board (header + issues + 5 conveyor lanes) + radio + bottom
     if p["intercom"]:
         n += 1 + len(p["intercom"])
     if p["score"]:
@@ -925,8 +1011,14 @@ def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False)
             rows.append(("│ " + dpad(f"… +{len(pending) - PENDING_MAX} autres", width - 4) + " │", 5))
     rows.append(("│" + dpad(" ═══ 📌 TABLEAU DU MUR ", width - 2, fill="═") + "│", 0))
     board_pos = (width // 2, len(rows) - 1)
-    rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
     rows.append(("│ " + dpad(issues or "…", width - 4) + " │", 5))
+    conveyor = p["conveyor"]
+    if isinstance(conveyor, list):  # not "err"/None — a real (possibly empty) lane set
+        for lane in conveyor:
+            line, stale = conveyor_row(lane, time.time(), PR_STALE_H, width - 4)
+            rows.append(("│ " + line + " │", 2 if stale else 5))
+    else:
+        rows.append(("│ " + dpad("  ".join(prs) or "aucune PR ouverte — tout est mergé 🎉", width - 4) + " │", 5))
     off = tick % max(1, len(ticker)) if len(ticker) > width - 12 else 0
     rows.append(("│ 📻 " + dpad(ticker[off:off + width - 8] or "silence radio", width - 6) + "│", 6))
     if err:
@@ -1173,6 +1265,9 @@ def selfcheck():
     if (stall_min("45m"), stall_min(None), stall_min("0"), stall_min("45")) != (30, 30, 1, 45):
         print(f"FAIL stall_min: junk knob must fall back, not crash: {stall_min('45m')}")
         fails += 1
+    if (pr_stale_h("xh"), pr_stale_h(None), pr_stale_h("0"), pr_stale_h("6")) != (12, 12, 1, 6):
+        print(f"FAIL pr_stale_h: junk knob must fall back, not crash: {pr_stale_h('xh')}")
+        fails += 1
     for state in ("work", "break", "sleep", "error", "wait", "away"):
         for tick in range(8):
             inner, _ = person_cell(state, tick, 3, "s", "d")
@@ -1226,10 +1321,85 @@ def selfcheck():
     if not long_row.endswith(" — attend ton go") or len(long_row) > 80:
         print(f"FAIL compute_pending: long title not bounded: {long_row!r}")
         fails += 1
+    # conveyor: PRs bucketed into pipeline-order lanes, oldest-first age per lane, no network
+    conv_prs = [
+        {"number": 148, "labels": [{"name": "looper:spec-reviewing"}], "mergeable": "MERGEABLE",
+         "updatedAt": "2026-01-01T22:00:00Z"},   # spec, 2h old
+        {"number": 131, "labels": [{"name": "looper:review"}], "mergeable": "MERGEABLE",
+         "updatedAt": "2026-01-01T03:00:00Z"},   # review, 21h old — past the 12h default
+        {"number": 144, "labels": [{"name": "looper:review"}], "mergeable": "MERGEABLE",
+         "updatedAt": "2026-01-01T20:00:00Z"},   # review, 4h old
+        {"number": 147, "labels": [{"name": "qa:failed"}], "mergeable": "MERGEABLE",
+         "updatedAt": "2026-01-01T23:48:00Z"},   # qa, 12min old
+        {"number": 72, "labels": [{"name": "qa:passed"}], "mergeable": "MERGEABLE",
+         "updatedAt": "2026-01-01T20:00:00Z"},   # ready, 4h old
+        {"number": 143, "labels": [], "mergeable": "CONFLICTING",
+         "updatedAt": "2026-01-01T21:00:00Z"},   # conflict, 3h old
+    ]
+    conv = compute_conveyor(conv_prs, now)
+    by_key = {l["key"]: l for l in conv}
+    if [l["key"] for l in conv] != ["spec", "review", "qa", "ready", "conflict"]:
+        print(f"FAIL compute_conveyor: stage order {[l['key'] for l in conv]}")
+        fails += 1
+    if (by_key["spec"]["numbers"] != [148] or by_key["review"]["numbers"] != [131, 144]
+            or by_key["qa"]["numbers"] != [147] or by_key["ready"]["numbers"] != [72]
+            or by_key["conflict"]["numbers"] != [143]):
+        print(f"FAIL compute_conveyor: lane membership {[(l['key'], l['numbers']) for l in conv]}")
+        fails += 1
+    if by_key["review"]["oldest"] != iso_ts("2026-01-01T03:00:00Z"):
+        print(f"FAIL compute_conveyor: lane age is not the oldest PR's updatedAt: {by_key['review']['oldest']}")
+        fails += 1
+    if by_key["ready"]["oldest"] != iso_ts("2026-01-01T20:00:00Z"):
+        print(f"FAIL compute_conveyor: single-PR lane age wrong: {by_key['ready']['oldest']}")
+        fails += 1
+    empty_conv = compute_conveyor([], now)
+    if [l["numbers"] for l in empty_conv] != [[]] * 5 or any(l["oldest"] is not None for l in empty_conv):
+        print(f"FAIL compute_conveyor: zero PRs should give 5 empty, age-less lanes: {empty_conv}")
+        fails += 1
+    # a stale lane must never leak into the alarm panel — no klaxon.beep() for a slow review
+    before_alarms = len(alarms(now))  # alarms() takes LOCK itself — call it outside the `with`
+    with LOCK:
+        STATE["conveyor"] = compute_conveyor(
+            [{"number": 999, "labels": [{"name": "looper:review"}], "mergeable": "MERGEABLE",
+              "updatedAt": "2025-12-01T00:00:00Z"}], now)  # a month stale
+    if len(alarms(now)) != before_alarms:
+        print("FAIL alarms: a stale conveyor lane must never raise an alarm row")
+        fails += 1
+    with LOCK:
+        STATE["conveyor"] = None
+    # lane_numbers: more PRs than fit truncate with a +N tail; an empty lane is a bare dash
+    txt = lane_numbers(list(range(100, 130)), 24)
+    if dwidth(txt) > 24 or "+" not in txt:
+        print(f"FAIL lane_numbers: no truncation tail within budget: {txt!r}")
+        fails += 1
+    if lane_numbers([], 24) != "—":
+        print(f"FAIL lane_numbers: empty lane should render —: {lane_numbers([], 24)!r}")
+        fails += 1
+    # conveyor_row: the ⚠ marker follows FACTORY_PR_STALE_H, at exact display width either way
+    stale_lane = {"key": "review", "emoji": "👀", "label": "review", "numbers": [131], "oldest": now - 21 * 3600}
+    row, stale = conveyor_row(stale_lane, now, 12, 60)
+    if not stale or "⚠" not in row or dwidth(row) != 60:
+        print(f"FAIL conveyor_row: stale PR not marked (⚠) or width off: {row!r}")
+        fails += 1
+    fresh_lane = {"key": "qa", "emoji": "🧪", "label": "qa", "numbers": [147], "oldest": now - 600}
+    row, stale = conveyor_row(fresh_lane, now, 12, 60)
+    if stale or "⚠" in row or dwidth(row) != 60:
+        print(f"FAIL conveyor_row: fresh PR wrongly marked stale: {row!r}")
+        fails += 1
+    empty_lane = {"key": "ready", "emoji": "🚀", "label": "ready", "numbers": [], "oldest": None}
+    row, stale = conveyor_row(empty_lane, now, 12, 60)
+    if stale or "⏳" in row or "—" not in row or dwidth(row) != 60:
+        print(f"FAIL conveyor_row: empty lane should show — with no age: {row!r}")
+        fails += 1
+    # a lane piled past what the row can show — the width sweep below must hold with it in play
+    packed_conv = compute_conveyor(
+        [{"number": n, "labels": [{"name": "looper:review"}], "mergeable": "MERGEABLE",
+          "updatedAt": "2026-01-01T20:00:00Z"} for n in range(700, 715)], now)
     with LOCK:
         STATE.update(prs=["PR#0 🧪qa✗"], issues="issues: 0", err="boom", ticker="x" * 300,
                      pending=pend + [f"⛔ #{n} titre très long ✨ {'é' * 60} — attend ton go" for n in range(80, 85)],
                      mail_pending={"scout": 2}, intercom=["roast → scout: amend #1 📬", "scout → roast: done"],
+                     conveyor=packed_conv,
                      events=[{"kind": "mail", "frm": "scout", "to": "worker"},
                              {"kind": "mail", "frm": "inconnu", "to": "qa"},
                              {"kind": "party", "pr": "PR#7 grand merge 🎉"}])
@@ -1241,6 +1411,27 @@ def selfcheck():
                 if dwidth(line) != w:
                     print(f"FAIL row {dwidth(line)} cols (want {w}): {line!r}")
                     fails += 1
+    # a 15-PR lane at a narrow width must truncate with a +N tail, not overflow the row
+    body = "\n".join(l for l, _ in render_frame(1, 60))
+    if "▸ #700" not in body or "+" not in body:
+        print("FAIL conveyor: overloaded lane did not truncate with a +N tail")
+        fails += 1
+    # GitHub unreachable: the conveyor is replaced by the existing single line, never by lanes
+    with LOCK:
+        STATE["conveyor"], STATE["prs"] = "err", ["(github injoignable)"]
+    body = "\n".join(l for l, _ in render_frame(1, 92))
+    if "▸" in body or "(github injoignable)" not in body:
+        print("FAIL conveyor: unreachable GitHub should fall back to the old single line, not lanes")
+        fails += 1
+    # zero open PRs: all 5 lanes render, each empty, no traceback
+    with LOCK:
+        STATE["conveyor"] = compute_conveyor([], now)
+    body = "\n".join(l for l, _ in render_frame(1, 92))
+    if body.count("▸ —") != 5:
+        print(f"FAIL conveyor: zero PRs should render 5 empty lanes, got {body.count('▸ —')}")
+        fails += 1
+    with LOCK:
+        STATE["conveyor"] = packed_conv
     # pending tray: capped with an overflow marker, absent when the queue is empty
     body = "\n".join(l for l, _ in render_frame(1, 92))
     if "🙋 EN ATTENTE DE TOI" not in body or "… +3 autres" not in body:
@@ -1577,9 +1768,10 @@ def selfcheck():
     term_w = 120
     # sweep the heights: the budget boundary only shows up when (h - PANEL_ROWS) % 8 == 0,
     # so a single height silently passes an off-by-one that eats the closing border.
-    # 62 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 29 panel rows = 61 frame
-    # rows, and main_curses draws h-1 of them. Below that no cap fits the panels, so nothing to assert.
-    for term_h in range(62, 78):
+    # 66 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 33 panel rows = 65 frame
+    # rows (33 = 5 conveyor lanes + every other panel), and main_curses draws h-1 of them. Below
+    # that no cap fits the panels, so nothing to assert.
+    for term_h in range(66, 82):
         panels = panel_snapshot()
         cap = desk_cap(term_h, grid_per_row(term_w), panels)
         capped = build_desks(cap)
@@ -1634,8 +1826,8 @@ def selfcheck():
     with LOCK:  # …and with no optional panel drawn the budget must hand the extra rows back out:
         STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
         STATE["svc"] = {}
-    if desk_cap(50, grid_per_row(term_w), panel_snapshot()) <= len(ROSTER):  # a constant pins this at 13
-        print(f"FAIL desk cap: no panels drawn still caps at {desk_cap(50, grid_per_row(term_w), panel_snapshot())}")
+    if desk_cap(60, grid_per_row(term_w), panel_snapshot()) <= len(ROSTER):  # a constant pins this at 24
+        print(f"FAIL desk cap: no panels drawn still caps at {desk_cap(60, grid_per_row(term_w), panel_snapshot())}")
         fails += 1
     # 📬 counts a role's inbox, so it belongs on the desk the mail flight lands on — one badge,
     # not one per concurrent loop, which would read as three messages queued for three people
