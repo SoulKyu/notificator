@@ -1062,18 +1062,24 @@ templ DashboardSettings() {
 						}
 					};
 
-					// Temporarily enable notifications and force the test alert to show
+					// Temporarily enable notifications and force the test alert to show,
+					// bypassing the selected filter preset since the synthetic test alert
+					// has none of the fields (team, alertmanagers, statuses...) a preset
+					// might scope on and would otherwise be silently rejected.
 					const originalEnabled = window.notificationService.preferences.browserNotificationsEnabled;
 					const originalSeverities = window.notificationService.preferences.enabledSeverities;
+					const originalPresetId = window.notificationService.preferences.notificationFilterPresetId;
 
 					window.notificationService.preferences.browserNotificationsEnabled = true;
 					window.notificationService.preferences.enabledSeverities = ['critical', 'warning', 'info'];
+					window.notificationService.preferences.notificationFilterPresetId = '';
 
 					window.notificationService.showNotification(testAlert);
 
 					// Restore original settings
 					window.notificationService.preferences.browserNotificationsEnabled = originalEnabled;
 					window.notificationService.preferences.enabledSeverities = originalSeverities;
+					window.notificationService.preferences.notificationFilterPresetId = originalPresetId;
 				},
 
 				// Annotation Button Config Management Functions

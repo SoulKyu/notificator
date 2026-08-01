@@ -15,6 +15,10 @@ templ NotificationService() {
 			// filter_data of the preset referenced by preferences.notificationFilterPresetId,
 			// fetched once on load and refreshed when the selection changes (see loadFilterPresetData).
 			notificationFilterData: null,
+			// The preset id notificationFilterData was fetched for. Lets loadFilterPresetData()
+			// tell whether a cached value can be reused as a failure fallback (same preset) or
+			// belongs to a preset the user has since switched away from (must fail closed).
+			notificationFilterDataPresetId: null,
 			// True once notificationFilterData has successfully loaded at least once this
 			// session. Lets matchesFilterPreset() tell "no preset selected" apart from
 			// "preset selected but its data has never loaded" and fail closed for the latter,
@@ -120,15 +124,23 @@ templ NotificationService() {
 			// No dedicated single-preset endpoint exists, so the full list is fetched and
 			// filtered client-side, same as the filter presets modal.
 			async loadFilterPresetData() {
-				if (!this.preferences.notificationFilterPresetId) {
+				const requestedPresetId = this.preferences.notificationFilterPresetId;
+
+				if (!requestedPresetId) {
 					this.notificationFilterData = null;
+					this.notificationFilterDataPresetId = null;
 					this.notificationFilterDataLoaded = false;
 					return;
 				}
 
 				// Keep the previous filter_data on a transient failure so a backend
-				// hiccup can't silently widen notification scope to "All alerts".
-				const previousFilterData = this.notificationFilterData;
+				// hiccup can't silently widen notification scope to "All alerts" -
+				// but only when it belongs to the preset we're loading. If the user
+				// switched presets since that data was cached, it belongs to the old
+				// preset and must not be reused: fail closed instead.
+				const reusableFilterData = this.notificationFilterDataPresetId === requestedPresetId
+					? this.notificationFilterData
+					: undefined;
 
 				try {
 					const response = await fetch('/api/v1/dashboard/filter-presets?include_shared=true', {
@@ -137,23 +149,36 @@ templ NotificationService() {
 					if (!response.ok) {
 						// Transient failure: keep the saved preset id and retry on the next
 						// load rather than treating a backend hiccup as "preset deleted".
-						this.notificationFilterData = previousFilterData;
+						if (reusableFilterData !== undefined) {
+							this.notificationFilterData = reusableFilterData;
+						} else {
+							this.notificationFilterDataLoaded = false;
+						}
 						return;
 					}
 					const result = await response.json();
 					if (!result.success) {
-						this.notificationFilterData = previousFilterData;
+						if (reusableFilterData !== undefined) {
+							this.notificationFilterData = reusableFilterData;
+						} else {
+							this.notificationFilterDataLoaded = false;
+						}
 						return;
 					}
-					const preset = (result.presets || []).find(p => p.id === this.preferences.notificationFilterPresetId);
+					const preset = (result.presets || []).find(p => p.id === requestedPresetId);
 					if (preset) {
 						this.notificationFilterData = preset.filter_data || {};
+						this.notificationFilterDataPresetId = requestedPresetId;
 						this.notificationFilterDataLoaded = true;
 						return;
 					}
 				} catch (error) {
 					console.error('Failed to load notification filter preset:', error);
-					this.notificationFilterData = previousFilterData;
+					if (reusableFilterData !== undefined) {
+						this.notificationFilterData = reusableFilterData;
+					} else {
+						this.notificationFilterDataLoaded = false;
+					}
 					return;
 				}
 
@@ -161,6 +186,7 @@ templ NotificationService() {
 				// (deleted): degrade to "All alerts" without erroring.
 				console.warn('Notification filter preset not found, falling back to All alerts');
 				this.preferences.notificationFilterPresetId = '';
+				this.notificationFilterDataPresetId = null;
 				this.notificationFilterDataLoaded = false;
 			},
 
