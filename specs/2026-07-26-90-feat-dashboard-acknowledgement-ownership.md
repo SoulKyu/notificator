@@ -52,12 +52,12 @@ change, no new RPC, no new persistence table.
 
 ### 1. Prerequisite fix — ack username at ack time
 
-`processAlertAction` (`dashboard_handlers.go:866`, case `"acknowledge"`) sets
+`processAlertAction` (`dashboard_handlers.go:936`, case `"acknowledge"`) sets
 `a.AcknowledgedBy = userID` where `userID` comes from `getCurrentUserID(c)`
-(`dashboard_handlers.go:307`), which returns `middleware.GetEffectiveUserID(c)` — a numeric/opaque
+(`dashboard_handlers.go:314`), which returns `middleware.GetEffectiveUserID(c)` — a numeric/opaque
 ID, not a display name. Resolve the acting username the same way
-`middleware.GetCurrentUser(c)` does (session `username` key, `internal/webui/middleware/session.go:56`),
-respecting impersonation (`GetImpersonatedUsername`, `middleware/session.go:110`), and store that
+`middleware.GetCurrentUser(c)` does (session `username` key, `internal/webui/middleware/session.go:59`),
+respecting impersonation (`GetImpersonatedUsername`, `middleware/session.go:111`), and store that
 in `AcknowledgedBy` instead. This makes the field consistent with what `alert_cache.go:602`
 already writes 10s later on the next cache refresh, so nothing downstream needs to special-case
 "ID now, username later".
@@ -78,17 +78,20 @@ already writes 10s later on the next cache refresh, so nothing downstream needs 
 columns into saved configs by `id` — no extra work needed for existing users to see them appear
 (hidden) in the Column Config modal.
 
-Add an `ackage` branch to `renderCell()`'s formatter switch (`dashboard_utilities.templ:669`):
+Add an `ackage` branch to `renderCell()`'s formatter switch (`dashboard_utilities.templ:666`):
 renders relative age (reuse the existing `formatDuration`-style logic already used client-side for
 `Triggered At` / `Duration`, e.g. "3m", "8h", "2d") from `acknowledgedAt`, blank for
-non-acknowledged alerts. On hover, a `title` attribute with `alert.acknowledgeReason`.
+non-acknowledged alerts. **Guard against Go's zero time value** (`"0001-01-01T00:00:00Z"`) which is
+truthy in JS — the existing `renderTimestamp` guard (`dashboard_utilities.templ:809`, `if (!timestamp)`)
+does not catch this. Use `if (!timestamp || timestamp.startsWith("0001"))` or similar to exclude zero times.
+On hover, a `title` attribute with `alert.acknowledgeReason`.
 
 The stale marker (amber, on the Ack Age cell only) is computed client-side against
 `window.currentSettingsModal`'s threshold (see §4) — no new field needed on `DashboardAlert`.
 
 ### 3. Sorting by ack age
 
-`applySorting()` (`dashboard_handlers.go:532`) gets one more `case` in the `sorting.Field` switch:
+`applySorting()` (`dashboard_handlers.go:541`) gets one more `case` in the `sorting.Field` switch:
 
 ```go
 case "acknowledgedAt":
@@ -96,11 +99,11 @@ case "acknowledgedAt":
 ```
 
 This is server-side, so it composes with the existing pagination (`applyPagination`,
-`dashboard_handlers.go:515`) without special-casing.
+`dashboard_handlers.go:524`) without special-casing.
 
 Default sort when entering `acknowledge` mode: sort by `acknowledgedAt` ascending (oldest/stalest
-first) — set client-side in `setDisplayMode('acknowledge')` (`dashboard_actions.templ`), the same
-place `DefaultSorting` (`dashboard.go` `DashboardSettings.DefaultSorting`) is normally read from.
+first) — set client-side in `setDisplayMode('acknowledge')` (`dashboard_core.templ:460`), alongside the existing display mode logic. This is a one-time initialization; unlike `DefaultSorting` 
+(which is a stored setting in `DashboardSettings`), ack-mode sorting is a fixed UX choice.
 
 ### 4. Stale threshold — per-user setting, no new table
 
@@ -112,22 +115,23 @@ StaleAckThresholdMinutes int `json:"staleAckThresholdMinutes"` // 0 = never stal
 
 Persisted exactly like `RefreshInterval` today — in the existing in-memory `userSettings` map
 (`dashboard_handlers.go:29`, keyed by user ID, written by `SaveDashboardSettings`,
-`dashboard_handlers.go:1019`). No new table, no new endpoint. Default `240` (4h); `0` disables
+`dashboard_handlers.go:1088`). No new table, no new endpoint. Default `240` (4h); `0` disables
 staleness everywhere. Add the input to the Settings modal
-(`internal/webui/templates/scripts/dashboard_settings.templ`) next to the existing refresh-interval
-control, and read it into `window.currentSettingsModal` the same way sound paths are today.
+(`internal/webui/templates/components/modal_components.templ:100-114`) next to the existing 
+`<select>` for refresh interval (line 106), and wire it to `settings.staleAckThresholdMinutes` 
+via `x-model` the same way `settings.refreshInterval` is today (line 107).
 
 ### 5. Stale count on the Acknowledged mode button
 
-`buildDashboardMetadata()` (`dashboard_handlers.go:665`) computes counters over the acked set
-already (`counters.Acknowledged`, `dashboard_handlers.go:709` and the classic-mode special case at
-`:718-727`). Add `StaleAcknowledged int` to `DashboardCounters` (`dashboard.go:170-180`) and
-increment it in the same loop(s) using the user's `StaleAckThresholdMinutes` (threshold `0` →
-never increment). This keeps the button badge and the in-view stale markers coming from one
-authoritative pass instead of two divergent client/server computations.
+`buildDashboardMetadata()` (`dashboard_handlers.go:735`) computes counters over the acked set
+already (`counters.Acknowledged` at `dashboard_handlers.go:767` and the classic-mode special case at
+`:777-784`). Add `StaleAcknowledged int` to `DashboardCounters` and increment it in the same loop(s) 
+using the user's `StaleAckThresholdMinutes` (threshold `0` → never increment). This keeps the button 
+badge and the in-view stale markers coming from one authoritative pass instead of two divergent 
+client/server computations.
 
-Render `Acked · 3 stale` on the existing button (`NewDashboard.templ:119-123`) — append the count
-only when `metadata.counters.staleAcknowledged > 0`.
+Render `Acked · 3 stale` on the display-mode button (`NewDashboard.templ:136-140`, the "Acknowledged" 
+button in the display mode selector) — append the count only when `metadata.counters.staleAcknowledged > 0`.
 
 ### 6. Mine / Everyone toggle
 
@@ -138,20 +142,22 @@ New filter dimension, mirroring the existing boolean-filter pattern (`Acknowledg
 OwnedByMe *bool `json:"ownedByMe,omitempty"` // nil = everyone, true = only current user's acks
 ```
 
-- Parsed in `parseDashboardFilters()` (`dashboard_handlers.go:216`, alongside the existing
-  `acknowledged` / `hasComments` bool parsing at `:228-239`).
-- Applied in `applyDashboardFilters()` (`dashboard_handlers.go:356+`): when set, drop alerts where
+- Parsed in `parseDashboardFilters()` (`dashboard_handlers.go:223`, alongside the existing
+  `acknowledged` / `hasComments` bool parsing at `:236-246`).
+- Applied in `applyDashboardFilters()` (`dashboard_handlers.go:422+`): when set, drop alerts where
   `alert.AcknowledgedBy != currentUsername`. Needs the *username*, not the user ID that
   `applyDashboardFilters` currently has available — plumb it through the same way `sessionID` is
   already threaded into this function today.
-- **Must be mirrored in `alertMatchesFilters()`** (`dashboard_data.templ:501`), the client-side
-  predicate used to accept/reject SSE updates (`dashboard_data.templ:372`, `:399`) — this is the
-  documented #1 dashboard footgun (see `openwiki/dashboard.md`): a filter that only exists
-  server-side goes stale on every live update, because SSE pushes arrive unfiltered and the client
-  decides locally whether to keep them. This is called out explicitly in the acceptance criteria
-  below.
-- Included in `captureCurrentFilterState()` (`dashboard_filter_presets.templ:287`) as `owned_by_me`
-  so it survives saved filter presets, same treatment as every other filter field there.
+- **Must be mirrored in THREE places** to avoid the #1 dashboard footgun:
+  1. `alertMatchesFilters()` (`dashboard_data.templ:511`), the client-side predicate used to 
+     accept/reject SSE updates at `:375/:383/:409` — filters that only exist server-side go stale 
+     on every live update because SSE pushes arrive unfiltered and the client decides locally whether 
+     to keep them (documented in `openwiki/dashboard.md:244`).
+  2. **`filtersAffectResolvedCount()` (`dashboard_handlers.go:383`)** — its own code comment says 
+     *"Mirrors every rejection in applyDashboardFilters."* A reflection guard test enumerates 
+     every `DashboardFilters` field and hard-fails on unknown ones; missing this breaks CI.
+  3. `captureCurrentFilterState()` (`dashboard_filter_presets.templ:287`) as `owned_by_me` so it 
+     survives saved filter presets, same treatment as every other filter field there.
 - UI: a small toggle in the acked-view toolbar, visible only when `displayMode === 'acknowledge'`.
 
 ### Build step
@@ -182,7 +188,8 @@ files.
 
 ## Validation
 
-- `go build -tags "nogui,webui" .` and `go vet ./...` after backend changes.
+- `go build -tags "nogui,webui" .`, `go vet ./...`, and **`go test ./...`** after backend changes (the 
+  `TestFiltersAffectResolvedCountCoversEveryFilterField` test will catch §6 mirror completeness).
 - `make webui-templates` regenerates cleanly with no diff drift in unrelated templates.
 - Manual pass against the acceptance criteria in the issue:
   - Enable Owner + Ack Age columns → correct username + relative age, flat and grouped views.
