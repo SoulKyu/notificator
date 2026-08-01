@@ -106,9 +106,13 @@ STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker"
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
          "ps_ok": True, "conveyor": None, "shifts": []}
 PENDING_MAX = 5
-TIMELINE_ROWS = 5  # panel height cap once shown, same reason as ALARM_ROWS. Capping alone doesn't
-                   # stop desk_cap()'s len(ROSTER) floor from evicting the wall board/radio at
-                   # realistic terminal sizes — timeline_fits() hides the whole panel for that.
+TIMELINE_ROWS = len(ROSTER)  # never actually a cap: every roster key appears at most once in
+                   # shift_rows(), so this only bounds the formulas below without ever truncating
+                   # a real roster. A row-count cap here (e.g. 5, ALARM_ROWS-style) hides agents
+                   # in the tail of ROSTER (rebaser, docagent, …) with no way to name them — the
+                   # panel exists to answer "did X run", so it must never make that unanswerable.
+                   # timeline_fits() is the only thing allowed to hide the panel, and only when
+                   # desk_cap()'s len(ROSTER) floor would otherwise evict the wall board/radio.
 LOCK = threading.Lock()
 
 # one-shot animations, consumed by the render loop (render-side state only)
@@ -1922,8 +1926,9 @@ def selfcheck():
         STATE["svc"] = {f"notificator-{u}": {"Id": f"notificator-{u}.service", "Result": "exit-code",
                                              "ExecMainStatus": "1", "ExecMainCode": "1"}
                         for u in ("scout", "qa", "rebaser", "promoter", "docagent", "reporter", "groomer")}
-        # …and the TIMELINE panel: a full roster running charges its capped 1 + TIMELINE_ROWS + tail
-        # rows too, or this sweep would never notice TIMELINE either fitting correctly alongside
+        # …and the TIMELINE panel: a full roster running charges its 1 + TIMELINE_ROWS rows (every
+        # roster key, no tail — TIMELINE_ROWS == len(ROSTER)) too, or this sweep would never notice
+        # TIMELINE either fitting correctly alongside
         # every other panel or (below the floor) hiding itself instead of evicting the board/radio
         STATE["shifts"] = [(key, time.time() - 300, time.time() - 60) for key, _, _, _ in ROSTER]
     term_w = 120
