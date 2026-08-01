@@ -57,7 +57,7 @@ modal.
 **`GET /api/v1/dashboard/alert/:fingerprint/related`**, registered in
 `internal/webui/router.go` next to the existing
 `dashboard.GET("/alert/:fingerprint/history", handlers.HandleGetAlertHistory)`
-(`internal/webui/router.go:260`), inside the same `RequireAuth()`-guarded `dashboard`
+(`internal/webui/router.go:266`), inside the same `RequireAuth()`-guarded `dashboard`
 group.
 
 New handler `HandleGetRelatedAlerts` in `internal/webui/handlers/dashboard_handlers.go`,
@@ -124,10 +124,13 @@ Algorithm:
   `matchesSearch` already folds `alert.AlertName` into its label-style comparison), scan
   `candidates` and collect those whose value for that key equals the source's value.
 - A label is **degenerate** and dropped if the matching count is `< 2` (only the source
-  itself, i.e. nothing correlates) or if it covers the entire non-degenerate candidate
-  set (count `== len(candidates)`, e.g. every alert shares `alertmanager=prod` — that's
-  the whole estate, not signal). `__name__` and any key starting with `__` are skipped
-  outright — they're Prometheus/Alertmanager internal labels, never operator-meaningful.
+  itself, i.e. nothing correlates) or if it covers the entire candidate set *and* the
+  candidate set is large (count `== len(candidates)` and `len(candidates) > 5`, e.g.
+  every alert on a large estate shares `alertmanager=prod` — that's the whole estate,
+  not signal). In a small homogeneous storm (2–5 identical alerts), all labels are kept
+  as signal, ensuring at least one group survives to distinguish "only alert firing"
+  from "cluster ablaze". `__name__` and any key starting with `__` are skipped outright
+  — they're Prometheus/Alertmanager internal labels, never operator-meaningful.
 - Sort the surviving groups by count descending, take the top `maxGroups` (5, matching
   the issue's "top few").
 - Within a group, sort alerts by severity then name for a stable, scannable order, and
@@ -176,8 +179,8 @@ when the tab is opened for the first time, per the issue. Add:
   (`dashboard_modal.templ:594-633`) including its fingerprint-guard-after-await pattern
   (the alert can change while the fetch is in flight; a stale response must not
   overwrite the now-current alert's state).
-- The Related tab button's click handler (or an `x-init`/watcher on `currentTab`) calls
-  `loadRelatedAlerts()` the first time `currentTab` becomes `'related'` and
+- The Related tab button's click handler (or an `x-init`/watcher on `currentAlertTab`) calls
+  `loadRelatedAlerts()` the first time `currentAlertTab` becomes `'related'` and
   `relatedAlerts === null`, so re-clicking the tab doesn't re-fetch.
 - Clicking a related alert in the list calls the existing
   `this.showAlertDetails(fingerprint)` (`dashboard_modal.templ:52`) — no new navigation
