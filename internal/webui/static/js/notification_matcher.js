@@ -19,6 +19,54 @@
 		});
 	}
 
+	// Mirrors matchesSearch (internal/webui/handlers/dashboard_handlers.go): case-insensitive
+	// substring match against the same alert fields plus labels.
+	function matchesSearch(alert, search) {
+		if (!search) {
+			return true;
+		}
+		const searchLower = String(search).toLowerCase();
+		const fields = [alert.alertName, alert.instance, alert.summary, alert.team, alert.source];
+		if (fields.some((f) => String(f || "").toLowerCase().includes(searchLower))) {
+			return true;
+		}
+		const labels = alert.labels || {};
+		return Object.keys(labels).some(function (key) {
+			return key.toLowerCase().includes(searchLower) || String(labels[key] || "").toLowerCase().includes(searchLower);
+		});
+	}
+
+	// Mirrors alertMatchesHiddenRule (internal/webui/templates/scripts/dashboard_data.templ).
+	function matchesHiddenRule(alert, rule) {
+		if (!rule || !rule.is_enabled) {
+			return false;
+		}
+		const labelValue = (alert.labels || {})[rule.label_key];
+		if (labelValue === undefined) {
+			return false;
+		}
+		if (rule.is_regex) {
+			if (rule.label_value === "") {
+				return false;
+			}
+			try {
+				return new RegExp(rule.label_value).test(labelValue);
+			} catch (e) {
+				return false;
+			}
+		}
+		return rule.label_value === "" || rule.label_value === labelValue;
+	}
+
+	function isHidden(alert, filterData) {
+		const hiddenAlerts = filterData.hidden_alerts || [];
+		if (hiddenAlerts.some((h) => h.fingerprint === alert.fingerprint)) {
+			return true;
+		}
+		const hiddenRules = filterData.hidden_rules || [];
+		return hiddenRules.some((rule) => matchesHiddenRule(alert, rule));
+	}
+
 	// filterData is a preset's filter_data (or null/undefined for "All alerts", which always matches).
 	function matchesNotificationFilterPreset(alert, filterData) {
 		if (!filterData) {
@@ -41,6 +89,12 @@
 			if (!filterData.alert_names.includes(alert.alertName)) {
 				return false;
 			}
+		}
+		if (!matchesSearch(alert, filterData.search)) {
+			return false;
+		}
+		if (isHidden(alert, filterData)) {
+			return false;
 		}
 
 		return true;

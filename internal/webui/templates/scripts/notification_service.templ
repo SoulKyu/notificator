@@ -115,10 +115,14 @@ templ NotificationService() {
 			// No dedicated single-preset endpoint exists, so the full list is fetched and
 			// filtered client-side, same as the filter presets modal.
 			async loadFilterPresetData() {
-				this.notificationFilterData = null;
 				if (!this.preferences.notificationFilterPresetId) {
+					this.notificationFilterData = null;
 					return;
 				}
+
+				// Keep the previous filter_data on a transient failure so a backend
+				// hiccup can't silently widen notification scope to "All alerts".
+				const previousFilterData = this.notificationFilterData;
 
 				try {
 					const response = await fetch('/api/v1/dashboard/filter-presets?include_shared=true', {
@@ -127,10 +131,12 @@ templ NotificationService() {
 					if (!response.ok) {
 						// Transient failure: keep the saved preset id and retry on the next
 						// load rather than treating a backend hiccup as "preset deleted".
+						this.notificationFilterData = previousFilterData;
 						return;
 					}
 					const result = await response.json();
 					if (!result.success) {
+						this.notificationFilterData = previousFilterData;
 						return;
 					}
 					const preset = (result.presets || []).find(p => p.id === this.preferences.notificationFilterPresetId);
@@ -140,6 +146,7 @@ templ NotificationService() {
 					}
 				} catch (error) {
 					console.error('Failed to load notification filter preset:', error);
+					this.notificationFilterData = previousFilterData;
 					return;
 				}
 
