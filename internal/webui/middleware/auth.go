@@ -37,6 +37,12 @@ func (am *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		// Validate session with backend
 		user, err := am.backendClient.ValidateSession(sessionID)
 		if err != nil {
+			if client.IsUnavailableError(err) {
+				// Backend is unreachable, not a bad session - keep the session intact
+				c.JSON(http.StatusServiceUnavailable, models.ErrorResponse("Authentication service unavailable"))
+				c.Abort()
+				return
+			}
 			// Session is invalid, clear it
 			ClearSession(c)
 			c.JSON(http.StatusUnauthorized, models.ErrorResponse("Invalid or expired session"))
@@ -66,6 +72,8 @@ func (am *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 			if err == nil && user != nil {
 				c.Set("user", user)
 				c.Set("session_id", sessionID)
+			} else if err != nil && client.IsUnavailableError(err) {
+				// Backend is unreachable, not a bad session - keep the session intact
 			} else {
 				// Clear invalid session
 				ClearSession(c)
@@ -93,6 +101,12 @@ func (am *AuthMiddleware) RedirectIfNotAuth(redirectTo string) gin.HandlerFunc {
 		// Validate session with backend
 		user, err := am.backendClient.ValidateSession(sessionID)
 		if err != nil {
+			if client.IsUnavailableError(err) {
+				// Backend is unreachable, not a bad session - keep the session intact
+				c.String(http.StatusServiceUnavailable, "Service temporarily unavailable")
+				c.Abort()
+				return
+			}
 			// Session is invalid, clear it and redirect
 			ClearSession(c)
 			c.Redirect(http.StatusFound, redirectTo)
@@ -123,6 +137,10 @@ func (am *AuthMiddleware) RedirectIfAuth(redirectTo string) gin.HandlerFunc {
 				// User is already authenticated, redirect away
 				c.Redirect(http.StatusFound, redirectTo)
 				c.Abort()
+				return
+			} else if client.IsUnavailableError(err) {
+				// Backend is unreachable, not a bad session - keep the session intact
+				c.Next()
 				return
 			} else {
 				// Clear invalid session

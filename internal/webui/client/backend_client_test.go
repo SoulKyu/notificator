@@ -2,11 +2,14 @@ package client
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	alertpb "notificator/internal/backend/proto/alert"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // fakeAlertClient embeds the real interface (nil) so it satisfies
@@ -90,5 +93,27 @@ func TestDeleteComment_Success(t *testing.T) {
 	c := &BackendClient{alertClient: &fakeAlertClient{success: true}}
 	if err := c.DeleteComment("session", "comment-id"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestIsUnavailableError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"unavailable", status.Error(codes.Unavailable, "backend down"), true},
+		{"deadline exceeded", status.Error(codes.DeadlineExceeded, "timeout"), true},
+		{"invalid session (plain error)", errors.New("invalid session"), false},
+		{"unauthenticated grpc status", status.Error(codes.Unauthenticated, "invalid session"), false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsUnavailableError(tc.err); got != tc.want {
+				t.Errorf("IsUnavailableError(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
 	}
 }
