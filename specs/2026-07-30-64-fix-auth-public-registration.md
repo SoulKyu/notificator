@@ -9,7 +9,7 @@
 Self-service account creation cannot be turned off, and the only check meant to
 suppress it on OAuth-only deployments fails open.
 
-`AuthServiceGorm.Register` (`internal/backend/services/services.go:44-92`) validates
+`AuthServiceGorm.Register` (`internal/backend/services/services.go:44-93`) validates
 only that `username`/`password` are present and the password is ≥ 4 characters
 (`:52`), then creates the user unconditionally. `AuthServiceGorm.Login`
 (`services.go:96`) has no gate at all. Neither method knows about
@@ -94,9 +94,21 @@ is no gate at all, by construction — nothing to fail open from.
   this issue, which is about *whether* registration happens, not password strength.
 - No general-purpose config cache framework — the WebUI-side cache is a single
   package-level TTL cache for this one RPC result, not a reusable abstraction.
-- No admin-bootstrap/seeding mechanism. `CreateUser` is only ever called from
-  `Register` (`services.go:79`); there is no other way to create a user today. This
-  issue does not add one — see the deployment-order risk under Risks & trade-offs.
+- No admin-bootstrap/seeding mechanism for *password* accounts. `db.CreateUser` has
+  exactly one production caller, `Register` (`services.go:79`); there is no CLI or admin
+  path that creates one. This issue does not add one — see the deployment-order risk
+  under Risks & trade-offs.
+- **`allow_registration` does not gate OAuth just-in-time account provisioning.** The
+  other way a brand-new user row appears today is `OAuthCallback` (`services.go:1664`)
+  → `OAuthService.CreateOrUpdateOAuthUser` (`oauth_service.go:526`) →
+  `db.CreateOAuthUser` (`internal/backend/database/oauth_db.go:16`), which creates an
+  account on a first successful OAuth login (`oauth_service.go:544-549`). That path is
+  deliberately left alone: it is the normal way users arrive on an SSO deployment, and
+  gating it on `allow_registration` would break OAuth login for every new person rather
+  than close a sign-up form. `allow_registration` means "username/password self-service
+  sign-up", and the docs (step 6) must say so in those words. Restricting *who* may get
+  an account on an OAuth deployment is the OAuth provider's/config's job, not this
+  flag's.
 
 ## Approach
 
@@ -131,20 +143,73 @@ can't drift from what `Register` will actually decide.
 
 ### 2. Config: `backend.allow_registration`
 
-`config/config.go`:
-- `BackendConfig` (line 58) gains `AllowRegistration bool \`json:"allow_registration"\``.
+**Read this section before writing the code — the obvious recipe (struct tag +
+`SetDefault` + `BindEnv`) produces a permanently dead flag in this repo.** Two earlier
+revisions of this spec prescribed exactly that and were wrong; the mechanism is
+described here so the implementer doesn't rediscover it in production.
+
+Why: `LoadConfigWithViper` (`config/config.go:272`) populates the struct with
+`viper.Unmarshal(cfg)` (`:278`), which decodes through mapstructure. Every struct in
+`config/config.go` carries **`json` tags only — there is not a single `mapstructure`
+tag in the package** (`grep -rn mapstructure --include='*.go' .` matches only
+`config/oauth_config.go`). With no `mapstructure` tag, mapstructure falls back to
+case-insensitive *field-name* matching, so the viper key `allow_registration` never
+matches the field `AllowRegistration`: the underscore has no counterpart in the field
+name. Single-word keys (`enabled`) match and work; every snake_case key silently does
+not. Reproduced against this branch with the repo's own loader, on an existing field of
+exactly the shape this section would have added (`resolved_alerts.retention_days`,
+`SetDefault` at `:543`, `BindEnv` at `:650`, no post-`Unmarshal` read):
+
+```
+NOTIFICATOR_RESOLVED_ALERTS_RETENTION_DAYS=7
+viper.GetInt("resolved_alerts.retention_days") = 7    <- viper has the env value
+cfg.ResolvedAlerts.RetentionDays               = 90   <- struct kept the default
+viper.GetBool("resolved_alerts.enabled")       = true <- control: single word
+cfg.ResolvedAlerts.Enabled                     = true <- control: maps fine
+```
+
+`BindEnv` is necessary (this file uses no `viper.AutomaticEnv()`, so every env var
+needs an explicit binding) but **not sufficient**: it only makes the value visible to
+`viper.Get*`, never to the unmarshalled struct. The repo already works around this
+everywhere it matters — `cmd/backend.go:52` reads `viper.GetString("backend.database.type")`
+instead of trusting `cfg.Backend.Database.Type`, and the Sentry/Admin blocks are
+assigned post-`Unmarshal` (`config/config.go:341-375`).
+
+So `config/config.go` gets **five** changes, and the fifth is the load-bearing one:
+
+- `BackendConfig` (line 58) gains `AllowRegistration bool \`json:"allow_registration"\``
+  — `json` only, matching every other field in the file.
 - Default `true` in `DefaultConfig()`'s `Backend: BackendConfig{...}` literal (line
   208), next to the existing `Enabled`/`GRPCListen`/etc. fields — `true` keeps every
   existing deployment working unchanged.
-- `viper.SetDefault("backend.allow_registration", cfg.Backend.AllowRegistration)` next
-  to the other `backend.*` defaults (line 443-446).
+- `viper.SetDefault("backend.allow_registration", cfg.Backend.AllowRegistration)` in
+  `setViperDefaults` (`:439`), next to the other `backend.*` defaults (lines 443-446).
 - `viper.BindEnv("backend.allow_registration", "NOTIFICATOR_BACKEND_ALLOW_REGISTRATION")`
-  next to the other explicit `backend.*` bindings (line 633-639 — currently only the
-  `backend.database.*` sub-fields are bound there; `backend.enabled` itself has no
-  `BindEnv` either, which is a pre-existing gap, out of scope here, but proof that this
-  file needs an explicit line per field). This file binds every env var explicitly (no
-  `viper.AutomaticEnv()`), so a new field needs its own `BindEnv` line or it silently
-  won't read from the environment.
+  next to the other explicit `backend.*` bindings (lines 633-639 — currently only the
+  `backend.database.*` sub-fields are bound there).
+- **Post-`Unmarshal` read, inside `LoadConfigWithViper`, after `viper.Unmarshal(cfg)`
+  (`:278`) and alongside the existing post-`Unmarshal` overrides (`:341-375`), before
+  `return cfg, nil` (`:436`):**
+  ```go
+  // viper.Unmarshal cannot map snake_case keys onto CamelCase fields here (no
+  // mapstructure tags in this package), so read the bound value explicitly.
+  cfg.Backend.AllowRegistration = viper.GetBool("backend.allow_registration")
+  ```
+  `viper.GetBool` resolves in the usual precedence order — env var (via `BindEnv`),
+  config file, then `SetDefault` — so the `true` default still applies when nothing is
+  set, and an operator can also set it from `config.json` under `backend`, not just
+  from the environment.
+
+Rejected alternative: adding `mapstructure:"allow_registration"` to the new field.
+That should also make `Unmarshal` map it (not verified here, unlike the probe above),
+but it would be the only mapstructure tag in `config/config.go`, leaving a file where
+some snake_case fields load from config and the identical-looking ones next to them
+don't. Fixing that for the whole package is a separate change, out of scope here.
+
+Whichever way it is implemented, it must be verified by a test that goes through
+`config.LoadConfigWithViper()` — see Validation. Unit tests that construct
+`AuthServiceGorm` with `allowRegistration` passed directly cannot catch this class of
+bug, because they never touch config loading.
 
 ### 3. Backend: `AuthServiceGorm` becomes the authoritative gate
 
@@ -243,8 +308,10 @@ unconditionally, not to short-circuit on `enabled`.
 
 Rework `getOAuthConfig` around a small package-level cache holding the last
 successful `*pages.OAuthConfig` (now including `RegistrationAllowed`) plus a fetch
-timestamp and a mutex, TTL ~15-30s (shorter than the RPC's own 10s deadline, long
-enough to absorb one restart/blip):
+timestamp and a mutex, TTL ~15-30s — long enough that a slow or restarting backend
+can't make every login page pay the RPC's own 10s deadline (`backend_client.go:934`),
+short enough that flipping `allow_registration` or an OAuth setting shows up in the UI
+within half a minute:
 ```go
 var (
     oauthConfigMu    sync.RWMutex
@@ -349,9 +416,10 @@ that redirects away from it — all four must key off `RegistrationAllowed`, not
 
 - `ENVIRONMENT_VARIABLES.md`: add `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION` under
   "### Server Settings" (next to `NOTIFICATOR_BACKEND_ENABLED` at line 22), documented
-  as "Allow new user self-registration via username/password (default: true). Set to
-  `false` only after the accounts you need already exist — there is no other way to
-  create a user." (see the deployment-order risk below).
+  as "Allow username/password self-registration (default: `true`). Does not affect
+  OAuth — a first OAuth login still provisions an account. On a deployment without
+  OAuth, set this to `false` only after the accounts you need already exist: there is
+  no other way to create a password account." (see the deployment-order risk below).
 - `charts/notificator-app/values.yaml`: add a commented example under the backend
   `env:` block (lines 53-57, next to the `NOTIFICATOR_BACKEND_*` examples):
   `# NOTIFICATOR_BACKEND_ALLOW_REGISTRATION: "false"`.
@@ -362,10 +430,14 @@ that redirects away from it — all four must key off `RegistrationAllowed`, not
   `internal/backend/proto/auth/auth_grpc.pb.go` via `make proto`. **Not** the orphaned
   `proto/auth.pb.go` / `proto/auth_grpc.pb.go` — see step 1, they're unused and `make
   proto` doesn't write them.
-- `config/config.go` — `BackendConfig.AllowRegistration`, default, `BindEnv`.
+- `config/config.go` — `BackendConfig.AllowRegistration`, default, `SetDefault`,
+  `BindEnv`, **and the post-`Unmarshal` `viper.GetBool` read** (step 2 — without that
+  last one the flag is dead).
+- `config/config_test.go` (new) — env-var round-trip test through
+  `LoadConfigWithViper`, below.
 - `internal/backend/services/services.go` — `NewAuthServiceGorm`, `classicAuthDisabled`,
   `Register`, `Login`, `GetOAuthConfig`.
-- `internal/backend/services/services_test.go` (new or existing) — unit tests below.
+- `internal/backend/services/services_test.go` (existing) — unit tests below.
 - `internal/backend/server.go` — updated `NewAuthServiceGorm` call.
 - `internal/backend/services/update_timezone_test.go` and
   `internal/backend/services/auth_impersonation_test.go` — updated test helper calls
@@ -406,23 +478,50 @@ that redirects away from it — all four must key off `RegistrationAllowed`, not
   hit the DB or network).
 - **`make proto` requires `protoc` + the Go plugins to be installed locally**, same
   precondition as any other proto change in this repo — not new to this issue.
-- **Deployment-order lockout**: `CreateUser` is only ever called from `Register`
-  (`services.go:79`) — there is no admin-seeding or CLI bootstrap path anywhere in the
-  codebase. A fresh, non-OAuth deployment started with
-  `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION=false` from day one can never create its
-  first account: registration is closed and no user exists to log in as. This is not
-  new risk introduced by this change (today nothing can close registration at all, so
-  the failure mode didn't exist), but shipping the flag makes it reachable. Not fixing
-  it here (no invite/approval workflow is in scope — see Non-goals); operators must
-  register at least one account (or flip the flag to `true` temporarily) before
-  enabling `allow_registration=false`. Document this explicitly in
-  `ENVIRONMENT_VARIABLES.md` next to the new variable, e.g. "set this only after the
-  accounts you need already exist."
+- **Deployment-order lockout, on non-OAuth deployments only.** There are exactly two
+  ways a user row is created today: `Register` → `db.CreateUser` (`services.go:79`),
+  and `OAuthCallback` (`services.go:1664`) → `CreateOrUpdateOAuthUser`
+  (`oauth_service.go:526`) → `db.CreateOAuthUser` (`oauth_db.go:16`) on first OAuth
+  login. There is no admin-seeding or CLI bootstrap path. So a fresh deployment started
+  with `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION=false` **and OAuth off** can never create
+  its first account: registration is closed and no user exists to log in as. With OAuth
+  configured the lockout does not exist — the first OAuth login provisions the account
+  (see Non-goals: the flag does not gate that path). This is not new risk introduced by
+  this change (today nothing can close registration at all, so the failure mode didn't
+  exist), but shipping the flag makes it reachable. Not fixing it here (no
+  invite/approval workflow is in scope — see Non-goals); operators on a non-OAuth
+  deployment must register at least one account (or flip the flag to `true`
+  temporarily) before enabling `allow_registration=false`. Document this explicitly in
+  `ENVIRONMENT_VARIABLES.md` next to the new variable.
+- **`allow_registration=false` is not "no new accounts" on an OAuth deployment.** It
+  closes the username/password sign-up form and the `Register` RPC; OAuth first-login
+  provisioning keeps creating accounts. This is the intended scope (see Non-goals), and
+  the trade-off is that an operator could read the flag name as broader than it is —
+  which is why the doc string in step 6 names the OAuth exception rather than just
+  saying "allow new user self-registration".
+- **Cold-start fail-closed renders a dead-end `/login`.** With no cached config yet and
+  the backend unreachable, `failClosedOAuthConfig()` yields `Enabled: false,
+  DisableClassicAuth: true, RegistrationAllowed: false`, so `/login` shows no password
+  form, no OAuth buttons, and `Login.templ:104`'s "use one of the OAuth providers above"
+  message with none above. That is the intended meaning of fail-closed — during that
+  window no login could succeed anyway — but the copy is misleading; if it matters,
+  soften that message when `len(Providers) == 0`. Not required by this issue.
 
 ## Validation
 
 - `go build ./...` and `make webui-templates && go build ./...` both pass after the
   proto regen and templ regen.
+- **New Go test in `config/config_test.go` — the one that catches the dead-flag failure
+  mode of step 2, and the only test here that exercises config loading at all:**
+  - `t.Setenv("NOTIFICATOR_BACKEND_ALLOW_REGISTRATION", "false")`, then
+    `cfg, err := LoadConfigWithViper()`; assert `cfg.Backend.AllowRegistration == false`.
+    Asserting on `viper.GetBool("backend.allow_registration")` instead would pass even
+    with the bug — the assertion must be on the **struct field**, since that is what
+    `server.go:130` passes to `NewAuthServiceGorm`.
+  - Same call with the env var unset: assert `cfg.Backend.AllowRegistration == true`
+    (the `SetDefault` path).
+  - Note `LoadConfigWithViper` uses the global viper instance, so these two cases must
+    not run in parallel with each other or with other config tests.
 - New/updated Go tests in `internal/backend/services/services_test.go`:
   - `Register` rejects when `oauthService` config has `Enabled: true,
     DisableClassicAuth: true` — no user row created (`db.GetUserByUsername` still
@@ -460,7 +559,10 @@ that redirects away from it — all four must key off `RegistrationAllowed`, not
   4. `OAUTH_ENABLED=false`, `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION=false`: registration
      is rejected with a clear message, existing users can still log in. Confirm this on
      both the repo's default landing page (`/`, `PlaygroundPage` when
-     `cfg.WebUI.Playground=true`) and with `WebUI.Playground=false` (`IndexPage`).
+     `cfg.WebUI.Playground=true`) and with `WebUI.Playground=false` (`IndexPage`). This
+     is the end-to-end check for the step-2 config plumbing — if `Register` still
+     succeeds here while the env var is set, the post-`Unmarshal` read is missing and
+     the flag never reached the service.
   5. `/login`, `/` (both `PlaygroundPage` and `IndexPage` variants), do not render
      "Register"/"Create an account" in any of the above disabled states, and do render
      it when both gates are open. This is the regression check for `Login.templ:189`,
@@ -469,4 +571,8 @@ that redirects away from it — all four must key off `RegistrationAllowed`, not
      `/register` all render without panicking and without a 500 — regression check for
      the `getOAuthConfig` nil-on-OAuth-disabled bug fixed in step 4.
   7. `ENVIRONMENT_VARIABLES.md` and `charts/notificator-app/values.yaml` document the
-     new variable.
+     new variable, including that it does not gate OAuth first-login provisioning.
+  8. `OAUTH_ENABLED=true` with `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION=false`: a
+     first-time OAuth login still provisions its account (`✅ Created new OAuth user` in
+     the backend log, `oauth_service.go:549`) — the flag must not break SSO onboarding.
+     This is the scope decision from Non-goals, verified rather than assumed.
