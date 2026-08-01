@@ -128,10 +128,31 @@ matcher to be "a pure function so it is unit-testable", so:
 
 ### Frontend state + UI
 
+- `internal/webui/templates/scripts/notification_service.templ` is the
+  actual source of truth for `this.preferences` (`shouldNotify()` at `:240`
+  reads off it directly) and must gain `notificationFilterPresetId` first:
+  - `loadPreferences()` (`:84`-`:105`) reconstructs `this.preferences` from
+    an explicit field allowlist — add
+    `notificationFilterPresetId: result.data.notification_filter_preset_id || null`
+    to it, or the field is silently dropped on every page load/reload
+    (breaks Goal 4).
+  - `savePreferences(preferences)` (`:108`-`:136`) POSTs an explicit-allowlist
+    body — add `notification_filter_preset_id: preferences.notificationFilterPresetId`
+    to it. Without this, `dashboard_core.templ`'s `enableNotifications()`
+    (`:600`-`:616`, the "Enable Notifications" banner) calls `savePreferences`
+    with `window.notificationService.preferences` as-is and would silently
+    reset an already-configured preset scope back to "All alerts" as a
+    side effect of granting browser permission.
 - `internal/webui/templates/scripts/dashboard_settings.templ`:
-  - `loadNotificationPreferences()` (`:890`) and `saveNotificationPreferences()`
-    (`:924`) gain `notificationFilterPresetId`, mirroring how
-    `enabledSeverities` is already read/written.
+  - `loadNotificationPreferences()` (`:890`) copies from
+    `window.notificationService.preferences` (documented as the "Single
+    source of truth") rather than fetching independently — once
+    `notification_service.templ`'s `loadPreferences()` carries the field
+    (above), add `notificationFilterPresetId` to both the primary copy and
+    the fallback-fetch branch here, mirroring how `enabledSeverities` is
+    already read.
+  - `saveNotificationPreferences()` (`:924`) gains `notificationFilterPresetId`
+    in its POST body, same as `enabledSeverities`.
   - New `loadNotificationPresetFilterData()`: fetch
     `GET /api/v1/dashboard/filter-presets?include_shared=true` (already
     exists, used today by `dashboard_filter_presets.templ:79`) once when the
@@ -142,6 +163,14 @@ matcher to be "a pure function so it is unit-testable", so:
   - If the previously-saved `notificationFilterPresetId` isn't present in
     the fetched list (deleted preset), reset to `null`/`All alerts` client-side
     (Goal 5) and let the next save persist that fallback.
+  - Cache-gap on plain reload: `filter_data` is only fetched when the
+    Notifications settings tab is opened, but `notificationFilterPresetId`
+    is available as soon as preferences load (page init). Between reload and
+    first tab-open in that session, `shouldNotify()` has a preset ID but no
+    cached `filter_data` for it — treat this as unscoped (skip the preset
+    check, fall through to the severity gate only) rather than failing
+    closed, since failing closed would silently suppress all notifications
+    with no user-visible cause.
 - `internal/webui/templates/components/notification_settings.templ`: add
   the preset `<select>` (Alpine `x-model="notificationPreferences.notificationFilterPresetId"`,
   options from the loaded preset list, first option "All alerts" = empty
