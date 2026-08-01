@@ -141,17 +141,27 @@ alert instead of counting key occurrence.
 
 ### Frontend: Related tab, following the Comments/History tab pattern
 
-**`internal/webui/templates/components/alert_modal_shared.templ`**: add a `Related`
-`AlertModalTabButton` next to `history` (around `alert_modal_shared.templ:695`), and a
-`x-show="currentTab === 'related'"` panel next to the History panel (around
-`alert_modal_shared.templ:756`) rendering the group list — each group is a
-disclosure/accordion header (`label=value (N firing)`) that expands to a compact alert
-list (name, severity badge, instance, age), reusing `AlertModalSeverityBadge` and
+**`internal/webui/templates/components/modal_components.templ`** (the `AlertDetailsModal`
+template used by the live dashboard modal): add a `Related` `AlertModalTabButton` next to
+`history`, alongside the existing `@AlertModalTabButton(..., "currentAlertTab", ...)` calls
+(`modal_components.templ:1120-1125`), and a `x-show="currentAlertTab === 'related'"` panel
+next to the History panel (`modal_components.templ:1662`) rendering the group list — each
+group is a disclosure/accordion header (`label=value (N firing)`) that expands to a compact
+alert list (name, severity badge, instance, age), reusing `AlertModalSeverityBadge` and
 `formatDuration` already used elsewhere in the modal. New template functions go in
-`alert_modal_shared.templ` beside the existing `AlertModalHistoryTable`
-(`alert_modal_shared.templ:375`) and `AlertModalCommentsReadonly`
+`internal/webui/templates/components/alert_modal_shared.templ` beside the existing
+`AlertModalHistoryTable` (`alert_modal_shared.templ:375`) and `AlertModalCommentsReadonly`
 (`alert_modal_shared.templ:454`) — same file, same declaration style, so they pick up
-the file's existing dark-mode/Tailwind conventions instead of inventing new ones.
+the file's existing dark-mode/Tailwind conventions instead of inventing new ones — and are
+called from `modal_components.templ` using `currentAlertTab`, matching the tab buttons
+above.
+
+Note: the read-only Statistics/resolved-alerts modal (`AlertModalReadonly` in
+`alert_modal_shared.templ`, `x-data="{ currentTab: 'overview' }"` at
+`alert_modal_shared.templ:604`, tab buttons at `alert_modal_shared.templ:686-698`) has its
+own separate tab scaffolding and no live `dashboardModalMixin` state to call
+`loadRelatedAlerts` from. It is out of scope for this spec; adding a Related tab there, if
+wanted, is a separate follow-up.
 
 **`internal/webui/templates/scripts/dashboard_modal.templ`**: unlike History, which
 `showAlertDetails` loads eagerly right after the alert details fetch
