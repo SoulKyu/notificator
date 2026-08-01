@@ -60,6 +60,9 @@ TIMER_OF = {
     "cleaner": "notificator-cleaner.timer",
 }
 LOG_PREFIX_OF = {"rebaser": "rebase"}  # desks whose log files are not named after their ROSTER key
+ROSTER_KEYS = {k for k, _, _, _ in ROSTER}
+REV_LOG_PREFIX = {v: k for k, v in LOG_PREFIX_OF.items()}  # "rebase" -> "rebaser"
+LOG_NAME_RE = re.compile(r"^(.+)-(\d{8}T\d{6})\.log$")  # "<prefix>-<start ts>.log"
 SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
 SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
 ZOOM_TAIL = 15
@@ -88,10 +91,28 @@ def pr_stale_h(v):
 
 PR_STALE_H = pr_stale_h(os.environ.get("FACTORY_PR_STALE_H"))
 
+
+def timeline_hours(v):
+    """FACTORY_TIMELINE_H in hours, same junk-knob contract as stall_min()."""
+    try:
+        return max(1, int(v or 6))
+    except ValueError:
+        return 6
+
+
+TIMELINE_H = timeline_hours(os.environ.get("FACTORY_TIMELINE_H"))
+
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
-         "ps_ok": True, "conveyor": None}
+         "ps_ok": True, "conveyor": None, "shifts": []}
 PENDING_MAX = 5
+TIMELINE_ROWS = len(ROSTER)  # never actually a cap: every roster key appears at most once in
+                   # shift_rows(), so this only bounds the formulas below without ever truncating
+                   # a real roster. A row-count cap here (e.g. 5, ALARM_ROWS-style) hides agents
+                   # in the tail of ROSTER (rebaser, docagent, …) with no way to name them — the
+                   # panel exists to answer "did X run", so it must never make that unanswerable.
+                   # timeline_fits() is the only thing allowed to hide the panel, and only when
+                   # desk_cap()'s len(ROSTER) floor would otherwise evict the wall board/radio.
 LOCK = threading.Lock()
 
 # one-shot animations, consumed by the render loop (render-side state only)
@@ -292,6 +313,38 @@ def alarms(now=None):
     return out
 
 
+def agent_of_log(prefix):
+    """Log filename prefix (before `-<start ts>.log`) -> ROSTER key, or None. A trailing
+    numeric segment is a run/issue id, not part of the agent name (`qa-131` -> `qa`)."""
+    prefix = re.sub(r"-\d+$", "", prefix)
+    key = REV_LOG_PREFIX.get(prefix, prefix)
+    return key if key in ROSTER_KEYS else None
+
+
+def compute_shifts(entries, now, window_hours=TIMELINE_H, cols=60):
+    """[(agent key, run start epoch, run end epoch)] -> {key: bar string of `cols` chars,
+    "░" idle / "▓" ran}, one entry per key with at least one run in the window. Pure and
+    filesystem-free so --check can assert on it directly.
+
+    A run shorter than one slot still marks exactly one slot (range() is inclusive of
+    both ends), so a fast agent is never invisible on a wide window.
+    """
+    win_start = now - window_hours * 3600
+    slot = window_hours * 3600 / cols
+    bars = {}
+    for key, start, end in entries:
+        end = max(start, min(end, now))
+        start = max(start, win_start)
+        if end < win_start or start > now:
+            continue
+        bar = bars.setdefault(key, ["░"] * cols)
+        i0 = max(0, min(cols - 1, int((start - win_start) / slot)))
+        i1 = max(i0, min(cols - 1, int((end - win_start) / slot)))
+        for i in range(i0, i1 + 1):
+            bar[i] = "▓"
+    return {k: "".join(v) for k, v in bars.items()}
+
+
 def poll_med():
     timers = {}
     out = sh("systemctl --user list-timers 'notificator-*' --all --no-pager --plain 2>/dev/null")
@@ -300,13 +353,28 @@ def poll_med():
         if m:
             timers[m.group(3)] = m.group(2).strip()
     try:
-        logs = sorted((os.path.join(LOG_DIR, f) for f in os.listdir(LOG_DIR)), key=os.path.getmtime)
+        names = os.listdir(LOG_DIR)
+        logs = sorted((os.path.join(LOG_DIR, f) for f in names), key=os.path.getmtime)
         if logs:
             tail = open(logs[-1], errors="replace").read().strip().splitlines()
             name = os.path.basename(logs[-1]).rsplit("-", 1)[0]
             line = next((l for l in reversed(tail) if l.strip() and "LOOPER_RESULT" not in l), "")
             with LOCK:
                 STATE["ticker"] = f"[{name}] {line.strip()[:200]}"
+        shifts = []
+        for f in names:
+            m = LOG_NAME_RE.match(f)
+            if not m:
+                continue
+            key = agent_of_log(m.group(1))
+            if key is None:
+                continue
+            # local time, like systemd_ts(): `TS="$(date +%Y%m%dT%H%M%S)"` in the agent
+            # runner scripts has no `-u`, so the filename is wall-clock, not UTC
+            start = time.mktime(time.strptime(m.group(2), "%Y%m%dT%H%M%S"))
+            shifts.append((key, start, os.path.getmtime(os.path.join(LOG_DIR, f))))
+        with LOCK:
+            STATE["shifts"] = shifts
     except Exception:
         pass
     # agent-to-agent mail: pending inboxes + recent task events (events.jsonl)
@@ -898,9 +966,19 @@ def panel_snapshot():
         p = {"prs": list(STATE["prs"]), "issues": STATE["issues"], "ticker": STATE["ticker"],
              "err": STATE["err"], "intercom": list(STATE["intercom"]),
              "score": STATE["score"], "pending": list(STATE["pending"]),
-             "conveyor": list(conveyor) if isinstance(conveyor, list) else conveyor}
+             "conveyor": list(conveyor) if isinstance(conveyor, list) else conveyor,
+             "shift_entries": list(STATE["shifts"])}
     p["alarms"] = alarms()  # outside the `with`: alarms() takes LOCK itself and it is not reentrant
+    p["shift_now"] = time.time()
     return p
+
+
+def shift_rows(p, cols):
+    """ROSTER-ordered [(key, emoji, name, bar)] for the panel_snapshot's shift window, at `cols`
+    resolution. The set of agents shown never depends on `cols` (only which slot a run lands in
+    does), so desk_cap's row budget and this row list always agree."""
+    bars = compute_shifts(p["shift_entries"], p["shift_now"], TIMELINE_H, cols)
+    return [(key, emoji, name, bars[key]) for key, emoji, name, _ in ROSTER if key in bars]
 
 
 def alarm_shown(alrm):
@@ -910,11 +988,36 @@ def alarm_shown(alrm):
     return ALARM_ROWS if len(alrm) > ALARM_ROWS + 1 else len(alrm)
 
 
-def panel_rows(p):
+def desk_floor_rows(per_row):
+    """Desk-grid rows that can never shrink away: build_desks()/desk_cap() both floor the grid at
+    one desk per ROSTER role (`the roster itself is never trimmed`), so this many rows are always
+    drawn no matter how tall the panel stack below them wants to be."""
+    return -(-len(ROSTER) // per_row) * 8
+
+
+def timeline_fits(p, h, per_row):
+    """Would drawing the TIMELINE panel still leave room for every other panel and the always-on
+    wall board/radio at this terminal size? TIMELINE is the newest, least essential panel, so it
+    hides itself rather than let desk_cap()'s len(ROSTER) floor evict what must stay on screen —
+    the same rule panel_rows()/render_frame() already use for an empty shift window.
+    h/per_row unknown (older callers, --once mode, most of the self-check) → always fits."""
+    if h is None or per_row is None:
+        return True
+    n_shift = len(shift_rows(p, 1))
+    if not n_shift:
+        return True
+    shift_cost = 1 + min(n_shift, TIMELINE_ROWS) + (n_shift > TIMELINE_ROWS)
+    rest = panel_rows({**p, "shift_entries": []}, h, per_row)  # every other panel, TIMELINE excluded
+    return rest + shift_cost + desk_floor_rows(per_row) <= h - 1
+
+
+def panel_rows(p, h=None, per_row=None):
     """Non-office rows of the frame about to be drawn, from a panel_snapshot. Five of the six
     panels are conditional in render_frame, so a worst-case constant charges ~27 rows that are
     usually not drawn and pins the cap at len(ROSTER) below a 55-row terminal — the dynamic desks
-    would never appear."""
+    would never appear. TIMELINE is counted last, gated by timeline_fits(): unlike the other
+    panels it has no fixed budget slice of its own, so it must know the total everything else
+    (including the desk floor) already committed to before claiming its own rows."""
     n = 1 + 7 + 1 + 1  # title + wall board (header + issues + 5 conveyor lanes) + radio + bottom
     if p["intercom"]:
         n += 1 + len(p["intercom"])
@@ -927,6 +1030,9 @@ def panel_rows(p):
         n += 1 + min(len(p["pending"]), PENDING_MAX) + (len(p["pending"]) > PENDING_MAX)
     if p["err"]:
         n += 1
+    n_shift = len(shift_rows(p, 1))  # cols=1: cheapest resolution that still gets the row count right
+    if n_shift and timeline_fits(p, h, per_row):
+        n += 1 + min(n_shift, TIMELINE_ROWS) + (n_shift > TIMELINE_ROWS)
     return n
 
 
@@ -934,10 +1040,10 @@ def desk_cap(h, per_row, p):
     """Desks that still leave room for the panels below the office — an unbounded grid silently
     swallows the wall board and the radio. Budget is h-1: main_curses stops drawing at h-1, so
     on `h - panels` landing on a multiple of 8 an h-row frame loses its closing border."""
-    return max(len(ROSTER), max(1, (h - 1 - panel_rows(p)) // 8) * per_row)
+    return max(len(ROSTER), max(1, (h - 1 - panel_rows(p, h, per_row)) // 8) * per_row)
 
 
-def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False):
+def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False, h=None):
     desks = build_desks() if desks is None else desks
     rows = []
     t = time.strftime("%H:%M:%S")
@@ -984,6 +1090,17 @@ def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False)
                          + dpad(f"🧪 qa     {score['qa_ok']} ✓ · {score['qa_ko']} ✗", width - 4 - half) + " │", 5))
             star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
             rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
+    label_w = 10  # dwidth(emoji)=2 + space + 6-char name (the roster's longest) + space
+    cols = max(1, (width - 4) - label_w)
+    shifts = shift_rows(p, cols)
+    # nobody ran in the window → no panel, same rule as the scoreboard; doesn't fit this terminal
+    # (timeline_fits) → no panel either, so it can never be the reason the board/radio get cut
+    if shifts and timeline_fits(p, h, per_row):
+        rows.append(("│" + dpad(f" ═══ ⏱ TIMELINE {TIMELINE_H}h ", width - 2, fill="═") + "│", 0))
+        for key, emoji, name, bar in shifts[:TIMELINE_ROWS]:
+            rows.append(("│ " + dpad(dpad(f"{emoji} {name}", label_w) + bar, width - 4) + " │", 0))
+        if len(shifts) > TIMELINE_ROWS:  # capped: a full roster must not outgrow its own row budget
+            rows.append(("│ " + dpad(f"… +{len(shifts) - TIMELINE_ROWS} autres", width - 4) + " │", 0))
     alrm = p["alarms"]  # from the snapshot: an alarm raised mid-frame must not outgrow the budget
     if alrm:  # no alarm → no panel
         on = flash and tick % 2 == 0
@@ -1221,7 +1338,7 @@ def main_curses(scr):
                     note = send_summon(desks[zoom]["key"], msg)
         scr.erase()
         for y, (line, color) in enumerate(render_frame(tick, width, sel, desks, panels,
-                                                       flash=klaxon(tick))):
+                                                       flash=klaxon(tick), h=h)):
             if y >= h - 1:
                 break
             try:
@@ -1268,6 +1385,50 @@ def selfcheck():
     if (pr_stale_h("xh"), pr_stale_h(None), pr_stale_h("0"), pr_stale_h("6")) != (12, 12, 1, 6):
         print(f"FAIL pr_stale_h: junk knob must fall back, not crash: {pr_stale_h('xh')}")
         fails += 1
+    global TIMELINE_H
+    TIMELINE_H = 6  # pin the knob: shift_rows()/render_frame() both read it, fixtures assume 6
+    if (timeline_hours("2h"), timeline_hours(None), timeline_hours("0"), timeline_hours("6")) != (6, 6, 1, 6):
+        print(f"FAIL timeline_hours: junk knob must fall back, not crash: {timeline_hours('2h')}")
+        fails += 1
+    m = LOG_NAME_RE.match("qa-131-20260731T094720.log")
+    if not m or (m.group(1), m.group(2)) != ("qa-131", "20260731T094720"):
+        print(f"FAIL LOG_NAME_RE: {m}")
+        fails += 1
+    if (agent_of_log("qa-131"), agent_of_log("rebase-83"), agent_of_log("scout"), agent_of_log("nope")) \
+            != ("qa", "rebaser", "scout", None):
+        print("FAIL agent_of_log: run-id stripping or prefix remap broken")
+        fails += 1
+    t0 = calendar.timegm(time.strptime("2026-01-02T12:00:00", "%Y-%m-%dT%H:%M:%S"))
+    shift_entries = [
+        ("scout", t0 - 3 * 3600, t0 - 3 * 3600 + 60),  # 3h ago, run shorter than one slot
+        ("scout", t0 - 3600, t0 - 1800),                # 1h ago .. 30min ago
+        ("roast", t0 - 10 * 3600, t0 - 9 * 3600),       # entirely before the 6h window
+    ]
+    bars = compute_shifts(shift_entries, t0, 6, 12)
+    if bars != {"scout": "░░░░░░▓░░░▓▓"}:  # a run under one slot must still mark exactly one (never invisible)
+        print(f"FAIL compute_shifts: {bars}")
+        fails += 1
+    if compute_shifts([], t0, 6, 12) != {}:
+        print("FAIL compute_shifts: nothing in the window should be empty")
+        fails += 1
+    if "TIMELINE" in "\n".join(l for l, _ in render_frame(1, 92)):
+        print("FAIL timeline panel: rendered with no run in the window")
+        fails += 1
+    with LOCK:
+        STATE["shifts"] = [("scout", time.time() - 120, time.time() - 60)]
+    if [k for k, *_ in shift_rows(panel_snapshot(), 12)] != ["scout"]:
+        print(f"FAIL shift_rows: {shift_rows(panel_snapshot(), 12)}")
+        fails += 1
+    frame = render_frame(1, 92)
+    if "⏱ TIMELINE" not in "\n".join(l for l, _ in frame):
+        print("FAIL timeline panel: did not render for an agent with a run in the window")
+        fails += 1
+    for line, _ in frame:
+        if dwidth(line) != 92:
+            print(f"FAIL timeline row {dwidth(line)} cols: {line!r}")
+            fails += 1
+    with LOCK:
+        STATE["shifts"] = []
     for state in ("work", "break", "sleep", "error", "wait", "away"):
         for tick in range(8):
             inner, _ = person_cell(state, tick, 3, "s", "d")
@@ -1765,20 +1926,26 @@ def selfcheck():
         STATE["svc"] = {f"notificator-{u}": {"Id": f"notificator-{u}.service", "Result": "exit-code",
                                              "ExecMainStatus": "1", "ExecMainCode": "1"}
                         for u in ("scout", "qa", "rebaser", "promoter", "docagent", "reporter", "groomer")}
+        # …and the TIMELINE panel: a full roster running charges its 1 + TIMELINE_ROWS rows (every
+        # roster key, no tail — TIMELINE_ROWS == len(ROSTER)) too, or this sweep would never notice
+        # TIMELINE either fitting correctly alongside
+        # every other panel or (below the floor) hiding itself instead of evicting the board/radio
+        STATE["shifts"] = [(key, time.time() - 300, time.time() - 60) for key, _, _, _ in ROSTER]
     term_w = 120
     # sweep the heights: the budget boundary only shows up when (h - PANEL_ROWS) % 8 == 0,
     # so a single height silently passes an off-by-one that eats the closing border.
-    # 66 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 33 panel rows = 65 frame
-    # rows (33 = 5 conveyor lanes + every other panel), and main_curses draws h-1 of them. Below
-    # that no cap fits the panels, so nothing to assert.
+    # 66 is the floor's own limit at this worst-case panel_rows minus TIMELINE (desks pinned at
+    # len(ROSTER)); below that no cap fits even the other panels, so nothing to assert. TIMELINE
+    # itself only rejoins once term_h leaves it room too — timeline_fits() hides it until then.
     for term_h in range(66, 82):
+        per_row = grid_per_row(term_w)
         panels = panel_snapshot()
-        cap = desk_cap(term_h, grid_per_row(term_w), panels)
+        cap = desk_cap(term_h, per_row, panels)
         capped = build_desks(cap)
         if not len(ROSTER) <= len(capped) <= cap:
             print(f"FAIL desk cap: {len(capped)} desks (cap {cap}) at h={term_h}")
             fails += 1
-        frame = render_frame(3, term_w, sel=0, desks=capped, panels=panels)
+        frame = render_frame(3, term_w, sel=0, desks=capped, panels=panels, h=term_h)
         board = next((y for y, (l, _) in enumerate(frame) if "TABLEAU DU MUR" in l), None)
         if board is None or board >= term_h - 1:
             print(f"FAIL desk cap: wall board at row {board} of a {term_h}-row terminal")
@@ -1800,9 +1967,10 @@ def selfcheck():
     # the budget and the frame must come out of one read of STATE. Cap on an empty office, let a
     # poll fill every panel in the gap, then draw: re-reading STATE here would emit the 16 rows the
     # budget never granted and push the board past h-1, so the frame must honour the snapshot.
-    with LOCK:  # svc too: it feeds alarms(), and leaving it set makes the later poll fixtures order-dependent
+    with LOCK:  # svc/shifts too: they feed alarms()/TIMELINE, and leaving them set makes the later
+                # poll fixtures order-dependent
         STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
-        STATE["svc"] = {}
+        STATE["svc"], STATE["shifts"] = {}, []
     quiet, term_h = panel_snapshot(), 60
     capped = build_desks(desk_cap(term_h, grid_per_row(term_w), quiet))
     with LOCK:  # the poller lands between desk_cap() and render_frame()
@@ -1811,7 +1979,7 @@ def selfcheck():
         STATE["err"], STATE["score"] = "poll error", s
         STATE["svc"] = {"notificator-qa": {"Id": "notificator-qa.service", "Result": "exit-code",
                                            "ExecMainStatus": "1", "ExecMainCode": "1"}}
-    frame = render_frame(3, term_w, sel=0, desks=capped, panels=quiet)
+    frame = render_frame(3, term_w, sel=0, desks=capped, panels=quiet, h=term_h)
     if len(frame) > term_h - 1:
         print(f"FAIL panel snapshot: poll in the gap grew the frame to {len(frame)} rows at h={term_h}")
         fails += 1
