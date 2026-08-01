@@ -360,7 +360,8 @@ templ DashboardActions() {
 							alertName: this.currentSnoozeAlert.alertName,
 							instance: this.currentSnoozeAlert.instance,
 							reason: this.snoozeReason,
-							duration: this.snoozeDuration
+							duration: this.snoozeDuration,
+							timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 						})
 					});
 

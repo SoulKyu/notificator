@@ -13,9 +13,16 @@ import (
 
 // snoozeDurationToExpiresAt turns a duration picker value into an absolute
 // expiry, computed server-side to avoid client clock skew. An empty value (or
-// "forever") means no expiry.
-func snoozeDurationToExpiresAt(duration string) (*time.Time, error) {
-	now := time.Now()
+// "forever") means no expiry. tz is the user's IANA timezone (e.g. from the
+// browser), used so "tomorrow9am" lands at 9am in the user's local time
+// rather than the server's; an empty/invalid tz falls back to UTC, mirroring
+// validateTimezone in statistics_grpc_service.go.
+func snoozeDurationToExpiresAt(duration, tz string) (*time.Time, error) {
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
 	var t time.Time
 	switch duration {
 	case "", "forever":
@@ -28,7 +35,7 @@ func snoozeDurationToExpiresAt(duration string) (*time.Time, error) {
 		t = now.Add(8 * time.Hour)
 	case "tomorrow9am":
 		tomorrow := now.AddDate(0, 0, 1)
-		t = time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 9, 0, 0, 0, tomorrow.Location())
+		t = time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 9, 0, 0, 0, loc)
 	default:
 		return nil, fmt.Errorf("invalid snooze duration: %s", duration)
 	}
@@ -76,6 +83,9 @@ func HideAlert(c *gin.Context) {
 		Reason      string `json:"reason"`
 		// Duration is one of "1h", "4h", "8h", "tomorrow9am", "forever" (default).
 		Duration string `json:"duration"`
+		// Timezone is the user's IANA zone (e.g. from the browser), used to resolve
+		// "tomorrow9am" to the user's local time instead of the server's.
+		Timezone string `json:"timezone"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -83,7 +93,7 @@ func HideAlert(c *gin.Context) {
 		return
 	}
 
-	expiresAt, err := snoozeDurationToExpiresAt(request.Duration)
+	expiresAt, err := snoozeDurationToExpiresAt(request.Duration, request.Timezone)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse(err.Error()))
 		return
