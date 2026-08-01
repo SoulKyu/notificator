@@ -998,8 +998,8 @@ templ AlertDetailsModal() {
 
 								<!-- Alert Info -->
 								<div class="flex-1 min-w-0">
-									<div class="flex items-start justify-between">
-										<div class="flex-1 min-w-0">
+									<div>
+										<div class="min-w-0">
 											<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2 break-words"
 												x-text="alertDetails?.alert?.alertName || 'Loading...'">
 											</h1>
@@ -1022,9 +1022,9 @@ templ AlertDetailsModal() {
 											@AlertModalInstanceTeamInfo("alertDetails?.alert")
 										</div>
 										
-										<!-- Action buttons -->
-										<div class="flex-shrink-0 ml-4">
-											<div class="flex items-center space-x-3">
+										<!-- Action buttons - own row below the title so long alert names keep full width -->
+										<div class="mt-4">
+											<div class="flex flex-wrap items-center gap-3">
 												<!-- Silence Button (show when not silenced) -->
 												<button @click="silenceCurrentAlert()"
 														x-show="alertDetails?.alert && !isAlertSilenced(alertDetails?.alert)"
@@ -1170,8 +1170,8 @@ templ AlertDetailsModal() {
 											@AlertModalMetadataCard("alertDetails?.alert")
 										</div>
 
-										<!-- Frequency sparkline (30-day occurrence histogram, hidden when no history) -->
-										<div x-show="sparkline" class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50 mb-8">
+										<!-- Frequency sparkline (30-day occurrence histogram, hidden when fewer than 2 occurrences) -->
+										<div x-show="sparkline && sparkline.total > 1" class="bg-gradient-to-br from-white to-gray-50 dark:from-dark-bg-tertiary dark:to-gray-800 rounded-xl p-6 shadow-sm border border-gray-200/50 dark:border-dark-border-subtle/50 mb-8">
 											<h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
 												<svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
