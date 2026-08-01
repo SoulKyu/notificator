@@ -15,6 +15,11 @@ templ NotificationService() {
 			// filter_data of the preset referenced by preferences.notificationFilterPresetId,
 			// fetched once on load and refreshed when the selection changes (see loadFilterPresetData).
 			notificationFilterData: null,
+			// True once notificationFilterData has successfully loaded at least once this
+			// session. Lets matchesFilterPreset() tell "no preset selected" apart from
+			// "preset selected but its data has never loaded" and fail closed for the latter,
+			// instead of treating an unloaded null the same as "All alerts".
+			notificationFilterDataLoaded: false,
 			seenAlerts: new Set(),
 			seenAlertsInitialized: false, // Track if seenAlerts has been properly initialized from dashboard
 			notificationTimestamps: [], // Track recent notification times for rate limiting
@@ -117,6 +122,7 @@ templ NotificationService() {
 			async loadFilterPresetData() {
 				if (!this.preferences.notificationFilterPresetId) {
 					this.notificationFilterData = null;
+					this.notificationFilterDataLoaded = false;
 					return;
 				}
 
@@ -142,6 +148,7 @@ templ NotificationService() {
 					const preset = (result.presets || []).find(p => p.id === this.preferences.notificationFilterPresetId);
 					if (preset) {
 						this.notificationFilterData = preset.filter_data || {};
+						this.notificationFilterDataLoaded = true;
 						return;
 					}
 				} catch (error) {
@@ -154,6 +161,7 @@ templ NotificationService() {
 				// (deleted): degrade to "All alerts" without erroring.
 				console.warn('Notification filter preset not found, falling back to All alerts');
 				this.preferences.notificationFilterPresetId = '';
+				this.notificationFilterDataLoaded = false;
 			},
 
 			// Check if an alert matches the selected notification filter preset (or always
@@ -162,6 +170,13 @@ templ NotificationService() {
 			matchesFilterPreset(alert) {
 				if (!this.preferences.notificationFilterPresetId) {
 					return true;
+				}
+				// A preset is selected but its filter_data has never successfully loaded
+				// this session (e.g. a transient failure on the very first load): fail
+				// closed rather than falling through to notificationFilterData === null,
+				// which matchesNotificationFilterPreset treats as "All alerts".
+				if (!this.notificationFilterDataLoaded) {
+					return false;
 				}
 				if (typeof matchesNotificationFilterPreset !== 'function') {
 					return true;
