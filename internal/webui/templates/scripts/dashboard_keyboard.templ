@@ -121,7 +121,21 @@ templ DashboardKeyboardMixin() {
 				if (!alert) return;
 				await this.showAlertDetails(alert.fingerprint);
 				this.currentAlertTab = 'comments';
-				this.$nextTick(() => this.$refs.commentInput?.focus());
+				this.$nextTick(() => this.focusCommentInputWhenVisible());
+			},
+
+			// The Comments tab panel has a 200ms x-transition, so a single
+			// $nextTick can fire before it is actually laid out (still
+			// display:none/offsetParent:null) and .focus() silently no-ops.
+			// Poll across animation frames until it's really visible instead.
+			focusCommentInputWhenVisible(attempts = 0) {
+				const el = this.$refs.commentInput;
+				if (el && el.offsetParent !== null) {
+					el.focus();
+					return;
+				}
+				if (attempts >= 20) return;
+				requestAnimationFrame(() => this.focusCommentInputWhenVisible(attempts + 1));
 			},
 
 			acknowledgeCursorOrSelection() {
