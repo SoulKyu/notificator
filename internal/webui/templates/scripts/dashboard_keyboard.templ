@@ -224,10 +224,12 @@ templ DashboardKeyboardMixin() {
 						this.moveCursor(-1);
 						break;
 					case 'Enter':
-					case 'o':
 						// A focused button/link already activates on Enter natively —
 						// don't also open the cursor row's details for that keypress.
 						if (this.isActivatableTarget(event.target)) break;
+						this.openCursorDetails();
+						break;
+					case 'o':
 						this.openCursorDetails();
 						break;
 					case 'x':
