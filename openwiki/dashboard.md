@@ -180,7 +180,10 @@ comment/audit write sites; a `comments.Kind` column and a `comments.created_at` 
 `AlertDetailsModal` (`components/modal_components.templ:921`), opened by
 `showAlertDetails(fingerprint)` (`dashboard_modal.templ:6`), which `pushState`s the URL to
 `/dashboard/alert/:fingerprint` so deep links work (`router.go:354` re-renders the page and
-`checkAlertFromURL()` reopens the modal). Data comes from `GET /api/v1/dashboard/alert/:fingerprint`
+`checkAlertFromURL()` reopens the modal). A fingerprint unknown to both the live cache and
+`resolved_alerts`, or a fetch failure, now surfaces a `showActionError()` toast instead of just
+a browser-console log — a bare deep link to a purged/expired alert used to fail silently.
+Data comes from `GET /api/v1/dashboard/alert/:fingerprint`
 → `GetAlertDetails` (`dashboard_handlers.go:1231`): the cached alert plus, if the backend is
 connected, its comments and acknowledgments.
 

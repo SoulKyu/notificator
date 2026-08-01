@@ -27,7 +27,10 @@ Middleware order (`router.go:130-134`): `CORSMiddleware` → `LoggingMiddleware`
   fixed for HTTPS-only production.
 - The cookie holds only an opaque `session_id` (+ cached user fields); validity is always
   re-checked against the backend via `ValidateSession` **on every request** — no local TTL
-  cache, so backend load scales 1:1 with UI traffic.
+  cache, so backend load scales 1:1 with UI traffic. `middleware/auth.go` distinguishes a
+  **transient backend-unavailable error** (`client.IsUnavailableError`) from an actually invalid
+  session: the former returns `503`/keeps the cookie intact instead of clearing the session and
+  bouncing the user to the login page, so a brief backend blip no longer logs everyone out.
 - **Classic login/register** (`handlers/handlers.go`) POST form creds to the backend; can be
   disabled via OAuth `DisableClassicAuth`.
 - **OAuth** (`handlers/oauth_handlers.go`): CSRF `state` stored in session, provider auth URL

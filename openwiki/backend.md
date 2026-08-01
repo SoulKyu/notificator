@@ -30,6 +30,10 @@ The entire auth model is: **every RPC takes a `session_id` string and calls
 
 - **No auth interceptor.** Each handler validates the session by hand. A new RPC that forgets
   the check has *no* auth. This is the single most important thing to know before adding an RPC.
+  `GetUserGroups`, `SyncUserGroups`, and `GetUserSentryConfig` shipped without this check and were
+  retrofitted to require `session_id` + `db.GetUserBySession`, resolving the target user through
+  the same `resolveTargetUser(adminConfig, authenticatedUser, requestedUserID, ...)` helper used
+  for impersonation — grep new RPCs against this list before assuming session-gating is a given.
 - `Login` creates a bcrypt-checked `User` session with a random hex `session_id`, 7-day expiry
   (`internal/backend/services/services.go`). `User` supports both local password and OAuth
   identity (`OAuthProvider`/`OAuthID`, `internal/backend/models/models.go`).
@@ -137,4 +141,7 @@ only** (no cross-replica fan-out). See [architecture](architecture.md#real-time)
 - **Single-replica constraint:** in-memory subscriptions break under horizontal scaling.
 - **Encryption key is mandatory:** the backend refuses to start (non-zero exit before the gRPC
   server accepts connections) unless `NOTIFICATOR_ENCRYPTION_KEY` is set to a valid 64-hex key —
-  see [configuration](configuration.md#sentry).
+  see [configuration](configuration.md#sentry). `docker-compose.yml`'s default is an obviously-fake
+  `badbad...` key (previously a real-looking key, now known to be public via git history);
+  `ValidateEncryptionKey` logs a startup warning if the running key still matches that dev
+  default, since that means Sentry token encryption is backed by a non-secret key.
