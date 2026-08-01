@@ -9,17 +9,23 @@
 Self-service account creation cannot be turned off, and the only check meant to
 suppress it on OAuth-only deployments fails open.
 
-`AuthServiceGorm.Register` (`internal/backend/services/services.go:42-87`) validates
-only that `username`/`password` are present and the password is ≥ 4 characters, then
-creates the user unconditionally. `AuthServiceGorm.Login` (`services.go:94-...`) has no
-gate at all. Neither method knows about `OAuthPortalConfig.DisableClassicAuth`, even
-though the service already holds `s.oauthService` and calls
-`s.oauthService.GetConfig()` from `GetOAuthConfig` (`services.go:1517-1568`). There is
-no config flag anywhere that can disable registration.
+`AuthServiceGorm.Register` (`internal/backend/services/services.go:44-92`) validates
+only that `username`/`password` are present and the password is ≥ 4 characters
+(`:52`), then creates the user unconditionally. `AuthServiceGorm.Login`
+(`services.go:96`) has no gate at all. Neither method knows about
+`OAuthPortalConfig.DisableClassicAuth`, even though the service already holds
+`s.oauthService` and calls `s.oauthService.GetConfig()` from `GetOAuthConfig`
+(`services.go:1519-1570`). There is no config flag anywhere that can disable
+registration.
 
-The only gate lives in the WebUI and fails open. `handlers.Register`
-(`internal/webui/handlers/handlers.go:164-168`) and `handlers.Login` (`handlers.go:90-94`)
-both do:
+There are also two more places that render or gate registration and don't go
+through `handlers.Register`/`handlers.Login` at all: `handlers.PlaygroundPage`
+(`handlers.go:393-403`) and `handlers.IndexPage` (`handlers.go:388-391`), covered in
+Goal 4 below.
+
+The only request-time gate lives in the WebUI and fails open. `handlers.Register`
+(`internal/webui/handlers/handlers.go:164-169`) and `handlers.Login`
+(`handlers.go:90-95`) both do:
 
 ```go
 oauthConfig := getOAuthConfig(c)
@@ -29,14 +35,25 @@ if oauthConfig != nil && oauthConfig.DisableClassicAuth {
 ```
 
 `getOAuthConfig` (`handlers.go:53-88`) returns `nil` whenever `backendClient == nil`,
-`!backendClient.IsConnected()`, the `GetOAuthConfig` RPC errors, or the RPC's own
-10s-deadline context (`backend_client.go:912`) is exceeded — and `nil` short-circuits
-the `&&`, so the request proceeds as if classic auth were allowed. This RPC round-trips
-to the backend on every login/register/login-page/register-page/playground-page
-request with no caching, so a slow backend or rolling restart makes the timeout path
-realistic, not theoretical. `Login.templ` (`internal/webui/templates/pages/Login.templ:38,189`)
-has the identical `oauthConfig == nil || !oauthConfig.DisableClassicAuth` shape for
-showing the password form and the "Create an account" link.
+`!backendClient.IsConnected()`, the `GetOAuthConfig` RPC errors, **or OAuth is simply
+disabled** (`handlers.go:64-66`: `if !config["enabled"].(bool) { return nil }`), or
+the RPC's own 10s-deadline context (`backend_client.go:934`) is exceeded — and `nil`
+short-circuits the `&&`, so the request proceeds as if classic auth were allowed. This
+last case is not a failure at all: on the repo's own default deployment
+(`docker-compose.yml:72`, `OAUTH_ENABLED=false`), `getOAuthConfig` returns `nil` on
+*every* request by design, which is exactly why a backend-side gate (Goal 1/2) is
+required — the WebUI can never distinguish "OAuth off, nothing to check" from "OAuth
+on, but I couldn't reach the backend" using this return value alone. This RPC
+round-trips to the backend on every login/register/login-page/register-page/
+playground-page request with no caching; a slow-but-alive backend (the RPC's own 10s
+deadline elapses while `Register`'s independent 10s RPC still lands) or a WebUI cold
+start makes the timeout path real, though a full backend outage does not — the same
+outage that stalls `GetOAuthConfig` also stalls `Register`/`Login` themselves, so
+`backendClient == nil || !IsConnected()` fails both paths together. `Login.templ`
+(`internal/webui/templates/pages/Login.templ:38,189`) has the identical
+`oauthConfig == nil || !oauthConfig.DisableClassicAuth` shape for showing the password
+form and the "Create an account" link, and `Playground.templ:48,53` and
+`Index.templ:24` have weaker or no gating at all — see Goal 4.
 
 Net effect: on an OAuth-only deployment (`OAUTH_ENABLED=true`,
 `OAUTH_DISABLE_CLASSIC_AUTH=true`, the default when OAuth is on —
@@ -60,10 +77,10 @@ is no gate at all, by construction — nothing to fail open from.
    of as allowed. A short-lived cache of the OAuth/registration state removes the
    per-request RPC that currently makes the timeout window realistic, so failing
    closed doesn't turn a single slow RPC into a login outage for legitimate users.
-4. The login page stops advertising "Register" whenever registration is actually
-   disabled — by OAuth-only mode, by `allow_registration=false`, or by an unknown
-   backend state — consistent with whatever the server would actually do with the
-   request.
+4. Every page that links to `/register` (`Login.templ`, `Playground.templ`,
+   `Index.templ`) stops advertising it whenever registration is actually disabled —
+   by OAuth-only mode, by `allow_registration=false`, or by an unknown backend state —
+   consistent with whatever the server would actually do with the request.
 5. The new flag is documented in `ENVIRONMENT_VARIABLES.md` and
    `charts/notificator-app/values.yaml`.
 
@@ -73,10 +90,13 @@ is no gate at all, by construction — nothing to fail open from.
   request queue.
 - No change to session/login behavior for already-registered users when
   `allow_registration=false` — that flag only blocks *new* account creation.
-- No change to the 4-character password minimum (`services.go:53`) — out of scope for
+- No change to the 4-character password minimum (`services.go:52`) — out of scope for
   this issue, which is about *whether* registration happens, not password strength.
 - No general-purpose config cache framework — the WebUI-side cache is a single
   package-level TTL cache for this one RPC result, not a reusable abstraction.
+- No admin-bootstrap/seeding mechanism. `CreateUser` is only ever called from
+  `Register` (`services.go:79`); there is no other way to create a user today. This
+  issue does not add one — see the deployment-order risk under Risks & trade-offs.
 
 ## Approach
 
@@ -94,8 +114,16 @@ message GetOAuthConfigResponse {
 }
 ```
 
-Regenerate with `make proto` (`scripts/generate_proto.sh`, writes both `proto/*.pb.go`
-and `internal/backend/proto/auth/*.pb.go` — never hand-edit either `.pb.go`).
+Regenerate with `make proto` (`scripts/generate_proto.sh`). That script only writes
+`internal/backend/proto/auth/auth.pb.go` and `internal/backend/proto/auth/auth_grpc.pb.go`
+(and the equivalent `internal/backend/proto/alert/` pair) — `--go_opt=module=notificator`
+combined with `option go_package = "notificator/internal/backend/proto/auth";`
+(`proto/auth.proto:6`) means that's the only output location. The repo also has
+`proto/auth.pb.go` / `proto/auth_grpc.pb.go` sitting in `proto/`; these are stale,
+orphaned files — nothing imports `"notificator/proto"` (verified with
+`grep -rl '"notificator/proto"' --include='*.go' .` returning no results) and `make
+proto` does not touch them. **Leave them alone.** Never hand-edit
+`internal/backend/proto/auth/auth*.pb.go` either — only regenerate via `make proto`.
 
 `registration_allowed` is computed once, backend-side, from both gates (OAuth-only
 *and* the new flag), so the WebUI never has to reimplement the combination logic and
@@ -106,24 +134,38 @@ can't drift from what `Register` will actually decide.
 `config/config.go`:
 - `BackendConfig` (line 58) gains `AllowRegistration bool \`json:"allow_registration"\``.
 - Default `true` in `DefaultConfig()`'s `Backend: BackendConfig{...}` literal (line
-  ~207), next to the existing `Enabled`/`GRPCListen`/etc. fields — `true` keeps every
+  208), next to the existing `Enabled`/`GRPCListen`/etc. fields — `true` keeps every
   existing deployment working unchanged.
 - `viper.SetDefault("backend.allow_registration", cfg.Backend.AllowRegistration)` next
-  to the other `backend.*` defaults (line 441-444).
+  to the other `backend.*` defaults (line 443-446).
 - `viper.BindEnv("backend.allow_registration", "NOTIFICATOR_BACKEND_ALLOW_REGISTRATION")`
-  next to the other explicit `backend.*` bindings (line 630-636) — this file binds
-  every env var explicitly (no `viper.AutomaticEnv()`), so a new field needs its own
-  `BindEnv` line or it silently won't read from the environment.
+  next to the other explicit `backend.*` bindings (line 633-639 — currently only the
+  `backend.database.*` sub-fields are bound there; `backend.enabled` itself has no
+  `BindEnv` either, which is a pre-existing gap, out of scope here, but proof that this
+  file needs an explicit line per field). This file binds every env var explicitly (no
+  `viper.AutomaticEnv()`), so a new field needs its own `BindEnv` line or it silently
+  won't read from the environment.
 
 ### 3. Backend: `AuthServiceGorm` becomes the authoritative gate
 
 `services.go`:
-- `NewAuthServiceGorm(db *database.GormDB, oauthService *OAuthService)` (line 35) gains
-  a third parameter, `allowRegistration bool`, stored as a new `allowRegistration bool`
-  field on `AuthServiceGorm`. Update the one production call site
-  (`internal/backend/server.go:130`, `services.NewAuthServiceGorm(s.db, s.oauthService,
-  s.config.Backend.AllowRegistration)`) and the one test helper
-  (`internal/backend/services/update_timezone_test.go:34`, pass `true`).
+- `NewAuthServiceGorm(db *database.GormDB, oauthService *OAuthService, adminConfig
+  *config.AdminConfig)` (line 36) is **already 3-param** — `adminConfig` arrived with
+  the impersonation-allowlist work (#108/#148) and is unrelated to this issue. It gains
+  a **fourth** parameter, `allowRegistration bool`, appended after `adminConfig`,
+  stored as a new `allowRegistration bool` field on `AuthServiceGorm` (struct at lines
+  29-34). Do not drop `adminConfig` — it's still required for impersonation checks
+  elsewhere in the file (e.g. `resolveTargetUser` call sites). Update:
+  - the one production call site (`internal/backend/server.go:130`):
+    `services.NewAuthServiceGorm(s.db, s.oauthService, &s.config.Admin,
+    s.config.Backend.AllowRegistration)`
+  - **both** test helpers that construct `AuthServiceGorm` directly (there are two, not
+    one):
+    - `internal/backend/services/update_timezone_test.go:34`:
+      `NewAuthServiceGorm(db, nil, nil, true)`
+    - `internal/backend/services/auth_impersonation_test.go:44`:
+      `NewAuthServiceGorm(db, nil, &config.AdminConfig{ImpersonationAllowedUsers:
+      allowedUsers}, true)`
 - Add an unexported helper reused by both `Register` and `Login`:
   ```go
   func (s *AuthServiceGorm) classicAuthDisabled() bool {
@@ -134,7 +176,7 @@ can't drift from what `Register` will actually decide.
       return cfg != nil && cfg.Enabled && cfg.DisableClassicAuth
   }
   ```
-- `Register` (line 42): first check, before the existing username/password
+- `Register` (line 44): first check, before the existing username/password
   validation:
   ```go
   if s.classicAuthDisabled() {
@@ -146,7 +188,7 @@ can't drift from what `Register` will actually decide.
           Message: "Registration is currently disabled."}, nil
   }
   ```
-- `Login` (line 94): first check, before the existing username/password validation:
+- `Login` (line 96): first check, before the existing username/password validation:
   ```go
   if s.classicAuthDisabled() {
       return &authpb.LoginResponse{Success: false,
@@ -155,14 +197,20 @@ can't drift from what `Register` will actually decide.
   ```
   (No `allowRegistration` check here — disabling *new* registration must not lock out
   existing accounts.)
-- `GetOAuthConfig` (line 1517): compute the new response field once, right before the
-  final `return`:
+- `GetOAuthConfig` (line 1519-1570): compute the new response field with a single
+  expression reused in all three return sites — don't just compute it once "before the
+  final return" and then also try to add it to the two early returns above that point
+  in the function, since those early returns execute *before* any such
+  once-computed value would exist. Instead, add one line to each of the three existing
+  `return &authpb.GetOAuthConfigResponse{...}` literals:
   ```go
-  registrationAllowed := s.allowRegistration && !s.classicAuthDisabled()
+  RegistrationAllowed: s.allowRegistration && !s.classicAuthDisabled(),
   ```
-  and add `RegistrationAllowed: registrationAllowed` to both early-return branches
-  (`oauthService == nil` and `!config.Enabled`, where `classicAuthDisabled()` is
-  trivially `false`) and the final populated response.
+  - `oauthService == nil` branch (lines 1521-1527): `classicAuthDisabled()` is
+    trivially `false` here since it also checks `s.oauthService == nil`, so this
+    reduces to `s.allowRegistration`.
+  - `config == nil || !config.Enabled` branch (lines 1529-1535): same reduction.
+  - the final populated response (lines 1566-1570): both terms can be non-trivial.
 
 This makes `Register`/`Login` reject the request no matter which path reaches the RPC
 — direct `AuthService/Register` gRPC call, WebUI with a healthy backend, or WebUI
@@ -171,44 +219,69 @@ security boundary; a bug or regression there can no longer create an account.
 
 ### 4. WebUI: fail-closed gate with a short-lived cache
 
-`internal/webui/handlers/handlers.go`:
-- Replace `getOAuthConfig`'s "return `nil` on any failure" shape with a small
-  package-level cache holding the last successful `*pages.OAuthConfig` (now including
-  `RegistrationAllowed`) plus a fetch timestamp and a mutex, TTL ~15-30s (shorter than
-  the RPC's own 10s deadline, long enough to absorb one restart/blip):
-  ```go
-  var (
-      oauthConfigMu    sync.RWMutex
-      oauthConfigCache *pages.OAuthConfig
-      oauthConfigAt    time.Time
-  )
+`internal/webui/handlers/handlers.go` — `getOAuthConfig` (currently lines 53-88) must
+become a function that **never returns `nil`**, for any reason, including the case
+where OAuth is simply turned off. Today it returns `nil` in four situations, and only
+two of them are actual failures:
 
-  func getOAuthConfig(c *gin.Context) *pages.OAuthConfig {
-      if cfg, ok := cachedOAuthConfig(); ok {
-          return cfg
-      }
-      if backendClient == nil || !backendClient.IsConnected() {
-          return failClosedOAuthConfig()
-      }
-      raw, err := backendClient.GetOAuthConfig()
-      if err != nil {
-          fmt.Printf("Failed to get OAuth config: %v\n", err)
-          return failClosedOAuthConfig()
-      }
-      cfg := parseOAuthConfig(raw) // existing field-mapping logic from today's getOAuthConfig
-      storeOAuthConfigCache(cfg)
-      return cfg
-  }
-  ```
-  `failClosedOAuthConfig()` returns `&pages.OAuthConfig{DisableClassicAuth: true,
-  RegistrationAllowed: false}` — the safe default when the state truly can't be
-  determined *and* there's no usable cached value yet (e.g. cold start). Once a real
-  config has been fetched once, transient RPC blips are absorbed by the cache instead
-  of blocking real logins, which is what makes failing closed acceptable here instead
-  of a self-inflicted outage.
-- `Login` (line 90) and `Register` (line 164) keep their existing pre-check shape but
-  drop the `oauthConfig != nil &&` guard, since `getOAuthConfig` now always returns a
-  non-nil, meaningfully-defaulted config:
+| Current early return | Meaning | New behavior |
+|---|---|---|
+| `backendClient == nil \|\| !backendClient.IsConnected()` (`:54`) | can't reach backend | fail closed |
+| `err != nil` from the RPC (`:59-61`) | RPC failed | fail closed |
+| `!config["enabled"].(bool)` (`:64-66`) | **OAuth is off — not a failure** | map it normally: `{Enabled: false, DisableClassicAuth: false, RegistrationAllowed: <from response>}` |
+| (implicit: RPC succeeds) | normal path | map it normally |
+
+The `!config["enabled"].(bool)` early return is the bug this spec must close (QA
+finding): it is not part of the fail-open problem, but if left in place while the rest
+of this step assumes `getOAuthConfig` "always returns non-nil", every login/register on
+the repo's own default deployment (`OAUTH_ENABLED=false`) still nil-derefs on
+`oauthConfig.RegistrationAllowed`. **Delete that early return.** The backend's
+`GetOAuthConfig` RPC (step 3) already returns a fully-populated, correct response when
+OAuth is off — `Enabled: false, DisableClassicAuth: false, RegistrationAllowed:
+s.allowRegistration` — so the WebUI's job is just to map every field the RPC returns,
+unconditionally, not to short-circuit on `enabled`.
+
+Rework `getOAuthConfig` around a small package-level cache holding the last
+successful `*pages.OAuthConfig` (now including `RegistrationAllowed`) plus a fetch
+timestamp and a mutex, TTL ~15-30s (shorter than the RPC's own 10s deadline, long
+enough to absorb one restart/blip):
+```go
+var (
+    oauthConfigMu    sync.RWMutex
+    oauthConfigCache *pages.OAuthConfig
+    oauthConfigAt    time.Time
+)
+
+func getOAuthConfig(c *gin.Context) *pages.OAuthConfig {
+    if cfg, ok := cachedOAuthConfig(); ok {
+        return cfg
+    }
+    if backendClient == nil || !backendClient.IsConnected() {
+        return failClosedOAuthConfig()
+    }
+    raw, err := backendClient.GetOAuthConfig()
+    if err != nil {
+        fmt.Printf("Failed to get OAuth config: %v\n", err)
+        return failClosedOAuthConfig()
+    }
+    cfg := parseOAuthConfig(raw) // field-mapping logic from today's getOAuthConfig,
+                                  // MINUS the `!config["enabled"].(bool)` early return
+    storeOAuthConfigCache(cfg)
+    return cfg
+}
+```
+`failClosedOAuthConfig()` returns `&pages.OAuthConfig{DisableClassicAuth: true,
+RegistrationAllowed: false}` — the safe default when the state truly can't be
+determined *and* there's no usable cached value yet (e.g. cold start). Once a real
+config has been fetched once, transient RPC blips are absorbed by the cache instead
+of blocking real logins, which is what makes failing closed acceptable here instead
+of a self-inflicted outage.
+
+Because `getOAuthConfig` now always returns non-nil, every caller that currently
+branches on `oauthConfig != nil` or `oauthConfig == nil` must be updated — there are
+four such call sites, not two:
+- `Login` (`handlers.go:90-95`) and `Register` (`handlers.go:164-169`) keep their
+  existing pre-check shape but drop the `oauthConfig != nil &&` guard:
   ```go
   oauthConfig := getOAuthConfig(c)
   if oauthConfig.DisableClassicAuth { // Login
@@ -216,50 +289,100 @@ security boundary; a bug or regression there can no longer create an account.
   ```
   The backend call underneath still enforces the same rule independently (step 3), so
   this is defense-in-depth, not the only check.
+- `LoginPage` (`handlers.go:405-415`) and `PlaygroundPage` (`handlers.go:393-403`)
+  currently do
+  ```go
+  oauthConfig := getOAuthConfig(c)
+  if oauthConfig != nil {
+      pages.LoginWithOAuth(oauthConfig).Render(...) // or PlaygroundWithOAuth
+  } else {
+      pages.Login().Render(...) // or Playground() — internally calls *WithOAuth(nil)
+  }
+  ```
+  The `else` branch is now unreachable (`oauthConfig` is never nil), so collapse both
+  handlers to always call the `*WithOAuth(oauthConfig)` variant directly — no
+  conditional. `pages.Login()`/`pages.Playground()` (the nil-argument wrappers) become
+  dead code reachable only if some other, non-HTTP caller invokes them directly; leave
+  the templ functions in place (harmless) but stop calling them from these two
+  handlers.
 
 ### 5. WebUI: register link and login-page rendering
 
+There are **three** places that link to `/register`, and one page (`RegisterPage`)
+that redirects away from it — all four must key off `RegistrationAllowed`, not just
+`Login.templ`:
+
 - `pages.OAuthConfig` (`Login.templ:6-10`) gains `RegistrationAllowed bool`.
 - `Login.templ:189` (`<!-- Register link -->`) and `handlers.RegisterPage`
-  (`handlers.go:416-...`, redirect-to-`/login` guard) switch from
-  `oauthConfig == nil || !oauthConfig.DisableClassicAuth` to
-  `oauthConfig.RegistrationAllowed` — this one field already folds in both the
-  OAuth-only gate and the `allow_registration` flag, computed backend-side (step 3),
-  so the template doesn't need to know about two separate flags.
+  (`handlers.go:417-426`, redirect-to-`/login` guard at `:419`) switch from
+  `oauthConfig == nil || !oauthConfig.DisableClassicAuth` /
+  `oauthConfig != nil && oauthConfig.DisableClassicAuth` to
+  `!oauthConfig.RegistrationAllowed` (guard now unconditional — `oauthConfig` is never
+  nil, per step 4) — this one field already folds in both the OAuth-only gate and the
+  `allow_registration` flag, computed backend-side (step 3), so the template doesn't
+  need to know about two separate flags.
+- `Playground.templ:53` currently gates its `/register` link on the same condition as
+  the sign-in link, `oauthConfig == nil || !oauthConfig.DisableClassicAuth`
+  (`:48`) — that's wrong for this feature: `DisableClassicAuth` is a *login* concern,
+  so with `allow_registration=false` and OAuth off, the Playground would keep showing
+  "Register" even though the backend now rejects it. Split the two: keep the sign-in
+  link (`:50-52`) gated on `!oauthConfig.DisableClassicAuth`, and wrap the register
+  link (`:53-55`) in its own `if oauthConfig.RegistrationAllowed { ... }`.
+- `Index.templ:24` has **no gating at all** today — `IndexPage` (`handlers.go:388-391`)
+  doesn't even call `getOAuthConfig`. In the shipped `docker-compose.yml` config,
+  `cfg.WebUI.Playground` (`router.go:360`) picks `PlaygroundPage` for `/`, but
+  `IndexPage` is the alternate landing page for deployments with that flag off, and it
+  has the same bug. Fix: have `IndexPage` call `getOAuthConfig(c)` and pass
+  `oauthConfig.RegistrationAllowed` through to the template (add a `registrationAllowed
+  bool` parameter to `Index`/`IndexContent` in `Index.templ`, or reuse `*OAuthConfig`
+  for consistency with `Login`/`Playground`); wrap the `<a href="/register">` block
+  (`:24-26`) in `if registrationAllowed { ... }`.
 - The classic-login-form visibility (`Login.templ:38`) and the OAuth-only message
   (`Login.templ:104`) keep using `DisableClassicAuth` as-is — that's specifically
   about *login*, which `allow_registration=false` must not affect.
-- After editing `Login.templ` (and `Register.templ` if it duplicates the same
-  condition), regenerate with `make webui-templates` — never hand-edit `*_templ.go`.
+- `Register.templ` has no copy of this condition today (verified) — no change needed
+  there unless one is added in review.
+- After editing `Login.templ`, `Playground.templ`, `Index.templ`, regenerate with
+  `make webui-templates` — never hand-edit `*_templ.go`.
 
 ### 6. Docs
 
 - `ENVIRONMENT_VARIABLES.md`: add `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION` under
   "### Server Settings" (next to `NOTIFICATOR_BACKEND_ENABLED` at line 22), documented
-  as "Allow new user self-registration via username/password (default: true)".
+  as "Allow new user self-registration via username/password (default: true). Set to
+  `false` only after the accounts you need already exist — there is no other way to
+  create a user." (see the deployment-order risk below).
 - `charts/notificator-app/values.yaml`: add a commented example under the backend
-  `env:` block (line 52-57, next to the `NOTIFICATOR_BACKEND_*` examples):
+  `env:` block (lines 53-57, next to the `NOTIFICATOR_BACKEND_*` examples):
   `# NOTIFICATOR_BACKEND_ALLOW_REGISTRATION: "false"`.
 
 ### Files touched
 
-- `proto/auth.proto`, regenerated `proto/auth.pb.go`, `proto/auth_grpc.pb.go`,
-  `internal/backend/proto/auth/auth.pb.go`, `internal/backend/proto/auth/auth_grpc.pb.go`.
+- `proto/auth.proto`, regenerated `internal/backend/proto/auth/auth.pb.go` and
+  `internal/backend/proto/auth/auth_grpc.pb.go` via `make proto`. **Not** the orphaned
+  `proto/auth.pb.go` / `proto/auth_grpc.pb.go` — see step 1, they're unused and `make
+  proto` doesn't write them.
 - `config/config.go` — `BackendConfig.AllowRegistration`, default, `BindEnv`.
 - `internal/backend/services/services.go` — `NewAuthServiceGorm`, `classicAuthDisabled`,
   `Register`, `Login`, `GetOAuthConfig`.
 - `internal/backend/services/services_test.go` (new or existing) — unit tests below.
 - `internal/backend/server.go` — updated `NewAuthServiceGorm` call.
-- `internal/backend/services/update_timezone_test.go` — updated test helper call.
+- `internal/backend/services/update_timezone_test.go` and
+  `internal/backend/services/auth_impersonation_test.go` — updated test helper calls
+  (both construct `AuthServiceGorm` directly).
 - `internal/webui/client/backend_client.go` — `GetOAuthConfig()` map gains
   `registration_allowed`.
-- `internal/webui/handlers/handlers.go` — `getOAuthConfig` cache + fail-closed default,
-  `Login`, `Register`, `RegisterPage`.
+- `internal/webui/handlers/handlers.go` — `getOAuthConfig` cache + fail-closed default
+  (dropping the `!config["enabled"]` early return), `Login`, `Register`, `RegisterPage`,
+  `LoginPage`, `PlaygroundPage`, `IndexPage`.
 - `internal/webui/handlers/handlers_test.go` (new or existing) — unit tests below.
 - `internal/webui/templates/pages/Login.templ` (+ regenerated `Login_templ.go`) —
   `OAuthConfig.RegistrationAllowed`, register-link condition.
-- `internal/webui/templates/pages/Register.templ` (+ regenerated `Register_templ.go`)
-  if it has its own copy of the same condition.
+- `internal/webui/templates/pages/Playground.templ` (+ regenerated
+  `Playground_templ.go`) — split register-link condition from the sign-in-link
+  condition, gate on `RegistrationAllowed`.
+- `internal/webui/templates/pages/Index.templ` (+ regenerated `Index_templ.go`) —
+  add a registration-state parameter, gate the register link.
 - `ENVIRONMENT_VARIABLES.md`, `charts/notificator-app/values.yaml`.
 
 ## Risks & trade-offs
@@ -283,6 +406,18 @@ security boundary; a bug or regression there can no longer create an account.
   hit the DB or network).
 - **`make proto` requires `protoc` + the Go plugins to be installed locally**, same
   precondition as any other proto change in this repo — not new to this issue.
+- **Deployment-order lockout**: `CreateUser` is only ever called from `Register`
+  (`services.go:79`) — there is no admin-seeding or CLI bootstrap path anywhere in the
+  codebase. A fresh, non-OAuth deployment started with
+  `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION=false` from day one can never create its
+  first account: registration is closed and no user exists to log in as. This is not
+  new risk introduced by this change (today nothing can close registration at all, so
+  the failure mode didn't exist), but shipping the flag makes it reachable. Not fixing
+  it here (no invite/approval workflow is in scope — see Non-goals); operators must
+  register at least one account (or flip the flag to `true` temporarily) before
+  enabling `allow_registration=false`. Document this explicitly in
+  `ENVIRONMENT_VARIABLES.md` next to the new variable, e.g. "set this only after the
+  accounts you need already exist."
 
 ## Validation
 
@@ -308,6 +443,11 @@ security boundary; a bug or regression there can no longer create an account.
     cache is empty.
   - `getOAuthConfig` serves the last cached config (not fail-closed) when a fresh fetch
     errors but a not-yet-expired cached value exists.
+  - `getOAuthConfig` returns a non-nil, correctly-mapped config (`Enabled: false,
+    DisableClassicAuth: false, RegistrationAllowed` from the RPC) when the backend
+    reports OAuth disabled — regression test for the `!config["enabled"].(bool)` early
+    return removed in step 4; this is the repo's own default deployment shape
+    (`docker-compose.yml:72`, `OAUTH_ENABLED=false`) and must not panic or 500.
 - Manual check via `make test` (docker-compose stack), covering the issue's acceptance
   criteria directly:
   1. `OAUTH_ENABLED=true`, `OAUTH_DISABLE_CLASSIC_AUTH=true`: direct `grpcurl` call to
@@ -318,8 +458,15 @@ security boundary; a bug or regression there can no longer create an account.
   3. Same for `POST /api/v1/auth/login` against an unknown OAuth-config state — no
      password login succeeds.
   4. `OAUTH_ENABLED=false`, `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION=false`: registration
-     is rejected with a clear message, existing users can still log in.
-  5. Login page (`/login`) does not render "Create an account" in any of the above
-     disabled states, and does render it when both gates are open.
-  6. `ENVIRONMENT_VARIABLES.md` and `charts/notificator-app/values.yaml` document the
+     is rejected with a clear message, existing users can still log in. Confirm this on
+     both the repo's default landing page (`/`, `PlaygroundPage` when
+     `cfg.WebUI.Playground=true`) and with `WebUI.Playground=false` (`IndexPage`).
+  5. `/login`, `/` (both `PlaygroundPage` and `IndexPage` variants), do not render
+     "Register"/"Create an account" in any of the above disabled states, and do render
+     it when both gates are open. This is the regression check for `Login.templ:189`,
+     `Playground.templ:53`, and `Index.templ:24`.
+  6. `OAUTH_ENABLED=false` with no other flags set (repo default): `/login`, `/`,
+     `/register` all render without panicking and without a 500 — regression check for
+     the `getOAuthConfig` nil-on-OAuth-disabled bug fixed in step 4.
+  7. `ENVIRONMENT_VARIABLES.md` and `charts/notificator-app/values.yaml` document the
      new variable.
