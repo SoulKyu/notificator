@@ -972,7 +972,7 @@ templ DashboardSettings() {
 								// cached preset filter_data so the new scope applies immediately
 								if (window.notificationService) {
 									window.notificationService.preferences = this.notificationPreferences;
-									await window.notificationService.loadFilterPresetData();
+									await window.notificationService.refreshFilterPresetData();
 								}
 								console.log('Notification preferences saved successfully');
 								return true;
@@ -1074,7 +1074,7 @@ templ DashboardSettings() {
 					window.notificationService.preferences.enabledSeverities = ['critical', 'warning', 'info'];
 					window.notificationService.preferences.notificationFilterPresetId = '';
 
-					window.notificationService.showNotification(testAlert);
+					await window.notificationService.showNotification(testAlert);
 
 					// Restore original settings
 					window.notificationService.preferences.browserNotificationsEnabled = originalEnabled;
