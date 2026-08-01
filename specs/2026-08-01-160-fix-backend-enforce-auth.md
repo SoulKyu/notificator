@@ -44,7 +44,7 @@ request messages carry **no** `session_id` field at all (`SearchUsersRequest`,
 `UpdateAlertResolvedRequest`, `UpdateAlertAcknowledgedRequest`) — so a
 "thread `session_id` through the proto" fix (the #148 shape) isn't even
 mechanically available for most of them without a proto change.
-`GetAlertHistoryRequest` is the one exception: it has `session_id` (proto/alert.proto:1000),
+`GetAlertHistoryRequest` is the one exception: it has `session_id` (proto/alert.proto:1001),
 but the handler never reads it. This is why the fix has to live at the
 transport layer (gRPC metadata), not inside twelve more message structs.
 
@@ -348,20 +348,25 @@ if s.config.Backend.GRPCReflection {
 }
 ```
 
-`grpc.UnaryInterceptor` (singular) and `grpc.ChainUnaryInterceptor` can't
-both appear in `opts`; the singular form is dropped since it only ever held
-one interceptor.
+Keeping `grpc.UnaryInterceptor(s.loggingUnaryInterceptor)` alongside the
+chain would also work in the pinned grpc v1.73.0 —
+`chainUnaryServerInterceptors` prepends `opts.unaryInt` to the chained ones
+(`google.golang.org/grpc@v1.73.0/server.go:1186-1192`), and the panic at
+`server.go:444` only fires when `UnaryInterceptor` is passed **twice**. The
+singular form is dropped anyway so the execution order of both interceptors
+is stated in one place rather than split across two options.
 
 ### 3. `config/config.go`
 
-Add a field to `BackendConfig` (line 58-64):
+Add a field to `BackendConfig` (line 58-64). The `mapstructure` tag is
+load-bearing, not decoration — see below:
 
 ```go
 type BackendConfig struct {
 	Enabled        bool           `json:"enabled"`
 	GRPCListen     string         `json:"grpc_listen"`
 	GRPCClient     string         `json:"grpc_client"`
-	GRPCReflection bool           `json:"grpc_reflection"` // gRPC reflection — dev only, off by default
+	GRPCReflection bool           `json:"grpc_reflection" mapstructure:"grpc_reflection"` // gRPC reflection — dev only, off by default
 	HTTPListen     string         `json:"http_listen"`
 	Database       DatabaseConfig `json:"database"`
 }
@@ -379,44 +384,68 @@ viper.SetDefault("backend.grpc_reflection", cfg.Backend.GRPCReflection)
 viper.BindEnv("backend.grpc_reflection", "NOTIFICATOR_GRPC_REFLECTION")
 ```
 
-**This wiring alone does not bind the value.** `config.go` has zero
-`mapstructure` tags anywhere (`grep -c mapstructure config/config.go` → 0),
-and `LoadConfigWithViper` (`config.go:272-280`, used by `cmd/backend.go:43`)
+**Without the `mapstructure` tag, that wiring does not bind the value.**
+`LoadConfigWithViper` (`config.go:272-280`, called from `cmd/backend.go:43`)
 does `cfg := DefaultConfig()` → `setViperDefaults(cfg)` →
-`viper.Unmarshal(cfg)` with no decoder hooks and no post-`Unmarshal` patch.
-mapstructure's default field matcher compares the struct field name to the
-map key case-insensitively but does **not** split on underscores, so an
-underscored key like `grpc_reflection` never resolves to a field named
-`GRPCReflection` — the field silently keeps whatever `DefaultConfig()` set
-(`false`), no matter what `SetDefault`, `BindEnv`, or the env var itself
-say.
+`viper.Unmarshal(cfg)` with no decoder hooks. mapstructure's default field
+matcher compares the struct field name to the map key case-insensitively
+but does **not** split on underscores, so the key `grpc_reflection` never
+resolves to a field named `GRPCReflection`: the field silently keeps
+whatever `DefaultConfig()` set (`false`), no matter what `SetDefault`,
+`BindEnv`, or the env var say. The tag names the key explicitly, which is
+the whole fix — and it lives on the field itself, so the binding can't be
+separated from the declaration it belongs to.
 
-This isn't hypothetical: the identically-shaped sibling
-`statistics.retention_days` → `Statistics.RetentionDays` (same
-`SetDefault`+`BindEnv`-only pattern, `config.go:547-548,653`) has this exact
-bug live today, confirmed on the running `make test` stack —
-`NOTIFICATOR_STATISTICS_RETENTION_DAYS=7` is set in the backend container's
-environment, but the cleanup job logs `retention: 90 days`,
-`DefaultConfig()`'s value, not the env var's. Copying the surrounding
-`backend.*` pattern "as-is" would reproduce the same bug for
-`GRPCReflection`.
+Reproduce the gap in the current tree, no patch required: `GRPCListen` is
+the same shape (underscored key `backend.grpc_listen`, `SetDefault` at
+`config.go:444`, a `BindPFlag` at `cmd/backend.go:36`, no `mapstructure`
+tag). Run the backend with `NOTIFICATOR_BACKEND_GRPC_LISTEN=:50099` set —
+`cmd/backend.go:59` still prints `gRPC Listen: :50051` and `server.go:147`
+still listens on `:50051`, because `cfg.Backend.GRPCListen` was never
+touched by the unmarshal. `viper.GetString("backend.grpc_listen")` returns
+`:50099` at that same moment; only the struct-unmarshal step is broken.
+Copying the surrounding `backend.*` wiring as-is, without the tag, produces
+exactly that failure for `GRPCReflection` — and it fails *silently*:
+reflection never registers, `grpcurl list` stops working, §1's conditional
+reflection allowlist becomes dead code, and Validation step 2 fails with no
+obvious cause.
 
-Fix it locally for this one field: immediately after `viper.Unmarshal(cfg)`
-(`config.go:278-280`), add an explicit read-back —
+`config.go` has no `mapstructure` tags today
+(`grep -c mapstructure config/config.go` → 0), so this one is the first.
+Tagging a single field is local and side-effect-free: sibling fields keep
+using the default name matcher exactly as they do now (`backend.enabled` →
+`Enabled` still binds; the already-broken underscored siblings stay exactly
+as broken as they are today — see Risks). This deliberately does **not**
+fix `GRPCListen`, `GRPCClient`, `HTTPListen`, or `Statistics.RetentionDays`:
+those are pre-existing bugs outside this change's blast radius, and
+retagging them would silently start honouring env vars that have been
+ignored for the life of the deployment.
+
+Because the failure mode is silence, the binding gets a test rather than a
+comment — `config/config_test.go` (new; `config` has no test file today):
 
 ```go
-if err := viper.Unmarshal(cfg); err != nil {
-    return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+func TestGRPCReflectionBindsFromEnv(t *testing.T) {
+	t.Setenv("NOTIFICATOR_GRPC_REFLECTION", "true")
+	viper.Reset()
+	viper.SetEnvPrefix("NOTIFICATOR")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	cfg, err := LoadConfigWithViper()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Backend.GRPCReflection {
+		t.Fatal("backend.grpc_reflection did not reach the struct field")
+	}
 }
-cfg.Backend.GRPCReflection = viper.GetBool("backend.grpc_reflection")
 ```
 
-— so `viper.GetBool` (which does resolve `SetDefault`/`BindEnv`/env-var
-precedence correctly; only the struct-unmarshal step is broken) is the
-source of truth for this field. Scoped intentionally to `GRPCReflection`
-only: it does not fix the same latent binding gap on `GRPCListen`,
-`GRPCClient`, or `Statistics.RetentionDays` — those are pre-existing bugs
-outside this change's blast radius (see Risks).
+Plus the mirror case — no env var set → `cfg.Backend.GRPCReflection` is
+`false`, so the prod-shaped default is asserted too. Drop the tag and the
+first test fails immediately, which is the point: the flag can never go
+inert again without `go test ./config/...` saying so.
 
 ### 4. `internal/webui/client/backend_client.go`
 
@@ -570,8 +599,10 @@ pairs are set.
   `authorize`, unary/stream interceptors, `ValidateServiceToken`.
 - `internal/backend/server.go` — `Start()`, `startGRPCServer()`.
 - `internal/backend/auth_interceptor_test.go` — new (below).
-- `config/config.go` — `BackendConfig.GRPCReflection`, defaults/viper
-  wiring, and the post-`Unmarshal` read-back in `LoadConfigWithViper`.
+- `config/config.go` — `BackendConfig.GRPCReflection` (with its
+  `mapstructure` tag) and the `SetDefault`/`BindEnv` wiring.
+- `config/config_test.go` — new: asserts the flag actually reaches the
+  struct field (below).
 - `internal/webui/client/backend_client.go` — `serviceToken` field,
   dial-level `authUnaryClientInterceptor`/`authStreamClientInterceptor`,
   `attachCredentials`, `WithSessionID`, `GetComments`/`GetAcknowledgments`
@@ -623,15 +654,18 @@ pairs are set.
   now genuinely true end-to-end (flag → config → registration → interceptor
   allow-check all agree) — see §1/§3 for the two places the original draft
   of this spec got this wrong.
-- **`config.go`'s viper-to-struct binding has a pre-existing latent bug on
-  every underscored `backend.*`/nested-config field that isn't
-  `GRPCReflection`** — `GRPCListen`, `GRPCClient`, and
-  `Statistics.RetentionDays` at minimum share the same "no mapstructure tag,
-  no post-Unmarshal read-back" shape (§3), meaning their env-var overrides
-  may silently not apply either. §3 fixes only `GRPCReflection`, since
-  that's the field this change adds and depends on; fixing the others is a
-  pre-existing bug outside this change's scope, called out here so it isn't
-  mistaken for "already handled."
+- **`config.go`'s viper-to-struct binding is broken for every underscored
+  field, and this change fixes exactly one of them.** `GRPCListen`,
+  `GRPCClient`, `HTTPListen` and `Statistics.RetentionDays` all share the
+  untagged shape (§3): their env vars — and, for `GRPCListen`/`HTTPListen`,
+  their CLI flags via `BindPFlag` (`cmd/backend.go:36-37`) — are silently
+  ignored today. `GRPCReflection` gets the tag because this change depends
+  on it; the others deliberately stay as-is, since tagging them would
+  quietly start honouring overrides that have been inert for the life of
+  the deployment (a `NOTIFICATOR_BACKEND_GRPC_LISTEN` someone set years ago
+  and forgot would suddenly move the listener). That's a separate,
+  behaviour-changing fix, called out here so it isn't mistaken for
+  "already handled."
 - **`GetComments`/`GetAcknowledgments` signature change touches 7 call
   sites across 3 files** — mechanical (thread a string through), but it's
   the one part of this change that isn't purely additive. Compile failures
@@ -645,6 +679,10 @@ pairs are set.
 ## Validation
 
 - `go build ./... && go vet ./... && go test ./...` passes.
+- `config/config_test.go` (§3): `NOTIFICATOR_GRPC_REFLECTION=true` →
+  `LoadConfigWithViper().Backend.GRPCReflection == true`; unset → `false`.
+  This is the regression guard for the flag going inert — deleting the
+  `mapstructure` tag must make the first case fail.
 - `internal/backend/auth_interceptor_test.go`, following the existing
   in-process test convention (`internal/backend/services/services_test.go`:
   file-backed sqlite via `t.TempDir()`, real `AutoMigrate()`, seeded
