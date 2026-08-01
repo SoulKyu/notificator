@@ -14,7 +14,8 @@ templ NewDashboardContent() {
 	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary" x-data="newDashboard()"
 		@keydown.slash.window="focusSearch($event)"
 		@keydown.ctrl.f.window.prevent="focusSearch($event)"
-		@keydown.meta.f.window.prevent="focusSearch($event)">
+		@keydown.meta.f.window.prevent="focusSearch($event)"
+		@keydown.window="handleDashboardKeydown($event)">
 		<!-- Shared Action Error Banner -->
 		<div x-show="actionError" x-cloak x-transition
 			 role="alert" aria-live="assertive" aria-atomic="true"
@@ -955,11 +956,15 @@ templ NewDashboardContent() {
 		<!-- Column Config Modal -->
 		@components.ColumnConfigModal()
 
+		<!-- Keyboard Shortcuts Help -->
+		@components.KeyboardShortcutsHelp()
+
 	</div>
 
 	@scripts.NotificationService()
 	@scripts.DashboardFilterPresetsMixin()
 	@scripts.DashboardResolvedAlertsMixin()
+	@scripts.DashboardKeyboardMixin()
 	@scripts.DashboardCore()
 	@scripts.DashboardData()
 	@scripts.DashboardActions()

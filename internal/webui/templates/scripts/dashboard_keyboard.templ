@@ -1,0 +1,289 @@
+package scripts
+
+templ DashboardKeyboardMixin() {
+	<script>
+		window.dashboardKeyboardMixin = {
+			cursorFingerprint: null,
+			showShortcutsHelp: false,
+
+			// Every dashboard modal that should swallow shortcuts, in one place so
+			// focusSearch() and handleDashboardKeydown() can't drift apart.
+			modalOpen() {
+				return this.showSettings || this.showAckModal || this.showSilenceModal ||
+					this.showAlertModal || this.showFilterPresetsModal ||
+					this.showColumnConfigModal || this.showShortcutsHelp;
+			},
+
+			isTypingTarget(target) {
+				return !!(target && target.closest && target.closest('input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable]'));
+			},
+
+			// A focused button/link/etc. already activates on Enter/Space natively;
+			// letting a global shortcut also fire for the same keypress double-fires
+			// (e.g. Enter on a row's own action button opens that action's modal AND
+			// the shortcut's own target).
+			isActivatableTarget(target) {
+				return !!(target && target.closest && target.closest('button, a, summary, [role="button"]'));
+			},
+
+			// Shared guard: no modal open, no Ctrl/Cmd/Alt modifier (so we don't
+			// hijack browser/OS shortcuts), and focus isn't inside a text input.
+			// isActivatableTarget is deliberately NOT checked here: only Enter/Space
+			// natively re-trigger a focused button, so only the 'Enter'/'o' case (and
+			// the separately-guarded '?' branch) need that check — folding it in here
+			// would silently kill j/k/x/a/s/c/h whenever a row's Ack/Silence button
+			// still has focus after a click.
+			shortcutsActive(event) {
+				if (this.modalOpen()) return false;
+				if (event && (event.ctrlKey || event.metaKey || event.altKey)) return false;
+				if (event && this.isTypingTarget(event.target)) return false;
+				return true;
+			},
+
+			cursorAlertIndex() {
+				return this.alerts.findIndex(a => a.fingerprint === this.cursorFingerprint);
+			},
+
+			cursorAlert() {
+				const idx = this.cursorAlertIndex();
+				return idx === -1 ? null : this.alerts[idx];
+			},
+
+			// Called after every full reload/incremental merge so the cursor stays
+			// on its row when still present, and resets to the first row otherwise.
+			normalizeCursor() {
+				if (this.viewMode !== 'list' || this.alerts.length === 0) {
+					this.cursorFingerprint = null;
+					return;
+				}
+				if (this.cursorAlertIndex() === -1) {
+					this.cursorFingerprint = this.alerts[0].fingerprint;
+				}
+			},
+
+			moveCursor(delta) {
+				if (!this.requireListView() || this.alerts.length === 0) return;
+				const current = this.cursorAlertIndex();
+				const idx = current === -1 ? 0 : Math.min(Math.max(current + delta, 0), this.alerts.length - 1);
+				this.cursorFingerprint = this.alerts[idx].fingerprint;
+				this.$nextTick(() => {
+					document.querySelector('[data-alert-cursor="true"]')?.scrollIntoView({ block: 'nearest' });
+				});
+			},
+
+			// Row-scoped shortcuts (cursor, selection toggle, ack/silence/hide) only
+			// make sense against rendered rows, which the grouped view doesn't have.
+			// The Resolved tab hides that table entirely without reloading/renormalizing
+			// this.alerts, so it'd otherwise act on stale, invisible rows.
+			requireListView() {
+				if (this.viewMode === 'group') {
+					this.showActionError('Row shortcuts are only available in List view — switch views to use them', true);
+					return false;
+				}
+				if (this.displayMode === 'resolved') {
+					this.showActionError('Row shortcuts are not available on the Resolved tab', true);
+					return false;
+				}
+				return true;
+			},
+
+			toggleCursorSelection() {
+				if (!this.requireListView()) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.toggleAlert(alert.fingerprint);
+			},
+
+			toggleSelectAllRows() {
+				if (!this.requireListView()) return;
+				// A raw length comparison isn't a subset check: a full reload can replace
+				// this.alerts with a different set of the same size without pruning
+				// selectedAlerts, making stale counts look "already fully selected".
+				const allSelected = this.alerts.length > 0 &&
+					this.alerts.every(a => this.selectedAlerts.includes(a.fingerprint));
+				if (allSelected) {
+					this.clearSelection();
+				} else {
+					this.selectAll();
+				}
+			},
+
+			openCursorDetails() {
+				if (!this.requireListView()) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.showAlertDetails(alert.fingerprint);
+			},
+
+			async openCursorComments() {
+				if (!this.requireListView()) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				await this.showAlertDetails(alert.fingerprint);
+				this.currentAlertTab = 'comments';
+				this.$nextTick(() => this.focusCommentInputWhenVisible());
+			},
+
+			// The Comments tab panel has a 200ms x-transition, so a single
+			// $nextTick can fire before it is actually laid out (still
+			// display:none/offsetParent:null) and .focus() silently no-ops.
+			// Poll across animation frames until it's really visible instead.
+			focusCommentInputWhenVisible(attempts = 0) {
+				if (this.currentAlertTab !== 'comments') return;
+				const el = this.$refs.commentInput;
+				if (el && el.offsetParent !== null) {
+					el.focus();
+					return;
+				}
+				if (attempts >= 20) return;
+				requestAnimationFrame(() => this.focusCommentInputWhenVisible(attempts + 1));
+			},
+
+			acknowledgeCursorOrSelection() {
+				if (!this.requireListView()) return;
+				if (this.selectedAlerts.length > 0 || this.selectedGroups.length > 0) {
+					this.acknowledgeSelected();
+					return;
+				}
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.acknowledgeAlert(alert.fingerprint);
+			},
+
+			silenceCursorOrSelection() {
+				if (!this.requireListView()) return;
+				if (this.selectedAlerts.length > 0 || this.selectedGroups.length > 0) {
+					this.silenceSelected();
+					return;
+				}
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this.silenceAlert(alert.fingerprint);
+			},
+
+			// Hides exactly the cursor row via its own request, deliberately not
+			// reusing hideSelected()/selectedAlerts: that path is a real network
+			// round trip, and borrowing the shared selection as scratch space for it
+			// leaves a window where x/Shift+X/a/s can observe or clobber the
+			// temporarily-overwritten selection (see PR #131 review).
+			async hideCursorRow() {
+				if (!this.requireListView()) return;
+				// OS key-repeat fires keydown every 20-50ms, well inside a fetch
+				// round-trip — without this guard, a held 'h' races two requests for
+				// the same row.
+				if (this._hidingCursorRow) return;
+				const alert = this.cursorAlert();
+				if (!alert) return;
+				this._hidingCursorRow = true;
+				this.clearActionError();
+				try {
+					const response = await fetch('/api/v1/dashboard/hidden-alerts', {
+						method: 'POST',
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							fingerprint: alert.fingerprint,
+							reason: 'Hidden from dashboard bulk action'
+						})
+					});
+
+					if (window.dashboardInstance && window.dashboardInstance.handleAuthError(response)) {
+						return;
+					}
+
+					const result = await response.json();
+					if (result.success === true) {
+						this.loadDashboardData();
+					} else {
+						this.showActionError(result.error || 'Failed to hide alert', false);
+					}
+				} catch (error) {
+					console.error('Error hiding alert:', error);
+					this.showActionError('Network error: failed to hide the alert', false);
+				} finally {
+					this._hidingCursorRow = false;
+				}
+			},
+
+			handleDashboardKeydown(event) {
+				if (event.key === 'Escape') {
+					if (this.showShortcutsHelp) {
+						this.showShortcutsHelp = false;
+						return;
+					}
+					// A dashboard modal is open — let its own Escape handler close it
+					// instead of also clearing the selection underneath it.
+					if (this.showSettings || this.showAckModal || this.showSilenceModal ||
+						this.showAlertModal || this.showFilterPresetsModal || this.showColumnConfigModal) {
+						return;
+					}
+					// Escape on a text field (e.g. the search box) should not clear the
+					// alert selection as a side effect of blurring/clearing that field.
+					if (this.isTypingTarget(event.target)) return;
+					if (this.selectedAlerts.length > 0 || this.selectedGroups.length > 0) {
+						this.clearSelection();
+					}
+					return;
+				}
+
+				if (event.key === '?') {
+					if (event.ctrlKey || event.metaKey || event.altKey) return;
+					if (this.isTypingTarget(event.target)) return;
+					// No isActivatableTarget check here: unlike Enter/Space, '?' has no
+					// native button-activation semantics, so a focused button (e.g. from
+					// a prior mouse click on Ack/Silence) must not block this toggle.
+					// Don't let the sheet's own open state block its own toggle — only
+					// bail if some *other* modal is open.
+					if (this.modalOpen() && !this.showShortcutsHelp) return;
+					event.preventDefault();
+					this.showShortcutsHelp = !this.showShortcutsHelp;
+					return;
+				}
+
+				if (!this.shortcutsActive(event)) return;
+
+				switch (event.key) {
+					case 'j':
+						event.preventDefault();
+						this.moveCursor(1);
+						break;
+					case 'k':
+						event.preventDefault();
+						this.moveCursor(-1);
+						break;
+					case 'Enter':
+						// A focused button/link already activates on Enter natively —
+						// don't also open the cursor row's details for that keypress.
+						if (this.isActivatableTarget(event.target)) break;
+						this.openCursorDetails();
+						break;
+					case 'o':
+						this.openCursorDetails();
+						break;
+					case 'x':
+					case 'X':
+						if (event.shiftKey) {
+							this.toggleSelectAllRows();
+						} else {
+							this.toggleCursorSelection();
+						}
+						break;
+					case 'a':
+						this.acknowledgeCursorOrSelection();
+						break;
+					case 's':
+						this.silenceCursorOrSelection();
+						break;
+					case 'c':
+						this.openCursorComments();
+						break;
+					case 'h':
+						this.hideCursorRow();
+						break;
+				}
+			}
+		};
+	</script>
+}
