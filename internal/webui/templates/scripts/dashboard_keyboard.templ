@@ -129,6 +129,7 @@ templ DashboardKeyboardMixin() {
 			// display:none/offsetParent:null) and .focus() silently no-ops.
 			// Poll across animation frames until it's really visible instead.
 			focusCommentInputWhenVisible(attempts = 0) {
+				if (this.currentAlertTab !== 'comments') return;
 				const el = this.$refs.commentInput;
 				if (el && el.offsetParent !== null) {
 					el.focus();
