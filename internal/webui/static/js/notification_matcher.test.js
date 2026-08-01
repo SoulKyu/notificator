@@ -43,6 +43,13 @@ test("does not match when one populated list excludes the alert", () => {
 	);
 });
 
+test("list matches are case-sensitive, mirroring the server's exact-match contains()", () => {
+	assert.equal(
+		matchesNotificationFilterPreset(alert, { teams: ["Team-A"] }),
+		false,
+	);
+});
+
 test("does not match when alert name is not in the list", () => {
 	assert.equal(
 		matchesNotificationFilterPreset(alert, { alert_names: ["OtherAlert"] }),

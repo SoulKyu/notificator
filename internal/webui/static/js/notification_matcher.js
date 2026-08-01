@@ -9,13 +9,15 @@
 		root.matchesNotificationFilterPreset = factory();
 	}
 })(typeof self !== "undefined" ? self : this, function () {
+	// Mirrors contains() (internal/webui/handlers/dashboard_handlers.go): exact,
+	// case-sensitive match, so notification scope never diverges from dashboard scope.
 	function listMatches(list, value) {
 		if (!list || list.length === 0) {
 			return true;
 		}
-		const normalized = String(value || "").toLowerCase();
+		const normalized = String(value || "");
 		return list.some(function (v) {
-			return String(v).toLowerCase() === normalized;
+			return String(v) === normalized;
 		});
 	}
 
