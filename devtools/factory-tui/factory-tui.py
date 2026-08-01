@@ -106,8 +106,9 @@ STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker"
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
          "ps_ok": True, "conveyor": None, "shifts": []}
 PENDING_MAX = 5
-TIMELINE_ROWS = 5  # panel height cap, same reason as ALARM_ROWS: a full roster must not outgrow
-                   # the always-on wall board/radio for the room desk_cap's len(ROSTER) floor leaves
+TIMELINE_ROWS = 5  # panel height cap once shown, same reason as ALARM_ROWS. Capping alone doesn't
+                   # stop desk_cap()'s len(ROSTER) floor from evicting the wall board/radio at
+                   # realistic terminal sizes — timeline_fits() hides the whole panel for that.
 LOCK = threading.Lock()
 
 # one-shot animations, consumed by the render loop (render-side state only)
@@ -983,19 +984,41 @@ def alarm_shown(alrm):
     return ALARM_ROWS if len(alrm) > ALARM_ROWS + 1 else len(alrm)
 
 
-def panel_rows(p):
+def desk_floor_rows(per_row):
+    """Desk-grid rows that can never shrink away: build_desks()/desk_cap() both floor the grid at
+    one desk per ROSTER role (`the roster itself is never trimmed`), so this many rows are always
+    drawn no matter how tall the panel stack below them wants to be."""
+    return -(-len(ROSTER) // per_row) * 8
+
+
+def timeline_fits(p, h, per_row):
+    """Would drawing the TIMELINE panel still leave room for every other panel and the always-on
+    wall board/radio at this terminal size? TIMELINE is the newest, least essential panel, so it
+    hides itself rather than let desk_cap()'s len(ROSTER) floor evict what must stay on screen —
+    the same rule panel_rows()/render_frame() already use for an empty shift window.
+    h/per_row unknown (older callers, --once mode, most of the self-check) → always fits."""
+    if h is None or per_row is None:
+        return True
+    n_shift = len(shift_rows(p, 1))
+    if not n_shift:
+        return True
+    shift_cost = 1 + min(n_shift, TIMELINE_ROWS) + (n_shift > TIMELINE_ROWS)
+    rest = panel_rows({**p, "shift_entries": []}, h, per_row)  # every other panel, TIMELINE excluded
+    return rest + shift_cost + desk_floor_rows(per_row) <= h - 1
+
+
+def panel_rows(p, h=None, per_row=None):
     """Non-office rows of the frame about to be drawn, from a panel_snapshot. Five of the six
     panels are conditional in render_frame, so a worst-case constant charges ~27 rows that are
     usually not drawn and pins the cap at len(ROSTER) below a 55-row terminal — the dynamic desks
-    would never appear."""
+    would never appear. TIMELINE is counted last, gated by timeline_fits(): unlike the other
+    panels it has no fixed budget slice of its own, so it must know the total everything else
+    (including the desk floor) already committed to before claiming its own rows."""
     n = 1 + 7 + 1 + 1  # title + wall board (header + issues + 5 conveyor lanes) + radio + bottom
     if p["intercom"]:
         n += 1 + len(p["intercom"])
     if p["score"]:
         n += 2 if p["score"] == "err" else 4
-    n_shift = len(shift_rows(p, 1))  # cols=1: cheapest resolution that still gets the row count right
-    if n_shift:
-        n += 1 + min(n_shift, TIMELINE_ROWS) + (n_shift > TIMELINE_ROWS)
     if p["alarms"]:
         shown = alarm_shown(p["alarms"])
         n += 1 + shown + (len(p["alarms"]) > shown)
@@ -1003,6 +1026,9 @@ def panel_rows(p):
         n += 1 + min(len(p["pending"]), PENDING_MAX) + (len(p["pending"]) > PENDING_MAX)
     if p["err"]:
         n += 1
+    n_shift = len(shift_rows(p, 1))  # cols=1: cheapest resolution that still gets the row count right
+    if n_shift and timeline_fits(p, h, per_row):
+        n += 1 + min(n_shift, TIMELINE_ROWS) + (n_shift > TIMELINE_ROWS)
     return n
 
 
@@ -1010,10 +1036,10 @@ def desk_cap(h, per_row, p):
     """Desks that still leave room for the panels below the office — an unbounded grid silently
     swallows the wall board and the radio. Budget is h-1: main_curses stops drawing at h-1, so
     on `h - panels` landing on a multiple of 8 an h-row frame loses its closing border."""
-    return max(len(ROSTER), max(1, (h - 1 - panel_rows(p)) // 8) * per_row)
+    return max(len(ROSTER), max(1, (h - 1 - panel_rows(p, h, per_row)) // 8) * per_row)
 
 
-def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False):
+def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False, h=None):
     desks = build_desks() if desks is None else desks
     rows = []
     t = time.strftime("%H:%M:%S")
@@ -1063,11 +1089,13 @@ def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False)
     label_w = 10  # dwidth(emoji)=2 + space + 6-char name (the roster's longest) + space
     cols = max(1, (width - 4) - label_w)
     shifts = shift_rows(p, cols)
-    if shifts:  # nobody ran in the window → no panel, same rule as the scoreboard
+    # nobody ran in the window → no panel, same rule as the scoreboard; doesn't fit this terminal
+    # (timeline_fits) → no panel either, so it can never be the reason the board/radio get cut
+    if shifts and timeline_fits(p, h, per_row):
         rows.append(("│" + dpad(f" ═══ ⏱ TIMELINE {TIMELINE_H}h ", width - 2, fill="═") + "│", 0))
         for key, emoji, name, bar in shifts[:TIMELINE_ROWS]:
             rows.append(("│ " + dpad(dpad(f"{emoji} {name}", label_w) + bar, width - 4) + " │", 0))
-        if len(shifts) > TIMELINE_ROWS:  # capped: a full roster must not evict the wall board/radio
+        if len(shifts) > TIMELINE_ROWS:  # capped: a full roster must not outgrow its own row budget
             rows.append(("│ " + dpad(f"… +{len(shifts) - TIMELINE_ROWS} autres", width - 4) + " │", 0))
     alrm = p["alarms"]  # from the snapshot: an alarm raised mid-frame must not outgrow the budget
     if alrm:  # no alarm → no panel
@@ -1306,7 +1334,7 @@ def main_curses(scr):
                     note = send_summon(desks[zoom]["key"], msg)
         scr.erase()
         for y, (line, color) in enumerate(render_frame(tick, width, sel, desks, panels,
-                                                       flash=klaxon(tick))):
+                                                       flash=klaxon(tick), h=h)):
             if y >= h - 1:
                 break
             try:
@@ -1895,21 +1923,24 @@ def selfcheck():
                                              "ExecMainStatus": "1", "ExecMainCode": "1"}
                         for u in ("scout", "qa", "rebaser", "promoter", "docagent", "reporter", "groomer")}
         # …and the TIMELINE panel: a full roster running charges its capped 1 + TIMELINE_ROWS + tail
-        # rows too, or this sweep would never notice TIMELINE pushing the board/radio off-screen
+        # rows too, or this sweep would never notice TIMELINE either fitting correctly alongside
+        # every other panel or (below the floor) hiding itself instead of evicting the board/radio
         STATE["shifts"] = [(key, time.time() - 300, time.time() - 60) for key, _, _, _ in ROSTER]
     term_w = 120
     # sweep the heights: the budget boundary only shows up when (h - PANEL_ROWS) % 8 == 0,
     # so a single height silently passes an off-by-one that eats the closing border.
-    # 73 is the floor's own limit at this worst-case panel_rows (desks pinned at len(ROSTER)); below
-    # that no cap fits the panels, so nothing to assert.
-    for term_h in range(73, 89):
+    # 66 is the floor's own limit at this worst-case panel_rows minus TIMELINE (desks pinned at
+    # len(ROSTER)); below that no cap fits even the other panels, so nothing to assert. TIMELINE
+    # itself only rejoins once term_h leaves it room too — timeline_fits() hides it until then.
+    for term_h in range(66, 82):
+        per_row = grid_per_row(term_w)
         panels = panel_snapshot()
-        cap = desk_cap(term_h, grid_per_row(term_w), panels)
+        cap = desk_cap(term_h, per_row, panels)
         capped = build_desks(cap)
         if not len(ROSTER) <= len(capped) <= cap:
             print(f"FAIL desk cap: {len(capped)} desks (cap {cap}) at h={term_h}")
             fails += 1
-        frame = render_frame(3, term_w, sel=0, desks=capped, panels=panels)
+        frame = render_frame(3, term_w, sel=0, desks=capped, panels=panels, h=term_h)
         board = next((y for y, (l, _) in enumerate(frame) if "TABLEAU DU MUR" in l), None)
         if board is None or board >= term_h - 1:
             print(f"FAIL desk cap: wall board at row {board} of a {term_h}-row terminal")
@@ -1943,7 +1974,7 @@ def selfcheck():
         STATE["err"], STATE["score"] = "poll error", s
         STATE["svc"] = {"notificator-qa": {"Id": "notificator-qa.service", "Result": "exit-code",
                                            "ExecMainStatus": "1", "ExecMainCode": "1"}}
-    frame = render_frame(3, term_w, sel=0, desks=capped, panels=quiet)
+    frame = render_frame(3, term_w, sel=0, desks=capped, panels=quiet, h=term_h)
     if len(frame) > term_h - 1:
         print(f"FAIL panel snapshot: poll in the gap grew the frame to {len(frame)} rows at h={term_h}")
         fails += 1
