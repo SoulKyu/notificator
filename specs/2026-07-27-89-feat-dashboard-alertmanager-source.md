@@ -9,17 +9,16 @@
 `AlertCache.refreshAlerts` (`internal/webui/services/alert_cache.go:206`) polls every
 configured Alertmanager via `FetchAllAlertsDetailed`
 (`internal/alertmanager/client.go:749`) and, when a source fails, deliberately keeps its
-last known alerts and only logs it (`alert_cache.go:212`, and the mass-resolve guard at
-`alert_cache.go:274`, the fix for #45). That's the right behavior, but it's invisible in
+last known alerts and only logs it (`alert_cache.go:213`, and the mass-resolve guard at
+`alert_cache.go:281`, the fix for #45). That's the right behavior, but it's invisible in
 the browser:
 
 - A source down for 20 minutes still shows 20-minute-old alerts as if live — nothing
   marks them stale.
 - A source unreachable since startup contributes zero alerts. An empty dashboard looks
   exactly like "all quiet".
-- The header's "Last updated" (`dashboard_core.templ:410`, driven by
-  `metadata.lastUpdate`) is cache-wide and keeps ticking as long as *one* Alertmanager
-  answers.
+- The header's "Last updated" (driven by `metadata.lastUpdate`) is cache-wide and keeps
+  ticking as long as *one* Alertmanager answers.
 - `GetHealthStatus()` (`client.go:896`) exists but only backs the unused
   `GET /health/alertmanager` probe endpoint (`handlers.go:356`, `AlertmanagerHealthCheck`)
   — it does a fresh synchronous `TestConnection()` per instance, no UI consumes it, and
@@ -68,25 +67,31 @@ type SourceStatus struct {
 
 `AlertCache` gets `sourceStatuses map[string]*SourceStatus`, initialized in
 `NewAlertCache` (`alert_cache.go:102`) from `alertmanagerClient.GetClientNames()`
-(`client.go:864`) so every configured source starts `unreachable` (zero-value
+(`client.go:868`) so every configured source starts `unreachable` (zero-value
 `LastSuccessAt`), not `live`, before the first poll completes.
 
-In `refreshAlerts` (`alert_cache.go:206`), right after `FetchAllAlertsDetailed` returns
-`(alertsWithSource, fetchErrors)` and under the existing `ac.mu.Lock()` section that
-already builds `currentFingerprints`:
+In `refreshAlerts` (`alert_cache.go:206`), immediately after `FetchAllAlertsDetailed`
+returns `(alertsWithSource, fetchErrors)` — **crucially, before the early return at
+`alert_cache.go:215-218`** (`if len(alertsWithSource) == 0 && len(fetchErrors) > 0 { return }`)
+— update source statuses in a separate loop:
 
 - For each configured source: if present in `fetchErrors`, increment
   `ConsecutiveFailures` and set `LastError`; otherwise reset `ConsecutiveFailures = 0`,
   clear `LastError`, stamp `LastSuccessAt = time.Now()`.
-- `AlertCount` per source: derived from `ac.alerts` grouped by `.Source` after the
-  fingerprint loop — no separate accounting needed, it's the same data
-  `buildDashboardMetadata` already walks.
+
+Then proceed with the existing `ac.mu.Lock()` section. This ensures that when all sources
+fail in a single poll (the all-sources-down case that triggered the issue), status
+bookkeeping still runs and reflects the failure, before the early return bails out. After
+the mutex section:
+
+- `AlertCount` per source: derived from `ac.alerts` grouped by `.Source` — no separate
+  accounting needed, it's the same data `buildDashboardMetadata` already walks.
 
 Derive state on read, not stored:
 - `unreachable`: `LastSuccessAt.IsZero()`.
 - `stale`: `ConsecutiveFailures >= 3` (three consecutive polls — same shape as the
   mass-resolve guard's reasoning, rides on `ac.refreshInterval`
-  (`alert_cache.go:84`/`170`), no new config key).
+  (`alert_cache.go:84` field, `:170` setter), no new config key).
 - `live`: otherwise.
 
 Add `func (ac *AlertCache) GetSourceStatuses() map[string]SourceStatusView` (RLock,
@@ -96,30 +101,36 @@ derived state alongside the raw fields.
 ### 2. Surface it in the initial payload
 
 `internal/webui/models/dashboard.go`: add `Sources map[string]SourceStatusView
-\`json:"sources,omitempty"\`` to both `DashboardResponse` (line 141) and
-`DashboardIncrementalUpdate` (line 130), next to the existing `Colors` field — same
+\`json:"sources,omitempty"\`` to both `DashboardResponse` (line 143) and
+`DashboardIncrementalUpdate` (line 132), next to the existing `Colors` field — same
 "embedded so first render is correct" rationale already used for colors.
 
-`dashboard_handlers.go`: `GetDashboardData` (line 114) sets
+`dashboard_handlers.go`: `GetDashboardData` (line 121) sets
 `response.Sources = alertCache.GetSourceStatuses()` next to the existing
-`response.Colors = ...` line (~206).
+`response.Colors = ...` line (line 218).
 
 ### 3. Push it over SSE, including status-only changes
 
 This is the part that's easy to get wrong: `refreshAlerts` only calls
 `ac.notifySubscribers(update)` when `len(newAlertsForSSE) > 0 ||
 len(updatedAlertsForSSE) > 0 || len(removedFingerprints) > 0`
-(`alert_cache.go:319`). A source going from `live` to `stale` produces **no** alert
+(`alert_cache.go:323`). A source going from `live` to `stale` produces **no** alert
 diff — its cached alerts don't change, only `ConsecutiveFailures` does. Left as-is, the
 pill would never update live when a source silently degrades; it would only refresh on
 the next full-alert-changing poll or page reload, defeating the point of the feature.
 
-Fix: compute the source-status snapshot before the notify-condition check, and extend
-the condition to also fire when any source's derived state changed since the previous
-snapshot (compare against the pre-refresh copy). Attach `Sources:
-ac.GetSourceStatuses()` to the `update` struct unconditionally whenever `notifySubscribers`
-does fire, so the client always has the latest view alongside whatever alert diff
-triggered it.
+Fix: before the notify-condition check at line 323, take a snapshot of `sourceStatuses`
+derived state. Extend the condition to also fire when any source's state changed since
+the previous refresh (compare derived `unreachable`/`stale`/`live` against the pre-refresh
+copy). Attach `Sources: ac.GetSourceStatuses()` to the `update` struct unconditionally
+whenever `notifySubscribers` does fire, so the client always has the latest view
+alongside whatever alert diff triggered it.
+
+**Note:** because source status updates now happen before the early return at line 215,
+the notify-condition check at line 323 will correctly fire even when all sources fail
+(the update still carries the updated `Sources` reflecting consecutive failures), so no
+extra condition logic is needed for that edge case — the status change naturally triggers
+the notify.
 
 `sse_handler.go` needs no change — it forwards whatever `DashboardIncrementalUpdate` it
 receives; `Sources` rides along automatically once the model field exists.
@@ -127,7 +138,7 @@ receives; `Sources` rides along automatically once the model field exists.
 ### 4. Client: pill, popover, banner
 
 New `internal/webui/templates/scripts/dashboard_sources.templ`, following the existing
-mixin convention (`dashboard_core.templ:309-314`, `window.dashboardXMixin` +
+mixin convention (`dashboard_core.templ:322-327`, `window.dashboardXMixin` +
 `Object.assign`):
 
 ```js
@@ -140,22 +151,25 @@ window.dashboardSourcesMixin = {
 };
 ```
 
-Wire into `dashboard_core.templ`'s `Object.assign` list and into `dashboard_data.templ`:
-- initial load (`dashboard_core.templ` init path, ~line 66): `this.sources =
-  result.data.sources || {}`.
-- SSE merge (`dashboard_data.templ:419`, alongside `if (update.metadata)`): `if
-  (update.sources) this.sources = update.sources`.
+Wire into `dashboard_core.templ`'s `Object.assign` list (line 322-327) and into
+`dashboard_data.templ`:
+- initial load (`dashboard_data.templ:61-72`, in `loadDashboardData()` next to existing
+  `result.data.colors` handling): `if (result.data.sources) { this.sources =
+  result.data.sources; }`.
+- SSE merge (`dashboard_data.templ` at the update merge point, alongside status handling):
+  `if (update.sources) this.sources = update.sources`.
 
 Markup: a `components/source_status.templ` component rendered from
 `NewDashboard.templ`'s header, next to the existing "Secondary Stats Dropdown"
-(`NewDashboard.templ:88-99` — same `x-data="{ open: false }"` + `@click.away` popover
-pattern, reused rather than invented). Banner is a conditionally-rendered block above
-the alerts table, dismissal state kept in `dismissedStaleBanner` (component-local, not
-persisted — reappears on reload if the condition still holds, per acceptance criteria).
+(line 88 — same `x-data="{ open: false }"` + `@click.away` popover pattern, reused
+rather than invented). Banner is a conditionally-rendered block above the alerts table,
+dismissal state kept in `dismissedStaleBanner` (component-local, not persisted —
+reappears on reload if the condition still holds, per acceptance criteria).
 
-`renderText`'s `field_path === 'source'` branch in `dashboard_utilities.templ:705`
-(`renderText`) gets a stale-dot suffix when `this.sources[value]?.state !== 'live'` —
-no new column, no column-preference migration.
+In `dashboard_utilities.templ:705`, the `renderText(value, fieldPath)` function gains a
+`field_path === 'source'` branch that suffixes a stale-dot visual marker when
+`this.sources[value]?.state !== 'live'` — no new column, no column-preference migration
+(leverages existing `col_source` at line 662).
 
 Regenerate with `make webui-templates` after editing `.templ` files; `make webui-css`
 if new Tailwind classes are introduced. Never hand-edit `*_templ.go`.
@@ -204,8 +218,9 @@ if new Tailwind classes are introduced. Never hand-edit `*_templ.go`.
   entries → back to `live` with `ConsecutiveFailures` reset on the next success; and a
   source absent from any successful poll since cache creation reads `unreachable`.
 - `make webui-templates && go build ./...` passes.
-- Manual check via `make test` (docker-compose stack, multiple Alertmanager sources
-  configured):
+- Manual check via `make test` (docker-compose stack, **with at least 2 Alertmanager
+  sources configured** — comment lines 51-52 of `docker-compose.yml` if needed to enable
+  the second source):
   - All sources up: header shows `N/N live`; popover rows show a last-successful-poll
     under one sync interval.
   - Stop one Alertmanager container: within 3 sync intervals the pill turns amber,
@@ -214,6 +229,12 @@ if new Tailwind classes are introduced. Never hand-edit `*_templ.go`.
     the Alertmanager column — without a page reload (SSE path).
   - Restart the stopped Alertmanager: state clears on the next successful poll, no
     reload needed.
+  - **All sources down:** after stopping all configured Alertmanager containers, the
+    pill turns red within 3 sync intervals, and all sources show `stale` in the
+    popover (no `unreachable` — only the startup zero-value triggers that). The banner
+    appears and persists. This step verifies the early-return fix: status bookkeeping
+    must have completed before the `len(alertsWithSource) == 0 && len(fetchErrors) > 0`
+    early return.
   - A source that never answers from a fresh `make test` startup shows `unreachable`,
     not `live`, contributing zero alerts.
   - Reload the page while the banner condition still holds: banner reappears (not
