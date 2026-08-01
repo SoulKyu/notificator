@@ -60,6 +60,9 @@ TIMER_OF = {
     "cleaner": "notificator-cleaner.timer",
 }
 LOG_PREFIX_OF = {"rebaser": "rebase"}  # desks whose log files are not named after their ROSTER key
+ROSTER_KEYS = {k for k, _, _, _ in ROSTER}
+REV_LOG_PREFIX = {v: k for k, v in LOG_PREFIX_OF.items()}  # "rebase" -> "rebaser"
+LOG_NAME_RE = re.compile(r"^(.+)-(\d{8}T\d{6})\.log$")  # "<prefix>-<start ts>.log"
 SUMMONABLE = {"scout", "roast", "qa", "rebaser", "groomer"}
 SUMMON_SH = os.path.expanduser("~/.claude-agents/notificator/summon.sh")
 ZOOM_TAIL = 15
@@ -88,9 +91,20 @@ def pr_stale_h(v):
 
 PR_STALE_H = pr_stale_h(os.environ.get("FACTORY_PR_STALE_H"))
 
+
+def timeline_hours(v):
+    """FACTORY_TIMELINE_H in hours, same junk-knob contract as stall_min()."""
+    try:
+        return max(1, int(v or 6))
+    except ValueError:
+        return 6
+
+
+TIMELINE_H = timeline_hours(os.environ.get("FACTORY_TIMELINE_H"))
+
 STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker": "", "err": "",
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
-         "ps_ok": True, "conveyor": None}
+         "ps_ok": True, "conveyor": None, "shifts": []}
 PENDING_MAX = 5
 LOCK = threading.Lock()
 
@@ -292,6 +306,38 @@ def alarms(now=None):
     return out
 
 
+def agent_of_log(prefix):
+    """Log filename prefix (before `-<start ts>.log`) -> ROSTER key, or None. A trailing
+    numeric segment is a run/issue id, not part of the agent name (`qa-131` -> `qa`)."""
+    prefix = re.sub(r"-\d+$", "", prefix)
+    key = REV_LOG_PREFIX.get(prefix, prefix)
+    return key if key in ROSTER_KEYS else None
+
+
+def compute_shifts(entries, now, window_hours=TIMELINE_H, cols=60):
+    """[(agent key, run start epoch, run end epoch)] -> {key: bar string of `cols` chars,
+    "░" idle / "▓" ran}, one entry per key with at least one run in the window. Pure and
+    filesystem-free so --check can assert on it directly.
+
+    A run shorter than one slot still marks exactly one slot (range() is inclusive of
+    both ends), so a fast agent is never invisible on a wide window.
+    """
+    win_start = now - window_hours * 3600
+    slot = window_hours * 3600 / cols
+    bars = {}
+    for key, start, end in entries:
+        end = max(start, min(end, now))
+        start = max(start, win_start)
+        if end < win_start or start > now:
+            continue
+        bar = bars.setdefault(key, ["░"] * cols)
+        i0 = max(0, min(cols - 1, int((start - win_start) / slot)))
+        i1 = max(i0, min(cols - 1, int((end - win_start) / slot)))
+        for i in range(i0, i1 + 1):
+            bar[i] = "▓"
+    return {k: "".join(v) for k, v in bars.items()}
+
+
 def poll_med():
     timers = {}
     out = sh("systemctl --user list-timers 'notificator-*' --all --no-pager --plain 2>/dev/null")
@@ -300,13 +346,28 @@ def poll_med():
         if m:
             timers[m.group(3)] = m.group(2).strip()
     try:
-        logs = sorted((os.path.join(LOG_DIR, f) for f in os.listdir(LOG_DIR)), key=os.path.getmtime)
+        names = os.listdir(LOG_DIR)
+        logs = sorted((os.path.join(LOG_DIR, f) for f in names), key=os.path.getmtime)
         if logs:
             tail = open(logs[-1], errors="replace").read().strip().splitlines()
             name = os.path.basename(logs[-1]).rsplit("-", 1)[0]
             line = next((l for l in reversed(tail) if l.strip() and "LOOPER_RESULT" not in l), "")
             with LOCK:
                 STATE["ticker"] = f"[{name}] {line.strip()[:200]}"
+        shifts = []
+        for f in names:
+            m = LOG_NAME_RE.match(f)
+            if not m:
+                continue
+            key = agent_of_log(m.group(1))
+            if key is None:
+                continue
+            # local time, like systemd_ts(): `TS="$(date +%Y%m%dT%H%M%S)"` in the agent
+            # runner scripts has no `-u`, so the filename is wall-clock, not UTC
+            start = time.mktime(time.strptime(m.group(2), "%Y%m%dT%H%M%S"))
+            shifts.append((key, start, os.path.getmtime(os.path.join(LOG_DIR, f))))
+        with LOCK:
+            STATE["shifts"] = shifts
     except Exception:
         pass
     # agent-to-agent mail: pending inboxes + recent task events (events.jsonl)
@@ -898,9 +959,19 @@ def panel_snapshot():
         p = {"prs": list(STATE["prs"]), "issues": STATE["issues"], "ticker": STATE["ticker"],
              "err": STATE["err"], "intercom": list(STATE["intercom"]),
              "score": STATE["score"], "pending": list(STATE["pending"]),
-             "conveyor": list(conveyor) if isinstance(conveyor, list) else conveyor}
+             "conveyor": list(conveyor) if isinstance(conveyor, list) else conveyor,
+             "shift_entries": list(STATE["shifts"])}
     p["alarms"] = alarms()  # outside the `with`: alarms() takes LOCK itself and it is not reentrant
+    p["shift_now"] = time.time()
     return p
+
+
+def shift_rows(p, cols):
+    """ROSTER-ordered [(key, emoji, name, bar)] for the panel_snapshot's shift window, at `cols`
+    resolution. The set of agents shown never depends on `cols` (only which slot a run lands in
+    does), so desk_cap's row budget and this row list always agree."""
+    bars = compute_shifts(p["shift_entries"], p["shift_now"], TIMELINE_H, cols)
+    return [(key, emoji, name, bars[key]) for key, emoji, name, _ in ROSTER if key in bars]
 
 
 def alarm_shown(alrm):
@@ -920,6 +991,9 @@ def panel_rows(p):
         n += 1 + len(p["intercom"])
     if p["score"]:
         n += 2 if p["score"] == "err" else 4
+    n_shift = len(shift_rows(p, 1))  # cols=1: cheapest resolution that still gets the row count right
+    if n_shift:
+        n += 1 + n_shift
     if p["alarms"]:
         shown = alarm_shown(p["alarms"])
         n += 1 + shown + (len(p["alarms"]) > shown)
@@ -984,6 +1058,13 @@ def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False)
                          + dpad(f"🧪 qa     {score['qa_ok']} ✓ · {score['qa_ko']} ✗", width - 4 - half) + " │", 5))
             star = f"   ⭐ employé du jour: {score['star'].upper()}" if score["star"] else ""
             rows.append(("│ " + dpad("⚡ " + score["spark"] + star, width - 4) + " │", 6))
+    label_w = 10  # dwidth(emoji)=2 + space + 6-char name (the roster's longest) + space
+    cols = max(1, (width - 4) - label_w)
+    shifts = shift_rows(p, cols)
+    if shifts:  # nobody ran in the window → no panel, same rule as the scoreboard
+        rows.append(("│" + dpad(f" ═══ ⏱ TIMELINE {TIMELINE_H}h ", width - 2, fill="═") + "│", 0))
+        for key, emoji, name, bar in shifts:
+            rows.append(("│ " + dpad(dpad(f"{emoji} {name}", label_w) + bar, width - 4) + " │", 0))
     alrm = p["alarms"]  # from the snapshot: an alarm raised mid-frame must not outgrow the budget
     if alrm:  # no alarm → no panel
         on = flash and tick % 2 == 0
@@ -1268,6 +1349,50 @@ def selfcheck():
     if (pr_stale_h("xh"), pr_stale_h(None), pr_stale_h("0"), pr_stale_h("6")) != (12, 12, 1, 6):
         print(f"FAIL pr_stale_h: junk knob must fall back, not crash: {pr_stale_h('xh')}")
         fails += 1
+    global TIMELINE_H
+    TIMELINE_H = 6  # pin the knob: shift_rows()/render_frame() both read it, fixtures assume 6
+    if (timeline_hours("2h"), timeline_hours(None), timeline_hours("0"), timeline_hours("6")) != (6, 6, 1, 6):
+        print(f"FAIL timeline_hours: junk knob must fall back, not crash: {timeline_hours('2h')}")
+        fails += 1
+    m = LOG_NAME_RE.match("qa-131-20260731T094720.log")
+    if not m or (m.group(1), m.group(2)) != ("qa-131", "20260731T094720"):
+        print(f"FAIL LOG_NAME_RE: {m}")
+        fails += 1
+    if (agent_of_log("qa-131"), agent_of_log("rebase-83"), agent_of_log("scout"), agent_of_log("nope")) \
+            != ("qa", "rebaser", "scout", None):
+        print("FAIL agent_of_log: run-id stripping or prefix remap broken")
+        fails += 1
+    t0 = calendar.timegm(time.strptime("2026-01-02T12:00:00", "%Y-%m-%dT%H:%M:%S"))
+    shift_entries = [
+        ("scout", t0 - 3 * 3600, t0 - 3 * 3600 + 60),  # 3h ago, run shorter than one slot
+        ("scout", t0 - 3600, t0 - 1800),                # 1h ago .. 30min ago
+        ("roast", t0 - 10 * 3600, t0 - 9 * 3600),       # entirely before the 6h window
+    ]
+    bars = compute_shifts(shift_entries, t0, 6, 12)
+    if bars != {"scout": "░░░░░░▓░░░▓▓"}:  # a run under one slot must still mark exactly one (never invisible)
+        print(f"FAIL compute_shifts: {bars}")
+        fails += 1
+    if compute_shifts([], t0, 6, 12) != {}:
+        print("FAIL compute_shifts: nothing in the window should be empty")
+        fails += 1
+    if "TIMELINE" in "\n".join(l for l, _ in render_frame(1, 92)):
+        print("FAIL timeline panel: rendered with no run in the window")
+        fails += 1
+    with LOCK:
+        STATE["shifts"] = [("scout", time.time() - 120, time.time() - 60)]
+    if [k for k, *_ in shift_rows(panel_snapshot(), 12)] != ["scout"]:
+        print(f"FAIL shift_rows: {shift_rows(panel_snapshot(), 12)}")
+        fails += 1
+    frame = render_frame(1, 92)
+    if "⏱ TIMELINE" not in "\n".join(l for l, _ in frame):
+        print("FAIL timeline panel: did not render for an agent with a run in the window")
+        fails += 1
+    for line, _ in frame:
+        if dwidth(line) != 92:
+            print(f"FAIL timeline row {dwidth(line)} cols: {line!r}")
+            fails += 1
+    with LOCK:
+        STATE["shifts"] = []
     for state in ("work", "break", "sleep", "error", "wait", "away"):
         for tick in range(8):
             inner, _ = person_cell(state, tick, 3, "s", "d")

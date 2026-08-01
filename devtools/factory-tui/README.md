@@ -97,6 +97,7 @@ stays read-only.
 | `gh pr list` / `gh issue list` | the team board | 45 s |
 | `gh pr list` / `gh issue list` (last-24h search, one batched query set) | the 🏆 SCOREBOARD panel: per-agent stats (scout issues/approved, roast verdicts/kills, worker PRs/merged, qa pass/fail), hourly activity sparkline, ⭐ employé du jour — hidden when there is no data, "(github injoignable)" when GitHub is down | 45 s |
 | newest file in the agents log dir | the 📻 chatter ticker | 10 s |
+| agent log filenames + mtimes in the log dir | the ⏱ TIMELINE panel: one row per agent that ran in the last `FACTORY_TIMELINE_H` hours (run start from the filename, end from mtime) — hidden when nothing ran in the window | 10 s |
 | agent inboxes (`inbox/<agent>/`, `inbox/archive/`) | 📬 pending-mail badge on desks + the 💬 INTERCOM panel (last agent-to-agent messages) | 10 s |
 
 ## Animated events
@@ -144,6 +145,7 @@ Observable transitions feed a render-side event queue (no extra pollers):
 | `FACTORY_INBOX_DIR` | `~/.claude-agents/notificator/inbox` | agent mailboxes for 📬 badges + 💬 INTERCOM |
 | `FACTORY_STALL_MIN` | `30` | minutes on the same looper step before a 🚨 stall alarm |
 | `FACTORY_PR_STALE_H` | `12` | hours a PR can sit at the top of its conveyor lane before the lane's `⏳` gets a `⚠` marker (no alarm, no beep) |
+| `FACTORY_TIMELINE_H` | `6` | hours of history shown in the ⏱ TIMELINE panel |
 
 ## Requirements
 
