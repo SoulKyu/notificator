@@ -106,6 +106,8 @@ STATE = {"loops": [], "svc": {}, "timers": {}, "prs": [], "issues": "", "ticker"
          "mail_pending": {}, "intercom": [], "score": None, "events": [], "pending": [],
          "ps_ok": True, "conveyor": None, "shifts": []}
 PENDING_MAX = 5
+TIMELINE_ROWS = 5  # panel height cap, same reason as ALARM_ROWS: a full roster must not outgrow
+                   # the always-on wall board/radio for the room desk_cap's len(ROSTER) floor leaves
 LOCK = threading.Lock()
 
 # one-shot animations, consumed by the render loop (render-side state only)
@@ -993,7 +995,7 @@ def panel_rows(p):
         n += 2 if p["score"] == "err" else 4
     n_shift = len(shift_rows(p, 1))  # cols=1: cheapest resolution that still gets the row count right
     if n_shift:
-        n += 1 + n_shift
+        n += 1 + min(n_shift, TIMELINE_ROWS) + (n_shift > TIMELINE_ROWS)
     if p["alarms"]:
         shown = alarm_shown(p["alarms"])
         n += 1 + shown + (len(p["alarms"]) > shown)
@@ -1063,8 +1065,10 @@ def render_frame(tick, width=92, sel=None, desks=None, panels=None, flash=False)
     shifts = shift_rows(p, cols)
     if shifts:  # nobody ran in the window → no panel, same rule as the scoreboard
         rows.append(("│" + dpad(f" ═══ ⏱ TIMELINE {TIMELINE_H}h ", width - 2, fill="═") + "│", 0))
-        for key, emoji, name, bar in shifts:
+        for key, emoji, name, bar in shifts[:TIMELINE_ROWS]:
             rows.append(("│ " + dpad(dpad(f"{emoji} {name}", label_w) + bar, width - 4) + " │", 0))
+        if len(shifts) > TIMELINE_ROWS:  # capped: a full roster must not evict the wall board/radio
+            rows.append(("│ " + dpad(f"… +{len(shifts) - TIMELINE_ROWS} autres", width - 4) + " │", 0))
     alrm = p["alarms"]  # from the snapshot: an alarm raised mid-frame must not outgrow the budget
     if alrm:  # no alarm → no panel
         on = flash and tick % 2 == 0
@@ -1890,13 +1894,15 @@ def selfcheck():
         STATE["svc"] = {f"notificator-{u}": {"Id": f"notificator-{u}.service", "Result": "exit-code",
                                              "ExecMainStatus": "1", "ExecMainCode": "1"}
                         for u in ("scout", "qa", "rebaser", "promoter", "docagent", "reporter", "groomer")}
+        # …and the TIMELINE panel: a full roster running charges its capped 1 + TIMELINE_ROWS + tail
+        # rows too, or this sweep would never notice TIMELINE pushing the board/radio off-screen
+        STATE["shifts"] = [(key, time.time() - 300, time.time() - 60) for key, _, _, _ in ROSTER]
     term_w = 120
     # sweep the heights: the budget boundary only shows up when (h - PANEL_ROWS) % 8 == 0,
     # so a single height silently passes an off-by-one that eats the closing border.
-    # 66 is the floor's own limit: len(ROSTER) desks are 4 grid rows, 32 + 33 panel rows = 65 frame
-    # rows (33 = 5 conveyor lanes + every other panel), and main_curses draws h-1 of them. Below
+    # 73 is the floor's own limit at this worst-case panel_rows (desks pinned at len(ROSTER)); below
     # that no cap fits the panels, so nothing to assert.
-    for term_h in range(66, 82):
+    for term_h in range(73, 89):
         panels = panel_snapshot()
         cap = desk_cap(term_h, grid_per_row(term_w), panels)
         capped = build_desks(cap)
@@ -1925,9 +1931,10 @@ def selfcheck():
     # the budget and the frame must come out of one read of STATE. Cap on an empty office, let a
     # poll fill every panel in the gap, then draw: re-reading STATE here would emit the 16 rows the
     # budget never granted and push the board past h-1, so the frame must honour the snapshot.
-    with LOCK:  # svc too: it feeds alarms(), and leaving it set makes the later poll fixtures order-dependent
+    with LOCK:  # svc/shifts too: they feed alarms()/TIMELINE, and leaving them set makes the later
+                # poll fixtures order-dependent
         STATE["pending"], STATE["intercom"], STATE["err"], STATE["score"] = [], [], "", None
-        STATE["svc"] = {}
+        STATE["svc"], STATE["shifts"] = {}, []
     quiet, term_h = panel_snapshot(), 60
     capped = build_desks(desk_cap(term_h, grid_per_row(term_w), quiet))
     with LOCK:  # the poller lands between desk_cap() and render_frame()
