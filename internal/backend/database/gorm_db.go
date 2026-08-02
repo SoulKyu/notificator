@@ -396,13 +396,22 @@ func (gdb *GormDB) GetComments(alertKey string) ([]models.CommentWithUser, error
 // capped at `limit`, joined to users for the username. It is the single source for
 // the cross-alert activity feed: every ack/unack/silence/resolve already writes a
 // comment, so no merge with the acknowledgments table is needed.
-func (gdb *GormDB) GetRecentActivity(since time.Time, limit int) ([]models.CommentWithUser, error) {
-	var rows []models.CommentWithUser
-	err := gdb.db.Table("comments").
+//
+// When mentionUsername is non-empty, the query itself is narrowed to comments
+// containing an "@username" substring (case-insensitive), so limit caps the
+// relevant subset rather than the whole activity firehose. This is a coarse
+// prefilter only - callers still need the exact word-boundary check to rule out
+// e.g. "@bob" matching inside "@bobby" or "ops-team@bob".
+func (gdb *GormDB) GetRecentActivity(since time.Time, limit int, mentionUsername string) ([]models.CommentWithUser, error) {
+	q := gdb.db.Table("comments").
 		Select("comments.*, users.username").
 		Joins("JOIN users ON users.id = comments.user_id").
-		Where("comments.created_at >= ?", since).
-		Order("comments.created_at DESC").
+		Where("comments.created_at >= ?", since)
+	if mentionUsername != "" {
+		q = q.Where("LOWER(comments.content) LIKE LOWER(?)", "%@"+mentionUsername+"%")
+	}
+	var rows []models.CommentWithUser
+	err := q.Order("comments.created_at DESC").
 		Limit(limit).
 		Find(&rows).Error
 	return rows, err

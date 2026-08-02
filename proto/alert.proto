@@ -127,6 +127,10 @@ message GetRecentActivityRequest {
   string session_id = 1;
   google.protobuf.Timestamp since = 2;
   int32 limit = 3;
+  // When set, narrows the query itself to comments mentioning this username
+  // (an "@username" substring match, case-insensitive), so limit applies to
+  // the relevant subset instead of the whole activity firehose.
+  string mention_username = 4;
 }
 
 message ActivityEvent {

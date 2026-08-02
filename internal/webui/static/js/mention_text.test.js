@@ -29,3 +29,10 @@ test("html in comment content is escaped, not executed", () => {
 		"&lt;script&gt;alert(1)&lt;/script&gt;",
 	);
 });
+
+test("does not highlight a mention embedded after a longer token", () => {
+	assert.equal(
+		renderMentionText("contact db01@bob.internal now", "bob"),
+		"contact db01@bob.internal now",
+	);
+});

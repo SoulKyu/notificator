@@ -63,6 +63,8 @@ func TestMentionsUsername(t *testing.T) {
 		{"matches at end of content", "assigning to @bob", "bob", true},
 		{"matches with trailing punctuation", "cc @bob, please check", "bob", true},
 		{"empty username never matches", "@bob is here", "", false},
+		{"does not match mention embedded after a longer token", "Please email ops-team@bob for the runbook", "bob", false},
+		{"does not match mention embedded after a longer token in hostname", "contact db01@bob.internal now", "bob", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

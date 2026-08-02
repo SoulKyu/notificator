@@ -21,7 +21,7 @@
 	function renderMentionText(content, currentUsername) {
 		const escaped = escapeHtml(content);
 		const me = String(currentUsername || "").toLowerCase();
-		return escaped.replace(/@([A-Za-z0-9_-]+)/g, function (match, name) {
+		return escaped.replace(/(?<![A-Za-z0-9_-])@([A-Za-z0-9_-]+)/g, function (match, name) {
 			const isMe = me !== "" && name.toLowerCase() === me;
 			const cls = isMe
 				? "mention mention-me inline-block px-1 rounded bg-blue-600 text-white font-semibold"

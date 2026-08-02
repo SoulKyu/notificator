@@ -79,7 +79,9 @@ func isMentionBoundaryByte(b byte) bool {
 
 // mentionsUsername reports whether content contains an "@username" mention of
 // username, case-insensitively, and only when username isn't itself a prefix of
-// a longer handle in the text (so "@bob" does not match "@bobby").
+// a longer handle in the text (so "@bob" does not match "@bobby"), nor embedded
+// after a longer token like an email address or hostname (so "ops-team@bob" or
+// "db01@bob.internal" does not match "bob").
 func mentionsUsername(content, username string) bool {
 	if username == "" {
 		return false
@@ -93,7 +95,8 @@ func mentionsUsername(content, username string) bool {
 		}
 		pos := start + idx
 		end := pos + len(target)
-		if end == len(lower) || !isMentionBoundaryByte(lower[end]) {
+		if (pos == 0 || !isMentionBoundaryByte(lower[pos-1])) &&
+			(end == len(lower) || !isMentionBoundaryByte(lower[end])) {
 			return true
 		}
 		start = pos + 1
@@ -122,7 +125,22 @@ func GetActivity(c *gin.Context) {
 	}
 	since := time.Now().Add(-time.Duration(minutes) * time.Minute)
 
-	events, err := backendClient.GetRecentActivity(sessionID, since, 200)
+	// mentionsOnly narrows the feed to comments that @-mention the current user. Resolve
+	// the requesting user up front so the mention can be pushed into the backend query
+	// itself (below) instead of being applied only after the 200-row cap has already
+	// truncated the feed.
+	mentionsOnly := c.Query("mentionsOnly") == "true"
+	mentionUsername := ""
+	if mentionsOnly {
+		u := middleware.GetEffectiveUser(c)
+		if u == nil {
+			c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+			return
+		}
+		mentionUsername = u.Username
+	}
+
+	events, err := backendClient.GetRecentActivity(sessionID, since, 200, mentionUsername)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, webuimodels.ErrorResponse("Failed to load activity: "+err.Error()))
 		return
@@ -179,17 +197,15 @@ func GetActivity(c *gin.Context) {
 		}
 		feed = kept
 	}
-	// mentionsOnly narrows the feed to comments that @-mention the current user.
-	// The author's own comment never counts, even if it mentions themself.
-	if c.Query("mentionsOnly") == "true" {
-		u := middleware.GetEffectiveUser(c)
-		if u == nil {
-			c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
-			return
-		}
+	// The backend query above already narrowed to comments containing "@mentionUsername"
+	// as a coarse substring prefilter; apply the exact word-boundary check here to rule
+	// out e.g. "@bob" matching inside "@bobby" or "ops-team@bob", plus the kind and
+	// self-mention checks. The author's own comment never counts, even if it mentions
+	// themself.
+	if mentionsOnly {
 		kept := feed[:0]
 		for _, ev := range feed {
-			if ev.Kind == "comment" && ev.Username != u.Username && mentionsUsername(ev.Content, u.Username) {
+			if ev.Kind == "comment" && ev.Username != mentionUsername && mentionsUsername(ev.Content, mentionUsername) {
 				kept = append(kept, ev)
 			}
 		}
