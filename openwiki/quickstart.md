@@ -91,8 +91,10 @@ persistent (users, comments, acks, resolved-alert history, statistics, preferenc
 - **Never edit `*_templ.go` or `*.pb.go`** — they are generated. Edit the `.templ` / `.proto`
   source and regenerate (`make webui-templates`, `make proto`). Same for `output.css`
   (`make webui-css`). See [operations](operations.md#codegen).
-- The backend has **no auth interceptor** — every gRPC handler validates `session_id` by hand.
-  A new RPC that forgets the check is wide open. See [backend](backend.md#auth).
+- The gRPC layer is deny-by-default: `authUnaryInterceptor`/`authStreamInterceptor`
+  (`internal/backend/auth_interceptor.go`) reject any method not in the public allowlist unless
+  the call carries a valid session or the shared `NOTIFICATOR_SERVICE_TOKEN`. A new RPC is closed
+  by default now — no per-handler check to remember. See [backend](backend.md#auth).
 - Several "admin only" endpoints are **not actually enforced**; some code paths are dead or
   broken (`profile` timezone update panics). Known-issue list in [backend](backend.md#gotchas)
   and [webui](webui.md#gotchas).

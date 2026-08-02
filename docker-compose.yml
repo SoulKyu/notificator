@@ -61,6 +61,12 @@ services:
       - NOTIFICATOR_BACKEND_DATABASE_SSL_MODE=disable
       # dev-only key — generate your own: openssl rand -hex 32
       - NOTIFICATOR_ENCRYPTION_KEY=${NOTIFICATOR_ENCRYPTION_KEY:-badbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadb}
+      # Shared secret authenticating the WebUI's poller to the backend's gRPC
+      # auth interceptor. Must match webui's NOTIFICATOR_SERVICE_TOKEN below.
+      # dev-only value — generate your own: openssl rand -hex 32
+      - NOTIFICATOR_SERVICE_TOKEN=${NOTIFICATOR_SERVICE_TOKEN:-cafecafecafecafecafecafecafecafecafecafecafecafecafecafecafeca}
+      # Dev/test only — exposes the gRPC schema to any caller. Leave unset in production.
+      - NOTIFICATOR_GRPC_REFLECTION=true
 
       # Alertmanager configuration
       - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager
@@ -120,6 +126,8 @@ services:
       - NOTIFICATOR_WEBUI_LISTEN=:8081
       - NOTIFICATOR_WEBUI_BACKEND=backend:50051
       - NOTIFICATOR_WEBUI_PLAYGROUND=true
+      # Must match backend's NOTIFICATOR_SERVICE_TOKEN above.
+      - NOTIFICATOR_SERVICE_TOKEN=${NOTIFICATOR_SERVICE_TOKEN:-cafecafecafecafecafecafecafecafecafecafecafecafecafecafecafeca}
       # Alertmanager configuration
       - NOTIFICATOR_ALERTMANAGERS_0_NAME=Fake Alertmanager
       - NOTIFICATOR_ALERTMANAGERS_0_URL=http://alertmanager:9093

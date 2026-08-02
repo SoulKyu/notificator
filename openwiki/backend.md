@@ -7,9 +7,10 @@ serves only `/health` and `/metrics`.
 
 ## Bootstrap
 
-`Server.Start()` (`internal/backend/server.go:48`) does, in order: init DB → `AutoMigrate` →
-`initServices()` → start gRPC → start HTTP → start two background cleanup tickers → block on
-graceful shutdown. gRPC registers three services plus reflection (grpcurl-friendly):
+`Server.Start()` (`internal/backend/server.go:48`) does, in order: validate
+`NOTIFICATOR_SERVICE_TOKEN` → init DB → `AutoMigrate` → `initServices()` → start gRPC → start
+HTTP → start two background cleanup tickers → block on graceful shutdown. gRPC registers three
+services; reflection is gated behind `NOTIFICATOR_GRPC_REFLECTION` (off by default, dev-only):
 
 | Service | Impl | Proto |
 |---------|------|-------|
@@ -18,22 +19,37 @@ graceful shutdown. gRPC registers three services plus reflection (grpcurl-friend
 | `StatisticsService` | `StatisticsServiceGorm` | `proto/alert.proto` |
 
 `OAuthService` is initialized only when `config.OAuth.Enabled`. Statistics capture is offloaded
-to a `StatisticsWorkerPool` (10 workers, queue 1000; `server.go:131`). A single
-`grpc.UnaryInterceptor` logs method/duration/status (its `getClientIP` is a stub that always
-returns `"unknown"`).
+to a `StatisticsWorkerPool` (10 workers, queue 1000; `server.go:131`). `grpc.ChainUnaryInterceptor`
+runs `loggingUnaryInterceptor` (logs method/duration/status; its `getClientIP` is a stub that
+always returns `"unknown"`) then `authUnaryInterceptor`; `authStreamInterceptor` covers the
+streaming path.
 
 ## Authentication & sessions {#auth}
 
-The entire auth model is: **every RPC takes a `session_id` string and calls
-`db.GetUserBySession(sessionId)`** (`internal/backend/database/gorm_db.go`, joins
-`sessions.expires_at > now()`). Key consequences:
+**Deny-by-default at the transport layer.** `authUnaryInterceptor`/`authStreamInterceptor`
+(`internal/backend/auth_interceptor.go`) reject any method not in the explicit `publicMethods`
+allowlist (`Login`, `Register`, `ValidateSession`, the OAuth handshake RPCs) unless the call
+carries either a valid session id (`x-notificator-session` metadata, or `authorization: Bearer
+<id>`) or the shared `NOTIFICATOR_SERVICE_TOKEN` (`x-notificator-service-token` metadata,
+compared with `subtle.ConstantTimeCompare`). A session resolves to a `*models.User` via
+`db.GetUserBySession` and is stashed in the context (`backend.AuthenticatedUser(ctx)`); a service
+token resolves to a machine caller with no user. A new RPC is closed by default now — nothing to
+remember per-handler.
 
-- **No auth interceptor.** Each handler validates the session by hand. A new RPC that forgets
-  the check has *no* auth. This is the single most important thing to know before adding an RPC.
-  `GetUserGroups`, `SyncUserGroups`, and `GetUserSentryConfig` shipped without this check and were
-  retrofitted to require `session_id` + `db.GetUserBySession`, resolving the target user through
-  the same `resolveTargetUser(adminConfig, authenticatedUser, requestedUserID, ...)` helper used
-  for impersonation — grep new RPCs against this list before assuming session-gating is a given.
+The WebUI backend client attaches the service token to every call it makes
+(`internal/webui/client/backend_client.go`), since it is the sole gRPC client for both
+user-driven and poller-driven traffic; per-user authorization still comes from the
+`session_id` each handler already validates:
+
+- **Per-handler `session_id` checks are unchanged and still matter.** The interceptor only
+  proves *some* credential is present — it does not know which user is calling on the WebUI's
+  behalf. Each handler still takes a `session_id` string and calls
+  `db.GetUserBySession(sessionId)` (`internal/backend/database/gorm_db.go`, joins
+  `sessions.expires_at > now()`) to resolve *who*. `GetUserGroups`, `SyncUserGroups`, and
+  `GetUserSentryConfig` shipped without this check and were retrofitted to require `session_id` +
+  `db.GetUserBySession`, resolving the target user through the same
+  `resolveTargetUser(adminConfig, authenticatedUser, requestedUserID, ...)` helper used for
+  impersonation — grep new RPCs against this list before assuming session-gating is a given.
 - `Login` creates a bcrypt-checked `User` session with a random hex `session_id`, 7-day expiry
   (`internal/backend/services/services.go`). `User` supports both local password and OAuth
   identity (`OAuthProvider`/`OAuthID`, `internal/backend/models/models.go`).
@@ -130,7 +146,10 @@ only** (no cross-replica fan-out). See [architecture](architecture.md#real-time)
 
 ## Gotchas {#gotchas}
 
-- **No auth interceptor** — forgetting the per-RPC `session_id` check = an unauthenticated RPC.
+- **The auth interceptor gates transport, not per-user authorization** — it accepts a session
+  or the service token, but only a valid `session_id` in the request tells a handler *which*
+  user is calling. Forgetting the per-RPC `session_id` check still means no per-user
+  authorization, even though the interceptor blocks fully anonymous callers.
 - **"Admin only" is not enforced by `UserRole`** despite the group infra existing — the one
   exception is `RemoveAllResolvedAlerts`, gated by the separate `NOTIFICATOR_ADMIN_USERS`
   allowlist (see [auth](#auth)).

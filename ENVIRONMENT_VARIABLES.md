@@ -23,6 +23,9 @@ Example: `backend.grpc_listen` → `NOTIFICATOR_BACKEND_GRPC_LISTEN`
 - `NOTIFICATOR_BACKEND_GRPC_LISTEN` - gRPC server listen address (default: ":50051")
 - `NOTIFICATOR_BACKEND_GRPC_CLIENT` - gRPC client address (default: "localhost:50051")
 - `NOTIFICATOR_BACKEND_HTTP_LISTEN` - HTTP server listen address (default: ":8080")
+- `NOTIFICATOR_GRPC_REFLECTION` - Enable gRPC server reflection (true/false, default: false). Exposes
+  the full RPC schema to any caller that can reach the port — dev/debugging only, leave disabled in
+  production.
 
 ### Database Configuration
 - `NOTIFICATOR_BACKEND_DATABASE_TYPE` - Database type: "sqlite" or "postgres"
@@ -52,6 +55,11 @@ The following standard database environment variables are also supported:
   startup if this is unset or invalid. Generate with: `openssl rand -hex 32`.
   Rotating this key makes previously stored Sentry personal tokens unrecoverable; affected users
   must re-enter their token via the Sentry settings modal.
+- `NOTIFICATOR_SERVICE_TOKEN` - **Required on both backend and webui**, and must be set to the same
+  value on each. Authenticates the WebUI's background poller to the backend's gRPC auth interceptor
+  for the RPCs it calls with no user session (e.g. capturing statistics for an alert nobody is
+  looking at). Must be at least 32 characters. Both processes log an error and exit non-zero at
+  startup if this is unset. Generate with: `openssl rand -hex 32`.
 
 ## Admin Configuration
 

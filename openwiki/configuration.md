@@ -83,6 +83,19 @@ enriches alerts from Sentry issue URLs found in annotations/labels.
 > previously stored Sentry personal tokens unrecoverable; affected users must re-enter their token
 > via the Sentry settings modal. Documented in `ENVIRONMENT_VARIABLES.md` and `.env.example`.
 
+## gRPC auth {#grpc-auth}
+
+`NOTIFICATOR_SERVICE_TOKEN` (documented in `.env.example`, generate with `openssl rand -hex 32`,
+at least 32 characters) authenticates the WebUI to the backend's gRPC auth interceptor
+(`internal/backend/auth_interceptor.go`) — **mandatory on both backend and webui**, and both must
+be set to the same value. Both processes log an error and exit non-zero at startup if it's unset,
+the same fail-closed posture as `NOTIFICATOR_ENCRYPTION_KEY` above. See
+[backend](backend.md#auth).
+
+`NOTIFICATOR_GRPC_REFLECTION` (default `false`) enables gRPC server reflection, which exposes the
+full RPC schema to any caller that can reach the port — leave disabled in production;
+`docker-compose.yml` enables it for the bundled dev stack.
+
 ## Session secret
 
 `NOTIFICATOR_SESSION_SECRET` (documented in `.env.example`, generate with `openssl rand -hex 32`)

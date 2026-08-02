@@ -31,6 +31,7 @@ type Server struct {
 	db                *database.GormDB
 	config            *config.Config
 	dbType            string
+	serviceToken      string
 	grpcServer        *grpc.Server
 	httpServer        *http.Server
 	cleanupTicker     *time.Ticker
@@ -49,6 +50,12 @@ func (s *Server) Start() error {
 	if err := database.ValidateEncryptionKey(); err != nil {
 		return fmt.Errorf("invalid encryption key configuration: %w", err)
 	}
+
+	serviceToken, err := ValidateServiceToken()
+	if err != nil {
+		return fmt.Errorf("invalid service token configuration: %w", err)
+	}
+	s.serviceToken = serviceToken
 
 	if err := s.initDatabase(); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
@@ -155,7 +162,8 @@ func (s *Server) startGRPCServer() error {
 	}
 
 	opts := []grpc.ServerOption{
-		grpc.UnaryInterceptor(s.loggingUnaryInterceptor),
+		grpc.ChainUnaryInterceptor(s.loggingUnaryInterceptor, s.authUnaryInterceptor),
+		grpc.StreamInterceptor(s.authStreamInterceptor),
 	}
 
 	s.grpcServer = grpc.NewServer(opts...)
@@ -164,7 +172,10 @@ func (s *Server) startGRPCServer() error {
 	alertpb.RegisterAlertServiceServer(s.grpcServer, s.alertService)
 	alertpb.RegisterStatisticsServiceServer(s.grpcServer, s.statisticsService)
 
-	reflection.Register(s.grpcServer)
+	if s.config.Backend.EnableReflection {
+		reflection.Register(s.grpcServer)
+		log.Println("⚠️  gRPC reflection is enabled — do not enable this in production")
+	}
 
 	log.Printf("🚀 gRPC server starting on %s", listenAddr)
 

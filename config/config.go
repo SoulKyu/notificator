@@ -56,11 +56,12 @@ func (a *AdminConfig) IsAdmin(usernameOrEmail string) bool {
 }
 
 type BackendConfig struct {
-	Enabled    bool           `json:"enabled"`
-	GRPCListen string         `json:"grpc_listen"` // Port for gRPC server (e.g., ":50051")
-	GRPCClient string         `json:"grpc_client"` // Address for gRPC client (e.g., "localhost:50051")
-	HTTPListen string         `json:"http_listen"` // Port for HTTP server (e.g., ":8080")
-	Database   DatabaseConfig `json:"database"`
+	Enabled          bool           `json:"enabled"`
+	GRPCListen       string         `json:"grpc_listen"`       // Port for gRPC server (e.g., ":50051")
+	GRPCClient       string         `json:"grpc_client"`       // Address for gRPC client (e.g., "localhost:50051")
+	HTTPListen       string         `json:"http_listen"`       // Port for HTTP server (e.g., ":8080")
+	EnableReflection bool           `json:"enable_reflection"` // Dev-only: exposes the gRPC schema to any caller
+	Database         DatabaseConfig `json:"database"`
 }
 
 type DatabaseConfig struct {
@@ -144,7 +145,7 @@ type WebUIConfig struct {
 
 type SentryConfig struct {
 	Enabled      bool     `json:"enabled"`
-	BaseURL      string   `json:"base_url"`               // Default Sentry instance URL (e.g., "https://sentry.io")
+	BaseURL      string   `json:"base_url"`                // Default Sentry instance URL (e.g., "https://sentry.io")
 	GlobalToken  string   `json:"global_token"`            // Admin-configured fallback token
 	AllowedHosts []string `json:"allowed_hosts,omitempty"` // Additional Sentry hosts (host[:port], scheme optional) allowed to receive tokens, for multi-instance setups. Env var NOTIFICATOR_SENTRY_ALLOWED_HOSTS is space-separated (e.g. "a.example.com b.example.com").
 }
@@ -206,10 +207,11 @@ func DefaultConfig() *Config {
 			SyncInterval: 10 * time.Second, // Default sync interval for WebUI alert cache
 		},
 		Backend: BackendConfig{
-			Enabled:    false,
-			GRPCListen: ":50051",
-			GRPCClient: "localhost:50051",
-			HTTPListen: ":8080",
+			Enabled:          false,
+			GRPCListen:       ":50051",
+			GRPCClient:       "localhost:50051",
+			HTTPListen:       ":8080",
+			EnableReflection: false,
 			Database: DatabaseConfig{
 				Type:       "sqlite",
 				SQLitePath: "./notificator.db",
@@ -444,6 +446,8 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("backend.grpc_listen", cfg.Backend.GRPCListen)
 	viper.SetDefault("backend.grpc_client", cfg.Backend.GRPCClient)
 	viper.SetDefault("backend.http_listen", cfg.Backend.HTTPListen)
+	viper.SetDefault("backend.enable_reflection", cfg.Backend.EnableReflection)
+	viper.BindEnv("backend.enable_reflection", "NOTIFICATOR_GRPC_REFLECTION")
 
 	// Database defaults - only set if not already configured from config file or env vars
 	// IMPORTANT: Don't set database.type default - let it come from config file

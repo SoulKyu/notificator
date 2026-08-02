@@ -60,6 +60,16 @@ backend:
     # without it). 64 lowercase hex characters, generate with: openssl rand -hex 32
     # NOTIFICATOR_ENCRYPTION_KEY: "your-64-character-hex-secret-here"
 
+    # Shared secret authenticating the WebUI's poller to the backend's gRPC auth
+    # interceptor (REQUIRED - backend refuses to start without it). Must match
+    # webui.env.NOTIFICATOR_SERVICE_TOKEN below. At least 32 random characters,
+    # generate with: openssl rand -hex 32
+    # NOTIFICATOR_SERVICE_TOKEN: "your-random-secret-here"
+
+    # Exposes the gRPC schema (via reflection) to any caller that can reach the
+    # port. Dev/debugging only - leave unset (defaults to disabled) in production.
+    # NOTIFICATOR_GRPC_REFLECTION: "true"
+
     # Comma-separated usernames/emails allowed to perform team-wide destructive maintenance
     # actions (e.g. deleting all resolved alerts). Empty by default (no one is admin).
     # NOTIFICATOR_ADMIN_USERS: "alice,bob@example.com"
@@ -155,6 +165,11 @@ webui:
     # NOTIFICATOR_WEBUI_LISTEN: ":8081"
     # NOTIFICATOR_WEBUI_BACKEND: "notificator-backend:50051"
     # NOTIFICATOR_WEBUI_PLAYGROUND: "false"
+
+    # Shared secret authenticating this webui to the backend's gRPC auth
+    # interceptor (REQUIRED - webui refuses to start without it). Must match
+    # backend.env.NOTIFICATOR_SERVICE_TOKEN above.
+    # NOTIFICATOR_SERVICE_TOKEN: "your-random-secret-here"
     
     # Alertmanager configuration (examples)
     # NOTIFICATOR_ALERTMANAGERS_0_NAME: "External Alertmanager"
