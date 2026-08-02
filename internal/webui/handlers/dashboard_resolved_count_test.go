@@ -56,6 +56,9 @@ func TestFiltersAffectResolvedCount(t *testing.T) {
 		{"alert names", webuimodels.DashboardFilters{AlertNames: []string{"HighLoad"}}, true},
 		{"acknowledged", webuimodels.DashboardFilters{Acknowledged: &acknowledged}, true},
 		{"has comments", webuimodels.DashboardFilters{HasComments: &hasComments}, true},
+		{"label filters", webuimodels.DashboardFilters{
+			LabelFilters: []webuimodels.LabelFilter{{Key: "cluster", Value: "prod"}},
+		}, true},
 		{"filter hidden alerts", webuimodels.DashboardFilters{
 			FilterHiddenAlerts: []webuimodels.FilterHiddenAlert{{Fingerprint: "abc"}},
 		}, true},
@@ -81,7 +84,7 @@ func TestFiltersAffectResolvedCountCoversEveryFilterField(t *testing.T) {
 	known := map[string]bool{
 		"Search": true, "Alertmanagers": true, "Severities": true,
 		"Statuses": true, "Teams": true, "AlertNames": true,
-		"Acknowledged": true, "HasComments": true,
+		"Acknowledged": true, "HasComments": true, "LabelFilters": true,
 		"FilterHiddenAlerts": true, "FilterHiddenRules": true,
 		// Not filtering predicates in applyDashboardFilters:
 		"DisplayMode": true, "ViewMode": true, "ResolvedAlertsLimit": true,

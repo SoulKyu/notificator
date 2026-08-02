@@ -732,14 +732,6 @@ templ NewDashboardContent() {
 								<span class="text-sm font-medium text-green-700 dark:text-green-300">
 									Filter: <span x-text="activePresetName"></span>
 								</span>
-								<!-- Filter hidden count badge -->
-								<span x-show="filterHiddenAlerts.length > 0 || filterHiddenRules.length > 0"
-									  class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-									<svg class="h-3 w-3 mr-0.5" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
-									</svg>
-									<span x-text="filterHiddenAlerts.length + filterHiddenRules.length"></span>
-								</span>
 								<button @click="clearFilterHiddenState(); activePresetName = null; clearAllFilters()" class="ml-2 inline-flex items-center p-0.5 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
 									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
 										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -756,6 +748,28 @@ templ NewDashboardContent() {
 								</svg>
 								<span x-text="snoozedCount() + ' snoozed'"></span>
 							</button>
+
+							<!-- Hidden-state indicator: stands on its own because the hidden
+							     alerts/rules a preset installed outlive the preset name (e.g.
+							     after "Filter dashboard on this"), and they are why the table
+							     holds fewer rows than the estate. -->
+							<div x-show="filterHiddenAlerts.length > 0 || filterHiddenRules.length > 0"
+								 class="inline-flex items-center px-3 py-1.5 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-md">
+								<svg class="h-4 w-4 mr-1.5 text-amber-700 dark:text-amber-300" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
+								</svg>
+								<span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+									<span x-text="filterHiddenAlerts.length + filterHiddenRules.length"></span>
+									<span x-text="(filterHiddenAlerts.length + filterHiddenRules.length) === 1 ? 'hide rule' : 'hide rules'"></span> active
+								</span>
+								<button @click="filterHiddenAlerts = []; filterHiddenRules = []; applyFilters()"
+										title="Show hidden alerts again"
+										class="ml-2 inline-flex items-center p-0.5 text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100">
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+									</svg>
+								</button>
+							</div>
 
 							<!-- Clear All Filters -->
 							<button @click="clearAllFilters()" x-show="hasActiveFilters()"

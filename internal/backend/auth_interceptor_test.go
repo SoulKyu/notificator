@@ -39,7 +39,7 @@ func newTestServer(t *testing.T) *Server {
 	return &Server{
 		db:                gdb,
 		config:            &config.Config{},
-		authService:       services.NewAuthServiceGorm(gdb, nil, adminConfig),
+		authService:       services.NewAuthServiceGorm(gdb, nil, adminConfig, true),
 		alertService:      services.NewAlertServiceGorm(gdb, adminConfig),
 		statisticsService: services.NewStatisticsServiceGorm(gdb, adminConfig),
 		serviceToken:      testServiceToken,

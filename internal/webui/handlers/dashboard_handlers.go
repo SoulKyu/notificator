@@ -256,23 +256,41 @@ func parseDashboardFilters(c *gin.Context) webuimodels.DashboardFilters {
 		}
 	}
 
-	// Parse filter-specific hidden alerts (JSON)
-	if hiddenAlertsJSON := c.Query("filterHiddenAlerts"); hiddenAlertsJSON != "" {
-		var hiddenAlerts []webuimodels.FilterHiddenAlert
-		if err := json.Unmarshal([]byte(hiddenAlertsJSON), &hiddenAlerts); err == nil {
-			filters.FilterHiddenAlerts = hiddenAlerts
+	// Parse exact label filters: repeated ?label=key=value (split on the first
+	// '=' so values may contain one).
+	for _, raw := range c.QueryArray("label") {
+		key, value, ok := strings.Cut(raw, "=")
+		if !ok || key == "" {
+			continue
 		}
+		filters.LabelFilters = append(filters.LabelFilters, webuimodels.LabelFilter{Key: key, Value: value})
 	}
 
-	// Parse filter-specific hidden rules (JSON)
-	if hiddenRulesJSON := c.Query("filterHiddenRules"); hiddenRulesJSON != "" {
-		var hiddenRules []webuimodels.FilterHiddenRule
-		if err := json.Unmarshal([]byte(hiddenRulesJSON), &hiddenRules); err == nil {
-			filters.FilterHiddenRules = hiddenRules
-		}
-	}
+	filters.FilterHiddenAlerts, filters.FilterHiddenRules = parseFilterHiddenState(c)
 
 	return filters
+}
+
+// parseFilterHiddenState reads the preset-scoped hidden alerts/rules the client
+// carries in the query string of every request whose result must match the
+// table (dashboard data, alert colors, updates, blast radius). Malformed JSON is
+// ignored rather than fatal: a hidden list is a view preference, not an input.
+func parseFilterHiddenState(c *gin.Context) ([]webuimodels.FilterHiddenAlert, []webuimodels.FilterHiddenRule) {
+	var hiddenAlerts []webuimodels.FilterHiddenAlert
+	if raw := c.Query("filterHiddenAlerts"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &hiddenAlerts); err != nil {
+			hiddenAlerts = nil
+		}
+	}
+
+	var hiddenRules []webuimodels.FilterHiddenRule
+	if raw := c.Query("filterHiddenRules"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &hiddenRules); err != nil {
+			hiddenRules = nil
+		}
+	}
+
+	return hiddenAlerts, hiddenRules
 }
 
 func parseDashboardSorting(c *gin.Context) webuimodels.DashboardSorting {
@@ -354,12 +372,30 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	return defaultSettings
 }
 
+// isClassicViewAlert reports whether an alert belongs to the dashboard's default
+// (classic) view. Single source of truth: anything that counts "currently firing"
+// alerts — the table, the blast-radius panel — must use this, or the two disagree.
+func isClassicViewAlert(alert *webuimodels.DashboardAlert) bool {
+	return !alert.IsAcknowledged && !alert.IsResolved
+}
+
+// alertMatchesLabelFilters reports whether an alert carries every requested exact
+// label value. Empty filters match everything.
+func alertMatchesLabelFilters(alert *webuimodels.DashboardAlert, labelFilters []webuimodels.LabelFilter) bool {
+	for _, lf := range labelFilters {
+		if alert.Labels[lf.Key] != lf.Value {
+			return false
+		}
+	}
+	return true
+}
+
 func getStandardAlerts() []*webuimodels.DashboardAlert {
 	allAlerts := alertCache.GetAllAlerts()
 	var standardAlerts []*webuimodels.DashboardAlert
 
 	for _, alert := range allAlerts {
-		if !alert.IsAcknowledged && !alert.IsResolved {
+		if isClassicViewAlert(alert) {
 			standardAlerts = append(standardAlerts, alert)
 		}
 	}
@@ -391,6 +427,7 @@ func filtersAffectResolvedCount(filters webuimodels.DashboardFilters, sessionID 
 		len(filters.Statuses) > 0 ||
 		len(filters.Teams) > 0 ||
 		len(filters.AlertNames) > 0 ||
+		len(filters.LabelFilters) > 0 ||
 		filters.Acknowledged != nil ||
 		filters.HasComments != nil ||
 		len(filters.FilterHiddenAlerts) > 0 ||
@@ -461,6 +498,11 @@ func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimo
 
 		// Shared alert-level filters (search, alertmanager, severity, team, alertName)
 		if !alertPassesAlertLevelFilters(alert, filters) {
+			continue
+		}
+
+		// Apply exact label filters (dashboard-only): every one must match
+		if !alertMatchesLabelFilters(alert, filters.LabelFilters) {
 			continue
 		}
 

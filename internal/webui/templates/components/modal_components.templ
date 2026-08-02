@@ -1297,6 +1297,19 @@ templ AlertDetailsModal() {
 											  x-text="alertHistory?.total_occurrences || 0">
 										</span>
 									</button>
+									<!-- Related tab with special click handler -->
+									<button @click="currentAlertTab = 'related'; if ((!relatedAlerts || relatedAlerts.fingerprint !== alertDetails?.alert?.fingerprint) && !relatedLoading) loadRelatedAlerts()"
+											:class="currentAlertTab === 'related' ? 'bg-white dark:bg-dark-bg-tertiary text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-dark-bg-tertiary/50'"
+											class="whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 flex items-center">
+										<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8.111 16.404a5.5 5.5 0 017.778 0M5.106 12.399a10.5 10.5 0 0113.788 0M1.5 8.5a15 15 0 0121 0"/>
+										</svg>
+										Related
+										<span x-show="relatedAlerts?.groups?.length > 0"
+											  class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
+											  x-text="relatedAlerts?.groups?.length || 0">
+										</span>
+									</button>
 									<!-- Sentry tab with special click handler and conditional display -->
 									<button @click="currentAlertTab = 'sentry'; loadSentryDataForTab()"
 											x-show="alertDetails?.alert?.annotations?.sentry || alertDetails?.alert?.labels?.sentry"
@@ -1878,6 +1891,76 @@ templ AlertDetailsModal() {
 											 class="text-center py-12 text-gray-500 dark:text-gray-400">
 											No history data available for this alert.
 										</div>
+									</div>
+								</div>
+
+								<!-- Related Tab -->
+								<div x-show="currentAlertTab === 'related'"
+									 x-transition:enter="transition-opacity ease-out duration-200"
+									 x-transition:enter-start="opacity-0"
+									 x-transition:enter-end="opacity-100">
+
+									<!-- Loading State -->
+									<div x-show="relatedLoading" class="flex justify-center items-center py-12">
+										<div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600"></div>
+									</div>
+
+									<!-- Error State: a blank pane would read as "nothing correlates" -->
+									<div x-show="!relatedLoading && relatedError" class="text-center py-12">
+										<p class="text-sm text-red-600 dark:text-red-400" x-text="relatedError"></p>
+										<button @click="loadRelatedAlerts()"
+												class="mt-3 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-dark-border-DEFAULT text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+											Retry
+										</button>
+									</div>
+
+									<!-- Empty State -->
+									<div x-show="!relatedLoading && !relatedError && relatedAlerts && (!relatedAlerts.groups || relatedAlerts.groups.length === 0)"
+										 class="text-center py-12 text-gray-500 dark:text-gray-400">
+										No other alerts are currently firing with a matching label — this looks isolated.
+									</div>
+
+									<!-- Correlating label groups -->
+									<div x-show="!relatedLoading && !relatedError && relatedAlerts?.groups?.length > 0" class="space-y-4">
+										<template x-for="group in (relatedAlerts?.groups || [])" :key="group.labelKey + '=' + group.labelValue">
+											<div x-data="{ expanded: false }"
+												 class="bg-white dark:bg-dark-bg-tertiary rounded-lg border border-gray-200 dark:border-dark-border-subtle overflow-hidden">
+												<div class="flex items-center justify-between px-4 py-3 bg-gray-50/50 dark:bg-gray-800/50">
+													<button @click="expanded = !expanded" class="flex items-center flex-1 min-w-0 text-left">
+														<svg class="w-4 h-4 mr-2 text-gray-400 transition-transform flex-shrink-0" :class="expanded ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+														</svg>
+														<span class="text-sm font-medium text-gray-900 dark:text-white truncate">
+															<span x-text="group.labelKey"></span>=<span x-text="group.labelValue"></span>
+														</span>
+														<span class="ml-2 flex-shrink-0 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full"
+															  :title="'Firing alerts carrying ' + group.labelKey + '=' + group.labelValue + ', this one included — exactly what Filter dashboard on this shows'"
+															  x-text="group.count + ' firing'"></span>
+													</button>
+													<button @click="filterDashboardOnRelatedLabel(group)"
+															class="ml-3 flex-shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 whitespace-nowrap">
+														Filter dashboard on this
+													</button>
+												</div>
+												<div x-show="expanded" class="divide-y divide-gray-100 dark:divide-gray-700">
+													<template x-for="related in group.alerts" :key="related.fingerprint">
+														<button @click="showAlertDetails(related.fingerprint)"
+																class="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+															<div class="min-w-0">
+																<div class="text-sm font-medium text-gray-900 dark:text-white truncate" x-text="related.alertName"></div>
+																<div class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="related.instance"></div>
+															</div>
+															<span class="ml-3 flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full"
+																  :class="getSeverityBadgeClasses(related.severity)"
+																  x-text="related.severity"></span>
+														</button>
+													</template>
+													<div x-show="group.truncated" class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
+														Showing first <span x-text="group.alerts.length"></span> of <span x-text="group.otherCount"></span> other alerts.
+													</div>
+												</div>
+											</div>
+										</template>
 									</div>
 								</div>
 							</div>
