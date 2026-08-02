@@ -130,22 +130,34 @@ type DashboardIncrementalRequest struct {
 
 // DashboardIncrementalUpdate represents changes to alerts since last update
 type DashboardIncrementalUpdate struct {
-	NewAlerts      []*DashboardAlert      `json:"newAlerts"`      // Alerts added since last check
-	UpdatedAlerts  []*DashboardAlert      `json:"updatedAlerts"`  // Alerts that changed
-	RemovedAlerts  []string               `json:"removedAlerts"`  // Fingerprints of removed alerts
-	Metadata       *DashboardMetadata     `json:"metadata"`       // Updated metadata
-	Settings       *DashboardSettings     `json:"settings"`       // Updated settings
-	Colors         map[string]interface{} `json:"colors"`         // Color preferences for alerts (fingerprint -> ColorResult)
-	LastUpdateTime int64                  `json:"lastUpdateTime"` // Unix timestamp
+	NewAlerts      []*DashboardAlert       `json:"newAlerts"`         // Alerts added since last check
+	UpdatedAlerts  []*DashboardAlert       `json:"updatedAlerts"`     // Alerts that changed
+	RemovedAlerts  []string                `json:"removedAlerts"`     // Fingerprints of removed alerts
+	Metadata       *DashboardMetadata      `json:"metadata"`          // Updated metadata
+	Settings       *DashboardSettings      `json:"settings"`          // Updated settings
+	Colors         map[string]interface{}  `json:"colors"`            // Color preferences for alerts (fingerprint -> ColorResult)
+	Sources        map[string]SourceStatus `json:"sources,omitempty"` // Per-Alertmanager poll freshness
+	LastUpdateTime int64                   `json:"lastUpdateTime"`    // Unix timestamp
+}
+
+// SourceStatus reports the poll freshness of a single configured Alertmanager,
+// derived from the alert cache's refresh cycle only (no active probing).
+type SourceStatus struct {
+	State               string    `json:"state"` // "live", "stale", or "unreachable"
+	LastSuccessAt       time.Time `json:"lastSuccessAt,omitempty"`
+	LastError           string    `json:"lastError,omitempty"`
+	ConsecutiveFailures int       `json:"consecutiveFailures"`
+	AlertCount          int       `json:"alertCount"`
 }
 
 // DashboardResponse represents the API response for dashboard data
 type DashboardResponse struct {
-	Alerts   []DashboardAlert       `json:"alerts"`
-	Groups   []AlertGroup           `json:"groups,omitempty"` // Only present in group view
-	Metadata DashboardMetadata      `json:"metadata"`
-	Settings DashboardSettings      `json:"settings"`
-	Colors   map[string]interface{} `json:"colors,omitempty"` // fingerprint -> ColorResult, embedded so first render is correctly colored
+	Alerts   []DashboardAlert        `json:"alerts"`
+	Groups   []AlertGroup            `json:"groups,omitempty"` // Only present in group view
+	Metadata DashboardMetadata       `json:"metadata"`
+	Settings DashboardSettings       `json:"settings"`
+	Colors   map[string]interface{}  `json:"colors,omitempty"`  // fingerprint -> ColorResult, embedded so first render is correctly colored
+	Sources  map[string]SourceStatus `json:"sources,omitempty"` // Per-Alertmanager poll freshness, embedded so first paint is correct
 }
 
 // AlertGroup represents a group of alerts for group view

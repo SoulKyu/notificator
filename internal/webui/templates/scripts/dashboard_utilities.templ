@@ -711,6 +711,21 @@ templ DashboardUtilities() {
 					return `<div class="text-sm font-semibold text-gray-900 dark:text-white truncate" title="${escaped}">${escaped}</div>`;
 				}
 
+				// Discreet marker for alerts whose Alertmanager source is not live,
+				// so a stale/unreachable-sourced row is identifiable in the table.
+				if (fieldPath === 'source' && this.sources) {
+					const status = this.sources[value];
+					if (status && status.state !== 'live') {
+						const title = status.state === 'unreachable'
+							? `${escaped} has not answered since startup`
+							: `${escaped} last answered ${this.sourceRelativeTime(status.lastSuccessAt)}`;
+						return `<div class="text-sm text-gray-700 dark:text-gray-200 truncate flex items-center gap-1" title="${this.escapeHtml(title)}">
+							${escaped}
+							<span class="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 flex-shrink-0"></span>
+						</div>`;
+					}
+				}
+
 				return `<div class="text-sm text-gray-700 dark:text-gray-200 truncate" title="${escaped}">${escaped}</div>`;
 			},
 

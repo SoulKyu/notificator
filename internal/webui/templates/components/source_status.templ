@@ -1,0 +1,76 @@
+package components
+
+// SourceStatusPill shows a "N/N live" badge for configured Alertmanagers in the
+// dashboard header. Clicking it opens a popover with one row per source: state,
+// last successful poll, alert count and last error.
+templ SourceStatusPill() {
+	<div class="relative" x-show="sourceEntries().length > 0" x-cloak @click.away="sourcesPopoverOpen = false">
+		<button @click="toggleSourcesPopover()"
+				class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium transition-colors"
+				:class="sourcesPillColorClasses()">
+			<svg class="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+			</svg>
+			<span x-text="sourcesSummary().live + '/' + sourcesSummary().total + ' live'"></span>
+		</button>
+
+		<div x-show="sourcesPopoverOpen" x-cloak x-transition
+			 class="absolute left-0 mt-2 w-80 bg-white dark:bg-dark-bg-secondary rounded-lg shadow-lg border border-gray-200 dark:border-dark-border-subtle z-50 py-2 max-h-96 overflow-y-auto">
+			<div class="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+				Alertmanager Sources
+			</div>
+			<template x-for="source in sourceEntries()" :key="source.name">
+				<div class="px-3 py-2 border-t border-gray-100 dark:border-dark-border-subtle">
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-medium text-gray-900 dark:text-white truncate" x-text="source.name"></span>
+						<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+							  :class="{
+								  'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200': source.state === 'live',
+								  'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200': source.state === 'stale',
+								  'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200': source.state === 'unreachable'
+							  }"
+							  x-text="source.state"></span>
+					</div>
+					<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+						<span x-text="'Last poll: ' + sourceRelativeTime(source.lastSuccessAt)"></span>
+						<span x-text="source.alertCount + ' alert' + (source.alertCount === 1 ? '' : 's')"></span>
+					</div>
+					<div x-show="source.lastError" class="mt-1 text-xs text-red-600 dark:text-red-400 truncate" :title="source.lastError" x-text="source.lastError"></div>
+				</div>
+			</template>
+		</div>
+	</div>
+}
+
+// StaleSourceBanner warns about Alertmanagers that have missed several
+// consecutive polls, above the alerts table. Dismissible per-source; the
+// dismissal is forgotten once the source recovers, so it reappears if the
+// condition persists after a reload.
+templ StaleSourceBanner() {
+	<template x-for="source in staleSourceAlerts()" :key="source.name">
+		<div class="px-6 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800/50" role="alert">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center">
+					<svg class="w-4 h-4 mr-2 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+					</svg>
+					<span class="text-sm text-amber-800 dark:text-amber-200">
+						<span class="font-medium" x-text="source.name"></span>
+						<template x-if="source.state === 'unreachable'">
+							<span> has not answered since startup — its alerts may be missing.</span>
+						</template>
+						<template x-if="source.state !== 'unreachable'">
+							<span x-text="' has not answered for ' + sourceRelativeTime(source.lastSuccessAt) + ' — its ' + source.alertCount + ' alerts may be stale.'"></span>
+						</template>
+					</span>
+				</div>
+				<button @click="dismissStaleSourceBanner(source.name)" aria-label="Dismiss"
+						class="ml-3 p-0.5 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300">
+					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+					</svg>
+				</button>
+			</div>
+		</div>
+	</template>
+}
