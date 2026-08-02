@@ -1977,6 +1977,24 @@ func (s *AuthServiceGorm) SyncUserGroups(ctx context.Context, req *authpb.SyncUs
 	}, nil
 }
 
+// protoTimestampToTimePtr converts an optional proto timestamp to *time.Time.
+// A nil/zero timestamp means "forever" and maps to a nil *time.Time.
+func protoTimestampToTimePtr(ts *timestamppb.Timestamp) *time.Time {
+	if ts == nil || !ts.IsValid() || ts.AsTime().IsZero() {
+		return nil
+	}
+	t := ts.AsTime()
+	return &t
+}
+
+// timePtrToProtoTimestamp is the inverse of protoTimestampToTimePtr.
+func timePtrToProtoTimestamp(t *time.Time) *timestamppb.Timestamp {
+	if t == nil {
+		return nil
+	}
+	return timestamppb.New(*t)
+}
+
 // GetUserHiddenAlerts implements the GetUserHiddenAlerts RPC method
 func (s *AlertServiceGorm) GetUserHiddenAlerts(ctx context.Context, req *alertpb.GetUserHiddenAlertsRequest) (*alertpb.GetUserHiddenAlertsResponse, error) {
 	if req.SessionId == "" {
@@ -2025,6 +2043,7 @@ func (s *AlertServiceGorm) GetUserHiddenAlerts(ctx context.Context, req *alertpb
 			Reason:      hiddenAlert.Reason,
 			CreatedAt:   timestamppb.New(hiddenAlert.CreatedAt),
 			UpdatedAt:   timestamppb.New(hiddenAlert.UpdatedAt),
+			ExpiresAt:   timePtrToProtoTimestamp(hiddenAlert.ExpiresAt),
 		})
 	}
 
@@ -2061,7 +2080,7 @@ func (s *AlertServiceGorm) HideAlert(ctx context.Context, req *alertpb.HideAlert
 	}
 
 	// Create hidden alert in database
-	hiddenAlert, err := s.db.CreateUserHiddenAlert(user.ID, req.Fingerprint, req.AlertName, req.Instance, req.Reason)
+	hiddenAlert, err := s.db.CreateUserHiddenAlert(user.ID, req.Fingerprint, req.AlertName, req.Instance, req.Reason, protoTimestampToTimePtr(req.ExpiresAt))
 	if err != nil {
 		log.Printf("Error creating hidden alert for user %s: %v", user.ID, err)
 		return &alertpb.HideAlertResponse{
@@ -2079,6 +2098,7 @@ func (s *AlertServiceGorm) HideAlert(ctx context.Context, req *alertpb.HideAlert
 		Reason:      hiddenAlert.Reason,
 		CreatedAt:   timestamppb.New(hiddenAlert.CreatedAt),
 		UpdatedAt:   timestamppb.New(hiddenAlert.UpdatedAt),
+		ExpiresAt:   timePtrToProtoTimestamp(hiddenAlert.ExpiresAt),
 	}
 
 	return &alertpb.HideAlertResponse{

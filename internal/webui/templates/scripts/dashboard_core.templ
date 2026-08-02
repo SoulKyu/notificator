@@ -78,6 +78,17 @@ templ DashboardCore() {
 				silencePreviewError: '',
 				silencePreviewTimer: null,
 				
+				showSnoozeModal: false,
+				currentSnoozeAlert: null,
+				snoozeDuration: '4h',
+				snoozeReason: '',
+				snoozeError: '',
+				snoozeSubmitting: false,
+				// Own reactive copy of the non-expired snooze count, kept in sync by the
+				// settings modal (a separate Alpine component) via syncSnoozedCount() so
+				// the badge's x-show/x-text bindings have a dependency they can track.
+				snoozedAlertsCount: 0,
+
 				showAlertModal: false,
 				alertModalPushedHistory: false,
 				alertDetails: null,
@@ -130,6 +141,13 @@ templ DashboardCore() {
 				// SSE (Server-Sent Events) support
 				sseConnection: null,
 				useSSE: true,  // Feature flag for SSE
+
+				// SSE only pushes on Alertmanager-diff events, never on wall-clock
+				// snooze expiry, so an idle SSE tab needs its own light watchdog to
+				// notice when a snooze crosses its boundary (see startSnoozeExpiryWatch).
+				snoozeExpiryWatch: null,
+				snoozeExpiryWatchMs: 15000, // 15 seconds
+				lastExpiredSnoozeFingerprints: [],
 
 				// Adaptive polling rate (fallback when SSE not available)
 				recentChanges: 0,      // Count of polls with changes
@@ -519,6 +537,8 @@ templ DashboardCore() {
 						this.destroySSE();
 						this.startAutoRefresh();
 					};
+
+					this.startSnoozeExpiryWatch();
 				},
 
 				destroySSE() {
@@ -526,6 +546,43 @@ templ DashboardCore() {
 						console.log('Closing SSE connection');
 						this.sseConnection.close();
 						this.sseConnection = null;
+					}
+					this.stopSnoozeExpiryWatch();
+				},
+
+				// Reconciles snooze expiry on the SSE path. SSE updates are diffed
+				// against the live Alertmanager cache, so a still-firing alert whose
+				// snooze simply times out never triggers a push - nothing upstream
+				// changed. Every tick, decay the "N snoozed" badge from the
+				// already-loaded hidden-alerts list (pure client-side, no request),
+				// and only pay for a network round trip - to bring a newly-unhidden
+				// alert back into the table - when a snooze actually crosses its
+				// expiry boundary since the previous tick.
+				startSnoozeExpiryWatch() {
+					this.stopSnoozeExpiryWatch();
+					this.snoozeExpiryWatch = setInterval(() => {
+						this.refreshSnoozedCount();
+
+						const hiddenAlerts = (window.currentSettingsModal && window.currentSettingsModal.hiddenAlerts) || [];
+						const expiredNow = hiddenAlerts
+							.filter(a => this.isSnoozeExpired(a.expiresAt))
+							.map(a => a.fingerprint);
+						const newlyExpired = expiredNow.some(fp => !this.lastExpiredSnoozeFingerprints.includes(fp));
+						this.lastExpiredSnoozeFingerprints = expiredNow;
+
+						if (newlyExpired) {
+							this.loadDashboardIncremental();
+							if (window.currentSettingsModal && window.currentSettingsModal.loadHiddenAlerts) {
+								window.currentSettingsModal.loadHiddenAlerts();
+							}
+						}
+					}, this.snoozeExpiryWatchMs);
+				},
+
+				stopSnoozeExpiryWatch() {
+					if (this.snoozeExpiryWatch) {
+						clearInterval(this.snoozeExpiryWatch);
+						this.snoozeExpiryWatch = null;
 					}
 				},
 

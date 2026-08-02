@@ -521,7 +521,9 @@ templ DashboardSettings() {
 						if (response.ok) {
 							const result = await response.json();
 							if (result.success) {
-								this.hiddenAlerts = result.data.hiddenAlerts || [];
+								// alert_name comes back snake_case from the API (models.UserHiddenAlert);
+								// normalize so extendSnooze() can hand this straight to snoozeAlertData().
+								this.hiddenAlerts = (result.data.hiddenAlerts || []).map(a => ({ ...a, alertName: a.alertName || a.alert_name }));
 								console.log('Loaded hidden alerts:', this.hiddenAlerts.length);
 							}
 						}
@@ -529,7 +531,19 @@ templ DashboardSettings() {
 						console.error('Error loading hidden alerts:', error);
 					} finally {
 						this.hiddenAlertsLoading = false;
+						this.syncSnoozedCount();
 					}
+				},
+
+				// Push the non-expired count of this.hiddenAlerts into the dashboard's own
+				// reactive snoozedAlertsCount, since that's a different Alpine component and
+				// its "N snoozed" badge can't track a read of this component's state directly.
+				syncSnoozedCount() {
+					if (!window.dashboardInstance || !window.dashboardInstance.isSnoozeExpired) {
+						return;
+					}
+					window.dashboardInstance.snoozedAlertsCount = this.hiddenAlerts
+						.filter(a => !window.dashboardInstance.isSnoozeExpired(a.expiresAt)).length;
 				},
 
 				async loadHiddenRules() {
@@ -564,9 +578,10 @@ templ DashboardSettings() {
 						if (result.success) {
 							// Remove from local array
 							this.hiddenAlerts = this.hiddenAlerts.filter(alert => alert.fingerprint !== fingerprint);
-							
+							this.syncSnoozedCount();
+
 							// Show success message
-							
+
 							// Refresh dashboard data if visible
 							if (window.dashboardInstance && window.dashboardInstance.loadDashboardData) {
 								window.dashboardInstance.loadDashboardData();
@@ -581,6 +596,32 @@ templ DashboardSettings() {
 
 				async unhideSpecificAlert(fingerprint) {
 					await this.unhideAlert(fingerprint);
+				},
+
+				// Human-readable remaining snooze time, or "Never" for a permanent hide
+				formatExpiry(alert) {
+					if (!alert.expiresAt) {
+						return 'Never';
+					}
+					const diffMs = new Date(alert.expiresAt) - new Date();
+					if (diffMs <= 0) {
+						return 'Expired';
+					}
+					const hours = diffMs / 3600000;
+					if (hours < 1) {
+						return `${Math.max(1, Math.round(diffMs / 60000))}m`;
+					}
+					if (hours < 24) {
+						return `${Math.round(hours)}h`;
+					}
+					return `${Math.round(hours / 24)}d`;
+				},
+
+				// Open the main dashboard's snooze picker prefilled for this already-hidden alert
+				extendSnooze(alert) {
+					if (window.dashboardInstance) {
+						window.dashboardInstance.snoozeAlertData(alert);
+					}
 				},
 
 				removeLabelCondition(preference, key) {

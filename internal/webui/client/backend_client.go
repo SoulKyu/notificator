@@ -1176,8 +1176,9 @@ func (c *BackendClient) GetUserHiddenAlerts(sessionID string, impersonateUserID 
 	return resp.HiddenAlerts, nil
 }
 
-// HideAlert hides a specific alert for a user
-func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, reason string, impersonateUserID ...string) error {
+// HideAlert hides a specific alert for a user. expiresAt is nil for a
+// permanent hide ("forever"); a snooze passes its wake-up time.
+func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, reason string, expiresAt *time.Time, impersonateUserID ...string) error {
 	if c.alertClient == nil {
 		return fmt.Errorf("not connected to backend")
 	}
@@ -1191,6 +1192,9 @@ func (c *BackendClient) HideAlert(sessionID, fingerprint, alertName, instance, r
 		AlertName:   alertName,
 		Instance:    instance,
 		Reason:      reason,
+	}
+	if expiresAt != nil {
+		req.ExpiresAt = timestamppb.New(*expiresAt)
 	}
 	if len(impersonateUserID) > 0 && impersonateUserID[0] != "" {
 		req.ImpersonateUserId = impersonateUserID[0]

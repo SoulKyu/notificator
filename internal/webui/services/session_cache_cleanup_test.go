@@ -35,7 +35,9 @@ func (b *stubBackend) GetUserHiddenRules(string, ...string) ([]*alertpb.UserHidd
 
 func (b *stubBackend) ClearAllHiddenAlerts(string, ...string) error { return nil }
 
-func (b *stubBackend) HideAlert(string, string, string, string, string, ...string) error { return nil }
+func (b *stubBackend) HideAlert(string, string, string, string, string, *time.Time, ...string) error {
+	return nil
+}
 
 func TestColorServiceSweepExpired(t *testing.T) {
 	cs := NewColorService(nil)
@@ -60,7 +62,7 @@ func TestHiddenAlertsServiceSweepIdleSessions(t *testing.T) {
 		"idle":   time.Now().Add(-sessionIdleTTL - time.Hour),
 		"active": time.Now(),
 	} {
-		s.userHiddenAlerts[session] = map[string]bool{"fp": true}
+		s.userHiddenAlerts[session] = map[string]*time.Time{"fp": nil}
 		s.userHiddenRules[session] = []models.UserHiddenRule{{ID: "r1"}}
 		s.compiledRegexRules[session] = map[string]*regexp.Regexp{"r1": regexp.MustCompile("x")}
 		s.lastAccess[session] = last
@@ -90,7 +92,7 @@ func TestHiddenAlertsServiceSweepIdleSessions(t *testing.T) {
 func TestHiddenAlertsServiceLoadUserDataServesCacheWithinTTL(t *testing.T) {
 	backend := &stubBackend{}
 	s := NewHiddenAlertsService(backend)
-	s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
+	s.userHiddenAlerts["sess"] = map[string]*time.Time{"fp": nil}
 	s.lastAccess["sess"] = time.Now()
 
 	if err := s.LoadUserData("sess"); err != nil {
@@ -100,7 +102,7 @@ func TestHiddenAlertsServiceLoadUserDataServesCacheWithinTTL(t *testing.T) {
 	if backend.calls != 0 {
 		t.Errorf("fresh cache should not fetch: got %d backend calls, want 0", backend.calls)
 	}
-	if !s.userHiddenAlerts["sess"]["fp"] {
+	if _, ok := s.userHiddenAlerts["sess"]["fp"]; !ok {
 		t.Error("cached snapshot should have been left untouched")
 	}
 }
@@ -125,12 +127,12 @@ func TestHiddenAlertsServiceLoadUserDataCachesAfterSuccessfulFetch(t *testing.T)
 func TestHiddenAlertsServiceLoadUserDataRefetchesWhenStale(t *testing.T) {
 	for name, prime := range map[string]func(s *HiddenAlertsService){
 		"expired": func(s *HiddenAlertsService) {
-			s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
+			s.userHiddenAlerts["sess"] = map[string]*time.Time{"fp": nil}
 			s.lastAccess["sess"] = time.Now().Add(-2 * s.cacheTTL)
 		},
 		"cold": func(s *HiddenAlertsService) {},
 		"invalidated": func(s *HiddenAlertsService) {
-			s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
+			s.userHiddenAlerts["sess"] = map[string]*time.Time{"fp": nil}
 			s.lastAccess["sess"] = time.Now()
 			s.InvalidateCache("sess")
 		},
@@ -147,7 +149,8 @@ func TestHiddenAlertsServiceLoadUserDataRefetchesWhenStale(t *testing.T) {
 			if backend.calls != 1 {
 				t.Errorf("stale cache should refetch: got %d backend calls, want 1", backend.calls)
 			}
-			if got := s.userHiddenAlerts["sess"]; !got["fetched"] || len(got) != 1 {
+			got := s.userHiddenAlerts["sess"]
+			if _, ok := got["fetched"]; !ok || len(got) != 1 {
 				t.Errorf("fetched snapshot should replace the primed one, got %v", got)
 			}
 		})
@@ -213,7 +216,7 @@ func TestHiddenAlertsServiceLoadUserDataDropsSnapshotHiddenMidFetchOnColdEntry(t
 	backend := &stubBackend{}
 	s := NewHiddenAlertsService(backend)
 	backend.onFetch = func() {
-		_ = s.HideAlert("sess", &webuimodels.DashboardAlert{Fingerprint: "fpA"}, "")
+		_ = s.HideAlert("sess", &webuimodels.DashboardAlert{Fingerprint: "fpA"}, "", nil)
 	}
 
 	if err := s.LoadUserData("sess"); err != nil {
@@ -229,10 +232,10 @@ func TestHiddenAlertsServiceLoadUserDataDropsSnapshotHiddenMidFetchOnColdEntry(t
 // written into the acting session's snapshot.
 func TestHiddenAlertsServiceHideAlertIgnoresCacheWhenImpersonating(t *testing.T) {
 	s := NewHiddenAlertsService(&stubBackend{})
-	s.userHiddenAlerts["sess"] = map[string]bool{}
+	s.userHiddenAlerts["sess"] = map[string]*time.Time{}
 	s.lastAccess["sess"] = time.Now()
 
-	if err := s.HideAlert("sess", &webuimodels.DashboardAlert{Fingerprint: "other-user-fp"}, "", "impersonated-user"); err != nil {
+	if err := s.HideAlert("sess", &webuimodels.DashboardAlert{Fingerprint: "other-user-fp"}, "", nil, "impersonated-user"); err != nil {
 		t.Fatalf("HideAlert: %v", err)
 	}
 
@@ -246,7 +249,7 @@ func TestHiddenAlertsServiceHideAlertIgnoresCacheWhenImpersonating(t *testing.T)
 
 func TestHiddenAlertsServiceInvalidateCacheRemovesAllMaps(t *testing.T) {
 	s := NewHiddenAlertsService(nil)
-	s.userHiddenAlerts["sess"] = map[string]bool{"fp": true}
+	s.userHiddenAlerts["sess"] = map[string]*time.Time{"fp": nil}
 	s.userHiddenRules["sess"] = []models.UserHiddenRule{{ID: "r1"}}
 	s.compiledRegexRules["sess"] = map[string]*regexp.Regexp{"r1": regexp.MustCompile("x")}
 	s.lastAccess["sess"] = time.Now()

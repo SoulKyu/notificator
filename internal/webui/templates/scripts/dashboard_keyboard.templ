@@ -11,7 +11,8 @@ templ DashboardKeyboardMixin() {
 			modalOpen() {
 				return this.showSettings || this.showAckModal || this.showSilenceModal ||
 					this.showAlertModal || this.showFilterPresetsModal ||
-					this.showColumnConfigModal || this.showShortcutsHelp;
+					this.showColumnConfigModal || this.showShortcutsHelp ||
+					this.showSnoozeModal;
 			},
 
 			isTypingTarget(target) {
@@ -211,6 +212,12 @@ templ DashboardKeyboardMixin() {
 				if (event.key === 'Escape') {
 					if (this.showShortcutsHelp) {
 						this.showShortcutsHelp = false;
+						return;
+					}
+					// The snooze dialog only closes on click-away, so Escape has to
+					// close it here rather than being handed off to the modal.
+					if (this.showSnoozeModal) {
+						this.cancelSnooze();
 						return;
 					}
 					// A dashboard modal is open — let its own Escape handler close it

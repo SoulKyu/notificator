@@ -747,6 +747,16 @@ templ NewDashboardContent() {
 								</button>
 							</div>
 
+							<!-- Snoozed Alerts Counter -->
+							<button @click="openSnoozedAlerts()" x-show="snoozedCount() > 0"
+									class="inline-flex items-center px-3 py-2 border border-amber-300 dark:border-amber-700 rounded-md shadow-sm bg-amber-50 dark:bg-amber-900/30 text-sm font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+									title="View snoozed alerts">
+								<svg class="h-4 w-4 mr-1.5" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+								</svg>
+								<span x-text="snoozedCount() + ' snoozed'"></span>
+							</button>
+
 							<!-- Clear All Filters -->
 							<button @click="clearAllFilters()" x-show="hasActiveFilters()"
 									class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm bg-white dark:bg-dark-bg-tertiary text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
@@ -952,6 +962,9 @@ templ NewDashboardContent() {
 
 		<!-- Silence Modal -->
 		@components.SilenceModal()
+
+		<!-- Snooze Modal -->
+		@components.SnoozeModal()
 
 		<!-- Alert Details Modal -->
 		@components.AlertDetailsModal()

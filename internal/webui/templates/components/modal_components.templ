@@ -367,14 +367,27 @@ templ SettingsModal() {
 													<p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="alert.instance || 'N/A'"></p>
 													<p x-show="alert.reason" class="text-xs text-gray-500 dark:text-gray-400 mt-1" x-text="'Reason: ' + alert.reason"></p>
 													<p class="text-xs text-gray-400 dark:text-gray-500" x-text="'Hidden: ' + new Date(alert.createdAt).toLocaleDateString()"></p>
+													<p class="text-xs mt-1"
+													   :class="alert.expiresAt ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'"
+													   x-text="'Expires: ' + formatExpiry(alert)"></p>
 												</div>
-												<button @click="unhideSpecificAlert(alert.fingerprint)" 
-														class="ml-3 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300">
-													<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-													</svg>
-												</button>
+												<div class="flex items-center ml-3 space-x-2 flex-shrink-0">
+													<button @click="extendSnooze(alert)"
+															class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+															title="Extend snooze">
+														<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+														</svg>
+													</button>
+													<button @click="unhideSpecificAlert(alert.fingerprint)"
+															class="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+															title="Wake now">
+														<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+														</svg>
+													</button>
+												</div>
 											</div>
 										</template>
 									</div>
@@ -930,6 +943,138 @@ templ AcknowledgmentModal() {
 	</div>
 }
 
+// Snooze Modal Component - personal, time-bounded hide
+templ SnoozeModal() {
+	<!-- Snooze Dialog -->
+	<div x-show="showSnoozeModal"
+		 x-transition:enter="ease-out duration-300"
+		 x-transition:enter-start="opacity-0"
+		 x-transition:enter-end="opacity-100"
+		 x-transition:leave="ease-in duration-200"
+		 x-transition:leave-start="opacity-100"
+		 x-transition:leave-end="opacity-0"
+		 class="fixed inset-0 z-60 overflow-y-auto"
+		 @click.away="cancelSnooze()"
+		 style="display: none;">
+		<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+			<!-- Backdrop -->
+			<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity" @click="cancelSnooze()"></div>
+
+			<span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+			<div class="relative inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full z-10 border border-gray-200/50 dark:border-dark-border-subtle/50"
+				 @click.stop
+				 x-transition:enter="ease-out duration-300"
+				 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+				 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+				 x-transition:leave="ease-in duration-200"
+				 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+				 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+
+				<div class="bg-white dark:bg-dark-bg-secondary px-6 pt-6 pb-4">
+					<div class="sm:flex sm:items-start">
+						<div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 sm:mx-0 sm:h-10 sm:w-10 shadow-lg shadow-indigo-500/25">
+							<svg class="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+							</svg>
+						</div>
+						<div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+							<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+								Snooze Alert
+							</h3>
+							<div class="mt-2">
+								<p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+									Hide this alert from your dashboard for a while. It reappears on its own
+									when the snooze expires, notifications included.
+								</p>
+
+								<!-- Alert Information -->
+								<div x-show="currentSnoozeAlert" class="mb-4 p-3 bg-gray-50 dark:bg-dark-bg-tertiary rounded-md">
+									<div class="flex items-center space-x-2 text-sm">
+										<span class="font-medium text-gray-900 dark:text-white">Alert:</span>
+										<span class="text-gray-600 dark:text-gray-300" x-text="currentSnoozeAlert?.alertName"></span>
+									</div>
+									<div class="flex items-center space-x-2 text-sm mt-1">
+										<span class="font-medium text-gray-900 dark:text-white">Instance:</span>
+										<span class="text-gray-600 dark:text-gray-300" x-text="currentSnoozeAlert?.instance"></span>
+									</div>
+								</div>
+
+								<!-- Duration Selection -->
+								<div class="mb-4">
+									<label for="snooze-duration-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+										Snooze Duration <span class="text-red-500">*</span>
+									</label>
+									<select id="snooze-duration-select" name="snooze-duration-select"
+											x-model="snoozeDuration"
+											class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-dark-bg-tertiary dark:text-white">
+										<option value="1h">1 hour</option>
+										<option value="4h">4 hours</option>
+										<option value="8h">8 hours</option>
+										<option value="tomorrow9am">Until tomorrow 9am</option>
+										<option value="forever">Forever</option>
+									</select>
+								</div>
+
+								<!-- Reason Input -->
+								<div class="mb-4">
+									<label for="snooze-reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+										Reason (optional)
+									</label>
+									<textarea id="snooze-reason"
+											  x-model="snoozeReason"
+											  rows="2"
+											  placeholder="Why are you snoozing this alert?"
+											  class="w-full px-3 py-2 border border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-dark-bg-tertiary dark:text-white resize-none"
+											  @keydown.enter.meta.prevent="submitSnooze()"
+											  @keydown.enter.ctrl.prevent="submitSnooze()"></textarea>
+								</div>
+
+								<!-- Validation Error -->
+								<div x-show="snoozeError" class="mb-4 p-3 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md">
+									<div class="flex">
+										<svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+										</svg>
+										<div class="ml-3">
+											<p class="text-sm text-red-800 dark:text-red-200" x-text="snoozeError"></p>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-gray-50 dark:bg-dark-bg-tertiary px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+					<button type="button"
+							@click="submitSnooze()"
+							:disabled="snoozeSubmitting"
+							class="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200"
+							:class="{
+								'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500': !snoozeSubmitting,
+								'bg-gray-400 cursor-not-allowed': snoozeSubmitting
+							}">
+						<svg x-show="snoozeSubmitting" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<span x-show="!snoozeSubmitting">Snooze</span>
+						<span x-show="snoozeSubmitting">Processing...</span>
+					</button>
+					<button type="button"
+							@click="cancelSnooze()"
+							:disabled="snoozeSubmitting"
+							class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-dark-border-DEFAULT shadow-sm px-4 py-2 bg-white dark:bg-dark-bg-secondary text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+							:class="{ 'opacity-50 cursor-not-allowed': snoozeSubmitting }">
+						Cancel
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
 // Alert Details Modal Component
 templ AlertDetailsModal() {
 	<!-- Alert Details Modal Dialog -->
@@ -1045,6 +1190,17 @@ templ AlertDetailsModal() {
 														<path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.59-.79-1.59-1.78V9.51c0-.88.79-1.59 1.78-1.59h1.78Z"/>
 													</svg>
 													<span x-text="getSilenceButtonText(alertDetails?.alert)"></span>
+												</button>
+
+												<!-- Snooze Button (personal, time-bounded hide) -->
+												<button @click="snoozeCurrentAlert()"
+														x-show="alertDetails?.alert"
+														class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-lg shadow-indigo-600/25 transition-all duration-200 hover:shadow-indigo-600/40 hover:scale-105">
+													<!-- Heroicon: clock -->
+													<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+													</svg>
+													Snooze
 												</button>
 
 												<!-- Dynamic Annotation Buttons -->

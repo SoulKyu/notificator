@@ -20,7 +20,7 @@ func newTestDB(t *testing.T) *GormDB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}, &models.ResolvedAlert{}, &models.Comment{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Acknowledgment{}, &models.ResolvedAlert{}, &models.Comment{}, &models.UserHiddenAlert{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return &GormDB{db: db, dbType: "sqlite"}
@@ -320,4 +320,131 @@ func ids(rows []models.CommentWithUser) []string {
 		out[i] = r.ID
 	}
 	return out
+}
+
+// TestGetUserHiddenAlertsExpiry pins the snooze expiry boundary: a hide with a
+// null expires_at ("forever") and a future expires_at ("still snoozed") must
+// both keep suppressing the alert, while a past expires_at must not — an
+// expired snooze has to stop applying on its own, without a sweeper.
+func TestGetUserHiddenAlertsExpiry(t *testing.T) {
+	gdb := newTestDB(t)
+
+	alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+	if err := gdb.db.Create(&alice).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	now := time.Now()
+	past := now.Add(-time.Hour)
+	future := now.Add(time.Hour)
+
+	hidden := []models.UserHiddenAlert{
+		{UserID: alice.ID, Fingerprint: "expired-fp", ExpiresAt: &past},
+		{UserID: alice.ID, Fingerprint: "forever-fp", ExpiresAt: nil},
+		{UserID: alice.ID, Fingerprint: "future-fp", ExpiresAt: &future},
+	}
+	for i := range hidden {
+		if err := gdb.db.Create(&hidden[i]).Error; err != nil {
+			t.Fatalf("create hidden alert: %v", err)
+		}
+	}
+
+	result, err := gdb.GetUserHiddenAlerts(alice.ID)
+	if err != nil {
+		t.Fatalf("GetUserHiddenAlerts: %v", err)
+	}
+
+	got := make(map[string]bool, len(result))
+	for _, h := range result {
+		got[h.Fingerprint] = true
+	}
+
+	if got["expired-fp"] {
+		t.Error("expired snooze must be excluded")
+	}
+	if !got["forever-fp"] {
+		t.Error("null expires_at (forever) must be included")
+	}
+	if !got["future-fp"] {
+		t.Error("future expires_at must be included")
+	}
+	if len(result) != 2 {
+		t.Errorf("expected 2 non-expired hidden alerts, got %d: %v", len(result), got)
+	}
+}
+
+// TestCreateUserHiddenAlertUpsertsOnConflict pins CreateUserHiddenAlert as an
+// atomic DB-level upsert on (user_id, fingerprint): two calls for the same
+// pair must never leave two rows, and the second call's fields win.
+func TestCreateUserHiddenAlertUpsertsOnConflict(t *testing.T) {
+	gdb := newTestDB(t)
+
+	alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+	if err := gdb.db.Create(&alice).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	if _, err := gdb.CreateUserHiddenAlert(alice.ID, "fp1", "AlertOne", "instance-a", "first", nil); err != nil {
+		t.Fatalf("first CreateUserHiddenAlert: %v", err)
+	}
+
+	future := time.Now().Add(time.Hour)
+	if _, err := gdb.CreateUserHiddenAlert(alice.ID, "fp1", "AlertOne", "instance-b", "second", &future); err != nil {
+		t.Fatalf("second CreateUserHiddenAlert: %v", err)
+	}
+
+	var rows []models.UserHiddenAlert
+	if err := gdb.db.Where("user_id = ? AND fingerprint = ?", alice.ID, "fp1").Find(&rows).Error; err != nil {
+		t.Fatalf("query hidden alerts: %v", err)
+	}
+
+	if len(rows) != 1 {
+		t.Fatalf("expected exactly 1 row for the fingerprint, got %d", len(rows))
+	}
+	if rows[0].Instance != "instance-b" || rows[0].Reason != "second" || rows[0].ExpiresAt == nil {
+		t.Errorf("expected the second call's fields to win, got %+v", rows[0])
+	}
+}
+
+// TestPurgeExpiredHiddenAlerts pins the retention sweep: only rows whose
+// snooze has actually passed are deleted, keeping "forever" hides and
+// still-active snoozes intact.
+func TestPurgeExpiredHiddenAlerts(t *testing.T) {
+	gdb := newTestDB(t)
+
+	alice := models.User{ID: "u1", Username: "alice", Email: "alice@example.com"}
+	if err := gdb.db.Create(&alice).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	now := time.Now()
+	past := now.Add(-time.Hour)
+	future := now.Add(time.Hour)
+
+	hidden := []models.UserHiddenAlert{
+		{UserID: alice.ID, Fingerprint: "expired-fp", ExpiresAt: &past},
+		{UserID: alice.ID, Fingerprint: "forever-fp", ExpiresAt: nil},
+		{UserID: alice.ID, Fingerprint: "future-fp", ExpiresAt: &future},
+	}
+	for i := range hidden {
+		if err := gdb.db.Create(&hidden[i]).Error; err != nil {
+			t.Fatalf("create hidden alert: %v", err)
+		}
+	}
+
+	purged, err := gdb.PurgeExpiredHiddenAlerts()
+	if err != nil {
+		t.Fatalf("PurgeExpiredHiddenAlerts: %v", err)
+	}
+	if purged != 1 {
+		t.Errorf("expected to purge 1 expired row, purged %d", purged)
+	}
+
+	var remaining []models.UserHiddenAlert
+	if err := gdb.db.Find(&remaining).Error; err != nil {
+		t.Fatalf("list remaining: %v", err)
+	}
+	if len(remaining) != 2 {
+		t.Fatalf("expected 2 rows left (forever + future), got %d", len(remaining))
+	}
 }

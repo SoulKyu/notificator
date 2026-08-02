@@ -81,6 +81,7 @@ templ DashboardData() {
 						}
 
 						this.updateURL();
+						this.refreshSnoozedCount();
 					} else {
 						console.error('Failed to load alerts: ' + result.error);
 					}
@@ -161,6 +162,7 @@ templ DashboardData() {
 					
 					if (result.success) {
 						this.applyIncrementalUpdate(result.data, 'poll');
+						this.refreshSnoozedCount();
 					} else {
 						// Fallback to full refresh if incremental fails
 						console.warn('Incremental update failed, falling back to full refresh');
@@ -513,6 +515,23 @@ templ DashboardData() {
 				});
 			},
 
+			// A snooze (hidden-alert expiresAt) that has passed no longer applies.
+			// Mirrors the server's "expires_at IS NULL OR expires_at > now()" query.
+			isSnoozeExpired(expiresAt) {
+				return !!expiresAt && new Date(expiresAt) <= new Date();
+			},
+
+			// Recompute the "N snoozed" badge from the settings modal's hidden-alerts
+			// list on every poll, so it decays on the same cadence that already
+			// refreshes the alert table instead of only when Settings -> Hidden is used.
+			refreshSnoozedCount() {
+				if (!window.currentSettingsModal) {
+					return;
+				}
+				this.snoozedAlertsCount = (window.currentSettingsModal.hiddenAlerts || [])
+					.filter(a => !this.isSnoozeExpired(a.expiresAt)).length;
+			},
+
 			// Check if an alert matches current filter settings
 			// Used to filter SSE updates which arrive unfiltered
 			alertMatchesFilters(alert) {
@@ -579,7 +598,7 @@ templ DashboardData() {
 				// Global rules serialize camelCase (labelKey/labelValue/isRegex/enabled),
 				// unlike preset rules — normalize before reusing the matcher
 				const isGlobalHidden =
-					(window.currentSettingsModal?.hiddenAlerts || []).some(hidden => hidden.fingerprint === alert.fingerprint) ||
+					(window.currentSettingsModal?.hiddenAlerts || []).some(hidden => hidden.fingerprint === alert.fingerprint && !this.isSnoozeExpired(hidden.expiresAt)) ||
 					(window.currentSettingsModal?.hiddenRules || []).some(rule => this.alertMatchesHiddenRule(alert, {
 						is_enabled: rule.enabled,
 						label_key: rule.labelKey,

@@ -158,6 +158,16 @@ templ DashboardModal() {
 				}
 			},
 
+			snoozeCurrentAlert() {
+				if (this.alertDetails?.alert) {
+					this.currentSnoozeAlert = this.alertDetails.alert;
+					this.snoozeDuration = '4h';
+					this.snoozeReason = '';
+					this.snoozeError = '';
+					this.showSnoozeModal = true;
+				}
+			},
+
 			unsilenceCurrentAlert() {
 				if (this.alertDetails?.alert) {
 					this.processUnsilenceAction(this.alertDetails.alert.fingerprint);

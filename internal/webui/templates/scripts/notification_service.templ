@@ -526,7 +526,10 @@ templ NotificationService() {
 				if (!hiddenAlerts || hiddenAlerts.length === 0) {
 					return false;
 				}
-				return hiddenAlerts.some(hidden => hidden.fingerprint === alert.fingerprint);
+				// An expired snooze must not suppress the notification for a re-fire -
+				// the alert re-enters the normal new-alert path once it wakes up.
+				return hiddenAlerts.some(hidden => hidden.fingerprint === alert.fingerprint &&
+					(!hidden.expiresAt || new Date(hidden.expiresAt) > new Date()));
 			},
 
 			// Check if an alert matches the current filters

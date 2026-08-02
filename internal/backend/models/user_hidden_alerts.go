@@ -9,13 +9,16 @@ import (
 // UserHiddenAlert represents a specific alert hidden by a user
 type UserHiddenAlert struct {
 	ID          string    `gorm:"primaryKey;type:varchar(32)" json:"id"`
-	UserID      string    `gorm:"type:varchar(32);not null;index:idx_user_hidden,priority:1" json:"user_id"`
-	Fingerprint string    `gorm:"type:varchar(255);not null;index:idx_user_hidden,priority:2" json:"fingerprint"`
+	UserID      string    `gorm:"type:varchar(32);not null;uniqueIndex:idx_user_hidden,priority:1" json:"user_id"`
+	Fingerprint string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_user_hidden,priority:2" json:"fingerprint"`
 	AlertName   string    `gorm:"type:varchar(255)" json:"alert_name"`
 	Instance    string    `gorm:"type:varchar(255)" json:"instance"`
 	Reason      string    `gorm:"type:text" json:"reason"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// ExpiresAt is nil for a permanent hide ("forever"); a snooze sets it to the
+	// wake-up time. Indexed so the expiry filter in GetUserHiddenAlerts stays cheap.
+	ExpiresAt *time.Time `gorm:"index" json:"expiresAt,omitempty"`
 
 	// Relations
 	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
