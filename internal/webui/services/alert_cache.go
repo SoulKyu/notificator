@@ -245,10 +245,14 @@ func (ac *AlertCache) refreshAlerts() {
 			alertCopy := *dashAlert
 			newAlertsForSSE = append(newAlertsForSSE, &alertCopy)
 
-			// Capture alert fired event for statistics
+			// Capture alert fired event for statistics. Snapshot the same way as
+			// the resolved path below: dashAlert now lives in ac.alerts and the
+			// next refresh's updateExistingAlert will rewrite its Status and
+			// Annotations under ac.mu while this goroutine reads them unlocked.
+			firedCopy := *dashAlert
 			ac.runBounded(func() {
 				if ac.backendClient != nil && ac.backendClient.IsConnected() {
-					if err := ac.backendClient.CaptureAlertFired(dashAlert); err != nil {
+					if err := ac.backendClient.CaptureAlertFired(&firedCopy); err != nil {
 						log.Printf("Failed to capture alert fired statistics for %s: %v", dashAlert.Fingerprint, err)
 					}
 				}
@@ -288,7 +292,10 @@ func (ac *AlertCache) refreshAlerts() {
 			alert.Status.State = "resolved"
 			alert.EndsAt = alert.ResolvedAt
 
-			// Update alert resolved event for statistics
+			// Update alert resolved event for statistics. Uses the cache-resident
+			// pointer, not a snapshot: fingerprint is deleted from ac.alerts below
+			// within this same locked section, so no later refresh can take the
+			// existing-alert branch and mutate this struct again.
 			ac.runBounded(func() {
 				if ac.backendClient != nil && ac.backendClient.IsConnected() {
 					if err := ac.backendClient.UpdateAlertResolved(alert); err != nil {
