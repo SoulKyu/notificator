@@ -17,6 +17,14 @@ Configuration is loaded by Viper (`config/config.go`, `LoadConfigWithViper`), wi
 scalar fields automatically. A few legacy/plain names are also honored:
 `DATABASE_URL`, `DB_HOST`/`DATABASE_HOST`, `BACKEND_ADDRESS`, and the whole `OAUTH_*` family.
 
+⚠️ **Binding a key is not enough for it to reach the struct.** `LoadConfigWithViper` calls
+`viper.Unmarshal`, which matches on the field's `mapstructure` tag and otherwise falls back to
+comparing the *lowercased Go field name* against the key — so a snake_case key without a tag
+(`enable_reflection` vs `EnableReflection` → `enablereflection`) is silently dropped and the
+field keeps its zero value, with no error anywhere. When adding a multi-word config key, give
+the field a `mapstructure:"<key>"` tag (see `BackendConfig`) or read it explicitly with
+`viper.GetX`, as the `sentry`/`oauth`/`admin` sections do. `config/config_test.go` guards this.
+
 ## Config sections (`config.Config`, `config/config.go:15`)
 
 | Section | Purpose |

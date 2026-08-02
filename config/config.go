@@ -55,24 +55,30 @@ func (a *AdminConfig) IsAdmin(usernameOrEmail string) bool {
 	return false
 }
 
+// Every field carries an explicit mapstructure tag: viper.Unmarshal matches on
+// that tag, and its fallback compares the lowercased Go field name against the
+// key, so any snake_case key (grpc_listen, enable_reflection, ssl_mode) is
+// silently dropped when the tag is missing — the binding looks correct and the
+// struct keeps its zero value. Keep the tags in sync with the viper keys in
+// setViperDefaults.
 type BackendConfig struct {
-	Enabled          bool           `json:"enabled"`
-	GRPCListen       string         `json:"grpc_listen"`       // Port for gRPC server (e.g., ":50051")
-	GRPCClient       string         `json:"grpc_client"`       // Address for gRPC client (e.g., "localhost:50051")
-	HTTPListen       string         `json:"http_listen"`       // Port for HTTP server (e.g., ":8080")
-	EnableReflection bool           `json:"enable_reflection"` // Dev-only: exposes the gRPC schema to any caller
-	Database         DatabaseConfig `json:"database"`
+	Enabled          bool           `json:"enabled" mapstructure:"enabled"`
+	GRPCListen       string         `json:"grpc_listen" mapstructure:"grpc_listen"`             // Port for gRPC server (e.g., ":50051")
+	GRPCClient       string         `json:"grpc_client" mapstructure:"grpc_client"`             // Address for gRPC client (e.g., "localhost:50051")
+	HTTPListen       string         `json:"http_listen" mapstructure:"http_listen"`             // Port for HTTP server (e.g., ":8080")
+	EnableReflection bool           `json:"enable_reflection" mapstructure:"enable_reflection"` // Dev-only: exposes the gRPC schema to any caller
+	Database         DatabaseConfig `json:"database" mapstructure:"database"`
 }
 
 type DatabaseConfig struct {
-	Type       string `json:"type"` // "sqlite" or "postgres"
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Name       string `json:"name"`
-	User       string `json:"user"`
-	Password   string `json:"password"`
-	SSLMode    string `json:"ssl_mode"`
-	SQLitePath string `json:"sqlite_path"`
+	Type       string `json:"type" mapstructure:"type"` // "sqlite" or "postgres"
+	Host       string `json:"host" mapstructure:"host"`
+	Port       int    `json:"port" mapstructure:"port"`
+	Name       string `json:"name" mapstructure:"name"`
+	User       string `json:"user" mapstructure:"user"`
+	Password   string `json:"password" mapstructure:"password"`
+	SSLMode    string `json:"ssl_mode" mapstructure:"ssl_mode"`
+	SQLitePath string `json:"sqlite_path" mapstructure:"sqlite_path"`
 }
 
 type ResolvedAlertsConfig struct {
