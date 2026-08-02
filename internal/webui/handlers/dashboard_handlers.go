@@ -256,6 +256,16 @@ func parseDashboardFilters(c *gin.Context) webuimodels.DashboardFilters {
 		}
 	}
 
+	// Parse exact label filters: repeated ?label=key=value (split on the first
+	// '=' so values may contain one).
+	for _, raw := range c.QueryArray("label") {
+		key, value, ok := strings.Cut(raw, "=")
+		if !ok || key == "" {
+			continue
+		}
+		filters.LabelFilters = append(filters.LabelFilters, webuimodels.LabelFilter{Key: key, Value: value})
+	}
+
 	// Parse filter-specific hidden alerts (JSON)
 	if hiddenAlertsJSON := c.Query("filterHiddenAlerts"); hiddenAlertsJSON != "" {
 		var hiddenAlerts []webuimodels.FilterHiddenAlert
@@ -354,12 +364,30 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	return defaultSettings
 }
 
+// isClassicViewAlert reports whether an alert belongs to the dashboard's default
+// (classic) view. Single source of truth: anything that counts "currently firing"
+// alerts — the table, the blast-radius panel — must use this, or the two disagree.
+func isClassicViewAlert(alert *webuimodels.DashboardAlert) bool {
+	return !alert.IsAcknowledged && !alert.IsResolved
+}
+
+// alertMatchesLabelFilters reports whether an alert carries every requested exact
+// label value. Empty filters match everything.
+func alertMatchesLabelFilters(alert *webuimodels.DashboardAlert, labelFilters []webuimodels.LabelFilter) bool {
+	for _, lf := range labelFilters {
+		if alert.Labels[lf.Key] != lf.Value {
+			return false
+		}
+	}
+	return true
+}
+
 func getStandardAlerts() []*webuimodels.DashboardAlert {
 	allAlerts := alertCache.GetAllAlerts()
 	var standardAlerts []*webuimodels.DashboardAlert
 
 	for _, alert := range allAlerts {
-		if !alert.IsAcknowledged && !alert.IsResolved {
+		if isClassicViewAlert(alert) {
 			standardAlerts = append(standardAlerts, alert)
 		}
 	}
@@ -391,6 +419,7 @@ func filtersAffectResolvedCount(filters webuimodels.DashboardFilters, sessionID 
 		len(filters.Statuses) > 0 ||
 		len(filters.Teams) > 0 ||
 		len(filters.AlertNames) > 0 ||
+		len(filters.LabelFilters) > 0 ||
 		filters.Acknowledged != nil ||
 		filters.HasComments != nil ||
 		len(filters.FilterHiddenAlerts) > 0 ||
@@ -461,6 +490,11 @@ func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimo
 
 		// Shared alert-level filters (search, alertmanager, severity, team, alertName)
 		if !alertPassesAlertLevelFilters(alert, filters) {
+			continue
+		}
+
+		// Apply exact label filters (dashboard-only): every one must match
+		if !alertMatchesLabelFilters(alert, filters.LabelFilters) {
 			continue
 		}
 

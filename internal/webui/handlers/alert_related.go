@@ -30,55 +30,71 @@ type RelatedAlertSummary struct {
 
 // RelatedLabelGroup is one correlating label=value with the other firing alerts sharing it.
 type RelatedLabelGroup struct {
-	LabelKey   string                `json:"labelKey"`
-	LabelValue string                `json:"labelValue"`
-	Count      int                   `json:"count"` // other firing alerts sharing this label value
+	LabelKey   string `json:"labelKey"`
+	LabelValue string `json:"labelValue"`
+	// Count is every alert of the dashboard's classic view carrying this
+	// label=value, the open one included — i.e. exactly the number of rows
+	// "Filter dashboard on this" leaves in the table.
+	Count int `json:"count"`
+	// OtherCount is Count minus the open alert: how many entries the list below
+	// would hold if it were not capped.
+	OtherCount int                   `json:"otherCount"`
 	Alerts     []RelatedAlertSummary `json:"alerts"`
 	Truncated  bool                  `json:"truncated"`
 }
 
-// computeRelatedAlertGroups groups the other currently-firing alerts by which of
-// the target alert's labels they share the same value for. A label is dropped as
-// noise when only one other alert shares it (not a pattern) or when it covers
-// essentially every other alert (not a distinguishing signal). Groups are ordered
-// by count desc (label key asc as tiebreak); alerts within a group are capped and
-// ordered by most recently started first.
-func computeRelatedAlertGroups(target *webuimodels.DashboardAlert, others []*webuimodels.DashboardAlert) []RelatedLabelGroup {
-	if target == nil || len(others) == 0 {
+// computeRelatedAlertGroups groups the currently-firing alerts by which of the
+// target alert's labels they share the same value for. active is the dashboard's
+// classic view (see isClassicViewAlert) minus the user's hidden alerts, target
+// included when it belongs there — counting over the very set the table renders
+// is what keeps a group's "N firing" equal to the rows the same filter yields.
+//
+// A label is dropped as noise when only one other alert shares it (not a pattern)
+// or when it covers essentially the whole active set (not a distinguishing
+// signal). Groups are ordered by count desc (label key asc as tiebreak); the
+// listed alerts exclude the target, are capped, and are ordered most recently
+// started first.
+func computeRelatedAlertGroups(target *webuimodels.DashboardAlert, active []*webuimodels.DashboardAlert) []RelatedLabelGroup {
+	if target == nil || len(active) == 0 {
 		return nil
 	}
 
 	groups := make([]RelatedLabelGroup, 0, len(target.Labels))
 	for labelKey, labelValue := range target.Labels {
-		var matches []*webuimodels.DashboardAlert
-		for _, alert := range others {
-			if alert.Labels[labelKey] == labelValue {
-				matches = append(matches, alert)
+		count := 0
+		var others []*webuimodels.DashboardAlert
+		for _, alert := range active {
+			if alert.Labels[labelKey] != labelValue {
+				continue
+			}
+			count++
+			if alert.Fingerprint != target.Fingerprint {
+				others = append(others, alert)
 			}
 		}
 
-		count := len(matches)
-		if count <= 1 {
+		if len(others) <= 1 {
 			continue // shared by at most one other alert — not a pattern
 		}
-		if float64(count)/float64(len(others)) >= degenerateShareRatio {
+		if float64(count)/float64(len(active)) >= degenerateShareRatio {
 			continue // covers essentially the whole active set
 		}
 
-		sort.Slice(matches, func(i, j int) bool {
-			if !matches[i].StartsAt.Equal(matches[j].StartsAt) {
-				return matches[i].StartsAt.After(matches[j].StartsAt)
+		sort.Slice(others, func(i, j int) bool {
+			if !others[i].StartsAt.Equal(others[j].StartsAt) {
+				return others[i].StartsAt.After(others[j].StartsAt)
 			}
-			return matches[i].Fingerprint < matches[j].Fingerprint
+			return others[i].Fingerprint < others[j].Fingerprint
 		})
 
-		truncated := len(matches) > maxRelatedAlertsPerGroup
+		listed := others
+		truncated := len(listed) > maxRelatedAlertsPerGroup
 		if truncated {
-			matches = matches[:maxRelatedAlertsPerGroup]
+			listed = listed[:maxRelatedAlertsPerGroup]
 		}
 
-		alerts := make([]RelatedAlertSummary, len(matches))
-		for i, alert := range matches {
+		alerts := make([]RelatedAlertSummary, len(listed))
+		for i, alert := range listed {
 			alerts[i] = RelatedAlertSummary{
 				Fingerprint: alert.Fingerprint,
 				AlertName:   alert.AlertName,
@@ -92,6 +108,7 @@ func computeRelatedAlertGroups(target *webuimodels.DashboardAlert, others []*web
 			LabelKey:   labelKey,
 			LabelValue: labelValue,
 			Count:      count,
+			OtherCount: len(others),
 			Alerts:     alerts,
 			Truncated:  truncated,
 		})
@@ -134,19 +151,23 @@ func HandleGetRelatedAlerts(c *gin.Context) {
 
 	sessionID := middleware.GetSessionID(c)
 
+	// Same population as the dashboard table in classic mode: firing only
+	// (getStandardAlerts) minus the session's hidden alerts (applyDashboardFilters).
+	// Counting over anything wider is how the panel used to claim alerts as
+	// "firing" that the dashboard had already resolved or acknowledged away.
 	all := alertCache.GetAllAlerts()
-	others := make([]*webuimodels.DashboardAlert, 0, len(all))
+	active := make([]*webuimodels.DashboardAlert, 0, len(all))
 	for _, alert := range all {
-		if alert.Fingerprint == fingerprint {
+		if !isClassicViewAlert(alert) {
 			continue
 		}
 		if hiddenAlertsService != nil && hiddenAlertsService.IsAlertHidden(sessionID, alert) {
 			continue
 		}
-		others = append(others, alert)
+		active = append(active, alert)
 	}
 
-	groups := computeRelatedAlertGroups(target, others)
+	groups := computeRelatedAlertGroups(target, active)
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
 		"fingerprint": fingerprint,

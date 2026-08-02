@@ -90,7 +90,10 @@ templ DashboardCore() {
 				snoozedAlertsCount: 0,
 
 				showAlertModal: false,
-				alertModalPushedHistory: false,
+				// How many history entries the open modal chain owns, and whether a close
+				// is currently popping them (see pushAlertHistoryEntry)
+				alertModalHistoryDepth: 0,
+				alertModalClosing: false,
 				alertDetails: null,
 				currentAlertTab: 'overview',
 				alertDetailsLoading: false,
@@ -100,6 +103,7 @@ templ DashboardCore() {
 				sparkline: null,
 				relatedAlerts: null,
 				relatedLoading: false,
+				relatedError: null,
 
 				// Filter presets modal state
 				showFilterPresetsModal: false,
@@ -120,9 +124,11 @@ templ DashboardCore() {
 					severities: [],
 					statuses: [],
 					teams: [],
-					alertNames: []
+					alertNames: [],
+					// Exact label matches ({key, value}), e.g. from the blast-radius panel
+					labels: []
 				},
-				
+
 				selectedAlerts: [],
 				selectedGroups: [],
 				expandedGroups: [],
@@ -369,6 +375,7 @@ templ DashboardCore() {
 					const hasURLFilters = params.has('search') || params.has('alertmanagers') ||
 										  params.has('severities') || params.has('statuses') ||
 										  params.has('teams') || params.has('alertNames') ||
+										  params.has('label') ||
 										  params.has('acknowledged') || params.has('hasComments');
 
 					let defaultPresetLoaded = false;

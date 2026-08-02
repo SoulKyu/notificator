@@ -94,9 +94,20 @@ type DashboardFilters struct {
 	ViewMode            DashboardViewMode    `json:"viewMode"`
 	ResolvedAlertsLimit int                  `json:"resolvedAlertsLimit,omitempty"` // Client-side limit for resolved alerts display
 
+	// Exact label=value filters. Unlike Search (substring over every field and
+	// label), these match a single label key on the whole value, so a count
+	// computed over a label value equals the number of rows this filter yields.
+	LabelFilters []LabelFilter `json:"labelFilters,omitempty"`
+
 	// Filter-specific hidden alerts (from active saved filter, additive with global hidden)
 	FilterHiddenAlerts []FilterHiddenAlert `json:"filterHiddenAlerts,omitempty"`
 	FilterHiddenRules  []FilterHiddenRule  `json:"filterHiddenRules,omitempty"`
+}
+
+// LabelFilter pins the dashboard to alerts carrying an exact label value.
+type LabelFilter struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 // DashboardSorting represents sorting configuration

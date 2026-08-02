@@ -15,6 +15,7 @@ templ DashboardData() {
 					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
+					(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
 					
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
@@ -109,6 +110,7 @@ templ DashboardData() {
 					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
+					(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
 					
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
@@ -201,6 +203,7 @@ templ DashboardData() {
 					if (this.filters.statuses.length > 0) params.set('statuses', this.filters.statuses.join(','));
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
+					(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
 					
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
@@ -571,6 +574,13 @@ templ DashboardData() {
 				// Check alertName filter
 				if (this.filters.alertNames && this.filters.alertNames.length > 0) {
 					if (!this.filters.alertNames.includes(alert.alertName)) {
+						return false;
+					}
+				}
+
+				// Check exact label filters, mirroring alertMatchesLabelFilters on the server
+				for (const label of (this.filters.labels || [])) {
+					if ((alert.labels || {})[label.key] !== label.value) {
 						return false;
 					}
 				}

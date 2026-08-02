@@ -5,25 +5,32 @@ templ DashboardModal() {
 		window.dashboardModalMixin = {
 			// Pushes /dashboard/alert/<fp> while keeping the current query string so the
 			// shareable filter state survives the modal.
+			//
+			// Every open gets its own entry, chained opens included (a related alert, a
+			// notification click while the modal is up): stacking [dashboard, A, B] is
+			// what lets Back walk from B back to A. alertModalHistoryDepth counts the
+			// entries this modal session owns so closing can pop the whole chain at once
+			// instead of stranding the user on its parent.
 			pushAlertHistoryEntry(fingerprint) {
 				const newPath = `/dashboard/alert/${fingerprint}`;
 				if (window.location.pathname === newPath) {
 					return;
 				}
-				const url = newPath + window.location.search;
-				if (this.alertModalPushedHistory) {
-					// Chained open (e.g. a notification click while the modal is up): we
-					// already own the current entry, so swap it instead of stacking one
-					// the close would never pop.
-					window.history.replaceState({ alertId: fingerprint }, '', url);
-					return;
-				}
-				window.history.pushState({ alertId: fingerprint }, '', url);
-				this.alertModalPushedHistory = true;
+				const depth = (this.alertModalHistoryDepth || 0) + 1;
+				window.history.pushState(
+					{ alertId: fingerprint, modalDepth: depth },
+					'',
+					newPath + window.location.search
+				);
+				this.alertModalHistoryDepth = depth;
 			},
 
 			// Single popstate entry point: the URL is the source of truth for the modal.
 			syncModalWithLocation(event) {
+				// A close in progress popped us here — never re-open on the way out.
+				const closing = this.alertModalClosing;
+				this.alertModalClosing = false;
+
 				const match = window.location.pathname.match(/^\/dashboard\/alert\/([^/]+)$/);
 				if (!match) {
 					if (this.showAlertModal) {
@@ -33,10 +40,18 @@ templ DashboardModal() {
 				}
 
 				const fingerprint = match[1];
-				// An alertId in the popped state means we pushed this entry ourselves
-				// (Forward after a close), so closing again can safely pop it. A deep
-				// link has no state and must not send the user off the site.
-				this.alertModalPushedHistory = !!event?.state?.alertId;
+				// modalDepth in the popped state means we pushed this entry ourselves
+				// (Back into the chain, or Forward after a close), and tells a later
+				// close how many entries to pop. A deep link has no state: depth 0, and
+				// closing must rewrite in place rather than send the user off the site.
+				this.alertModalHistoryDepth = event?.state?.modalDepth || 0;
+
+				if (closing) {
+					// Landed on a deep-linked root while closing: rewrite it away.
+					this.closeAlertModal({ skipHistory: true });
+					return;
+				}
+
 				if (this.showAlertModal && this.alertDetails?.alert?.fingerprint === fingerprint) {
 					return;
 				}
@@ -57,6 +72,7 @@ templ DashboardModal() {
 				this.alertHistory = null;
 				this.sparkline = null;
 				this.relatedAlerts = null;
+				this.relatedError = null;
 				this.alertLinkCopied = false;
 
 				if (!options?.skipHistory) {
@@ -105,7 +121,8 @@ templ DashboardModal() {
 				// alert URL. A failed popstate-driven open has not, so rewrite in place
 				// rather than driving history against the user's Back/Forward press.
 				if (options?.skipHistory) {
-					this.alertModalPushedHistory = false;
+					this.alertModalHistoryDepth = 0;
+					this.alertModalClosing = false;
 					if (window.location.pathname.includes('/alert/')) {
 						window.history.replaceState({}, '', '/dashboard' + window.location.search);
 					}
@@ -116,11 +133,15 @@ templ DashboardModal() {
 					return;
 				}
 
-				if (this.alertModalPushedHistory) {
-					// Pop our own entry instead of stacking a new one - this restores the
-					// exact pre-modal URL (filters included) and keeps Forward working.
-					this.alertModalPushedHistory = false;
-					window.history.back();
+				const depth = this.alertModalHistoryDepth || 0;
+				if (depth > 0) {
+					// Pop every entry this modal session pushed, in one go: one alert deep
+					// this restores the exact pre-modal URL (filters included) and keeps
+					// Forward working; a chain deep (A -> related B -> related C) it still
+					// lands there instead of re-opening B.
+					this.alertModalHistoryDepth = 0;
+					this.alertModalClosing = true;
+					window.history.go(-depth);
 				} else {
 					// Deep link: no entry of ours to pop, so rewrite in place.
 					window.history.replaceState({}, '', '/dashboard' + window.location.search);
@@ -651,6 +672,7 @@ templ DashboardModal() {
 			}
 
 			this.relatedLoading = true;
+			this.relatedError = null;
 
 			try {
 				const response = await fetch(
@@ -667,26 +689,47 @@ templ DashboardModal() {
 					} else {
 						console.error('Failed to load related alerts:', result.error);
 						this.relatedAlerts = null;
+						this.relatedError = result.error || 'Unable to load related alerts.';
 					}
 				} else {
 					console.error('Failed to fetch related alerts');
 					this.relatedAlerts = null;
+					// An empty pane reads as "nothing correlates" — say it failed instead
+					this.relatedError = response.status === 404
+						? 'This alert is no longer in the live cache, so its blast radius cannot be computed.'
+						: `Unable to load related alerts (HTTP ${response.status}).`;
 				}
 			} catch (error) {
 				if (this.alertDetails?.alert?.fingerprint !== requestedFingerprint) return;
 				console.error('Error loading related alerts:', error);
 				this.relatedAlerts = null;
+				this.relatedError = 'Unable to load related alerts — check your connection and retry.';
 			} finally {
 				if (this.alertDetails?.alert?.fingerprint !== requestedFingerprint) return;
 				this.relatedLoading = false;
 			}
 		};
 
-		// Closes the modal and points the dashboard search at this label value —
-		// the escape hatch into the table when the blast radius is the real incident.
+		// Closes the modal and pins the dashboard to this exact label=value — the
+		// escape hatch into the table when the blast radius is the real incident.
+		// Every other filter is dropped and the view is forced back to classic so the
+		// table shows exactly the alerts the group counted, no more, no less.
 		window.dashboardModalMixin.filterDashboardOnRelatedLabel = function(group) {
-			this.closeAlertModal();
-			this.searchQuery = group.labelValue;
+			// skipHistory: rewrite the alert entry in place instead of navigating back.
+			// history.go() is async and would land a popstate on the pre-modal URL after
+			// updateURL() had already written the label filter into it.
+			this.closeAlertModal({ skipHistory: true });
+			this.searchQuery = '';
+			this.filters = {
+				alertmanagers: [],
+				severities: [],
+				statuses: [],
+				teams: [],
+				alertNames: [],
+				labels: [{ key: group.labelKey, value: group.labelValue }]
+			};
+			this.displayMode = 'classic';
+			this.activePresetName = null;
 			this.applyFilters();
 		};
 
