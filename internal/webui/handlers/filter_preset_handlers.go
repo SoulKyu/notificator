@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
@@ -90,63 +89,12 @@ func CreateFilterPreset(c *gin.Context) {
 	}
 
 	// Validate column configurations if present
-	if len(req.FilterData.ColumnConfigs) > 0 {
-		// Check for duplicate column IDs
-		seenIDs := make(map[string]bool)
-		seenOrders := make(map[int]bool)
-
-		for _, col := range req.FilterData.ColumnConfigs {
-			// Check duplicate ID
-			if seenIDs[col.ID] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": "Duplicate column ID: " + col.ID,
-				})
-				return
-			}
-			seenIDs[col.ID] = true
-
-			// Check duplicate order
-			if seenOrders[col.Order] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Duplicate column order: %d", col.Order),
-				})
-				return
-			}
-			seenOrders[col.Order] = true
-
-			// Validate width
-			if col.Width < 50 || col.Width > 800 {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Column '%s' width must be between 50 and 800 pixels", col.ID),
-				})
-				return
-			}
-
-			// Validate formatter
-			validFormatters := map[string]bool{
-				"text": true, "badge": true, "duration": true,
-				"timestamp": true, "count": true, "checkbox": true, "actions": true,
-			}
-			if !validFormatters[col.Formatter] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID),
-				})
-				return
-			}
-
-			// Validate field type
-			if col.FieldType != "system" && col.FieldType != "label" && col.FieldType != "annotation" {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Invalid field type '%s' for column '%s'", col.FieldType, col.ID),
-				})
-				return
-			}
-		}
+	if err := models.ValidateColumnConfigs(req.FilterData.ColumnConfigs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 
 	// Get impersonated user ID if impersonating
@@ -222,63 +170,12 @@ func UpdateFilterPreset(c *gin.Context) {
 	}
 
 	// Validate column configurations if present
-	if len(req.FilterData.ColumnConfigs) > 0 {
-		// Check for duplicate column IDs
-		seenIDs := make(map[string]bool)
-		seenOrders := make(map[int]bool)
-
-		for _, col := range req.FilterData.ColumnConfigs {
-			// Check duplicate ID
-			if seenIDs[col.ID] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": "Duplicate column ID: " + col.ID,
-				})
-				return
-			}
-			seenIDs[col.ID] = true
-
-			// Check duplicate order
-			if seenOrders[col.Order] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Duplicate column order: %d", col.Order),
-				})
-				return
-			}
-			seenOrders[col.Order] = true
-
-			// Validate width
-			if col.Width < 50 || col.Width > 800 {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Column '%s' width must be between 50 and 800 pixels", col.ID),
-				})
-				return
-			}
-
-			// Validate formatter
-			validFormatters := map[string]bool{
-				"text": true, "badge": true, "duration": true,
-				"timestamp": true, "count": true, "checkbox": true, "actions": true,
-			}
-			if !validFormatters[col.Formatter] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID),
-				})
-				return
-			}
-
-			// Validate field type
-			if col.FieldType != "system" && col.FieldType != "label" && col.FieldType != "annotation" {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Invalid field type '%s' for column '%s'", col.FieldType, col.ID),
-				})
-				return
-			}
-		}
+	if err := models.ValidateColumnConfigs(req.FilterData.ColumnConfigs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 
 	// Update preset via backend

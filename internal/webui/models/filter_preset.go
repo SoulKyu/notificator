@@ -1,6 +1,11 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	backendmodels "notificator/internal/backend/models"
+)
 
 // FilterPreset represents a saved filter configuration
 type FilterPreset struct {
@@ -96,13 +101,49 @@ type ColumnConfig struct {
 	Label     string `json:"label"`      // Display name: "Alert Name", "Environment"
 	FieldType string `json:"field_type"` // "system", "label", "annotation"
 	FieldPath string `json:"field_path"` // "alertName", "labels.environment", "annotations.summary"
-	Formatter string `json:"formatter"`  // "text", "badge", "duration", "timestamp", "count", "checkbox", "actions"
+	Formatter string `json:"formatter"`  // see ValidColumnFormatters
 	Width     int    `json:"width"`      // Column width in pixels (50-800)
 	Sortable  bool   `json:"sortable"`   // Can be sorted
 	Visible   bool   `json:"visible"`    // Show/hide toggle
 	Order     int    `json:"order"`      // Display order (0-based)
 	Resizable bool   `json:"resizable"`  // Can be resized
 	Critical  bool   `json:"critical"`   // Cannot be deleted (but can be hidden/reordered)
+}
+
+// ValidateColumnConfigs is the one validation used by every column-config save
+// path (column preferences, filter preset create and update). Those paths used
+// to carry their own copy of these rules, which is how the "ackage" formatter
+// ended up rejected on save while the client happily rendered it: the allowlist
+// now lives in backendmodels.ValidColumnFormatters only.
+func ValidateColumnConfigs(configs []ColumnConfig) error {
+	seenIDs := make(map[string]bool, len(configs))
+	seenOrders := make(map[int]bool, len(configs))
+
+	for _, col := range configs {
+		if seenIDs[col.ID] {
+			return fmt.Errorf("Duplicate column ID: %s", col.ID)
+		}
+		seenIDs[col.ID] = true
+
+		if seenOrders[col.Order] {
+			return fmt.Errorf("Duplicate column order: %d", col.Order)
+		}
+		seenOrders[col.Order] = true
+
+		if col.Width < 50 || col.Width > 800 {
+			return fmt.Errorf("Column '%s' width must be between 50 and 800 pixels", col.ID)
+		}
+
+		if !backendmodels.ValidColumnFormatters[col.Formatter] {
+			return fmt.Errorf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID)
+		}
+
+		if col.FieldType != "system" && col.FieldType != "label" && col.FieldType != "annotation" {
+			return fmt.Errorf("Invalid field type '%s' for column '%s'", col.FieldType, col.ID)
+		}
+	}
+
+	return nil
 }
 
 // UserColumnPreference stores user's default column configuration
