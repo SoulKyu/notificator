@@ -37,6 +37,7 @@ func GetNotificationPreferences(c *gin.Context) {
 		"browser_notifications_enabled": prefs.BrowserNotificationsEnabled,
 		"enabled_severities":            prefs.EnabledSeverities,
 		"sound_notifications_enabled":   prefs.SoundNotificationsEnabled,
+		"notification_filter_preset_id": prefs.NotificationFilterPresetID,
 	}))
 }
 
@@ -53,6 +54,7 @@ func SaveNotificationPreferences(c *gin.Context) {
 		BrowserNotificationsEnabled bool     `json:"browser_notifications_enabled"`
 		EnabledSeverities           []string `json:"enabled_severities"`
 		SoundNotificationsEnabled   bool     `json:"sound_notifications_enabled"`
+		NotificationFilterPresetID  string   `json:"notification_filter_preset_id"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -71,6 +73,7 @@ func SaveNotificationPreferences(c *gin.Context) {
 		BrowserNotificationsEnabled: request.BrowserNotificationsEnabled,
 		EnabledSeverities:           request.EnabledSeverities,
 		SoundNotificationsEnabled:   request.SoundNotificationsEnabled,
+		NotificationFilterPresetID:  request.NotificationFilterPresetID,
 	}
 
 	// Save to backend
@@ -88,5 +91,6 @@ func SaveNotificationPreferences(c *gin.Context) {
 		"browser_notifications_enabled": prefs.BrowserNotificationsEnabled,
 		"enabled_severities":            prefs.EnabledSeverities,
 		"sound_notifications_enabled":   prefs.SoundNotificationsEnabled,
+		"notification_filter_preset_id": prefs.NotificationFilterPresetID,
 	}))
 }

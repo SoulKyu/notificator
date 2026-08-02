@@ -2591,6 +2591,7 @@ func (s *AlertServiceGorm) GetNotificationPreferences(ctx context.Context, req *
 		SoundNotificationsEnabled:   prefs.SoundNotificationsEnabled,
 		CreatedAt:                   timestamppb.New(prefs.CreatedAt),
 		UpdatedAt:                   timestamppb.New(prefs.UpdatedAt),
+		NotificationFilterPresetId:  prefs.NotificationFilterPresetID,
 	}
 
 	return &alertpb.GetNotificationPreferencesResponse{
@@ -2633,6 +2634,7 @@ func (s *AlertServiceGorm) SaveNotificationPreferences(ctx context.Context, req 
 		BrowserNotificationsEnabled: req.BrowserNotificationsEnabled,
 		EnabledSeverities:           models.SeverityList(validSeverities),
 		SoundNotificationsEnabled:   req.SoundNotificationsEnabled,
+		NotificationFilterPresetID:  req.NotificationFilterPresetId,
 	}
 
 	// Save to database
@@ -2658,6 +2660,7 @@ func (s *AlertServiceGorm) SaveNotificationPreferences(ctx context.Context, req 
 				BrowserNotificationsEnabled: req.BrowserNotificationsEnabled,
 				EnabledSeverities:           validSeverities,
 				SoundNotificationsEnabled:   req.SoundNotificationsEnabled,
+				NotificationFilterPresetId:  req.NotificationFilterPresetId,
 			},
 			Message: "Notification preferences saved successfully",
 		}, nil
@@ -2672,6 +2675,7 @@ func (s *AlertServiceGorm) SaveNotificationPreferences(ctx context.Context, req 
 		SoundNotificationsEnabled:   savedPrefs.SoundNotificationsEnabled,
 		CreatedAt:                   timestamppb.New(savedPrefs.CreatedAt),
 		UpdatedAt:                   timestamppb.New(savedPrefs.UpdatedAt),
+		NotificationFilterPresetId:  savedPrefs.NotificationFilterPresetID,
 	}
 
 	return &alertpb.SaveNotificationPreferencesResponse{

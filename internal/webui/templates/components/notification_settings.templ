@@ -137,6 +137,23 @@ templ NotificationSettings() {
 			</div>
 		</div>
 
+		<!-- Notification Filter Preset -->
+		<div>
+			<h4 class="text-sm font-medium text-gray-900 mb-1">Notify me only for alerts matching</h4>
+			<p class="text-sm text-gray-500 mb-3">
+				Scope browser and sound notifications to a saved filter preset. The dashboard view itself is unaffected.
+			</p>
+			<select
+				x-model="notificationPreferences.notificationFilterPresetId"
+				class="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+			>
+				<option value="">All alerts</option>
+				<template x-for="preset in notificationFilterPresets" :key="preset.id">
+					<option :value="preset.id" x-text="preset.name"></option>
+				</template>
+			</select>
+		</div>
+
 		<!-- Test Notification Button -->
 		<div class="pt-4">
 			<button
@@ -158,6 +175,7 @@ templ NotificationSettings() {
 				<li>Notifications only appear for NEW alerts (not on initial dashboard load)</li>
 				<li>Alerts you've already seen won't trigger notifications again</li>
 				<li>Notifications respect your current dashboard filters</li>
+				<li>If a filter preset is selected above, only alerts matching it will notify</li>
 				<li>Critical alerts require interaction to dismiss</li>
 			</ul>
 		</div>

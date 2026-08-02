@@ -9,8 +9,30 @@ templ NotificationService() {
 			preferences: {
 				browserNotificationsEnabled: false,
 				enabledSeverities: ['critical', 'warning'],
-				soundNotificationsEnabled: true
+				soundNotificationsEnabled: true,
+				notificationFilterPresetId: ''
 			},
+			// True once loadPreferences() has actually read the backend. Everything that
+			// writes preferences back must check it: on a failed GET, `preferences` is
+			// still the hardcoded default and saving it would wipe the user's severities
+			// and notification filter preset in the database.
+			preferencesLoaded: false,
+			// Last known filter_data of the preset referenced by
+			// preferences.notificationFilterPresetId. This is a fallback for a failed
+			// refresh, NOT the value scope decisions read: the preset can be edited (here
+			// or in another tab) at any moment, so showNotification() re-resolves it from
+			// the backend before every scope decision (see refreshFilterPresetData).
+			notificationFilterData: null,
+			// The preset id notificationFilterData belongs to. Data cached for a different
+			// preset is not an answer for this one and is dropped before the fetch.
+			notificationFilterDataPresetId: null,
+			// True while notificationFilterData is a trustworthy answer for the currently
+			// selected preset. False means "a preset is selected but we do not know its
+			// scope" (never loaded, or a refresh is in flight after a switch) and
+			// matchesFilterPreset() fails closed instead of reading a stale/null value.
+			notificationFilterDataLoaded: false,
+			// In-flight loadFilterPresetData() promise, so concurrent alerts share one request.
+			filterPresetDataFetch: null,
 			seenAlerts: new Set(),
 			seenAlertsInitialized: false, // Track if seenAlerts has been properly initialized from dashboard
 			notificationTimestamps: [], // Track recent notification times for rate limiting
@@ -34,14 +56,19 @@ templ NotificationService() {
 
 				// Load preferences from backend
 				await this.loadPreferences();
+				await this.loadFilterPresetData();
 
 				// Check current browser permission status
 				if ('Notification' in window) {
 					this.permissionGranted = Notification.permission === 'granted';
 					console.log('Notification permission status:', Notification.permission);
 
-					// Auto-enable if browser permission granted but preference not saved
-					if (this.permissionGranted && !this.preferences.browserNotificationsEnabled) {
+					// Auto-enable if browser permission granted but preference not saved.
+					// Only when the stored preferences were actually read: otherwise
+					// `preferences` is still the default (no filter preset), and enabling
+					// on top of it would both notify unscoped for the session and persist
+					// those defaults over the saved ones.
+					if (this.preferencesLoaded && this.permissionGranted && !this.preferences.browserNotificationsEnabled) {
 						this.preferences.browserNotificationsEnabled = true;
 						await this.savePreferences(this.preferences);
 						console.log('Auto-enabled browser notifications (permission already granted)');
@@ -93,7 +120,8 @@ templ NotificationService() {
 							this.preferences = {
 								browserNotificationsEnabled: result.data.browser_notifications_enabled || false,
 								enabledSeverities: result.data.enabled_severities || ['critical', 'warning'],
-								soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
+								soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true,
+								notificationFilterPresetId: result.data.notification_filter_preset_id || ''
 							};
 							console.log('Loaded notification preferences:', this.preferences);
 							this.preferencesLoaded = true;
@@ -104,8 +132,148 @@ templ NotificationService() {
 				}
 			},
 
+			// Fetch the filter preset referenced by preferences.notificationFilterPresetId
+			// and store its filter_data, tagged with the id it belongs to, for
+			// matchesFilterPreset(). Call refreshFilterPresetData() instead of this from
+			// notification paths - it shares one request between concurrent callers.
+			// No dedicated single-preset endpoint exists, so the full list is fetched and
+			// filtered client-side, same as the filter presets modal.
+			async loadFilterPresetData() {
+				const requestedPresetId = this.preferences.notificationFilterPresetId;
+
+				if (!requestedPresetId) {
+					this.notificationFilterData = null;
+					this.notificationFilterDataPresetId = null;
+					this.notificationFilterDataLoaded = false;
+					return;
+				}
+
+				// Data cached for another preset (or for none) is not an answer for this
+				// one: drop it BEFORE awaiting the fetch, so alerts evaluated while the
+				// request is in flight fail closed instead of matching the preset the
+				// user just switched away from.
+				if (this.notificationFilterDataPresetId !== requestedPresetId) {
+					this.notificationFilterData = null;
+					this.notificationFilterDataPresetId = null;
+					this.notificationFilterDataLoaded = false;
+				}
+
+				// Keep the previous filter_data on a transient failure so a backend
+				// hiccup can't silently widen notification scope to "All alerts" -
+				// it is only ever set for the preset we're loading (see above).
+				const reusableFilterData = this.notificationFilterDataLoaded
+					? this.notificationFilterData
+					: undefined;
+
+				try {
+					const response = await fetch('/api/v1/dashboard/filter-presets?include_shared=true', {
+						credentials: 'include'
+					});
+					if (!response.ok) {
+						// Transient failure: keep the saved preset id and retry on the next
+						// load rather than treating a backend hiccup as "preset deleted".
+						if (reusableFilterData !== undefined) {
+							this.notificationFilterData = reusableFilterData;
+						} else {
+							this.notificationFilterDataLoaded = false;
+						}
+						return;
+					}
+					const result = await response.json();
+					if (!result.success) {
+						if (reusableFilterData !== undefined) {
+							this.notificationFilterData = reusableFilterData;
+						} else {
+							this.notificationFilterDataLoaded = false;
+						}
+						return;
+					}
+					const preset = (result.presets || []).find(p => p.id === requestedPresetId);
+					if (preset) {
+						this.notificationFilterData = preset.filter_data || {};
+						this.notificationFilterDataPresetId = requestedPresetId;
+						this.notificationFilterDataLoaded = true;
+						return;
+					}
+				} catch (error) {
+					console.error('Failed to load notification filter preset:', error);
+					if (reusableFilterData !== undefined) {
+						this.notificationFilterData = reusableFilterData;
+					} else {
+						this.notificationFilterDataLoaded = false;
+					}
+					return;
+				}
+
+				// The list loaded successfully and the preset genuinely isn't in it
+				// (deleted): degrade to "All alerts" without erroring.
+				console.warn('Notification filter preset not found, falling back to All alerts');
+				this.preferences.notificationFilterPresetId = '';
+				this.notificationFilterData = null;
+				this.notificationFilterDataPresetId = null;
+				this.notificationFilterDataLoaded = false;
+			},
+
+			// Re-resolve the selected preset's filter_data, sharing one request between
+			// concurrent callers. Scope decisions go through this rather than through the
+			// cached copy: the preset can be edited or switched (in this tab or another)
+			// with the page open, so anything cached at load time is a guess. Getting the
+			// scope wrong pages the on-call for someone else's alerts and drops their own.
+			// ponytail: one GET per notified alert; add a short TTL if that ever shows up
+			// in the backend's request rate.
+			async refreshFilterPresetData() {
+				// Two passes: joining a request that was already in flight can hand back
+				// data fetched for the previously selected preset, so re-run once when the
+				// answer doesn't belong to the current selection.
+				for (let attempt = 0; attempt < 2; attempt++) {
+					const requestedPresetId = this.preferences.notificationFilterPresetId;
+					if (!this.filterPresetDataFetch) {
+						this.filterPresetDataFetch = this.loadFilterPresetData().finally(() => {
+							this.filterPresetDataFetch = null;
+						});
+					}
+					await this.filterPresetDataFetch;
+					if (!requestedPresetId || this.notificationFilterDataPresetId === requestedPresetId) {
+						return;
+					}
+				}
+			},
+
+			// Check if an alert matches the selected notification filter preset (or always
+			// true when "All alerts" is selected). Delegates to the pure, unit-tested matcher
+			// in /static/js/notification_matcher.js.
+			matchesFilterPreset(alert) {
+				if (!this.preferences.notificationFilterPresetId) {
+					return true;
+				}
+				// Only ever match against filter_data known to belong to the preset that is
+				// selected right now. Anything else - never loaded, a refresh in flight, or
+				// a value fetched for a preset the user has since switched away from - is
+				// "scope unknown" and fails closed, rather than falling through to
+				// notificationFilterData === null, which the matcher treats as "All alerts".
+				if (!this.notificationFilterDataLoaded ||
+					this.notificationFilterDataPresetId !== this.preferences.notificationFilterPresetId) {
+					return false;
+				}
+				if (typeof matchesNotificationFilterPreset !== 'function') {
+					return true;
+				}
+				return matchesNotificationFilterPreset(alert, this.notificationFilterData);
+			},
+
 			// Save notification preferences to backend
 			async savePreferences(preferences) {
+				// Never write back preferences that were never read. A single failed GET
+				// leaves `preferences` at the hardcoded defaults, and persisting those
+				// silently wipes the user's severities and notification filter preset in
+				// the database - permanently, with no error shown anywhere. The next page
+				// load retries the read; refusing costs one setting change, clobbering
+				// costs the on-call their scope.
+				if (!this.preferencesLoaded) {
+					console.warn('Refusing to save notification preferences: they never loaded this session');
+					return false;
+				}
+
 				try {
 					const response = await fetch('/api/v1/notifications/preferences', {
 						method: 'POST',
@@ -116,7 +284,8 @@ templ NotificationService() {
 						body: JSON.stringify({
 							browser_notifications_enabled: preferences.browserNotificationsEnabled,
 							enabled_severities: preferences.enabledSeverities,
-							sound_notifications_enabled: preferences.soundNotificationsEnabled
+							sound_notifications_enabled: preferences.soundNotificationsEnabled,
+							notification_filter_preset_id: preferences.notificationFilterPresetId || ''
 						})
 					});
 
@@ -124,6 +293,7 @@ templ NotificationService() {
 						const result = await response.json();
 						if (result.success) {
 							this.preferences = preferences;
+							await this.loadFilterPresetData();
 							console.log('Saved notification preferences');
 							return true;
 						}
@@ -264,6 +434,11 @@ templ NotificationService() {
 					return false;
 				}
 
+				// Check if alert falls within the selected notification filter preset's scope
+				if (!this.matchesFilterPreset(alert)) {
+					return false;
+				}
+
 				return true;
 			},
 
@@ -317,7 +492,14 @@ templ NotificationService() {
 			},
 
 			// Show browser notification (with rate limiting)
-			showNotification(alert) {
+			async showNotification(alert) {
+				// Re-resolve the selected preset before deciding: it may have been edited
+				// or switched since page load, in this tab or another one. Without this the
+				// tab keeps notifying on the scope it saw at load, indefinitely.
+				if (this.preferences.notificationFilterPresetId) {
+					await this.refreshFilterPresetData();
+				}
+
 				if (!this.shouldNotify(alert)) {
 					return;
 				}

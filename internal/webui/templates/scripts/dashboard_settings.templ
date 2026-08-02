@@ -59,8 +59,11 @@ templ DashboardSettings() {
 				notificationPreferences: {
 					browserNotificationsEnabled: false,
 					enabledSeverities: ['critical', 'warning'],
-					soundNotificationsEnabled: true
+					soundNotificationsEnabled: true,
+					notificationFilterPresetId: ''
 				},
+				// Filter presets available for the "Notify me only for alerts matching" dropdown
+				notificationFilterPresets: [],
 				// Browser notification permission (reactive state for UI)
 				browserNotificationPermission: 'default', // 'default', 'granted', 'denied'
 
@@ -79,6 +82,7 @@ templ DashboardSettings() {
 					await this.loadHiddenAlerts();
 					await this.loadHiddenRules();
 					await this.loadSentryConfig();
+					await this.loadNotificationFilterPresets();
 					await this.loadNotificationPreferences();
 					await this.loadAnnotationButtonConfigs();
 					this.checkBrowserPermission(); // Check current browser permission status
@@ -896,7 +900,8 @@ templ DashboardSettings() {
 						this.notificationPreferences = {
 							browserNotificationsEnabled: svcPreferences.browserNotificationsEnabled || false,
 							enabledSeverities: svcPreferences.enabledSeverities || ['critical', 'warning'],
-							soundNotificationsEnabled: svcPreferences.soundNotificationsEnabled !== undefined ? svcPreferences.soundNotificationsEnabled : true
+							soundNotificationsEnabled: svcPreferences.soundNotificationsEnabled !== undefined ? svcPreferences.soundNotificationsEnabled : true,
+							notificationFilterPresetId: svcPreferences.notificationFilterPresetId || ''
 						};
 						return;
 					}
@@ -912,12 +917,30 @@ templ DashboardSettings() {
 								this.notificationPreferences = {
 									browserNotificationsEnabled: result.data.browser_notifications_enabled || false,
 									enabledSeverities: result.data.enabled_severities || ['critical', 'warning'],
-									soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true
+									soundNotificationsEnabled: result.data.sound_notifications_enabled !== undefined ? result.data.sound_notifications_enabled : true,
+									notificationFilterPresetId: result.data.notification_filter_preset_id || ''
 								};
 							}
 						}
 					} catch (error) {
 						console.error('Error loading notification preferences:', error);
+					}
+				},
+
+				// Load filter presets for the "Notify me only for alerts matching" dropdown
+				async loadNotificationFilterPresets() {
+					try {
+						const response = await fetch('/api/v1/dashboard/filter-presets?include_shared=true', {
+							credentials: 'include'
+						});
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success) {
+								this.notificationFilterPresets = result.presets || [];
+							}
+						}
+					} catch (error) {
+						console.error('Error loading notification filter presets:', error);
 					}
 				},
 
@@ -934,7 +957,8 @@ templ DashboardSettings() {
 							body: JSON.stringify({
 								browser_notifications_enabled: this.notificationPreferences.browserNotificationsEnabled,
 								enabled_severities: this.notificationPreferences.enabledSeverities,
-								sound_notifications_enabled: this.notificationPreferences.soundNotificationsEnabled
+								sound_notifications_enabled: this.notificationPreferences.soundNotificationsEnabled,
+								notification_filter_preset_id: this.notificationPreferences.notificationFilterPresetId || ''
 							})
 						});
 
@@ -944,9 +968,11 @@ templ DashboardSettings() {
 							console.log('Notification preferences save response:', result);
 
 							if (result.success) {
-								// Update the notification service preferences
+								// Update the notification service preferences and refresh its
+								// cached preset filter_data so the new scope applies immediately
 								if (window.notificationService) {
 									window.notificationService.preferences = this.notificationPreferences;
+									await window.notificationService.refreshFilterPresetData();
 								}
 								console.log('Notification preferences saved successfully');
 								return true;
@@ -1036,18 +1062,24 @@ templ DashboardSettings() {
 						}
 					};
 
-					// Temporarily enable notifications and force the test alert to show
+					// Temporarily enable notifications and force the test alert to show,
+					// bypassing the selected filter preset since the synthetic test alert
+					// has none of the fields (team, alertmanagers, statuses...) a preset
+					// might scope on and would otherwise be silently rejected.
 					const originalEnabled = window.notificationService.preferences.browserNotificationsEnabled;
 					const originalSeverities = window.notificationService.preferences.enabledSeverities;
+					const originalPresetId = window.notificationService.preferences.notificationFilterPresetId;
 
 					window.notificationService.preferences.browserNotificationsEnabled = true;
 					window.notificationService.preferences.enabledSeverities = ['critical', 'warning', 'info'];
+					window.notificationService.preferences.notificationFilterPresetId = '';
 
-					window.notificationService.showNotification(testAlert);
+					await window.notificationService.showNotification(testAlert);
 
 					// Restore original settings
 					window.notificationService.preferences.browserNotificationsEnabled = originalEnabled;
 					window.notificationService.preferences.enabledSeverities = originalSeverities;
+					window.notificationService.preferences.notificationFilterPresetId = originalPresetId;
 				},
 
 				// Annotation Button Config Management Functions

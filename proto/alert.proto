@@ -469,6 +469,7 @@ message SaveNotificationPreferencesRequest {
   bool browser_notifications_enabled = 2;
   repeated string enabled_severities = 3;
   bool sound_notifications_enabled = 4;
+  string notification_filter_preset_id = 5;  // Empty = notify for all alerts (no preset scope)
 }
 
 message SaveNotificationPreferencesResponse {
@@ -485,6 +486,7 @@ message NotificationPreference {
   bool sound_notifications_enabled = 5;
   google.protobuf.Timestamp created_at = 6;
   google.protobuf.Timestamp updated_at = 7;
+  string notification_filter_preset_id = 8;  // Empty = notify for all alerts (no preset scope)
 }
 
 // Filter Presets Messages

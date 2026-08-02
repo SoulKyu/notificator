@@ -38,13 +38,16 @@ func (s SeverityList) Value() (driver.Value, error) {
 
 // NotificationPreference stores user preferences for browser notifications
 type NotificationPreference struct {
-	ID        string    `gorm:"primaryKey;type:varchar(36)" json:"id"`
-	UserID    string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"user_id"`
+	ID     string `gorm:"primaryKey;type:varchar(36)" json:"id"`
+	UserID string `gorm:"type:varchar(255);uniqueIndex;not null" json:"user_id"`
 
 	// Browser notification settings
 	BrowserNotificationsEnabled bool         `gorm:"default:false" json:"browser_notifications_enabled"`
-	EnabledSeverities          SeverityList `gorm:"type:jsonb" json:"enabled_severities"` // Type handled by Scanner/Valuer
+	EnabledSeverities           SeverityList `gorm:"type:jsonb" json:"enabled_severities"` // Type handled by Scanner/Valuer
 	SoundNotificationsEnabled   bool         `gorm:"default:true" json:"sound_notifications_enabled"`
+
+	// Scope browser/sound notifications to a saved filter preset. Empty = notify for all alerts.
+	NotificationFilterPresetID string `gorm:"type:varchar(36)" json:"notification_filter_preset_id"`
 
 	// Timestamps
 	CreatedAt time.Time      `json:"created_at"`
@@ -61,9 +64,9 @@ func (NotificationPreference) TableName() string {
 func DefaultNotificationPreference(userID string) *NotificationPreference {
 	return &NotificationPreference{
 		UserID:                      userID,
-		BrowserNotificationsEnabled: false,                              // Disabled by default until user grants permission
-		EnabledSeverities:          SeverityList{"critical", "warning"}, // Default to critical and warning
-		SoundNotificationsEnabled:   true,                               // Sound enabled by default
+		BrowserNotificationsEnabled: false,                               // Disabled by default until user grants permission
+		EnabledSeverities:           SeverityList{"critical", "warning"}, // Default to critical and warning
+		SoundNotificationsEnabled:   true,                                // Sound enabled by default
 	}
 }
 

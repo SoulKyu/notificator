@@ -1487,6 +1487,7 @@ type NotificationPreferences struct {
 	BrowserNotificationsEnabled bool     `json:"browser_notifications_enabled"`
 	EnabledSeverities           []string `json:"enabled_severities"`
 	SoundNotificationsEnabled   bool     `json:"sound_notifications_enabled"`
+	NotificationFilterPresetID  string   `json:"notification_filter_preset_id"`
 }
 
 // GetNotificationPreferences retrieves notification preferences for the authenticated user
@@ -1524,6 +1525,7 @@ func (c *BackendClient) GetNotificationPreferences(sessionID string) (*Notificat
 		BrowserNotificationsEnabled: resp.Preferences.BrowserNotificationsEnabled,
 		EnabledSeverities:           resp.Preferences.EnabledSeverities,
 		SoundNotificationsEnabled:   resp.Preferences.SoundNotificationsEnabled,
+		NotificationFilterPresetID:  resp.Preferences.NotificationFilterPresetId,
 	}, nil
 }
 
@@ -1541,6 +1543,7 @@ func (c *BackendClient) SaveNotificationPreferences(sessionID string, prefs *Not
 		BrowserNotificationsEnabled: prefs.BrowserNotificationsEnabled,
 		EnabledSeverities:           prefs.EnabledSeverities,
 		SoundNotificationsEnabled:   prefs.SoundNotificationsEnabled,
+		NotificationFilterPresetId:  prefs.NotificationFilterPresetID,
 	}
 
 	resp, err := c.alertClient.SaveNotificationPreferences(ctx, req)

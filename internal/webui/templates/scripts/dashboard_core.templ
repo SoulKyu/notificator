@@ -609,9 +609,18 @@ templ DashboardCore() {
 						}
 					}
 
-					// Enable and save preference
-					window.notificationService.preferences.browserNotificationsEnabled = true;
-					await window.notificationService.savePreferences(window.notificationService.preferences);
+					// Enable and save preference. Only flip the in-memory flag through a
+					// successful save: savePreferences refuses when the stored preferences
+					// never loaded, and enabling anyway would notify on default (unscoped)
+					// preferences for the rest of the session.
+					const saved = await window.notificationService.savePreferences({
+						...window.notificationService.preferences,
+						browserNotificationsEnabled: true
+					});
+					if (!saved) {
+						console.warn('Could not save notification preference, leaving notifications off');
+						return;
+					}
 
 					// Update permission status in service
 					window.notificationService.permissionGranted = Notification.permission === 'granted';
