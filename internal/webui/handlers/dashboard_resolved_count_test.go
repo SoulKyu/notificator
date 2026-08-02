@@ -40,6 +40,8 @@ func (s stubHiddenBackend) ClearAllHiddenAlerts(string, ...string) error     { r
 func TestFiltersAffectResolvedCount(t *testing.T) {
 	acknowledged := true
 	hasComments := false
+	ownedByMe := true
+	notOwnedByMe := false
 
 	tests := []struct {
 		name    string
@@ -59,6 +61,8 @@ func TestFiltersAffectResolvedCount(t *testing.T) {
 		{"label filters", webuimodels.DashboardFilters{
 			LabelFilters: []webuimodels.LabelFilter{{Key: "cluster", Value: "prod"}},
 		}, true},
+		{"owned by me", webuimodels.DashboardFilters{OwnedByMe: &ownedByMe}, true},
+		{"owned by me false does not filter", webuimodels.DashboardFilters{OwnedByMe: &notOwnedByMe}, false},
 		{"filter hidden alerts", webuimodels.DashboardFilters{
 			FilterHiddenAlerts: []webuimodels.FilterHiddenAlert{{Fingerprint: "abc"}},
 		}, true},
@@ -85,6 +89,7 @@ func TestFiltersAffectResolvedCountCoversEveryFilterField(t *testing.T) {
 		"Search": true, "Alertmanagers": true, "Severities": true,
 		"Statuses": true, "Teams": true, "AlertNames": true,
 		"Acknowledged": true, "HasComments": true, "LabelFilters": true,
+		"OwnedByMe": true,
 		"FilterHiddenAlerts": true, "FilterHiddenRules": true,
 		// Not filtering predicates in applyDashboardFilters:
 		"DisplayMode": true, "ViewMode": true, "ResolvedAlertsLimit": true,

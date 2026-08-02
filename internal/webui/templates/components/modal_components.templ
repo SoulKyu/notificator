@@ -114,6 +114,28 @@ templ SettingsModal() {
 									</div>
 								</div>
 
+								<!-- Stale Ack Threshold -->
+								<div>
+									<label for="settings-stale-ack-threshold" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										Stale Acknowledgement Threshold
+									</label>
+									<div class="mt-1">
+										<select id="settings-stale-ack-threshold" name="settings-stale-ack-threshold"
+												x-model.number="settings.staleAckThresholdHours"
+												class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white">
+											<option value="0">Off (never stale)</option>
+											<option value="1">1 hour</option>
+											<option value="2">2 hours</option>
+											<option value="4">4 hours</option>
+											<option value="8">8 hours</option>
+											<option value="24">24 hours</option>
+										</select>
+									</div>
+									<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+										Alerts acknowledged longer than this get an amber "stale" marker in the Acknowledged view.
+									</p>
+								</div>
+
 								<!-- On-Call Schedule -->
 								<div class="border-t border-gray-200 dark:border-gray-700 pt-4">
 									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

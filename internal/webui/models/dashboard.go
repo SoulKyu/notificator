@@ -90,6 +90,7 @@ type DashboardFilters struct {
 	AlertNames          []string             `json:"alertNames"`
 	Acknowledged        *bool                `json:"acknowledged,omitempty"` // nil = all, true = only ack, false = only non-ack
 	HasComments         *bool                `json:"hasComments,omitempty"`  // nil = all, true = with comments, false = without
+	OwnedByMe           *bool                `json:"ownedByMe,omitempty"`    // nil = all, true = only alerts acknowledged by the current user
 	DisplayMode         DashboardDisplayMode `json:"displayMode"`
 	ViewMode            DashboardViewMode    `json:"viewMode"`
 	ResolvedAlertsLimit int                  `json:"resolvedAlertsLimit,omitempty"` // Client-side limit for resolved alerts display
@@ -132,6 +133,9 @@ type DashboardSettings struct {
 	DefaultFilters    DashboardFilters `json:"defaultFilters"`
 	DefaultSorting    DashboardSorting `json:"defaultSorting"`
 	HiddenColumns     []string         `json:"hiddenColumns"`
+	// StaleAckThresholdHours flags an acknowledged alert as stale on the Ack Age
+	// column once it has been acked longer than this many hours. 0 = never stale.
+	StaleAckThresholdHours int `json:"staleAckThresholdHours"`
 }
 
 // DashboardIncrementalRequest represents the request body for POST /api/v1/dashboard/incremental
@@ -200,7 +204,10 @@ type DashboardCounters struct {
 	Firing       int `json:"firing"`
 	Resolved     int `json:"resolved"`
 	Acknowledged int `json:"acknowledged"`
-	WithComments int `json:"withComments"`
+	// StaleAcknowledged counts acknowledged (unresolved) alerts whose ack age
+	// exceeds the viewing user's StaleAckThresholdHours setting.
+	StaleAcknowledged int `json:"staleAcknowledged"`
+	WithComments      int `json:"withComments"`
 	// SeverityCounters provides dynamic severity counts from actual alert data
 	// Keys are severity labels (e.g., "critical", "warning", "info", "page", etc.)
 	SeverityCounters map[string]int `json:"severityCounters"`

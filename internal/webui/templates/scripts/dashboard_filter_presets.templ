@@ -178,6 +178,7 @@ templ DashboardFilterPresetsMixin() {
 			// Presets don't carry label filters; drop any so the preset's result set
 			// is what the user saved, not an invisible intersection
 			this.filters.labels = [];
+			this.filters.ownedByMe = data.owned_by_me || false;
 
 			// Apply display settings
 			if (data.display_mode) this.displayMode = data.display_mode;
@@ -295,6 +296,7 @@ templ DashboardFilterPresetsMixin() {
 				statuses: this.filters.statuses,
 				teams: this.filters.teams,
 				alert_names: this.filters.alertNames,
+				owned_by_me: this.filters.ownedByMe,
 				display_mode: this.displayMode,
 				view_mode: this.viewMode,
 				group_by: this.groupByLabel,
