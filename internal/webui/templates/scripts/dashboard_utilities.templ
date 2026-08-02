@@ -875,13 +875,23 @@ templ DashboardUtilities() {
 			},
 
 			// Relative time since acknowledgement, with an amber "stale" marker once
-			// it exceeds the user's staleAckThresholdMinutes setting (0 = never stale)
+			// it exceeds the user's staleAckThresholdHours setting (0 = never stale).
+			// The marker rule is mirrored server-side by isStaleAck() in
+			// dashboard_handlers.go, which feeds the Acknowledged button's badge -
+			// change one and the badge stops matching the marked rows.
 			renderAckAge(alert) {
 				if (!alert.isAcknowledged || !alert.acknowledgedAt) {
 					return '<span class="text-gray-400 dark:text-gray-500">-</span>';
 				}
 
 				const ackedAt = new Date(alert.acknowledgedAt).getTime();
+				// Go marshals a missing ack time as year 1, which is truthy here; without
+				// this an ack with no timestamp would render as ~2000 years stale while
+				// isStaleAck() (IsZero) leaves it out of the badge count.
+				if (!Number.isFinite(ackedAt) || ackedAt <= 0) {
+					return '<span class="text-gray-400 dark:text-gray-500">-</span>';
+				}
+
 				const ageMs = Date.now() - ackedAt;
 				const ageMinutes = Math.floor(ageMs / 60000);
 
@@ -1040,6 +1050,7 @@ templ DashboardUtilities() {
 			showAddColumnDialog: false,
 			editingColumn: null,
 			draggingColumn: null,
+			columnSaveError: '',
 			newColumnConfig: {
 				label: '',
 				field_type: 'label',
@@ -1075,7 +1086,11 @@ templ DashboardUtilities() {
 				}
 			},
 
+			// Returns false and leaves the reason in columnSaveError so callers can
+			// keep the modal open: a rejected save silently reverts the user's layout
+			// on the next reload, which is worse than an error they can see.
 			async saveUserColumnPreferences() {
+				this.columnSaveError = '';
 				try {
 					const response = await fetch('/api/v1/dashboard/column-preferences', {
 						method: 'PUT',
@@ -1089,8 +1104,9 @@ templ DashboardUtilities() {
 					}
 
 					if (!response.ok) {
-						const errorData = await response.json();
+						const errorData = await response.json().catch(() => ({}));
 						console.error('Failed to save column preferences:', errorData);
+						this.columnSaveError = errorData.message || `Failed to save column preferences (HTTP ${response.status})`;
 						return false;
 					}
 
@@ -1098,6 +1114,7 @@ templ DashboardUtilities() {
 					return true;
 				} catch (error) {
 					console.error('Error saving column preferences:', error);
+					this.columnSaveError = error.message || 'Failed to save column preferences';
 					return false;
 				}
 			},

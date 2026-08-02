@@ -804,6 +804,29 @@ func computeAvailableFilters(alerts []*webuimodels.DashboardAlert) webuimodels.D
 	return available
 }
 
+// isStaleAck mirrors renderAckAge() in dashboard_utilities.templ, which decides
+// which rows get the amber "stale" marker. Both sides must ask the same
+// question or the badge count and the marked rows disagree - keep them equal.
+func isStaleAck(alert *webuimodels.DashboardAlert, cutoff time.Time) bool {
+	return alert.IsAcknowledged && !alert.AcknowledgedAt.IsZero() && alert.AcknowledgedAt.Before(cutoff)
+}
+
+// staleAckSource returns the alerts the Acknowledged view renders for these
+// filters. In acknowledge mode that is filteredAlerts itself; in any other mode
+// acked alerts have been filtered out of it, so re-derive them from allAlerts
+// under the same user filters (search, severity, OwnedByMe, hidden rules) with
+// only the acked/display-mode exclusions lifted.
+func staleAckSource(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string, currentUsername string) []*webuimodels.DashboardAlert {
+	if filters.DisplayMode == webuimodels.DisplayModeAcknowledge {
+		return filteredAlerts
+	}
+
+	ackFilters := filters
+	ackFilters.DisplayMode = webuimodels.DisplayModeAcknowledge
+	ackFilters.Acknowledged = nil
+	return applyDashboardFilters(allAlerts, ackFilters, sessionID, currentUsername)
+}
+
 func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string, currentUsername string) webuimodels.DashboardMetadata {
 	counters := webuimodels.DashboardCounters{
 		SeverityCounters: make(map[string]int),
@@ -889,21 +912,16 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		}
 	}
 
-	// Stale-ack count for the Acknowledged mode button's badge. Scoped by the
-	// same filters (OwnedByMe, search, etc.) as the alerts actually rendered,
-	// so it can't drift from the rows the client marks stale. Mirrors the
-	// classic-mode fixup above: filteredAlerts excludes acked alerts there.
+	// Stale-ack count for the Acknowledged mode button's badge. The badge is a
+	// preview of the Acknowledged view, so it counts over exactly the rows that
+	// view renders and with exactly the client's rule (isStaleAck) - no extra
+	// condition of its own. Adding one here is what made the badge disagree with
+	// the amber rows on screen: it skipped resolved acks the view still lists.
 	threshold := getUserSettings(userID).StaleAckThresholdHours
 	if threshold > 0 {
 		staleCutoff := time.Now().Add(-time.Duration(threshold) * time.Hour)
-		source := filteredAlerts
-		if filters.DisplayMode == webuimodels.DisplayModeClassic {
-			source = allAlerts
-		}
-		for _, alert := range source {
-			if alert.IsAcknowledged && !alert.IsResolved &&
-				(filters.OwnedByMe == nil || !*filters.OwnedByMe || alert.AcknowledgedBy == currentUsername) &&
-				alert.AcknowledgedAt.Before(staleCutoff) {
+		for _, alert := range staleAckSource(allAlerts, filteredAlerts, filters, sessionID, currentUsername) {
+			if isStaleAck(alert, staleCutoff) {
 				counters.StaleAcknowledged++
 			}
 		}
@@ -2834,53 +2852,12 @@ func SaveUserColumnPreferences(c *gin.Context) {
 	}
 
 	// Validate column configs (same validation as filter presets)
-	if len(req.ColumnConfigs) > 0 {
-		seenIDs := make(map[string]bool)
-		seenOrders := make(map[int]bool)
-
-		for _, col := range req.ColumnConfigs {
-			// Check duplicate ID
-			if seenIDs[col.ID] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": "Duplicate column ID: " + col.ID,
-				})
-				return
-			}
-			seenIDs[col.ID] = true
-
-			// Check duplicate order
-			if seenOrders[col.Order] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Duplicate column order: %d", col.Order),
-				})
-				return
-			}
-			seenOrders[col.Order] = true
-
-			// Validate width
-			if col.Width < 50 || col.Width > 800 {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Column '%s' width must be between 50 and 800 pixels", col.ID),
-				})
-				return
-			}
-
-			// Validate formatter
-			validFormatters := map[string]bool{
-				"text": true, "badge": true, "duration": true,
-				"timestamp": true, "count": true, "checkbox": true, "actions": true,
-			}
-			if !validFormatters[col.Formatter] {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID),
-				})
-				return
-			}
-		}
+	if err := webuimodels.ValidateColumnConfigs(req.ColumnConfigs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 
 	// Save to backend
