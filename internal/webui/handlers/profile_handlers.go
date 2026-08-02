@@ -42,20 +42,11 @@ func ProfilePage(c *gin.Context) {
 			Email:         user.Email,
 			OAuthProvider: oauthProvider,
 			OAuthID:       user.OAuthID,
-			CreatedAt:     time.Now().AddDate(0, -3, -15),
-			LastLogin:     &[]time.Time{time.Now().Add(-2 * time.Hour)}[0],
-			EmailVerified: user.Email != "",
+			CreatedAt:     user.CreatedAt,
+			LastLogin:     user.LastLogin,
 		},
 		SessionInfo: pages.SessionInfo{
 			SessionID: sessionID,
-			CreatedAt: time.Now().Add(-30 * time.Minute),
-			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		},
-		Stats: pages.UserStats{
-			TotalAlerts:    156,
-			ActiveAlerts:   12,
-			ResolvedAlerts: 144,
-			LastActivity:   &[]time.Time{time.Now().Add(-5 * time.Minute)}[0],
 		},
 	}
 

@@ -49,12 +49,14 @@ type AuthResult struct {
 }
 
 type User struct {
-	ID            string  `json:"id"`
-	Username      string  `json:"username"`
-	Email         string  `json:"email"`
-	OAuthProvider *string `json:"oauth_provider,omitempty"`
-	OAuthID       *string `json:"oauth_id,omitempty"`
-	Timezone      *string `json:"timezone,omitempty"`
+	ID            string     `json:"id"`
+	Username      string     `json:"username"`
+	Email         string     `json:"email"`
+	OAuthProvider *string    `json:"oauth_provider,omitempty"`
+	OAuthID       *string    `json:"oauth_id,omitempty"`
+	Timezone      *string    `json:"timezone,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	LastLogin     *time.Time `json:"last_login,omitempty"`
 }
 
 // IsOAuthUser returns true if the user was created via OAuth
@@ -310,6 +312,13 @@ func (c *BackendClient) ValidateSession(sessionID string) (*User, error) {
 	if resp.User.Timezone != "" {
 		user.Timezone = &resp.User.Timezone
 	}
+	if resp.User.CreatedAt != nil {
+		user.CreatedAt = resp.User.CreatedAt.AsTime()
+	}
+	if resp.User.LastLogin != nil {
+		lastLogin := resp.User.LastLogin.AsTime()
+		user.LastLogin = &lastLogin
+	}
 
 	return user, nil
 }
@@ -368,6 +377,13 @@ func (c *BackendClient) GetProfile(sessionID string) (*User, error) {
 	}
 	if resp.User.Timezone != "" {
 		user.Timezone = &resp.User.Timezone
+	}
+	if resp.User.CreatedAt != nil {
+		user.CreatedAt = resp.User.CreatedAt.AsTime()
+	}
+	if resp.User.LastLogin != nil {
+		lastLogin := resp.User.LastLogin.AsTime()
+		user.LastLogin = &lastLogin
 	}
 
 	return user, nil

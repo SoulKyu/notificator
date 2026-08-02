@@ -7,9 +7,8 @@ import (
 )
 
 type ProfileData struct {
-	User         ProfileUser
-	SessionInfo  SessionInfo
-	Stats        UserStats
+	User        ProfileUser
+	SessionInfo SessionInfo
 }
 
 type ProfileUser struct {
@@ -20,20 +19,10 @@ type ProfileUser struct {
 	OAuthID       *string
 	CreatedAt     time.Time
 	LastLogin     *time.Time
-	EmailVerified bool
 }
 
 type SessionInfo struct {
-	SessionID  string
-	CreatedAt  time.Time
-	ExpiresAt  time.Time
-}
-
-type UserStats struct {
-	TotalAlerts      int
-	ActiveAlerts     int
-	ResolvedAlerts   int
-	LastActivity     *time.Time
+	SessionID string
 }
 
 templ Profile(data ProfileData) {
@@ -41,7 +30,7 @@ templ Profile(data ProfileData) {
 }
 
 templ ProfileContent(data ProfileData) {
-	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary py-8" x-data="profilePage()">
+	<div class="min-h-screen bg-gray-50 dark:bg-dark-bg-primary py-8" x-data="profilePage()" data-user-id={ data.User.ID }>
 		<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 			<!-- Header -->
 			<div class="mb-8">
@@ -105,29 +94,23 @@ templ ProfileContent(data ProfileData) {
 												Classic Auth
 											</div>
 										}
-										
-										if data.User.EmailVerified {
-											<div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-												<svg class="mr-1.5 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-													<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-												</svg>
-												Verified
-											</div>
-										}
 									</div>
 								</div>
 
 								<!-- Copy ID Button -->
 								<div class="flex-shrink-0">
-									<button 
-										@click="copyUserId()" 
+									<button
+										@click="copyUserId()"
 										class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
 										title="Copy User ID"
 									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<svg x-show="!idCopied" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
 										</svg>
-										<span class="ml-2">ID</span>
+										<svg x-show="idCopied" style="display: none;" class="h-4 w-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+										</svg>
+										<span class="ml-2" x-text="idCopied ? 'Copied' : 'ID'"></span>
 									</button>
 								</div>
 							</div>
@@ -171,24 +154,6 @@ templ ProfileContent(data ProfileData) {
 								<div>
 									<dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Session ID</dt>
 									<dd class="mt-1 text-xs text-gray-900 dark:text-white font-mono truncate">{ data.SessionInfo.SessionID }</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Session Started</dt>
-									<dd class="mt-1 text-sm text-gray-900 dark:text-white">{ templates.FormatDate(data.SessionInfo.CreatedAt) }</dd>
-								</div>
-								<div>
-									<dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Expires</dt>
-									<dd class="mt-1 text-sm text-gray-900 dark:text-white">{ templates.FormatDate(data.SessionInfo.ExpiresAt) }</dd>
-								</div>
-								
-								<!-- Session Duration -->
-								<div class="pt-3 border-t border-gray-200 dark:border-gray-700">
-									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-500 dark:text-gray-400">Duration</span>
-										<span class="text-sm font-medium text-gray-900 dark:text-white">
-											{ templates.FormatDuration(time.Since(data.SessionInfo.CreatedAt)) }
-										</span>
-									</div>
 								</div>
 							</div>
 						</div>
@@ -238,14 +203,18 @@ templ ProfileContent(data ProfileData) {
 	<script>
 		function profilePage() {
 			return {
-				showToast: false,
-				userId: '{ data.User.ID }',
-				
+				idCopied: false,
+				userId: '',
+
+				init() {
+					this.userId = this.$el.dataset.userId;
+				},
+
 				copyUserId() {
 					navigator.clipboard.writeText(this.userId).then(() => {
-						this.showToast = true;
+						this.idCopied = true;
 						setTimeout(() => {
-							this.showToast = false;
+							this.idCopied = false;
 						}, 2000);
 					}).catch(err => {
 						console.error('Failed to copy:', err);
@@ -256,13 +225,13 @@ templ ProfileContent(data ProfileData) {
 						input.select();
 						document.execCommand('copy');
 						document.body.removeChild(input);
-						this.showToast = true;
+						this.idCopied = true;
 						setTimeout(() => {
-							this.showToast = false;
+							this.idCopied = false;
 						}, 2000);
 					});
 				},
-				
+
 				showChangePassword() {
 					// TODO: Implement change password modal
 					alert('Change password functionality coming soon!');
