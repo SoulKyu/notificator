@@ -401,14 +401,19 @@ func (gdb *GormDB) GetComments(alertKey string) ([]models.CommentWithUser, error
 // containing an "@username" substring (case-insensitive), so limit caps the
 // relevant subset rather than the whole activity firehose. This is a coarse
 // prefilter only - callers still need the exact word-boundary check to rule out
-// e.g. "@bob" matching inside "@bobby" or "ops-team@bob".
+// e.g. "@bob" matching inside "@bobby" or "ops-team@bob". mentionUsername is
+// escaped before being embedded in the LIKE pattern so its own '_' and '%'
+// characters (common in OAuth-derived usernames) aren't treated as wildcards.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+
 func (gdb *GormDB) GetRecentActivity(since time.Time, limit int, mentionUsername string) ([]models.CommentWithUser, error) {
 	q := gdb.db.Table("comments").
 		Select("comments.*, users.username").
 		Joins("JOIN users ON users.id = comments.user_id").
 		Where("comments.created_at >= ?", since)
 	if mentionUsername != "" {
-		q = q.Where("LOWER(comments.content) LIKE LOWER(?)", "%@"+mentionUsername+"%")
+		escaped := likeEscaper.Replace(mentionUsername)
+		q = q.Where("LOWER(comments.content) LIKE LOWER(?) ESCAPE '\\'", "%@"+escaped+"%")
 	}
 	var rows []models.CommentWithUser
 	err := q.Order("comments.created_at DESC").

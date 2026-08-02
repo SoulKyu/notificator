@@ -179,7 +179,22 @@ templ PageNavigator(activePage string) {
 				// shown, or once we know the user asked not to be notified. Anything that
 				// leaves delivery undecided (preferences unreachable) leaves the watermark
 				// alone so the next poll retries, instead of consuming the mention silently.
+				//
+				// This component is instantiated once per open tab, and every instance reads
+				// and writes the same localStorage watermark. Without coordination, two tabs
+				// polling close together can both read the same stale watermark and both
+				// notify for the same mention. navigator.locks scopes the read-decide-write
+				// below to one tab at a time per user; browsers without the Web Locks API
+				// fall back to running unlocked (the pre-existing, racy behavior).
 				async notifyFresh(events) {
+					if ('locks' in navigator) {
+						await navigator.locks.request(this.notifiedKey(), () => this._notifyFresh(events));
+					} else {
+						await this._notifyFresh(events);
+					}
+				},
+
+				async _notifyFresh(events) {
 					const notifiedAt = Number(localStorage.getItem(this.notifiedKey()));
 					// First poll in this browser, or a corrupted watermark: start at "now" so a
 					// pre-existing backlog doesn't fire a burst of notifications.

@@ -372,6 +372,44 @@ func TestGetRecentActivityMentionFilterAvoidsTruncation(t *testing.T) {
 	}
 }
 
+// TestGetRecentActivityMentionFilterEscapesWildcards pins the fix for the SQL
+// LIKE prefilter over-matching when mentionUsername itself contains '_' or '%'
+// (both valid in OAuth-derived usernames, since they come from the email local
+// part). Unescaped, "%@john_doe%" also matches "@johnXdoe" for any X, which can
+// crowd a genuine older mention out of the same limit-window truncation this
+// filter exists to avoid.
+func TestGetRecentActivityMentionFilterEscapesWildcards(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	base := time.Now().UTC()
+
+	decoy := models.Comment{
+		ID: "decoy", AlertKey: "k1", UserID: u.ID, Content: "cc @johnXdoe fyi",
+		Kind: "comment", CreatedAt: base.Add(-time.Minute),
+	}
+	real := models.Comment{
+		ID: "real", AlertKey: "k1", UserID: u.ID, Content: "cc @john_doe please check",
+		Kind: "comment", CreatedAt: base.Add(-2 * time.Minute),
+	}
+	if err := gdb.db.Create(&decoy).Error; err != nil {
+		t.Fatalf("seed decoy: %v", err)
+	}
+	if err := gdb.db.Create(&real).Error; err != nil {
+		t.Fatalf("seed real: %v", err)
+	}
+
+	got, err := gdb.GetRecentActivity(base.Add(-24*time.Hour), 200, "john_doe")
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "real" {
+		t.Fatalf("got %v, want [real]; unescaped '_' let the decoy through", ids(got))
+	}
+}
+
 func ids(rows []models.CommentWithUser) []string {
 	out := make([]string, len(rows))
 	for i, r := range rows {

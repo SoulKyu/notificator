@@ -28,9 +28,35 @@ const mention = (id, ageMs) => ({
 	createdAt: new Date(NOW - ageMs).toISOString(),
 });
 
-function makeWatcher(backend) {
+// Emulates just enough of the Web Locks API (unavailable under `node --test`)
+// to prove the fix serializes notifyFresh across watcher instances: calls
+// for the same lock name queue behind one another, callback-then-release.
+function makeLocksStub() {
+	const queues = new Map();
+	return {
+		request: async (name, callback) => {
+			const prev = queues.get(name) || Promise.resolve();
+			let release;
+			const gate = new Promise((resolve) => {
+				release = resolve;
+			});
+			queues.set(
+				name,
+				prev.then(() => gate),
+			);
+			await prev;
+			try {
+				return await callback();
+			} finally {
+				release();
+			}
+		},
+	};
+}
+
+function makeWatcher(backend, shared = {}) {
 	const notifications = [];
-	const store = new Map(Object.entries(backend.storage || {}));
+	const store = shared.store || new Map(Object.entries(backend.storage || {}));
 
 	const fetchStub = async (url) => {
 		if (url.startsWith("/api/v1/notifications/preferences")) {
@@ -69,6 +95,7 @@ function makeWatcher(backend) {
 		"fetch",
 		"Date",
 		"console",
+		"navigator",
 		"return " + literal[1] + ";",
 	)(
 		windowStub,
@@ -84,6 +111,7 @@ function makeWatcher(backend) {
 			}
 		},
 		{ error: () => {}, log: () => {} },
+		shared.navigator || {},
 	);
 	watcher.userId = "bob";
 	return { watcher, notifications, store };
@@ -183,4 +211,28 @@ test("only the fresh mentions are notified, once", async () => {
 
 	await watcher.notifyFresh(events);
 	assert.equal(notifications.length, 2, "a second poll must not re-notify");
+});
+
+test("two tabs racing on the same watermark notify only once", async () => {
+	const store = new Map(
+		Object.entries({
+			notificator_mention_notified_bob: String(NOW - 600_000),
+		}),
+	);
+	const navigatorStub = { locks: makeLocksStub() };
+	const backend = { preferencesOk: true, browserEnabled: true };
+
+	const a = makeWatcher(backend, { store, navigator: navigatorStub });
+	const b = makeWatcher(backend, { store, navigator: navigatorStub });
+
+	await Promise.all([
+		a.watcher.notifyFresh([mention("fresh", 60_000)]),
+		b.watcher.notifyFresh([mention("fresh", 60_000)]),
+	]);
+
+	assert.equal(
+		a.notifications.length + b.notifications.length,
+		1,
+		"only one tab should deliver the mention",
+	);
 });
