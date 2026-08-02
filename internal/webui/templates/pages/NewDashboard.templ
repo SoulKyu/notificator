@@ -151,12 +151,12 @@ templ NewDashboardContent() {
 
 						<!-- Mine / Everyone Toggle (acknowledged view only - the shift handover worklist) -->
 						<div x-show="displayMode === 'acknowledge'" x-cloak class="hidden md:flex items-center space-x-1 bg-gray-100 dark:bg-dark-bg-tertiary rounded-lg p-1">
-							<button @click="filters.ownedByMe = false; applyFilters()"
+							<button @click="applyOwnedByMe(false); applyFilters()"
 									:class="!filters.ownedByMe ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'"
 									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
 								Everyone
 							</button>
-							<button @click="filters.ownedByMe = true; applyFilters()"
+							<button @click="applyOwnedByMe(true); applyFilters()"
 									:class="filters.ownedByMe ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'"
 									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
 								Mine
