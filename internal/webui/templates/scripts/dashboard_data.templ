@@ -37,12 +37,7 @@ templ DashboardData() {
 					}
 
 					// Add filter-specific hidden alerts (if a saved filter is active)
-					if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
-						params.set('filterHiddenAlerts', JSON.stringify(this.filterHiddenAlerts));
-					}
-					if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
-						params.set('filterHiddenRules', JSON.stringify(this.filterHiddenRules));
-					}
+					this.appendFilterHiddenParams(params);
 
 					const response = await fetch(`/api/v1/dashboard/data?${params.toString()}`, {
 						credentials: 'include'
@@ -132,12 +127,7 @@ templ DashboardData() {
 					}
 
 					// Add filter-specific hidden alerts (if a saved filter is active)
-					if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
-						params.set('filterHiddenAlerts', JSON.stringify(this.filterHiddenAlerts));
-					}
-					if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
-						params.set('filterHiddenRules', JSON.stringify(this.filterHiddenRules));
-					}
+					this.appendFilterHiddenParams(params);
 
 					if (this.lastUpdateTime) {
 						params.set('lastUpdate', Math.floor(this.lastUpdateTime / 1000).toString());
@@ -225,12 +215,7 @@ templ DashboardData() {
 					}
 
 					// Add filter-specific hidden alerts (if a saved filter is active)
-					if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
-						params.set('filterHiddenAlerts', JSON.stringify(this.filterHiddenAlerts));
-					}
-					if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
-						params.set('filterHiddenRules', JSON.stringify(this.filterHiddenRules));
-					}
+					this.appendFilterHiddenParams(params);
 
 					const response = await fetch(`/api/v1/dashboard/alert-colors?${params.toString()}`, {
 						credentials: 'include'

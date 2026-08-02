@@ -123,6 +123,20 @@ templ DashboardUtilities() {
 				this.applyFilters();
 			},
 
+			// Preset-scoped hidden state, as query params. Every endpoint whose
+			// result has to agree with the table (dashboard data, alert colors,
+			// updates, blast radius) sends it through this one builder — an
+			// endpoint that forgets it counts a population the table does not show.
+			appendFilterHiddenParams(params) {
+				if (this.filterHiddenAlerts && this.filterHiddenAlerts.length > 0) {
+					params.set('filterHiddenAlerts', JSON.stringify(this.filterHiddenAlerts));
+				}
+				if (this.filterHiddenRules && this.filterHiddenRules.length > 0) {
+					params.set('filterHiddenRules', JSON.stringify(this.filterHiddenRules));
+				}
+				return params;
+			},
+
 			hasActiveFilters() {
 				return this.searchQuery.length > 0 ||
 					   (this.filters.labels || []).length > 0 ||

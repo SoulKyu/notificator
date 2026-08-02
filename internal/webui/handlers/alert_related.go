@@ -44,10 +44,11 @@ type RelatedLabelGroup struct {
 }
 
 // computeRelatedAlertGroups groups the currently-firing alerts by which of the
-// target alert's labels they share the same value for. active is the dashboard's
-// classic view (see isClassicViewAlert) minus the user's hidden alerts, target
-// included when it belongs there — counting over the very set the table renders
-// is what keeps a group's "N firing" equal to the rows the same filter yields.
+// target alert's labels they share the same value for. active must be the rows
+// the dashboard itself would render in classic mode with no user filter — i.e.
+// applyDashboardFilters' output, target included when it belongs there —
+// because counting over the very set the table renders is what keeps a group's
+// "N firing" equal to the rows the same filter yields.
 //
 // A label is dropped as noise when only one other alert shares it (not a pattern)
 // or when it covers essentially the whole active set (not a distinguishing
@@ -151,21 +152,20 @@ func HandleGetRelatedAlerts(c *gin.Context) {
 
 	sessionID := middleware.GetSessionID(c)
 
-	// Same population as the dashboard table in classic mode: firing only
-	// (getStandardAlerts) minus the session's hidden alerts (applyDashboardFilters).
-	// Counting over anything wider is how the panel used to claim alerts as
-	// "firing" that the dashboard had already resolved or acknowledged away.
-	all := alertCache.GetAllAlerts()
-	active := make([]*webuimodels.DashboardAlert, 0, len(all))
-	for _, alert := range all {
-		if !isClassicViewAlert(alert) {
-			continue
-		}
-		if hiddenAlertsService != nil && hiddenAlertsService.IsAlertHidden(sessionID, alert) {
-			continue
-		}
-		active = append(active, alert)
-	}
+	// The population is not recomputed here, it is *requested* from the same
+	// code path the table uses: getStandardAlerts() + applyDashboardFilters()
+	// with the view state that survives "Filter dashboard on this" — the
+	// session's hidden alerts and the preset-scoped hidden alerts/rules the
+	// client sends on every dashboard request. Every previous divergence
+	// (resolved, acknowledged, preset-hidden) came from this handler owning a
+	// second copy of that predicate; it no longer has one, so a filter the
+	// table learns about cannot silently skip the panel.
+	hiddenAlerts, hiddenRules := parseFilterHiddenState(c)
+	active := applyDashboardFilters(getStandardAlerts(), webuimodels.DashboardFilters{
+		DisplayMode:        webuimodels.DisplayModeClassic,
+		FilterHiddenAlerts: hiddenAlerts,
+		FilterHiddenRules:  hiddenRules,
+	}, sessionID)
 
 	groups := computeRelatedAlertGroups(target, active)
 

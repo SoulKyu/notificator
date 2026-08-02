@@ -266,23 +266,31 @@ func parseDashboardFilters(c *gin.Context) webuimodels.DashboardFilters {
 		filters.LabelFilters = append(filters.LabelFilters, webuimodels.LabelFilter{Key: key, Value: value})
 	}
 
-	// Parse filter-specific hidden alerts (JSON)
-	if hiddenAlertsJSON := c.Query("filterHiddenAlerts"); hiddenAlertsJSON != "" {
-		var hiddenAlerts []webuimodels.FilterHiddenAlert
-		if err := json.Unmarshal([]byte(hiddenAlertsJSON), &hiddenAlerts); err == nil {
-			filters.FilterHiddenAlerts = hiddenAlerts
-		}
-	}
-
-	// Parse filter-specific hidden rules (JSON)
-	if hiddenRulesJSON := c.Query("filterHiddenRules"); hiddenRulesJSON != "" {
-		var hiddenRules []webuimodels.FilterHiddenRule
-		if err := json.Unmarshal([]byte(hiddenRulesJSON), &hiddenRules); err == nil {
-			filters.FilterHiddenRules = hiddenRules
-		}
-	}
+	filters.FilterHiddenAlerts, filters.FilterHiddenRules = parseFilterHiddenState(c)
 
 	return filters
+}
+
+// parseFilterHiddenState reads the preset-scoped hidden alerts/rules the client
+// carries in the query string of every request whose result must match the
+// table (dashboard data, alert colors, updates, blast radius). Malformed JSON is
+// ignored rather than fatal: a hidden list is a view preference, not an input.
+func parseFilterHiddenState(c *gin.Context) ([]webuimodels.FilterHiddenAlert, []webuimodels.FilterHiddenRule) {
+	var hiddenAlerts []webuimodels.FilterHiddenAlert
+	if raw := c.Query("filterHiddenAlerts"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &hiddenAlerts); err != nil {
+			hiddenAlerts = nil
+		}
+	}
+
+	var hiddenRules []webuimodels.FilterHiddenRule
+	if raw := c.Query("filterHiddenRules"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &hiddenRules); err != nil {
+			hiddenRules = nil
+		}
+	}
+
+	return hiddenAlerts, hiddenRules
 }
 
 func parseDashboardSorting(c *gin.Context) webuimodels.DashboardSorting {

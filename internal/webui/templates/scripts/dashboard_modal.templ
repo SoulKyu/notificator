@@ -675,8 +675,12 @@ templ DashboardModal() {
 			this.relatedError = null;
 
 			try {
+				// The panel describes the table behind the modal, so it is counted
+				// over the same view state the table is loaded with.
+				const params = this.appendFilterHiddenParams(new URLSearchParams());
+				const query = params.toString();
 				const response = await fetch(
-					`/api/v1/dashboard/alert/${requestedFingerprint}/related`,
+					`/api/v1/dashboard/alert/${requestedFingerprint}/related${query ? '?' + query : ''}`,
 					{ credentials: 'include' }
 				);
 
@@ -714,6 +718,9 @@ templ DashboardModal() {
 		// escape hatch into the table when the blast radius is the real incident.
 		// Every other filter is dropped and the view is forced back to classic so the
 		// table shows exactly the alerts the group counted, no more, no less.
+		// The preset's hidden alerts/rules deliberately survive (the count already
+		// honours them, and muted noise should stay muted); the standalone hidden
+		// indicator in the toolbar keeps saying so once the preset name is gone.
 		window.dashboardModalMixin.filterDashboardOnRelatedLabel = function(group) {
 			// skipHistory: rewrite the alert entry in place instead of navigating back.
 			// history.go() is async and would land a popstate on the pre-modal URL after

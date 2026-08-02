@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -39,21 +40,27 @@ func firingAlert(fp string, labels map[string]string) *webuimodels.DashboardAler
 }
 
 // relatedRequest serves GET /alert/:fingerprint/related through a real router so
-// the session middleware the handler reads from is in place.
-func relatedRequest(fingerprint string) *httptest.ResponseRecorder {
+// the session middleware the handler reads from is in place. query is the view
+// state the dashboard client sends along (e.g. filterHiddenRules).
+func relatedRequest(fingerprint string, query ...string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(sessions.Sessions("test-session", cookie.NewStore([]byte("test-secret"))))
 	router.GET("/alert/:fingerprint/related", HandleGetRelatedAlerts)
 
+	target := "/alert/" + fingerprint + "/related"
+	if len(query) > 0 && query[0] != "" {
+		target += "?" + query[0]
+	}
+
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/alert/"+fingerprint+"/related", nil))
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
 	return rec
 }
 
-func getRelatedGroups(t *testing.T, fingerprint string) []RelatedLabelGroup {
+func getRelatedGroups(t *testing.T, fingerprint string, query ...string) []RelatedLabelGroup {
 	t.Helper()
-	rec := relatedRequest(fingerprint)
+	rec := relatedRequest(fingerprint, query...)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("related endpoint returned %d: %s", rec.Code, rec.Body.String())
@@ -120,6 +127,66 @@ func TestRelatedEndpointCountMatchesDashboardRows(t *testing.T) {
 	}, "")
 	if len(rows) != group.Count {
 		t.Fatalf("panel says %d firing, the same filter yields %d dashboard rows", group.Count, len(rows))
+	}
+}
+
+// The escalation case: a saved filter preset mutes part of the group. Those
+// alerts are absent from the table, so they must be absent from the count the
+// panel promises — the handler no longer decides that on its own, it asks
+// applyDashboardFilters with the same hidden state the table was loaded with.
+func TestRelatedEndpointHonoursPresetHiddenRules(t *testing.T) {
+	previousService := hiddenAlertsService
+	t.Cleanup(func() { hiddenAlertsService = previousService })
+	hiddenAlertsService = services.NewHiddenAlertsService(stubHiddenBackend{})
+
+	alerts := []*webuimodels.DashboardAlert{
+		firingAlert("target", map[string]string{"alertname": "DiskFull", "cluster": "prod"}),
+		firingAlert("keep1", map[string]string{"alertname": "MemHigh", "cluster": "prod"}),
+		firingAlert("keep2", map[string]string{"alertname": "MemHigh", "cluster": "prod"}),
+		firingAlert("noisy1", map[string]string{"alertname": "NoisyProbe", "cluster": "prod"}),
+		firingAlert("noisy2", map[string]string{"alertname": "NoisyProbe", "cluster": "prod"}),
+		firingAlert("noisy3", map[string]string{"alertname": "NoisyProbe", "cluster": "prod"}),
+		// Off-cluster ballast: without it cluster=prod covers the whole active set
+		// and the group is dropped as degenerate.
+		firingAlert("dev1", map[string]string{"alertname": "MemHigh", "cluster": "dev"}),
+		firingAlert("dev2", map[string]string{"alertname": "MemHigh", "cluster": "dev"}),
+		firingAlert("dev3", map[string]string{"alertname": "MemHigh", "cluster": "dev"}),
+		firingAlert("dev4", map[string]string{"alertname": "MemHigh", "cluster": "dev"}),
+	}
+	seedCache(t, alerts...)
+
+	hiddenRules := []webuimodels.FilterHiddenRule{{
+		Name: "mute probes", LabelKey: "alertname", LabelValue: "NoisyProbe", IsEnabled: true,
+	}}
+	encoded, err := json.Marshal(hiddenRules)
+	if err != nil {
+		t.Fatalf("encoding hidden rules: %v", err)
+	}
+	query := "filterHiddenRules=" + url.QueryEscape(string(encoded))
+
+	groups := getRelatedGroups(t, "target", query)
+	if len(groups) != 1 {
+		t.Fatalf("expected one cluster group, got %+v", groups)
+	}
+	group := groups[0]
+	for _, a := range group.Alerts {
+		if a.AlertName == "NoisyProbe" {
+			t.Fatalf("%s is hidden by the active preset but is listed as firing", a.Fingerprint)
+		}
+	}
+
+	// The rows "Filter dashboard on this" lands on: classic + this label filter,
+	// with the preset's hidden rules still in force.
+	rows := applyDashboardFilters(getStandardAlerts(), webuimodels.DashboardFilters{
+		DisplayMode:       webuimodels.DisplayModeClassic,
+		LabelFilters:      []webuimodels.LabelFilter{{Key: group.LabelKey, Value: group.LabelValue}},
+		FilterHiddenRules: hiddenRules,
+	}, "")
+	if len(rows) != group.Count {
+		t.Fatalf("panel says %d firing, the same filter yields %d dashboard rows", group.Count, len(rows))
+	}
+	if group.Count != 3 {
+		t.Fatalf("expected target + keep1 + keep2, got %d", group.Count)
 	}
 }
 
