@@ -889,15 +889,21 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 		}
 	}
 
-	// Stale-ack count for the Acknowledged mode button's badge, always computed
-	// over the full acked set (not the current filtered/paginated view) so it's
-	// visible from classic mode too and matches the same authoritative pass
-	// regardless of which display mode triggered this call.
+	// Stale-ack count for the Acknowledged mode button's badge. Scoped by the
+	// same filters (OwnedByMe, search, etc.) as the alerts actually rendered,
+	// so it can't drift from the rows the client marks stale. Mirrors the
+	// classic-mode fixup above: filteredAlerts excludes acked alerts there.
 	threshold := getUserSettings(userID).StaleAckThresholdHours
 	if threshold > 0 {
 		staleCutoff := time.Now().Add(-time.Duration(threshold) * time.Hour)
-		for _, alert := range getAcknowledgedAlerts() {
-			if alert.AcknowledgedAt.Before(staleCutoff) {
+		source := filteredAlerts
+		if filters.DisplayMode == webuimodels.DisplayModeClassic {
+			source = allAlerts
+		}
+		for _, alert := range source {
+			if alert.IsAcknowledged && !alert.IsResolved &&
+				(filters.OwnedByMe == nil || !*filters.OwnedByMe || alert.AcknowledgedBy == currentUsername) &&
+				alert.AcknowledgedAt.Before(staleCutoff) {
 				counters.StaleAcknowledged++
 			}
 		}
