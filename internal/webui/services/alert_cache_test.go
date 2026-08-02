@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"notificator/internal/alertmanager"
 	alertpb "notificator/internal/backend/proto/alert"
 	"notificator/internal/models"
+	"notificator/internal/webui/client"
 	webuimodels "notificator/internal/webui/models"
 )
 
@@ -1443,4 +1445,53 @@ func TestAlertCache_AcknowledgmentDoesNotSurviveResolution(t *testing.T) {
 	if refired.AcknowledgedBy != "" || !refired.AcknowledgedAt.IsZero() || refired.AcknowledgeReason != "" {
 		t.Errorf("acknowledgment fields not cleared: %+v", refired)
 	}
+}
+
+// TestAlertCache_CaptureAlertFiredSnapshot reproduces #161: a refresh that
+// sees a brand-new alert used to hand the CaptureAlertFired goroutine the
+// pointer it had just stored in ac.alerts, rather than a snapshot. The very
+// next refresh cycle mutates that same struct's Status and Annotations under
+// ac.mu, in updateExistingAlert, while the goroutine reads them with no lock
+// held. Run with -race: this fails on the pre-fix code (dashAlert handed
+// straight to CaptureAlertFired) and passes once the goroutine gets its own
+// copy.
+func TestAlertCache_CaptureAlertFiredSnapshot(t *testing.T) {
+	// grpc.NewClient connects lazily, so this never dials: IsConnected() is
+	// true immediately, and CaptureAlertFired reads its alert argument before
+	// it ever touches the network.
+	backendClient := client.NewBackendClient("127.0.0.1:1")
+	if err := backendClient.Connect(); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+
+	cache := NewAlertCache(nil, backendClient, 90, 10*time.Second)
+
+	var firing []alertmanager.AlertWithSource
+	for i := 0; i < 5; i++ {
+		firing = append(firing, alertmanager.AlertWithSource{
+			Alert: models.Alert{
+				Labels:      map[string]string{"alertname": fmt.Sprintf("Race%d", i)},
+				Annotations: map[string]string{"summary": "before"},
+				Status:      models.AlertStatus{State: "firing"},
+				StartsAt:    time.Now(),
+			},
+			Source: "prod",
+		})
+	}
+
+	cache.alertmanagerClient = &fakeAlertFetcher{alerts: firing}
+	cache.refreshAlerts() // inserts the alerts, spawns a CaptureAlertFired goroutine per alert
+
+	silenced := make([]alertmanager.AlertWithSource, len(firing))
+	for i, a := range firing {
+		silenced[i] = a
+		silenced[i].Alert.Annotations = map[string]string{"summary": "after"}
+		silenced[i].Alert.Status = models.AlertStatus{State: "suppressed", SilencedBy: []string{"sil-1"}}
+	}
+	cache.alertmanagerClient = &fakeAlertFetcher{alerts: silenced}
+	cache.refreshAlerts() // same fingerprints: rewrites Status/Annotations on the cached structs
+
+	// Give the CaptureAlertFired goroutines time to run their (unsynchronized,
+	// pre-fix) field reads before the test process exits.
+	time.Sleep(300 * time.Millisecond)
 }
