@@ -144,6 +144,24 @@ with `success: false` and a per-target `failures: [{target, kind, error}]` list,
 > `updateActiveFilterPreset()`. Comment/ack counts on rows are maintained by incrementing
 > `alert.CommentCount` in the cache, not re-queried.
 
+### Keyboard-first triage {#keyboard}
+
+`DashboardKeyboardMixin` (`scripts/dashboard_keyboard.templ`) adds a row cursor
+(`cursorFingerprint`) and a global `keydown` handler (`handleDashboardKeydown`) so the alert list
+can be triaged without the mouse: `j`/`k` move the cursor, `Enter`/`o` open its details modal,
+`x` toggles its selection (`Shift+X` selects/clears all), `a`/`s` acknowledge/silence the cursor
+row **or the current multi-selection if one exists**, `c` opens details on the Comments tab, `h`
+hides the cursor row, and `?` toggles a shortcuts-help sheet (`keyboard_shortcuts_help.templ`).
+`Escape` closes the help sheet, defers to an open dashboard modal's own handler, or clears the
+selection.
+
+Shortcuts are gated by `shortcutsActive()`: disabled while any dashboard modal is open
+(`modalOpen()`), while a Ctrl/Cmd/Alt modifier is held (so browser/OS shortcuts aren't hijacked),
+and while focus is inside a text input/textarea/select/contenteditable (`isTypingTarget()`).
+Row-scoped shortcuts additionally require the flat list view (`requireListView()` — group view has
+no rendered rows, and the Resolved tab hides the table without pruning `this.alerts`), surfacing a
+toast instead of silently no-oping.
+
 ### Silences page {#silences}
 
 `/silences` (`Silences.templ`, `handlers/silence_handlers.go`) is a dedicated silence
@@ -202,7 +220,13 @@ The **History** tab's data also feeds a client-only **30-day frequency sparkline
 (`computeSparkline()`, `dashboard_modal.templ:627`): a pure-JS histogram over the already
 lazy-loaded history entries bucketed into 30 daily bins, showing total occurrences (capped at the
 history endpoint's 50-entry limit, shown as "≥N"), and a week-over-week trend arrow. No new
-endpoint or charting library.
+endpoint or charting library. It's hidden for alerts with only a single occurrence
+(`sparkline && sparkline.total > 1`) — a lone data point isn't a useful histogram.
+
+The severity badge (both here and in the alert modal's shared header partial,
+`alert_modal_shared.templ`) matches on a **case-insensitive prefix** of the severity string
+(`.toLowerCase().startsWith('critical'|'warning'|'info')`) rather than an exact match, so values
+like `critical-high` or `Warning` still get the right color.
 
 > ⚠️ The modal's `Silences` field is **always empty** (`dashboard_handlers.go:1289`, not
 > implemented) — only `status.silencedBy` IDs are available.
@@ -254,3 +278,6 @@ dismissible banner prompts for browser-notification permission. Full behavior in
 - **`window.dashboardInstance`** is relied on across the codebase — don't rename/remove it.
 - Classic-mode ack/resolved counters are special-cased with a second pass
   (`dashboard_handlers.go:681`) — account for it when changing counter logic.
+- **`hideCursorRow()` (keyboard `h`) deliberately doesn't reuse `hideSelected()`** — borrowing
+  `selectedAlerts` as scratch space would let `x`/`Shift+X`/`a`/`s` observe or clobber it mid-request.
+  It fires its own request and guards against key-repeat with an in-flight flag.
