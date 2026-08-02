@@ -80,9 +80,44 @@ message ChangePasswordResponse {
 }
 ```
 
-Run `./scripts/generate_proto.sh` via `make proto` to regenerate
-`internal/backend/proto/auth/auth.pb.go` and `auth_grpc.pb.go`. Do not
-hand-edit either generated file.
+### 1b. Regeneration (fix the target before using it)
+
+`make proto` is a **silent no-op** at this SHA: `proto` is absent from the
+`.PHONY` list (`Makefile:1`) and a `proto/` directory exists, so make
+resolves the target against that directory and prints
+`make: 'proto' is up to date.` with rc=0 — `scripts/generate_proto.sh`
+never runs, and the `@echo "Generating proto files..."` line never prints.
+Regenerating is therefore part of the change, not a build note:
+
+1. Add `proto` to the `.PHONY` list at `Makefile:1`. One-word edit; the
+   recipe itself (`Makefile:46-48`) is already correct.
+2. Install the two protoc plugins the script shells out to — `protoc`
+   alone is not enough and neither plugin is vendored:
+
+   ```sh
+   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+   ```
+
+   Do this **first**: `scripts/generate_proto.sh` runs under `set -e`
+   (`:1`) and `rm -rf internal/backend/proto/auth` (`:11-13`) *before*
+   invoking `protoc` (`:19-24` auth, `:27-32` alert), so running it
+   without the plugins deletes the generated auth package and leaves the
+   tree unbuildable. Recovery is
+   `git checkout -- internal/backend/proto`.
+3. Run `make proto`, then check the generated **content**, not the exit
+   code:
+
+   ```sh
+   grep -q ChangePasswordRequest internal/backend/proto/auth/auth.pb.go
+   grep -q ChangePassword internal/backend/proto/auth/auth_grpc.pb.go
+   ```
+
+   Both must exit 0. Skipping this check is what makes the failure surface
+   later as `undefined: authpb.ChangePasswordRequest` at `go build` with
+   nothing pointing back at the generation step.
+
+Do not hand-edit `auth.pb.go` or `auth_grpc.pb.go`.
 
 ### 2. Database: two new `GormDB` methods
 
@@ -357,7 +392,17 @@ exactly the path the issue proposes.
 
 ## Validation
 
-- `make proto && make webui-templates && go build ./...` passes.
+- Regeneration verified by generated content, not by exit code (see §1b —
+  `make proto` returns 0 while doing nothing until the `.PHONY` fix lands):
+
+  ```sh
+  make proto
+  grep -q ChangePasswordRequest internal/backend/proto/auth/auth.pb.go
+  make webui-templates
+  go build ./...
+  ```
+
+  The `grep` is the gate; `make proto`'s exit code proves nothing on its own.
 - New Go test file `internal/backend/services/change_password_test.go`,
   modeled on `internal/backend/services/update_timezone_test.go`. That
   file's `setupAuthServiceWithSession` helper creates users with
@@ -423,7 +468,7 @@ exactly the path the issue proposes.
   read both in full; confirmed `UpdateTimezone`'s single-`error` return
   swallows the business message, which is why `ChangePassword`'s client
   wrapper is modeled on `Login`'s split return instead.
-- `profile_handlers.go` (full file, 156 lines): read in full; confirmed
+- `profile_handlers.go` (full file, 155 lines): read in full; confirmed
   `UpdateTimezone`/`GetTimezone` handler pattern and that `backendClient`/
   `middleware.GetCurrentUserFromContext`/`middleware.GetSessionID` are the
   established building blocks, no new plumbing required.
@@ -442,7 +487,16 @@ exactly the path the issue proposes.
   confirmed it's a fixed historical list from issue #160, not a
   "every non-public RPC" enumeration — no update needed there for the new
   RPC.
-- Makefile `proto`/`webui-templates` targets (lines 41-48): read to confirm
-  exact regeneration commands cited above.
+- Makefile `proto`/`webui-templates` targets (lines 41-48) and the `.PHONY`
+  list (line 1): both targets were *run*, not just read. `make
+  webui-templates` really invokes `templ generate`; `make proto` prints
+  `make: 'proto' is up to date.` and exits 0 without running the script,
+  because `proto` is missing from `.PHONY` while a `proto/` directory
+  exists — hence §1b.
+- `scripts/generate_proto.sh` (full file): read in full; confirmed `set -e`
+  (`:1`), the `rm -rf` of the generated packages at `:11-13` ahead of the
+  `protoc` calls at `:19-25`, and that the script depends on
+  `protoc-gen-go`/`protoc-gen-go-grpc` being on `PATH` (`which` finds only
+  `protoc` itself in a bare checkout environment).
 - `openwiki/quickstart.md:35`: read to confirm the exact `admin:admin`
   wording the issue references.
