@@ -48,6 +48,31 @@ func TestBuildActivityFeedUncachedBehavior(t *testing.T) {
 	}
 }
 
+func TestMentionsUsername(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		user    string
+		want    bool
+	}{
+		{"simple mention", "this is the payment DB, @marie owns it", "marie", true},
+		{"case-insensitive", "hey @Bob check this out", "bob", true},
+		{"case-insensitive target", "hey @bob check this out", "Bob", true},
+		{"no mention", "just a regular comment", "bob", false},
+		{"does not match longer handle", "@bobby is on call", "bob", false},
+		{"matches at end of content", "assigning to @bob", "bob", true},
+		{"matches with trailing punctuation", "cc @bob, please check", "bob", true},
+		{"empty username never matches", "@bob is here", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := mentionsUsername(tc.content, tc.user); got != tc.want {
+				t.Errorf("mentionsUsername(%q, %q) = %v, want %v", tc.content, tc.user, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestMatchesActivitySearch(t *testing.T) {
 	ev := webuimodels.ActivityEvent{
 		Content:   "🔇 Alert silenced for 2h: KafkaLagHigh",

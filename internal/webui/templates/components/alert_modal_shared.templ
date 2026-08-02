@@ -449,7 +449,9 @@ templ AlertModalDetailsGeneratorURL(dataVar string) {
 // COMMENTS & ACKNOWLEDGMENTS (READ-ONLY)
 // =============================================================================
 
-// AlertModalCommentsReadonly displays the comments list (read-only, no add/delete)
+// AlertModalCommentsReadonly displays the comments list (read-only, no add/delete).
+// Highlights @mentions via the global renderMentionText() (static/js/mention_text.js),
+// which needs a currentUsername field in the caller's Alpine scope.
 // dataVar: the comments array variable (e.g., "individualAlertData?.comments")
 templ AlertModalCommentsReadonly(dataVar string) {
 	<div x-show={ dataVar + " && " + dataVar + ".length > 0" } class="space-y-3">
@@ -464,7 +466,7 @@ templ AlertModalCommentsReadonly(dataVar string) {
 					</div>
 					<span class="text-xs text-gray-500 dark:text-gray-400" x-text="comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''"></span>
 				</div>
-				<p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words" x-text="comment.content"></p>
+				<p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words" x-html="renderMentionText(comment.content, currentUsername)"></p>
 			</div>
 		</template>
 	</div>
@@ -479,7 +481,8 @@ templ AlertModalCommentsReadonly(dataVar string) {
 
 // AlertModalCommentsWritable renders the read-only comment list plus an add-comment form.
 // Used by the statistics resolved-alert modal. Relies on Alpine fields newCommentContent /
-// commentSubmitting and the method addComment() being present in the page component scope.
+// commentSubmitting and the method addComment() being present in the page component scope,
+// plus a currentUsername field for mention highlighting.
 // dataVar: the comments array variable (e.g., "individualAlertData?.comments")
 templ AlertModalCommentsWritable(dataVar string) {
 	<div class="space-y-4">

@@ -179,6 +179,13 @@ templ ActivityContent(data ActivityData) {
 					>Mine</button>
 				</div>
 
+				<!-- Mentions-only toggle -->
+				<button
+					@click="mentionsOnly = !mentionsOnly; load()"
+					:class="mentionsOnly ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400'"
+					class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors"
+				>{ "@ Mentions" }</button>
+
 				<div class="relative flex-1 min-w-[200px]">
 					<input type="text" x-model="search" @input.debounce.400ms="load()" placeholder="Search alert, user or comment..."
 						class="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-dark-bg-tertiary text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
@@ -266,11 +273,15 @@ templ ActivityContent(data ActivityData) {
 				scope: 'everyone',
 				windowMinutes: 60,
 				search: '',
+				mentionsOnly: false,
 				error: '',
 				timer: null,
 				metadata: { availableFilters: { severities: [], teams: [], alertmanagers: [], alertNames: [] } },
 
 				init() {
+					// Deep link from the Mentions badge (PageNavigator): open straight into
+					// the mentions-only view.
+					this.mentionsOnly = new URLSearchParams(window.location.search).get('mentions') === '1';
 					this.load();
 					document.addEventListener('visibilitychange', () => this.syncPolling());
 					this.syncPolling();
@@ -293,6 +304,7 @@ templ ActivityContent(data ActivityData) {
 					if (this.filters.alertmanagers.length) params.set('alertmanagers', this.filters.alertmanagers.join(','));
 					if (this.filters.alertNames.length) params.set('alertNames', this.filters.alertNames.join(','));
 					if (this.search) params.set('search', this.search);
+					if (this.mentionsOnly) params.set('mentionsOnly', 'true');
 					try {
 						const r = await fetch('/api/v1/dashboard/activity?' + params.toString());
 						const p = await r.json();

@@ -81,9 +81,9 @@ func StatisticsDashboardContent(data StatisticsDashboardData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("{ ...statisticsDashboardPage(), ...statisticsViewsMixin(), currentUserId: '" + data.User.ID + "' }")
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("{ ...statisticsDashboardPage(), ...statisticsViewsMixin(), currentUserId: '" + data.User.ID + "', currentUsername: '" + data.User.Username + "' }")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/StatisticsDashboard.templ`, Line: 43, Col: 172}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/pages/StatisticsDashboard.templ`, Line: 43, Col: 219}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

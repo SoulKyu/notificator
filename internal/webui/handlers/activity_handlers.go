@@ -70,6 +70,36 @@ func matchesActivitySearch(ev webuimodels.ActivityEvent, term string) bool {
 		strings.Contains(strings.ToLower(ev.AlertName), term)
 }
 
+// isMentionBoundaryByte reports whether b can be part of a username, so that
+// e.g. "@bob" is not treated as mentioning "bob" when the text actually says
+// "@bobby".
+func isMentionBoundaryByte(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
+}
+
+// mentionsUsername reports whether content contains an "@username" mention of
+// username, case-insensitively, and only when username isn't itself a prefix of
+// a longer handle in the text (so "@bob" does not match "@bobby").
+func mentionsUsername(content, username string) bool {
+	if username == "" {
+		return false
+	}
+	lower := strings.ToLower(content)
+	target := "@" + strings.ToLower(username)
+	for start := 0; ; {
+		idx := strings.Index(lower[start:], target)
+		if idx < 0 {
+			return false
+		}
+		pos := start + idx
+		end := pos + len(target)
+		if end == len(lower) || !isMentionBoundaryByte(lower[end]) {
+			return true
+		}
+		start = pos + 1
+	}
+}
+
 // GetActivity serves the activity feed JSON.
 func GetActivity(c *gin.Context) {
 	if backendClient == nil || !backendClient.IsConnected() {
@@ -144,6 +174,22 @@ func GetActivity(c *gin.Context) {
 		kept := feed[:0]
 		for _, ev := range feed {
 			if contains(kinds, ev.Kind) {
+				kept = append(kept, ev)
+			}
+		}
+		feed = kept
+	}
+	// mentionsOnly narrows the feed to comments that @-mention the current user.
+	// The author's own comment never counts, even if it mentions themself.
+	if c.Query("mentionsOnly") == "true" {
+		u := middleware.GetEffectiveUser(c)
+		if u == nil {
+			c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
+			return
+		}
+		kept := feed[:0]
+		for _, ev := range feed {
+			if ev.Kind == "comment" && ev.Username != u.Username && mentionsUsername(ev.Content, u.Username) {
 				kept = append(kept, ev)
 			}
 		}
