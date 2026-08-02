@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"google.golang.org/grpc/codes"
@@ -19,12 +21,22 @@ import (
 	"notificator/internal/webui/models"
 )
 
+// ServiceTokenEnvVar must match the value read by the backend
+// (internal/backend.ServiceTokenEnvVar) — it authenticates this process to
+// the backend's gRPC auth interceptor as the WebUI, independently of any
+// per-user session.
+const ServiceTokenEnvVar = "NOTIFICATOR_SERVICE_TOKEN"
+
+// serviceTokenMetadataKey must match internal/backend's serviceTokenMetadataKey.
+const serviceTokenMetadataKey = "x-notificator-service-token"
+
 type BackendClient struct {
 	conn             *grpc.ClientConn
 	authClient       authpb.AuthServiceClient
 	alertClient      alertpb.AlertServiceClient
 	statisticsClient alertpb.StatisticsServiceClient
 	address          string
+	serviceToken     string
 }
 
 type AuthResult struct {
@@ -57,7 +69,17 @@ func NewBackendClient(address string) *BackendClient {
 }
 
 func (c *BackendClient) Connect() error {
-	conn, err := grpc.NewClient(c.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	serviceToken := os.Getenv(ServiceTokenEnvVar)
+	if len(serviceToken) < 32 {
+		return fmt.Errorf("%s must be set to a random secret of at least 32 characters (must match the backend's); generate one with `openssl rand -hex 32`", ServiceTokenEnvVar)
+	}
+	c.serviceToken = serviceToken
+
+	conn, err := grpc.NewClient(c.address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(c.serviceTokenUnaryInterceptor),
+		grpc.WithChainStreamInterceptor(c.serviceTokenStreamInterceptor),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to connect to backend: %w", err)
 	}
@@ -68,6 +90,22 @@ func (c *BackendClient) Connect() error {
 	c.statisticsClient = alertpb.NewStatisticsServiceClient(conn)
 
 	return nil
+}
+
+// serviceTokenUnaryInterceptor authenticates every unary call this process
+// makes to the backend as the WebUI, independently of the per-user session
+// carried in each request's body. This is what lets the backend's
+// deny-by-default auth interceptor accept calls that have no session at all
+// (the background poller) as well as calls made on behalf of a logged-in
+// user.
+func (c *BackendClient) serviceTokenUnaryInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	ctx = metadata.AppendToOutgoingContext(ctx, serviceTokenMetadataKey, c.serviceToken)
+	return invoker(ctx, method, req, reply, cc, opts...)
+}
+
+func (c *BackendClient) serviceTokenStreamInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, serviceTokenMetadataKey, c.serviceToken)
+	return streamer(ctx, desc, cc, method, opts...)
 }
 
 func (c *BackendClient) IsConnected() bool {

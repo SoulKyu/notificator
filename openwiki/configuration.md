@@ -17,6 +17,14 @@ Configuration is loaded by Viper (`config/config.go`, `LoadConfigWithViper`), wi
 scalar fields automatically. A few legacy/plain names are also honored:
 `DATABASE_URL`, `DB_HOST`/`DATABASE_HOST`, `BACKEND_ADDRESS`, and the whole `OAUTH_*` family.
 
+⚠️ **Binding a key is not enough for it to reach the struct.** `LoadConfigWithViper` calls
+`viper.Unmarshal`, which matches on the field's `mapstructure` tag and otherwise falls back to
+comparing the *lowercased Go field name* against the key — so a snake_case key without a tag
+(`enable_reflection` vs `EnableReflection` → `enablereflection`) is silently dropped and the
+field keeps its zero value, with no error anywhere. When adding a multi-word config key, give
+the field a `mapstructure:"<key>"` tag (see `BackendConfig`) or read it explicitly with
+`viper.GetX`, as the `sentry`/`oauth`/`admin` sections do. `config/config_test.go` guards this.
+
 ## Config sections (`config.Config`, `config/config.go:15`)
 
 | Section | Purpose |
@@ -82,6 +90,19 @@ enriches alerts from Sentry issue URLs found in annotations/labels.
 > Rotating the key (or setting it for the first time on a deployment that ran without one) makes
 > previously stored Sentry personal tokens unrecoverable; affected users must re-enter their token
 > via the Sentry settings modal. Documented in `ENVIRONMENT_VARIABLES.md` and `.env.example`.
+
+## gRPC auth {#grpc-auth}
+
+`NOTIFICATOR_SERVICE_TOKEN` (documented in `.env.example`, generate with `openssl rand -hex 32`,
+at least 32 characters) authenticates the WebUI to the backend's gRPC auth interceptor
+(`internal/backend/auth_interceptor.go`) — **mandatory on both backend and webui**, and both must
+be set to the same value. Both processes log an error and exit non-zero at startup if it's unset,
+the same fail-closed posture as `NOTIFICATOR_ENCRYPTION_KEY` above. See
+[backend](backend.md#auth).
+
+`NOTIFICATOR_GRPC_REFLECTION` (default `false`) enables gRPC server reflection, which exposes the
+full RPC schema to any caller that can reach the port — leave disabled in production;
+`docker-compose.yml` enables it for the bundled dev stack.
 
 ## Session secret
 
