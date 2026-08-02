@@ -134,7 +134,7 @@ func (s *Server) initServices() {
 		log.Printf("ℹ️  OAuth is not enabled in configuration")
 	}
 
-	s.authService = services.NewAuthServiceGorm(s.db, s.oauthService, &s.config.Admin)
+	s.authService = services.NewAuthServiceGorm(s.db, s.oauthService, &s.config.Admin, s.config.Backend.AllowRegistration)
 	s.alertService = services.NewAlertServiceGorm(s.db, &s.config.Admin)
 	s.statisticsService = services.NewStatisticsServiceGorm(s.db, &s.config.Admin)
 

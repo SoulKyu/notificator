@@ -28,20 +28,48 @@ import (
 
 type AuthServiceGorm struct {
 	authpb.UnimplementedAuthServiceServer
-	db           *database.GormDB
-	oauthService *OAuthService
-	adminConfig  *config.AdminConfig
+	db                *database.GormDB
+	oauthService      *OAuthService
+	adminConfig       *config.AdminConfig
+	allowRegistration bool
 }
 
-func NewAuthServiceGorm(db *database.GormDB, oauthService *OAuthService, adminConfig *config.AdminConfig) *AuthServiceGorm {
+func NewAuthServiceGorm(db *database.GormDB, oauthService *OAuthService, adminConfig *config.AdminConfig, allowRegistration bool) *AuthServiceGorm {
 	return &AuthServiceGorm{
-		db:           db,
-		oauthService: oauthService,
-		adminConfig:  adminConfig,
+		db:                db,
+		oauthService:      oauthService,
+		adminConfig:       adminConfig,
+		allowRegistration: allowRegistration,
 	}
 }
 
+// classicAuthDisabled reports whether username/password auth is turned off
+// because OAuth is enabled in OAuth-only mode. It is the single source of
+// truth for the gate: callers must not fall back to "allowed" when they
+// cannot determine OAuth state, since that fails the deployment open.
+func (s *AuthServiceGorm) classicAuthDisabled() bool {
+	if s.oauthService == nil {
+		return false
+	}
+	cfg := s.oauthService.GetConfig()
+	return cfg != nil && cfg.Enabled && cfg.DisableClassicAuth
+}
+
 func (s *AuthServiceGorm) Register(ctx context.Context, req *authpb.RegisterRequest) (*authpb.RegisterResponse, error) {
+	if s.classicAuthDisabled() {
+		return &authpb.RegisterResponse{
+			Success: false,
+			Message: "Username/password registration is disabled. Please use OAuth authentication.",
+		}, nil
+	}
+
+	if !s.allowRegistration {
+		return &authpb.RegisterResponse{
+			Success: false,
+			Message: "Registration is disabled on this server.",
+		}, nil
+	}
+
 	if req.Username == "" || req.Password == "" {
 		return &authpb.RegisterResponse{
 			Success: false,
@@ -94,6 +122,13 @@ func (s *AuthServiceGorm) Register(ctx context.Context, req *authpb.RegisterRequ
 
 // Login implements the Login RPC method
 func (s *AuthServiceGorm) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
+	if s.classicAuthDisabled() {
+		return &authpb.LoginResponse{
+			Success: false,
+			Message: "Username/password authentication is disabled. Please use OAuth authentication.",
+		}, nil
+	}
+
 	if req.Username == "" || req.Password == "" {
 		return &authpb.LoginResponse{
 			Success: false,
@@ -1520,18 +1555,20 @@ func (s *AuthServiceGorm) GetOAuthConfig(ctx context.Context, req *authpb.GetOAu
 	// If OAuth service is not available, return disabled state
 	if s.oauthService == nil {
 		return &authpb.GetOAuthConfigResponse{
-			Enabled:            false,
-			DisableClassicAuth: false,
-			Providers:          []*authpb.OAuthProvider{},
+			Enabled:             false,
+			DisableClassicAuth:  false,
+			Providers:           []*authpb.OAuthProvider{},
+			RegistrationEnabled: s.allowRegistration,
 		}, nil
 	}
 
 	config := s.oauthService.GetConfig()
 	if config == nil || !config.Enabled {
 		return &authpb.GetOAuthConfigResponse{
-			Enabled:            false,
-			DisableClassicAuth: false,
-			Providers:          []*authpb.OAuthProvider{},
+			Enabled:             false,
+			DisableClassicAuth:  false,
+			Providers:           []*authpb.OAuthProvider{},
+			RegistrationEnabled: s.allowRegistration,
 		}, nil
 	}
 
@@ -1564,9 +1601,10 @@ func (s *AuthServiceGorm) GetOAuthConfig(ctx context.Context, req *authpb.GetOAu
 	}
 
 	return &authpb.GetOAuthConfigResponse{
-		Enabled:            config.Enabled,
-		DisableClassicAuth: config.DisableClassicAuth,
-		Providers:          pbProviders,
+		Enabled:             config.Enabled,
+		DisableClassicAuth:  config.DisableClassicAuth,
+		Providers:           pbProviders,
+		RegistrationEnabled: s.allowRegistration && !config.DisableClassicAuth,
 	}, nil
 }
 

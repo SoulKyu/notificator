@@ -61,14 +61,15 @@ func getOAuthConfig(c *gin.Context) *pages.OAuthConfig {
 		return nil
 	}
 
-	if !config["enabled"].(bool) {
-		return nil
+	oauthConfig := &pages.OAuthConfig{
+		Enabled:             config["enabled"].(bool),
+		DisableClassicAuth:  config["disable_classic_auth"].(bool),
+		RegistrationEnabled: config["registration_enabled"].(bool),
+		Providers:           make([]components.OAuthProvider, 0),
 	}
 
-	oauthConfig := &pages.OAuthConfig{
-		Enabled:            config["enabled"].(bool),
-		DisableClassicAuth: config["disable_classic_auth"].(bool),
-		Providers:          make([]components.OAuthProvider, 0),
+	if !oauthConfig.Enabled {
+		return oauthConfig
 	}
 
 	if providers, ok := config["providers"].([]map[string]interface{}); ok {
@@ -163,8 +164,8 @@ func Login(c *gin.Context) {
 
 func Register(c *gin.Context) {
 	oauthConfig := getOAuthConfig(c)
-	if oauthConfig != nil && oauthConfig.DisableClassicAuth {
-		c.JSON(http.StatusForbidden, models.ErrorResponse("Username/password registration is disabled. Please use OAuth authentication."))
+	if oauthConfig != nil && !oauthConfig.RegistrationEnabled {
+		c.JSON(http.StatusForbidden, models.ErrorResponse("Registration is currently disabled."))
 		return
 	}
 	username := strings.TrimSpace(c.PostForm("username"))
@@ -416,7 +417,7 @@ func LoginPage(c *gin.Context) {
 
 func RegisterPage(c *gin.Context) {
 	oauthConfig := getOAuthConfig(c)
-	if oauthConfig != nil && oauthConfig.DisableClassicAuth {
+	if oauthConfig != nil && !oauthConfig.RegistrationEnabled {
 		c.Redirect(http.StatusFound, "/login")
 		return
 	}

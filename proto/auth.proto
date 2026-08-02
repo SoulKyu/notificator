@@ -186,6 +186,7 @@ message GetOAuthConfigResponse {
   bool enabled = 1;
   bool disable_classic_auth = 2;
   repeated OAuthProvider providers = 3;
+  bool registration_enabled = 4;                                    // False when OAuth-only mode or backend.allow_registration=false
 }
 
 message OAuthProvider {

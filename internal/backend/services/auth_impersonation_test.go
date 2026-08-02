@@ -41,7 +41,7 @@ func setupAuthServiceImpersonationTest(t *testing.T, allowedUsers []string) (*Au
 		t.Fatalf("failed to create requester session: %v", err)
 	}
 
-	svc := NewAuthServiceGorm(db, nil, &config.AdminConfig{ImpersonationAllowedUsers: allowedUsers})
+	svc := NewAuthServiceGorm(db, nil, &config.AdminConfig{ImpersonationAllowedUsers: allowedUsers}, true)
 
 	return svc, db, victim, requester
 }

@@ -205,6 +205,13 @@ func (c *BackendClient) Login(username, password string) (*AuthResult, error) {
 		}, nil
 	}
 
+	if !resp.Success {
+		return &AuthResult{
+			Success: false,
+			Error:   resp.Message,
+		}, nil
+	}
+
 	return &AuthResult{
 		Success:   true,
 		SessionID: resp.SessionId,
@@ -992,6 +999,7 @@ func (c *BackendClient) GetOAuthConfig() (map[string]interface{}, error) {
 	config := map[string]interface{}{
 		"enabled":              resp.Enabled,
 		"disable_classic_auth": resp.DisableClassicAuth,
+		"registration_enabled": resp.RegistrationEnabled,
 		"providers":            providers,
 	}
 

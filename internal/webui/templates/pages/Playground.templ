@@ -50,9 +50,11 @@ templ PlaygroundContent(oauthConfig *OAuthConfig) {
 								<a href="/login" class="rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-colors">
 									Sign in
 								</a>
-								<a href="/register" class="text-sm font-semibold leading-6 text-gray-900 dark:text-white hover:text-blue-600 transition-colors">
-									Register <span aria-hidden="true">→</span>
-								</a>
+								if oauthConfig == nil || oauthConfig.RegistrationEnabled {
+									<a href="/register" class="text-sm font-semibold leading-6 text-gray-900 dark:text-white hover:text-blue-600 transition-colors">
+										Register <span aria-hidden="true">→</span>
+									</a>
+								}
 							</div>
 						}
 						
