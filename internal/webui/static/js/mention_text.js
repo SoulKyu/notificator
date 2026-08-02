@@ -1,7 +1,7 @@
 // Pure renderer: turns comment text into HTML with @mentions highlighted.
-// Mirrors mentionsUsername (internal/webui/handlers/activity_handlers.go) closely
-// enough for display purposes: any @token is treated as a mention, and the one
-// matching currentUsername (case-insensitive) is styled distinctly.
+// Applies the same handle rule as mentionsUsername
+// (internal/webui/handlers/activity_handlers.go), so what is highlighted as addressed
+// to you is exactly what the server counts as a mention of you.
 (function (root, factory) {
 	if (typeof module === "object" && module.exports) {
 		module.exports = factory();
@@ -18,22 +18,59 @@
 			.replace(/'/g, "&#39;");
 	}
 
-	// The handle class is Unicode-aware (letters/digits from any script, plus "_" and
-	// "-") and mirrors mentionHandleRE in internal/webui/handlers/activity_handlers.go.
-	// An ASCII-only class split "@bobé" into "@bob" + a boundary, so bob saw someone
-	// else's handle highlighted as addressed to him.
-	const MENTION_RE = /(?<![\p{L}\p{N}_-])@([\p{L}\p{N}_-]+)/gu;
+	// A handle is the whole run after "@" up to the first character that cannot occur in
+	// a username, compared whole. Deliberately not an allowlist of handle characters:
+	// usernames have no charset rule, and every character missing from such a list
+	// truncated the handle and highlighted someone else's mention as yours - a class
+	// without "." rendered "@bob.smith" as "@bob" + ".smith" for bob.
+	const STOP_CHARS = "@<>\"`()[]{},;!?\\/|=*&#%^~$+";
+	const TRIM_CHARS = ".:'";
+	const ADDRESS_RE = /[\p{L}\p{N}_\-.]/u;
 
+	// handleAt returns the handle beginning at start (just past an "@"), trailing sentence
+	// punctuation removed so "cc @bob." mentions bob while "@bob.smith" does not.
+	function handleAt(text, start) {
+		let end = start;
+		for (const ch of text.slice(start)) {
+			if (/\s/.test(ch) || STOP_CHARS.includes(ch)) break;
+			end += ch.length;
+		}
+		let handle = text.slice(start, end);
+		while (handle && TRIM_CHARS.includes(handle[handle.length - 1])) {
+			handle = handle.slice(0, -1);
+		}
+		return handle;
+	}
+
+	// Scanning runs on the raw text and each chunk is escaped as it is emitted, so an
+	// escape sequence ("&amp;") is never mistaken for handle characters, and everything
+	// that reaches the DOM - handles included - is still escaped.
 	function renderMentionText(content, currentUsername) {
-		const escaped = escapeHtml(content);
+		const text = String(content == null ? "" : content);
 		const me = String(currentUsername || "").toLowerCase();
-		return escaped.replace(MENTION_RE, function (match, name) {
-			const isMe = me !== "" && name.toLowerCase() === me;
-			const cls = isMe
+		let out = "";
+		let plain = 0;
+		let i = 0;
+		while (i < text.length) {
+			const at = text.indexOf("@", i);
+			if (at === -1) break;
+			const handle = handleAt(text, at + 1);
+			const prev = at > 0 ? text[at - 1] : "";
+			// A handle glued to a preceding word is an address, not a mention:
+			// "ops-team@bob", "db01@bob.internal".
+			if (!handle || ADDRESS_RE.test(prev)) {
+				i = at + 1;
+				continue;
+			}
+			const cls = me !== "" && handle.toLowerCase() === me
 				? "mention mention-me inline-block px-1 rounded bg-blue-600 text-white font-semibold"
 				: "mention inline-block px-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium";
-			return '<span class="' + cls + '">' + match + "</span>";
-		});
+			out += escapeHtml(text.slice(plain, at));
+			out += '<span class="' + cls + '">' + escapeHtml("@" + handle) + "</span>";
+			i = at + 1 + handle.length;
+			plain = i;
+		}
+		return out + escapeHtml(text.slice(plain));
 	}
 
 	return renderMentionText;

@@ -71,6 +71,15 @@ func TestMentionsUsername(t *testing.T) {
 		{"shorter ascii handle does not match a non-ascii user", "@bob is on call", "bobé", false},
 		{"does not match a longer handle across a non-ascii tail", "@marié owns the runbook", "marie", false},
 		{"non-ascii handle after a longer token is an address", "mail ops@bobé.internal", "bobé", false},
+		{"dotted handle is not a mention of its prefix", "@bob.smith please page the payment DB owner", "bob", false},
+		{"dotted handle mentions its own owner", "@bob.smith please page the payment DB owner", "bob.smith", true},
+		{"dotted handle is case-insensitive", "cc @Bob.Smith", "bob.smith", true},
+		{"trailing period is punctuation, not part of the handle", "please ping @bob.", "bob", true},
+		{"apostrophe handle mentions its own owner", "handover to @o'brien now", "o'brien", true},
+		{"combining mark makes a different handle", "handover to @bob́", "bob", false},
+		{"handle wrapped in parentheses still matches", "(@bob) owns this", "bob", true},
+		{"handle followed by markup is not extended", "@bob <img src=x>", "bob", true},
+		{"email address is not a mention of its local part", "cert renewal is owned by tls-ops@bob.example.com", "bob", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

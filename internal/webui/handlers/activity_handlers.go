@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -79,33 +78,57 @@ func matchesActivitySearch(ev webuimodels.ActivityEvent, term string) bool {
 		strings.Contains(strings.ToLower(ev.AlertName), term)
 }
 
-// mentionHandleRE matches a whole "@handle" run. The handle character class is
-// Unicode-aware - letters and digits from any script, plus "_" and "-" - so an
-// accented handle like "@bobé" is one token rather than "@bob" followed by
-// something that a byte-wise scan mistakes for a word boundary.
-var mentionHandleRE = regexp.MustCompile(`@[\p{L}\p{N}_-]+`)
+// A handle is delimited, not spelled out. Registration applies no charset rule to
+// usernames, so any allowlist of "characters a username may contain" is a guess, and
+// every rune left out of the guess silently truncates a handle and delivers someone
+// else's mention: an allowlist without "." read "@bob.smith" as a mention of bob, and
+// bob.smith - the addressed user - was never told. So the run after "@" is taken as
+// everything up to the first rune that cannot occur in a username at all, and compared
+// to the username whole.
+//
+// MentionStopRunes end a handle run. Sentence punctuation that can also occur inside a
+// username ("." in first.last, "'" in o'brien) is not a stop rune - it is dropped only
+// when it trails the run, so "cc @bob." mentions bob while "@bob.smith" does not.
+const (
+	mentionStopRunes = "@<>\"`()[]{},;!?\\/|=*&#%^~$+"
+	mentionTrimRunes = ".:'"
+)
 
-// isMentionHandleRune reports whether r can be part of an "@handle".
-func isMentionHandleRune(r rune) bool {
-	return r == '_' || r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r)
+// mentionHandleAt returns the handle starting at s, which is the text just past an "@".
+func mentionHandleAt(s string) string {
+	end := len(s)
+	for i, r := range s {
+		if unicode.IsSpace(r) || strings.ContainsRune(mentionStopRunes, r) {
+			end = i
+			break
+		}
+	}
+	return strings.TrimRight(s[:end], mentionTrimRunes)
+}
+
+// isMentionAddressRune reports whether a rune immediately before "@" makes it an
+// address rather than a mention, which keeps "ops-team@bob" and "db01@bob.internal" out.
+func isMentionAddressRune(r rune) bool {
+	return r == '_' || r == '-' || r == '.' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // mentionsUsername reports whether content @-mentions username, case-insensitively.
 //
-// Every "@handle" run in the text is extracted whole and compared to username as a
-// unit, so a longer handle can never be read as a mention of a shorter one: not for
-// ASCII ("@bobby" is not "bob") and not across a multi-byte rune ("@bobé" is not
-// "bob"). A run preceded by another handle rune is an address rather than a mention,
-// which keeps "ops-team@bob" and "db01@bob.internal" out.
+// Because the whole run is compared as a unit, a longer handle can never be read as a
+// mention of a shorter one, whatever it is made of: not "@bobby", not "@bob.smith", not
+// a multi-byte tail ("@bobé"), not a combining mark ("@bob" + U+0301).
 func mentionsUsername(content, username string) bool {
 	if username == "" {
 		return false
 	}
-	for _, m := range mentionHandleRE.FindAllStringIndex(content, -1) {
-		if prev, _ := utf8.DecodeLastRuneInString(content[:m[0]]); isMentionHandleRune(prev) {
+	for i, r := range content {
+		if r != '@' {
 			continue
 		}
-		if strings.EqualFold(content[m[0]+len("@"):m[1]], username) {
+		if prev, _ := utf8.DecodeLastRuneInString(content[:i]); isMentionAddressRune(prev) {
+			continue
+		}
+		if strings.EqualFold(mentionHandleAt(content[i+len("@"):]), username) {
 			return true
 		}
 	}
@@ -128,10 +151,17 @@ func GetActivity(c *gin.Context) {
 	// the requesting user up front so the mention can be pushed into the backend query
 	// itself (below) instead of being applied only after the 200-row cap has already
 	// truncated the feed.
+	//
+	// This is the real signed-in user, not GetEffectiveUser: a mention is addressed to a
+	// person, and the badge, the seen-watermark and the page's data-user-id are all keyed
+	// on the real user (ActivityPage, /api/v1/auth/profile). Filling the feed from the
+	// impersonated user instead showed an admin someone else's mentions and stamped their
+	// timestamps into the admin's own watermark, silently eating the admin's mentions.
+	// Impersonation stays what it is elsewhere: a view of another user's preferences.
 	mentionsOnly := c.Query("mentionsOnly") == "true"
 	mentionUsername := ""
 	if mentionsOnly {
-		u := middleware.GetEffectiveUser(c)
+		u := middleware.GetCurrentUserFromContext(c)
 		if u == nil {
 			c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
 			return
