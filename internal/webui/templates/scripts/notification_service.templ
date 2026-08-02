@@ -665,34 +665,9 @@ templ NotificationService() {
 				}
 			},
 
-			// Show a browser notification for a new @mention of the current user. Deliberately
-			// bypasses shouldNotify()'s severity/filter-preset scoping - a mention is a direct
-			// ask from a teammate, not a fired alert, so it is never filtered out by severity.
-			showMentionNotification(event) {
-				if (!this.preferences.browserNotificationsEnabled || !this.permissionGranted) {
-					return;
-				}
-
-				try {
-					const notification = new Notification('You were mentioned', {
-						body: (event.content || '').slice(0, 200),
-						icon: '/static/images/info-icon.png',
-						tag: 'mention-' + event.id
-					});
-
-					notification.onclick = () => {
-						window.focus();
-						if (window.location.pathname.startsWith('/dashboard') && window.dashboardInstance?.showAlertDetails) {
-							window.dashboardInstance.showAlertDetails(event.alertKey);
-						} else {
-							window.location.href = `/dashboard/alert/${event.alertKey}`;
-						}
-						notification.close();
-					};
-				} catch (error) {
-					console.error('Failed to show mention notification:', error);
-				}
-			},
+			// Mention notifications are owned by mentionsWatcher() in
+			// components/PageNavigator.templ: they must fire on every page, including the ones
+			// that never load this service, and they ignore severity/preset scoping entirely.
 
 			// Show notification immediately (used internally, bypasses rate limit check)
 			showNotificationImmediate(alert) {

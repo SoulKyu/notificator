@@ -106,11 +106,17 @@ templ PageNavigator(activePage string) {
 	</nav>
 
 	<script>
-		// Polls for unseen @mentions and shows a badge next to the Activity tab, on every
-		// page (this component is embedded wherever PageNavigator is). Fetches its own
-		// current-user id via /api/v1/auth/profile rather than threading one through every
-		// caller's page template - one extra cheap GET per page load, in exchange for staying
-		// fully self-contained.
+		// Polls for unseen @mentions, shows a badge next to the Activity tab and raises the
+		// browser notification for each new mention, on every page (this component is embedded
+		// wherever PageNavigator is). Fetches its own current-user id via /api/v1/auth/profile
+		// rather than threading one through every caller's page template - one extra cheap GET
+		// per page load, in exchange for staying fully self-contained.
+		//
+		// Mention notifications are raised here rather than delegated to NotificationService:
+		// that service is loaded by the dashboard page only, and even there it boots
+		// asynchronously, so any hand-off is a race the first poll loses. Self-contained
+		// delivery also makes the "mentions ignore severity and filter-preset scoping" rule
+		// true by construction instead of by a bypass inside the alert pipeline.
 		function mentionsWatcher() {
 			return {
 				unseenCount: 0,
@@ -162,18 +168,87 @@ templ PageNavigator(activePage string) {
 						const seenAt = Number(localStorage.getItem(this.seenKey())) || 0;
 						this.unseenCount = events.filter(e => new Date(e.createdAt).getTime() > seenAt).length;
 
-						// Default the notified watermark to "now" on the very first poll, so
-						// shipping this feature doesn't fire a browser notification for every
-						// mention that already existed before the user's browser ever polled.
-						const notifiedAt = Number(localStorage.getItem(this.notifiedKey())) || Date.now();
-						const fresh = events.filter(e => new Date(e.createdAt).getTime() > notifiedAt);
-						if (fresh.length > 0 && window.notificationService) {
-							fresh.forEach(e => window.notificationService.showMentionNotification(e));
-						}
-						const maxCreated = events.reduce((max, e) => Math.max(max, new Date(e.createdAt).getTime()), notifiedAt);
-						localStorage.setItem(this.notifiedKey(), String(maxCreated));
+						await this.notifyFresh(events);
 					} catch (error) {
 						console.error('Failed to poll mentions:', error);
+					}
+				},
+
+				// The notified watermark is a delivery receipt, not a "we looked at this poll"
+				// marker: it moves past a mention only once that mention has actually been
+				// shown, or once we know the user asked not to be notified. Anything that
+				// leaves delivery undecided (preferences unreachable) leaves the watermark
+				// alone so the next poll retries, instead of consuming the mention silently.
+				async notifyFresh(events) {
+					const notifiedAt = Number(localStorage.getItem(this.notifiedKey()));
+					// First poll in this browser, or a corrupted watermark: start at "now" so a
+					// pre-existing backlog doesn't fire a burst of notifications.
+					if (!Number.isFinite(notifiedAt) || notifiedAt <= 0) {
+						localStorage.setItem(this.notifiedKey(), String(Date.now()));
+						return;
+					}
+
+					const fresh = events.filter(e => new Date(e.createdAt).getTime() > notifiedAt);
+					if (fresh.length === 0) {
+						return;
+					}
+
+					const enabled = await this.notificationsEnabled();
+					if (enabled === null) {
+						return;
+					}
+					if (enabled) {
+						fresh.forEach(e => this.showMention(e));
+					}
+
+					const maxCreated = fresh.reduce((max, e) => Math.max(max, new Date(e.createdAt).getTime()), notifiedAt);
+					localStorage.setItem(this.notifiedKey(), String(maxCreated));
+				},
+
+				// true/false = the user does/doesn't want browser notifications, null = we
+				// couldn't find out. Read at delivery time rather than cached at page load:
+				// the preference can be flipped from the settings modal or another tab.
+				// Severity and filter-preset scoping are deliberately not consulted - a mention
+				// is a direct ask from a teammate, not a fired alert.
+				async notificationsEnabled() {
+					if (!('Notification' in window) || Notification.permission !== 'granted') {
+						return false;
+					}
+					try {
+						const response = await fetch('/api/v1/notifications/preferences', { credentials: 'include' });
+						if (!response.ok) {
+							return null;
+						}
+						const result = await response.json();
+						if (!result.success || !result.data) {
+							return null;
+						}
+						return result.data.browser_notifications_enabled === true;
+					} catch (error) {
+						console.error('Failed to read notification preferences for mentions:', error);
+						return null;
+					}
+				},
+
+				showMention(event) {
+					try {
+						const notification = new Notification('You were mentioned', {
+							body: (event.content || '').slice(0, 200),
+							icon: '/static/images/info-icon.png',
+							tag: 'mention-' + event.id
+						});
+
+						notification.onclick = () => {
+							window.focus();
+							if (window.location.pathname.startsWith('/dashboard') && window.dashboardInstance?.showAlertDetails) {
+								window.dashboardInstance.showAlertDetails(event.alertKey);
+							} else {
+								window.location.href = '/dashboard/alert/' + event.alertKey;
+							}
+							notification.close();
+						};
+					} catch (error) {
+						console.error('Failed to show mention notification:', error);
 					}
 				},
 
