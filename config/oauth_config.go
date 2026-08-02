@@ -96,7 +96,7 @@ func LoadOAuthConfig() (*OAuthPortalConfig, error) {
 	bindOAuthEnvironmentVariables()
 
 	// Load OAuth configuration
-	if err := viper.UnmarshalKey("oauth", cfg); err != nil {
+	if err := viper.UnmarshalKey("oauth", cfg, useJSONTags); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal OAuth config: %w", err)
 	}
 

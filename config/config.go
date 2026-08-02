@@ -9,8 +9,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 )
+
+// useJSONTags makes viper resolve config keys through the `json` struct tags.
+//
+// mapstructure's default is a case-insensitive match on the *field name*, so
+// every multi-word key was silently dropped: `backend.allow_registration` never
+// reached `AllowRegistration`, `backend.grpc_listen` never reached `GRPCListen`,
+// and the struct kept its default while `viper.Get` happily returned the value
+// from the env var or the config file. Single-word keys (`enabled`) matched by
+// accident, which is why the breakage went unnoticed.
+//
+// Every field of Config already carries a json tag naming its key, so the tags
+// are the single source of truth: a new field is wired up the moment it is
+// declared, with no second tag to forget.
+func useJSONTags(dc *mapstructure.DecoderConfig) { dc.TagName = "json" }
 
 type Config struct {
 	Alertmanagers  []AlertmanagerConfig `json:"alertmanagers"`
@@ -285,7 +300,7 @@ func LoadConfigWithViper() (*Config, error) {
 	cfg := DefaultConfig()
 	setViperDefaults(cfg)
 
-	if err := viper.Unmarshal(cfg); err != nil {
+	if err := viper.Unmarshal(cfg, useJSONTags); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
