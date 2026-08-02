@@ -23,15 +23,19 @@ modal.
 1. A **Related** tab in the alert modal, alongside Comments/History, showing the other
    currently-firing alerts that share a label value with the open alert — grouped by
    label (`cluster=prod-eu (12 firing)`, `namespace=payments (7)`, `instance=node-14
-   (3)`, `alertname=<same> (5 firing)`). A group's headline number is the number of
-   alerts the **dashboard** currently lists for that label value, the open alert
-   included — so it equals the row count the table reports for a label-equality
-   filter on that value, across pages, not just the visible page. (The **Filter
-   dashboard on this** action of goal 4 reaches that view through the free-text
-   `search` filter, which can over-match; the count is the exact label-equality
-   number, the action is the approximation — see Risks.) The expanded list under the
-   header holds the *other* alerts (headline minus one), since the open alert is
-   already on screen.
+   (3)`, `alertname=<same> (5 firing)`). A group's headline number is **counted over the
+   alerts the dashboard itself lists** carrying that label value — so it equals the row
+   count the table reports for a label-equality filter on that value, across pages, not
+   just the visible page. The open alert is counted exactly when the dashboard lists it,
+   which is **not always**: the modal's own **Acknowledge** button
+   (`modal_components.templ:1065`), muting the open alert, and deep-linking to an alert
+   the active filter excludes all leave the modal open over an alert the table no longer
+   shows. The count is therefore never `others + 1` — see "Count is measured, not
+   derived". (The **Filter dashboard on this** action of goal 4 reaches that view through
+   the free-text `search` filter, which can over-match; the count is the exact
+   label-equality number, the action is the approximation — see Risks.) The expanded list
+   under the header holds the *other* alerts — headline minus one when the open alert is
+   in that set, all of them when it is not, since the open alert is already on screen.
 2. Only labels that actually correlate are shown: a label shared with fewer than two
    other alerts is dropped as non-signal. A label shared by *every* other alert in the
    current view is not dropped — it is ranked last, because on an unfiltered estate it
@@ -47,8 +51,10 @@ modal.
 5. An alert that is the only one firing shows an explicit empty state, not a spinner or
    an empty box.
 6. Hidden alerts and hidden rules (`HiddenAlertsService`) are respected — a muted alert
-   never appears in a group, and never inflates a group's count. This holds in *every*
-   display mode, including the dashboard's own **Hidden** view
+   never appears in a group, and never inflates a group's count. **This includes the open
+   alert itself**, which in the Hidden view is muted by definition: it is counted only if
+   the set being reported contains it, and that set never contains muted alerts. This
+   holds in *every* display mode, including the dashboard's own **Hidden** view
    (`internal/webui/templates/pages/NewDashboard.templ:142`), whose table is a
    mute-management list of exactly the muted alerts and whose rows open this same modal.
    Related is a triage panel over live *unmuted* alerts; it never inverts with the table
@@ -84,10 +90,14 @@ following the shape of `HandleGetAlertHistory` (`dashboard_handlers.go:2464`) an
    `dashboard_handlers.go:2546`).
 3. Look up the source alert with `alertCache.GetAlert(fingerprint)`
    (`internal/webui/services/alert_cache.go:807`) — snapshot, not a live pointer. 404 if
-   it doesn't exist. `GetAlert` only returns a cache hit for a still-firing alert (it
-   falls through to the backend's resolved-alert store otherwise); a resolved-alert hit
-   is treated the same as "not found" for this endpoint, since Related only makes sense
-   for a live alert.
+   it doesn't exist, **and 404 the same way on `alert.IsResolved`**. Two paths reach a
+   resolved source and the check must cover both: `GetAlert` falls through to the
+   backend's resolved-alert store on a cache miss (`alert_cache.go:820-830`, setting
+   `IsResolved = true` at `:825`), *and* a cache-resident alert can be resolved in place —
+   the `bulk-action` handler's `resolve` case mutates the cached struct
+   (`dashboard_handlers.go:1016-1024`), so a resolved alert is a perfectly ordinary cache
+   hit. Test `IsResolved` on the returned snapshot, never "did it come from the cache".
+   Related only makes sense for a live alert.
 4. Build the candidate set **through the dashboard's own pipeline, not a parallel one**
    (see "Count parity" below): `filters := parseDashboardFilters(c)`
    (`dashboard_handlers.go:223`, which already defaults `displayMode` to `classic` at
@@ -97,8 +107,12 @@ following the shape of `HandleGetAlertHistory` (`dashboard_handlers.go:2464`) an
    first (`dashboard_handlers.go:139-141`, nil- and empty-session-guarded there), then
    `candidates := applyDashboardFilters(alertsForDisplayMode(filters), filters, sessionID)`
    (`applyDashboardFilters` at `dashboard_handlers.go:422`).
-5. Drop `IsResolved` alerts from the result of step 4, and drop the source alert's own
-   fingerprint. Nothing else is filtered by hand here — hidden alerts, hidden rules,
+5. Drop `IsResolved` alerts from the result of step 4. **Do not remove the source alert's
+   fingerprint here** — the candidate slice is handed to the helper exactly as the
+   dashboard produced it, so it contains the source alert if and only if the table does,
+   and that is what makes the counts the table's numbers (see "Count is measured, not
+   derived"). The helper excludes the source from the *listed* alerts by fingerprint
+   itself. Nothing else is filtered by hand here — hidden alerts, hidden rules,
    search, severity, team, alertname, status and the acknowledged filter are all already
    applied by `applyDashboardFilters` (its hidden check is `dashboard_handlers.go:434`,
    `hiddenAlertsService.IsAlertHidden` at
@@ -123,9 +137,12 @@ following the shape of `HandleGetAlertHistory` (`dashboard_handlers.go:2464`) an
    the only place the guarantee can be made unbypassable is the handler. This is the one
    place goal 6 outranks count parity: from the Hidden view, Related answers "what else,
    unmuted, is firing like this" and its counts match the *classic* table, not the mute
-   list on screen. The panel header says so (same copy path as the filtered-view notice
-   below). The three other modes — `classic`, `acknowledge`, `full` — pass through
-   untouched and keep full parity.
+   list on screen. That equality is exact, including for the source alert: the open alert
+   is muted in this mode, so the classic candidate set does not contain it, so nothing
+   counts it — which is only true because `Count` is measured over that set rather than
+   derived as `others + 1`. The panel header says which set is reported (same copy path as
+   the filtered-view notice below). The three other modes — `classic`, `acknowledge`,
+   `full` — pass through untouched and keep full parity.
 6. Call the new pure helper (below) with the source alert, that candidate slice, and the
    `maxGroups` / `maxAlertsPerGroup` caps.
 7. Return `webuimodels.SuccessResponse` with the group list; empty `groups: []` (not an
@@ -169,6 +186,40 @@ The fix is structural: **both paths select and filter through the same functions
   reports what correlates *within the filtered view*, matching the table rather than the
   raw cache.
 
+#### Count is measured, not derived
+
+Selecting the right candidate set is necessary but not sufficient, and this is where the
+previous revisions kept failing: each one fixed *which alerts* are candidates and left
+`Count = len(others) + 1` standing. That `+1` is a second, hand-written model of the
+table — it asserts "the open alert is one of the rows" — and the handler has no basis for
+that assertion. The modal outlives the row. All three of these keep the modal open over an
+alert the dashboard no longer lists, without a reload:
+
+- **Acknowledge the open alert** from the modal's own button
+  (`modal_components.templ:1065`). In `classic` mode `getStandardAlerts()`
+  (`dashboard_handlers.go:353`) drops `IsAcknowledged` at `:358`, so the row is gone and
+  the `+1` reports a row that is not there.
+- **Mute the open alert**, or open it from the **Hidden** view — where step 4b reports the
+  classic set and the open alert is muted *by definition*, so the `+1` is always exactly
+  the muted alert that goal 6 promises never inflates a count.
+- **Deep-link** to `/dashboard/alert/<fp>` while a dashboard filter excludes that alert.
+
+So the source alert is not special-cased out of the arithmetic; it is simply **not removed
+from the candidate set**, and `Count` is the number of candidates carrying the label value
+— the open alert among them or not, whichever the dashboard decided. The helper still
+excludes the source from the *listed* alerts, by fingerprint
+(`webuimodels.DashboardAlert.Fingerprint`, `internal/webui/models/dashboard.go:14`),
+because it is already on screen. Two distinct quantities, one measurement each:
+
+| | derived from | equals |
+|---|---|---|
+| `Count` (header) | candidates matching the value | the table's row count for that value |
+| `Alerts` (expansion) | those candidates minus the source fingerprint | `Count` or `Count-1` |
+
+The invariant is now stateable without an "if": **`Count` is a count of rows the dashboard
+lists.** Nothing adds to it. The one-line rule for any future edit to this helper — if you
+find yourself writing `+ 1`, the set is wrong, not the arithmetic.
+
 No Alertmanager call, no gRPC call, no lock held across the aggregation (the cache calls
 already return copies) — this is an in-memory scan over the current live set, which the
 issue caps at "a few thousand active alerts", comfortably under the 100ms target.
@@ -184,9 +235,11 @@ pattern as `matchesSearch` at `dashboard_handlers.go:487` and
 type relatedAlertGroup struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
-	// Count is len(others)+1 — every dashboard alert carrying this label value,
-	// the source alert included, so it equals the table's row count when filtered
-	// on that value. Alerts below holds only the others, capped.
+	// Count is how many of the dashboard's own candidates carry this label value —
+	// counted, never computed from len(Alerts). The source alert is in that number
+	// exactly when the dashboard lists it (acknowledged, muted or filtered-out source
+	// alerts are not). So Count is the table's row count for a label-equality filter
+	// on this value, with no case analysis. Alerts holds the others only, capped.
 	Count int `json:"count"`
 	// WholeSet is true when this label value covers every other alert in the current
 	// view: still shown, but ranked below every discriminating group and captioned as
@@ -197,8 +250,10 @@ type relatedAlertGroup struct {
 
 // correlatingLabelGroups groups candidates by the label values they share with source
 // and returns the top maxGroups groups, count descending. candidates is the dashboard's
-// own filtered live set with the source alert already removed, so every threshold below
-// is expressed over *other* alerts only.
+// own filtered live set exactly as the table built it — the source alert included if and
+// only if the table lists it. correlatingLabelGroups excludes the source from the listed
+// alerts by fingerprint, and every threshold below is expressed over those *other*
+// alerts, so the caller has no ±1 bookkeeping to get wrong.
 func correlatingLabelGroups(source *webuimodels.DashboardAlert, candidates []*webuimodels.DashboardAlert, maxGroups, maxAlertsPerGroup int) []relatedAlertGroup
 ```
 
@@ -219,24 +274,45 @@ during a storm it is the finding. Those are the same measurement, so the design 
 decide between them with a threshold — it decides with **rank**: whole-set groups sort
 after every discriminating group, and `maxGroups` alone decides whether they are shown.
 No estate-size constant, no cliff, and one stateable invariant: *the only way the panel is
-empty is that no label is shared with two other alerts* (goal 5).
+empty is that no correlatable label of the source is shared with two other alerts* (goal
+5) — "correlatable" excluding only `__`-prefixed keys and empty values, per below.
 
 Algorithm — written as code rather than prose, because prior revisions were ambiguous
-about whether the threshold counted the source alert or not. `candidates` excludes the
-source (handler step 5), so `others` never contains it and no ±1 reading is possible.
+about whether the threshold counted the source alert or not. `candidates` *includes* the
+source when the dashboard lists it (handler step 5), so the split between "how many rows"
+and "which other rows" is made once, here, and nowhere else.
 `sortBySeverityThenName`, `sortGroups` and `capSlice` are helpers to write alongside it,
 not existing functions in the tree:
 
 ```go
 groups := []relatedAlertGroup{}
+
+// The denominator for WholeSet: candidates other than the source. Computed from the
+// same slice as everything else, so it is right whether or not the source is in it.
+otherCandidates := 0
+for _, candidate := range candidates {
+	if candidate.Fingerprint != source.Fingerprint {
+		otherCandidates++
+	}
+}
+
 for key, sourceValue := range source.Labels {
 	if strings.HasPrefix(key, "__") {
 		continue // __name__ & friends: Alertmanager internals, never operator-meaningful
 	}
+	if sourceValue == "" {
+		continue // an empty value would correlate with absence — see below
+	}
+	matched := 0 // every candidate carrying the value: this is the table's number
 	var others []*webuimodels.DashboardAlert
 	for _, candidate := range candidates {
-		if candidate.Labels[key] == sourceValue {
-			others = append(others, candidate)
+		value, ok := candidate.Labels[key]
+		if !ok || value != sourceValue {
+			continue // comma-ok: a missing key is not a match, whatever sourceValue is
+		}
+		matched++
+		if candidate.Fingerprint != source.Fingerprint {
+			others = append(others, candidate) // the open alert is already on screen
 		}
 	}
 	if len(others) < 2 {
@@ -246,9 +322,9 @@ for key, sourceValue := range source.Labels {
 	groups = append(groups, relatedAlertGroup{
 		Label: key,
 		Value: sourceValue,
-		Count: len(others) + 1, // the open alert counts too — this is the table's number
+		Count: matched, // counted over the dashboard's own set — never len(others)+1
 		// WholeSet: covers every other alert in the current view. Kept, ranked last.
-		WholeSet: len(others) == len(candidates),
+		WholeSet: len(others) == otherCandidates,
 		Alerts:   capSlice(others, maxAlertsPerGroup),
 	})
 }
@@ -270,12 +346,39 @@ groups = capSlice(groups, maxGroups)
 ("covers every alert in the current view") instead of letting the operator mistake an
 estate-wide label for a blast radius.
 
+#### Why an empty label value is skipped, and why the lookup is comma-ok
+
+Label values are **alert-author input**, not trusted config: anything that can `POST
+/api/v2/alerts` can set `cluster=""`, and `convertToDashboardAlert` copies it into
+`Labels` verbatim (`alert_cache.go:340-346`). In Go, `m[k]` on a missing key returns the
+zero value, so a naive `candidate.Labels[key] == sourceValue` makes an empty source value
+match **every candidate that does not carry that label at all** — inverting the
+correlation into an anti-correlation. Measured on a 23-row estate with one such alert
+posted, that yields `cluster= (20 firing)` as the *top-ranked* group over a table showing
+2, and it burns a `maxGroups` slot ahead of every real group.
+
+Two independent guards, because this block is meant to be copied verbatim:
+
+- `sourceValue == ""` → skip the label. `label=<nothing>` is not a blast radius under any
+  reading; there is no useful group to build from it.
+- comma-ok on the candidate lookup → "absent" and "present but empty" stay distinct
+  regardless of the first guard, so the loop is still correct if someone later relaxes it.
+
+The same reasoning applies to any group whose value would render as `key=` in the header:
+that string is unactionable in the UI and untypeable into "Filter dashboard on this".
+
 Consequences, spelled out so no reader has to re-derive them:
 
-- Exactly two alerts firing in total (`len(candidates) == 1`): `len(others) == 1` for
+- Exactly two alerts firing in total (`otherCandidates == 1`): `len(others) == 1` for
   every label, every group is dropped, and the Related tab shows the goal-5 empty state.
   That is the intended reading of goal 2, not an accident — one other alert is a pair,
   not a blast radius, and the alert list is one row away in the table behind the modal.
+  Note the threshold and `WholeSet` both key off `otherCandidates`, never
+  `len(candidates)`, so they do not shift when the source alert leaves the dashboard's set.
+- **The open alert acknowledged, muted or filtered out** while the modal stays open: it is
+  absent from `candidates`, so `matched` does not count it and every header equals its
+  table row count — the previously-broken case. `others` and therefore the group
+  membership threshold are unaffected either way, since they never included the source.
 - **Any homogeneous storm, at any size, filtered or not** — 3, 8, 80 identical alerts:
   every label is whole-set, so all groups tie on the first sort key and the top
   `maxGroups` by count are shown. The panel never blanks, and there is no estate size or
@@ -315,9 +418,11 @@ History is hand-written while the six purely-declarative tabs above it
 `x-show="currentAlertTab === 'related'"` panel
 next to the History panel (`modal_components.templ:1662`) rendering the group list — each
 group is a disclosure/accordion header (`label=value (N firing)`, `N` being the group's
-`Count`, the open alert included, so it reads as the table's row count for that value)
-that expands to the other `N-1` alerts as a compact list (name, severity badge, instance,
-age), reusing `AlertModalSeverityBadge` and
+`Count`, i.e. the table's row count for that value) that expands to the group's `alerts`
+array as a compact list (name, severity badge, instance, age). Render the header from
+`Count` and the list from `alerts.length` — never `Count - 1`, since the open alert is in
+`Count` only when the dashboard still lists it (acknowledge it from the modal and the two
+converge). Reuse `AlertModalSeverityBadge` and
 `formatDuration` already used elsewhere in the modal. A group with `wholeSet: true`
 renders a muted "covers every alert in the current view" caption on its header — it is
 last in the list by construction (see the ranking above), and the caption is what keeps a
@@ -403,8 +508,10 @@ never hand-edit the generated `*_templ.go` output.
   scale; flagged here so a future regression (very high label cardinality) has a named
   cause to look for.
 - **One heuristic threshold is left, and it is the only way to get an empty panel.**
-  "Fewer than two other alerts share this label" is the single drop rule; the whole-set
-  case is a rank, not a drop, so it cannot blank anything. No statistical significance
+  "Fewer than two other alerts share this label" is the single *heuristic* drop rule; the
+  whole-set case is a rank, not a drop, so it cannot blank anything. (The two structural
+  skips — `__`-prefixed keys and empty values — are not heuristics: neither can name a
+  blast radius under any reading.) No statistical significance
   test — good enough for "what else is firing", consistent with the issue's non-goal on
   scoring. The visible cost is the two-alerts-total case: a pair shows the empty state.
   Lowering it to one other alert is a one-character change if triage feedback says pairs
@@ -447,17 +554,32 @@ never hand-edit the generated `*_templ.go` output.
 - New unit test in `internal/webui/handlers/dashboard_handlers_test.go` (or a sibling
   `dashboard_related_alerts_test.go`, matching the existing
   `dashboard_filter_predicate_test.go` split-by-concern style) covering
-  `correlatingLabelGroups` (thresholds are over `others`, i.e. `candidates` with the
-  source already removed):
-  - `len(candidates) == 1` (two alerts firing in total): no groups at all — the pair case
-    resolves to the empty state.
-  - a label with exactly two other alerts sharing the value survives, with `Count == 3`.
+  `correlatingLabelGroups`. Every case must be built **both ways** — `candidates` with the
+  source alert present and the identical slice with it absent — because that is the axis
+  every prior revision got wrong; group membership and thresholds must be byte-identical
+  across the pair, and `Count` must differ by exactly one:
+  - **`Count` is a count of candidates, not `len(others)+1`.** Source present: three other
+    alerts share `cluster=prod-eu` → `Count == 4`. Same call with the source removed from
+    `candidates` (the acknowledged / muted / filtered-out-source case) → `Count == 3`,
+    same group, same `Alerts`, `len(Alerts) == 3` in both. A `+1` implementation passes the
+    first assertion and fails the second; this is the whole point of the helper's design
+    and the single test that must never be relaxed.
+  - two alerts firing in total (one candidate besides the source, present or not): no
+    groups at all — the pair case resolves to the empty state.
+  - a label with exactly two other alerts sharing the value survives, with `Count == 3`
+    when the source is in `candidates` and `Count == 2` when it is not.
+  - **an empty source label value never produces a group.** Source carries `cluster=""`;
+    candidates are a mix of alerts with no `cluster` label at all and a couple with
+    `cluster=""`. Assert no `cluster` group is returned, and in particular that the
+    label-less candidates are not counted — the `m[k]`-returns-`""` trap. Add the mirror
+    case: a candidate lacking the key never matches a non-empty source value either.
   - **a label shared by every candidate is always kept, at every candidate-set size.**
-    Sweep `len(candidates)` from 2 to 10 with one whole-set label plus one discriminating
-    label and assert a non-empty group list at every size — the boundary sweep that
-    caught the old `> 5` cliff at seven rows. Assert the whole-set group carries
-    `WholeSet == true` and sorts *after* the discriminating one even when its `Count` is
-    higher.
+    Sweep the number of other candidates from 2 to 10 with one whole-set label plus one
+    discriminating label and assert a non-empty group list at every size — the boundary
+    sweep that caught the old `> 5` cliff at seven rows. Assert the whole-set group
+    carries `WholeSet == true` and sorts *after* the discriminating one even when its
+    `Count` is higher. Run the sweep with the source absent from `candidates` too:
+    `WholeSet` keys off `otherCandidates`, so it must not flip.
   - a fully homogeneous candidate set (every label whole-set, the filtered-storm case):
     groups are returned, ordered by `Count` descending, not an empty list.
   - `__name__`/`__`-prefixed labels are never considered.
@@ -465,7 +587,7 @@ never hand-edit the generated `*_templ.go` output.
     `alertname` label (no duplicate from the `AlertName` struct field).
   - groups are ordered by `Count` descending, and truncated to `maxGroups`.
   - a group's alert list is capped to `maxAlertsPerGroup` while `Count` still reports
-    the untruncated total, source included.
+    the untruncated candidate total.
 - `go test ./internal/webui/...` passes — in particular the existing dashboard handler
   tests, which cover the `GetDashboardData` path that the `alertsForDisplayMode`
   extraction moves code out of.
@@ -484,6 +606,20 @@ never hand-edit the generated `*_templ.go` output.
   switch the dashboard to `acknowledge` and to `full` mode and confirm Related tracks the
   table in each — modulo the one documented exception, resolved alerts, which `full`
   lists and Related never does.
+- **Source-not-in-the-table check — acknowledge *the open alert*, not a bystander.** The
+  check above only ever acknowledges a bystander, so it cannot surface this. Open an alert, note the
+  Related header for its `alertname` group, then **without closing the modal** press the
+  modal's own Acknowledge button (`modal_components.templ:1065`), reopen the Related tab
+  and confirm the header dropped by one and equals the table's row count for that value —
+  not header = table + 1. Repeat twice more for the other two ways the source leaves the
+  set: mute the open alert from the modal, and load `/dashboard/alert/<fp>` directly while
+  a dashboard filter (`severities=`, `alertNames=`) excludes that alert. In all three the
+  open alert must be absent from every count while the groups themselves are unchanged.
+- **Hostile-label check.** `POST /api/v2/alerts` an alert whose labels include an
+  empty-valued one (`{"alertname":"EmptyLabelProbe","cluster":"", ...}`), open it, and
+  confirm Related shows **no** `cluster` group at all — in particular not a top-ranked
+  `cluster= (N firing)` where `N` counts every alert that simply has no `cluster` label.
+  Cross-check `N` against the table filtered on that value before and after.
 - **Storm regression check, the other one that has bitten this design.** With eight
   alerts sharing `alertname`/`cluster`/`namespace`, filter the dashboard on
   `alertNames=<that name>` so the table shows only the storm, open one of them, and
@@ -493,8 +629,11 @@ never hand-edit the generated `*_templ.go` output.
 - **Hidden-mode check (goal 6).** Hide five firing alerts that share labels, switch the
   dashboard to **Hidden**, open one of them from that table, and confirm Related lists
   only *unmuted* alerts and that none of the five muted ones appears in any group or
-  count — i.e. the panel is the classic-mode answer, per step 4b, and never a mirror of
-  the mute list. Also confirm a hidden alert never appears in a group in classic mode
+  count — **including the one that is open**, which is the muted alert the old `+1`
+  silently added back to every header. Read each header against the *classic* table's row
+  count for that value and require exact equality, not off-by-one — that is the whole of
+  goal 6. The panel is the classic-mode answer, per step 4b, and never a
+  mirror of the mute list. Also confirm a hidden alert never appears in a group in classic mode
   (hide an alert that would otherwise correlate, re-open Related, confirm it drops out
   and the count decrements). Same for a search/severity filter left active on the
   dashboard.
