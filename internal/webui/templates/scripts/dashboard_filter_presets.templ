@@ -178,12 +178,15 @@ templ DashboardFilterPresetsMixin() {
 			// Presets don't carry label filters; drop any so the preset's result set
 			// is what the user saved, not an invisible intersection
 			this.filters.labels = [];
-			this.filters.ownedByMe = data.owned_by_me || false;
 
 			// Apply display settings
 			if (data.display_mode) this.displayMode = data.display_mode;
 			if (data.view_mode) this.viewMode = data.view_mode;
 			if (data.group_by) this.groupByLabel = data.group_by;
+
+			// After the display mode, so the acknowledge-mode rule sees the mode the
+			// preset restores rather than the one the user is coming from
+			this.applyOwnedByMe(data.owned_by_me);
 
 			// Apply sorting
 			if (data.sort_by) this.sortField = data.sort_by;
