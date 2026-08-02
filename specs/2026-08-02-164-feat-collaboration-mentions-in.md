@@ -37,7 +37,7 @@ phone), which is exactly the context switch the console should remove.
 
 ## Corrections to the issue's proposed approach
 
-Verified against the current branch; three of the issue's approach claims don't
+Verified against the current branch; several of the issue's approach claims don't
 match what's actually in the tree, so the plan below routes around them instead of
 building on them:
 
@@ -105,6 +105,24 @@ building on them:
    *bypass* severity filtering per the issue's own requirement. The plan adds a
    sibling method instead of stretching the alert-shaped one over a different
    event type.
+7. **There is no page-independent JS handle on the viewer.** `window.currentUser`
+   and `window.currentUserId` do not exist anywhere in the tree (0 occurrences
+   outside this document). The viewer's identity is reachable in exactly three
+   page-scoped ways: `dashboardUtilitiesMixin.getCurrentUser()`
+   (`internal/webui/templates/scripts/dashboard_utilities.templ:355`, populated by
+   `loadCurrentUser()` at :297) — dashboard only; `currentUserId`, server-injected
+   into the statistics Alpine root
+   (`internal/webui/templates/pages/StatisticsDashboard.templ:43`) — statistics
+   only; and `GET /api/v1/auth/me`. Likewise
+   `internal/webui/templates/scripts/dashboard_utilities.templ` defines a *mixin
+   object* (`window.dashboardUtilitiesMixin`, :5), not free functions, and is
+   included only by `NewDashboard.templ:1006` — nothing in it is reachable from
+   the statistics page. **Rule this plan follows:** cross-page JS helpers live in
+   `internal/webui/templates/layouts/Base.templ` (the only script host every page
+   renders — all 10 pages call `@layouts.Base`), and viewer identity is *passed in*
+   as an argument from a scope each call site actually has, never read from an
+   assumed global. The scope table in the Verification ledger enumerates every JS
+   symbol this plan names, where it is defined, and on which pages it exists.
 
 ## Approach
 
@@ -230,9 +248,20 @@ Only the live modal (`modal_components.templ`) gets this — the statistics
 resolved-alert comment view (`alert_modal_shared.templ:484-508`,
 `AlertModalCommentsWritable`) is also "writable" in principle but per the issue's
 scope this ships for the primary alert modal; the shared writable component can
-gain it later with the same pattern if wanted (no changes needed there for v1
-since it delegates to the same `addComment()`/`newCommentContent` the dashboard
-mixin provides).
+gain it later with the same pattern if wanted. No changes are needed there for v1.
+
+Note the provenance, because it matters for where a later autocomplete would have
+to be wired: `AlertModalCommentsWritable`'s `newCommentContent` / `addComment()`
+are **not** the dashboard mixin's. `@scripts.DashboardModal()`
+(`window.dashboardModalMixin`, `scripts/dashboard_modal.templ:5`, `addComment` at
+:245) is included only by `NewDashboard.templ:1007`. The statistics page's root
+scope is `{ ...statisticsDashboardPage(), ...statisticsViewsMixin(),
+currentUserId }` (`StatisticsDashboard.templ:43`), and `statisticsDashboardPage()`
+declares its own `newCommentContent`/`commentSubmitting`
+(`StatisticsDashboard.templ:1802-1803`) and its own `addComment()`
+(`StatisticsDashboard.templ:4359`). Two independent implementations, one shared
+markup component — so a later autocomplete there is a second wiring job, not a
+free ride on the dashboard one.
 
 ### 4. Frontend: mention highlighting in rendered comments
 
@@ -241,17 +270,55 @@ possible):
 - `modal_components.templ:1525` — `<p ... x-text="comment.content"></p>`
 - `alert_modal_shared.templ:467` — `<p ... x-text="comment.content"></p>`
 
-Switch both to `x-html` bound to a new global helper, e.g.
-`window.renderCommentHtml(content, viewerUsername)`, defined once in
-`internal/webui/templates/scripts/dashboard_utilities.templ` (next to the other
-small formatting helpers like `getCurrentUser`/`canDeleteComment`,
-`dashboard_utilities.templ:355-382`) and referenced from both templates as
-`x-html="renderCommentHtml(comment.content, getCurrentUser()?.username)"`
-(`alert_modal_shared.templ`'s simpler modal doesn't have `getCurrentUser()` in
-scope — for that one, pass `comment.content` and let the helper compare against
-`window.currentUser?.username` read internally, so both call sites work without
-threading extra Alpine state through a shared component's string-built
-expressions).
+Switch both to `x-html` bound to a new helper
+`window.renderCommentHtml(content, viewerUsername)`.
+
+**Where it lives.** In a new `<script>` block in
+`internal/webui/templates/layouts/Base.templ`, after the impersonation block
+(`Base.templ:110-305`, i.e. inserted at :306, before the footer at :307) and
+alongside the other page-independent globals already defined there
+(`window.darkModeState` :58, `window.impersonationState` :112). Not in
+`scripts/dashboard_utilities.templ`: that file is one `window.dashboardUtilitiesMixin`
+object literal (`:5`) whose members are Alpine *methods*, not callable globals, and
+it is included only by `NewDashboard.templ:1006` — a helper defined there is
+invisible to the statistics page, which is one of the two call sites. `Base.templ`
+is the only script host every page renders.
+
+**How each call site supplies the viewer.** The username is passed explicitly;
+the helper reads no globals. The two call sites below are the complete set
+(`AlertModalCommentsReadonly` is reached only via `AlertModalCommentsWritable`,
+`alert_modal_shared.templ:486`, itself used only at `alert_modal_shared.templ:748`
+inside `AlertModalReadonly`, whose only caller is
+`StatisticsDashboard.templ:1690`):
+
+- `modal_components.templ:1525` →
+  `x-html="renderCommentHtml(comment.content, getCurrentUser()?.username)"`.
+  `getCurrentUser()` is `dashboardUtilitiesMixin`'s
+  (`dashboard_utilities.templ:355`) and is in scope here — the same scope already
+  calls `canDeleteComment(comment)` two lines down (`modal_components.templ:1532`),
+  another member of that mixin (`dashboard_utilities.templ:376`).
+- `alert_modal_shared.templ:467` →
+  `x-html="renderCommentHtml(comment.content, currentUsername)"`. That symbol does
+  not exist yet: add it to the statistics root `x-data`
+  (`StatisticsDashboard.templ:43`) next to the `currentUserId` already injected
+  there the same way — `currentUsername: '` + `data.User.Username` + `'`.
+  `StatisticsDashboardData.User` is a `pages.ProfileUser` with a `Username` field
+  (`Profile.templ:15-24`) that the handler already fills
+  (`statistics_handlers.go:457-462`), so this is a template-only change: no
+  handler, model, or route edit. Alpine's nested
+  `x-data="{ currentTab: 'overview' }"` (`alert_modal_shared.templ:604`) inherits
+  the root scope, so `currentUsername` resolves inside the modal.
+
+No new `templ` parameter is threaded through `AlertModalReadonly` /
+`AlertModalCommentsWritable` / `AlertModalCommentsReadonly`: the whole chain has a
+single render path (enumerated above) rooted in the statistics page, so the bare
+`currentUsername` reference is unambiguous. If a second page ever renders
+`AlertModalReadonly`, *that* is the moment to add a `viewerVar string` parameter —
+adding it now would be a parameter with one possible value.
+
+The helper tolerates a missing second argument (`''`/`undefined` → every mention
+renders as a neutral chip, no `mention-self`) so a future third call site degrades
+to "no self-highlight" instead of throwing inside an Alpine expression.
 
 The helper:
 1. HTML-escapes `content` (manual `textContent`-via-`document.createElement`
@@ -340,9 +407,17 @@ function mentionsBadge() {
 }
 ```
 
+The badge resolves its own user via `GET /api/v1/auth/me` rather than a
+server-injected value (the route this plan uses everywhere else) because
+`PageNavigator(activePage string)` (`PageNavigator.templ:5`) takes no page data,
+and one of its four hosts — `NewDashboardContent()` (`NewDashboard.templ:13`,
+navigator at `:123`) — takes no page data at all. The `userId` only keys
+`localStorage`, so the one-request-per-page-load cost buys per-user read state; a
+failed fetch degrades to the `'anon'` key rather than breaking the badge.
+
 Rendered on all four pages that include `PageNavigator`
-(`StatisticsDashboard.templ`, `Activity.templ`, `Silences.templ`,
-`NewDashboard.templ`), 30s poll matching the existing `Activity.templ:282` and
+(`StatisticsDashboard.templ:62`, `Activity.templ:89`, `Silences.templ:34`,
+`NewDashboard.templ:123`), 30s poll matching the existing `Activity.templ:282` and
 `Base.templ:262` cadences. `window.notificationService` only exists when
 `NewDashboard.templ:998`'s `@scripts.NotificationService()` has run — i.e. only
 while the dashboard page is open — so `notifyNew`'s guard means mention *browser
@@ -413,12 +488,21 @@ naive push into the alert-shaped queue.
   `mentionsOnly` field; when true, default `windowMinutes = 10080` before the
   first `load()` (so a mention from yesterday isn't hidden by the normal 60-minute
   default).
+- The seen-marking below needs the viewer's id, and this page does not expose one
+  today (`x-data="activityPage()"`, `Activity.templ:74`). Inject it server-side
+  rather than adding a global: change that attribute to
+  `x-data={ "{ ...activityPage(), currentUserId: '" + data.User.ID + "' }" }`,
+  byte-for-byte the pattern `StatisticsDashboard.templ:43` already uses (spread +
+  injected id). `ActivityContent(data)` already receives `data`
+  (`Activity.templ:12`) and the handler already fills `User`
+  (`activity_handlers.go:173-175`), so no handler change — and no second
+  `/api/v1/auth/me` round-trip on this page.
 - `load()` (`Activity.templ:286-314`): when `mentionsOnly`, add
-  `params.set('mentionsUser', '1')` and mark `localStorage` seen (same
-  `storageKey('seen')` computation as `mentionsBadge()`, keyed by the same
-  `notificator_mentions_seen_<userId>` — fetch `/api/v1/auth/me` once in `init()`
-  here too, or read `window.currentUserId` if the page already exposes it) so
-  returning to the badge shows 0 without waiting for the next 30s poll.
+  `params.set('mentionsUser', '1')` and mark `localStorage` seen, using the same
+  key `mentionsBadge()` writes — `'notificator_mentions_seen_' + (this.currentUserId || 'anon')`
+  — so returning to the badge shows 0 without waiting for the next 30s poll. Both
+  sides must derive the key from the same expression; if they disagree the badge
+  never clears, so keep the `'anon'` fallback identical too.
 - Add a small "Showing your mentions — Clear" chip above the filter bar when
   `mentionsOnly` is true, clicking clears the query param (`history.replaceState`)
   and reloads with normal defaults — cheap escape hatch back to the full feed.
@@ -449,9 +533,17 @@ naive push into the alert-shaped queue.
 - `go test ./internal/webui/handlers/... -run 'TestMatchesMention|TestMatchesActivitySearch|TestBuildActivityFeed'`
   — new + existing activity tests green.
 - `make webui-templates` after editing every `.templ` file touched above
-  (`modal_components.templ`, `alert_modal_shared.templ`, `dashboard_utilities.templ`,
-  `notification_service.templ`, `PageNavigator.templ`, `Activity.templ`) — never
-  hand-edit the generated `*_templ.go` files.
+  (`layouts/Base.templ`, `components/modal_components.templ`,
+  `components/alert_modal_shared.templ`, `components/PageNavigator.templ`,
+  `pages/StatisticsDashboard.templ`, `pages/Activity.templ`,
+  `scripts/notification_service.templ`) — never hand-edit the generated
+  `*_templ.go` files.
+- Browser check that costs nothing and would have caught the class of bug this
+  plan had to be corrected for twice: on **both** `/dashboard` and `/statistics`,
+  evaluate `typeof window.renderCommentHtml` → `"function"`, and confirm a comment
+  mentioning the logged-in user renders a `mention-self` chip on each page (the
+  dashboard modal and the statistics resolved-alert modal use *different* Alpine
+  scopes; a helper that works on one proves nothing about the other).
 - `make test` (docker-compose full stack) manual pass:
   1. As user `alice`, comment `hi @bob check this` on an alert. As `bob` (second
      browser/session), confirm: badge increments within 30s, `/activity?mentions=1`
@@ -468,6 +560,29 @@ naive push into the alert-shaped queue.
      usernames from `GET /api/v1/dashboard/mentionable-users`.
 
 ## Verification ledger
+
+### JS symbol scope table
+
+Every JS symbol this plan names, where it is defined, and where it actually
+exists at runtime. Two rounds of review failed on assumed-but-absent globals, so
+nothing below is referenced by the plan without a line here.
+
+| Symbol | Defined at | In scope on |
+|---|---|---|
+| `dashboardUtilitiesMixin.getCurrentUser()` | `scripts/dashboard_utilities.templ:355` (mixin object at :5, `currentUser` filled by `loadCurrentUser()` :297) | dashboard only — `@scripts.DashboardUtilities()` at `NewDashboard.templ:1006` |
+| `dashboardUtilitiesMixin.canDeleteComment()` | `scripts/dashboard_utilities.templ:376` | dashboard only (same include) |
+| `window.dashboardModalMixin` (`addComment` :245, `deleteComment` :294, `refreshComments` :332) | `scripts/dashboard_modal.templ:5` | dashboard only — `@scripts.DashboardModal()` at `NewDashboard.templ:1007` |
+| `window.notificationService` | `scripts/notification_service.templ` | dashboard only — `@scripts.NotificationService()` at `NewDashboard.templ:998` |
+| `statisticsDashboardPage().addComment()` / `newCommentContent` | `pages/StatisticsDashboard.templ:4359` / `:1802` | statistics only |
+| `currentUserId` (server-injected, `data.User.ID`) | `pages/StatisticsDashboard.templ:43` | statistics only |
+| `activityPage()` | `pages/Activity.templ:261`, used at `:74` | activity only |
+| `window.darkModeState`, `window.impersonationState` | `layouts/Base.templ:58`, `:112` | **all pages** — every page calls `@layouts.Base` |
+| `window.renderCommentHtml` *(new, §4)* | `layouts/Base.templ`, new block after `:305` | **all pages**, by construction |
+| `currentUsername` *(new, §4)* | `pages/StatisticsDashboard.templ:43`, from `data.User.Username` | statistics only — the only page reaching `AlertModalCommentsReadonly` |
+| `currentUserId` on activity *(new, §7)* | `pages/Activity.templ:74`, from `data.User.ID` | activity only |
+| `window.currentUser`, `window.currentUserId` | **nowhere** — 0 occurrences under `internal/` | nowhere; earlier drafts of §4/§7 assumed them and were wrong |
+
+### Reference checks
 
 - Comment box/list markup location (`modal_components.templ` vs.
   `alert_modal_shared.templ`) — grepped `canDeleteComment`/`comment.content`
@@ -499,3 +614,23 @@ naive push into the alert-shaped queue.
   `handlers.go:252-266` and `models/api_response.go:17-22`.
 - Comment content cap is 1000 chars, stored as-is (no server-side mention
   parsing today) — read `dashboard_handlers.go:1525-1586`.
+- Every page renders `@layouts.Base` (so a `Base.templ` script is truly
+  page-independent) — grepped `layouts.Base` across `pages/*.templ`: 10 hits,
+  one per page, including `NewDashboard.templ:10` and
+  `StatisticsDashboard.templ:14`.
+- `pages.ProfileUser` carries `Username` (`Profile.templ:15-24`) and both page
+  handlers already populate it — read `statistics_handlers.go:450-465`
+  (`StatisticsDashboardData`) and `activity_handlers.go:167-176` (`ActivityData`),
+  so §4's `currentUsername` and §7's `currentUserId` need no handler change.
+- `AlertModalCommentsReadonly` has a single render path — grepped
+  `AlertModalComments`/`AlertModalReadonly` across all `.templ`: definitions at
+  `alert_modal_shared.templ:454,484,602`, internal uses at `:486,748`, and exactly
+  one page call site, `StatisticsDashboard.templ:1690`. Nothing else reaches it,
+  which is why §4 uses a bare scope reference instead of a new templ parameter.
+- `PageNavigator(activePage string)` takes no page data (`PageNavigator.templ:5`);
+  call sites `NewDashboard.templ:123`, `StatisticsDashboard.templ:62`,
+  `Activity.templ:89`, `Silences.templ:34` — hence §5's `/api/v1/auth/me` fetch.
+- Statistics comment state is the page's own, not the dashboard mixin's — read
+  `StatisticsDashboard.templ:43` (root `x-data`), `:1802-1803`
+  (`newCommentContent`/`commentSubmitting`), `:4359` (`addComment()`); grepped
+  `@scripts.DashboardModal()` → only `NewDashboard.templ:1007`.
