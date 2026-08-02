@@ -124,7 +124,7 @@ func TestRelatedEndpointCountMatchesDashboardRows(t *testing.T) {
 	rows := applyDashboardFilters(getStandardAlerts(), webuimodels.DashboardFilters{
 		DisplayMode:  webuimodels.DisplayModeClassic,
 		LabelFilters: []webuimodels.LabelFilter{{Key: group.LabelKey, Value: group.LabelValue}},
-	}, "")
+	}, "", "")
 	if len(rows) != group.Count {
 		t.Fatalf("panel says %d firing, the same filter yields %d dashboard rows", group.Count, len(rows))
 	}
@@ -181,7 +181,7 @@ func TestRelatedEndpointHonoursPresetHiddenRules(t *testing.T) {
 		DisplayMode:       webuimodels.DisplayModeClassic,
 		LabelFilters:      []webuimodels.LabelFilter{{Key: group.LabelKey, Value: group.LabelValue}},
 		FilterHiddenRules: hiddenRules,
-	}, "")
+	}, "", "")
 	if len(rows) != group.Count {
 		t.Fatalf("panel says %d firing, the same filter yields %d dashboard rows", group.Count, len(rows))
 	}

@@ -125,6 +125,7 @@ func GetDashboardData(c *gin.Context) {
 	}
 
 	userID := getCurrentUserID(c)
+	currentUsername := getCurrentUsername(c)
 	sessionID := middleware.GetSessionID(c)
 
 	// Parse filters from query parameters
@@ -177,7 +178,7 @@ func GetDashboardData(c *gin.Context) {
 	}
 
 	// Apply filters
-	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID)
+	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID, currentUsername)
 
 	// Apply sorting
 	sortedAlerts := applySorting(filteredAlerts, sorting)
@@ -209,7 +210,7 @@ func GetDashboardData(c *gin.Context) {
 	} else {
 		metadataAllAlerts = allAlerts
 	}
-	response.Metadata = buildDashboardMetadata(metadataAllAlerts, filteredAlerts, filters, userID, sessionID)
+	response.Metadata = buildDashboardMetadata(metadataAllAlerts, filteredAlerts, filters, userID, sessionID, currentUsername)
 	response.Metadata.TotalCount = totalCount // Add total count for pagination
 	response.Settings = *settings
 
@@ -246,6 +247,12 @@ func parseDashboardFilters(c *gin.Context) webuimodels.DashboardFilters {
 	if comments := c.Query("hasComments"); comments != "" {
 		if val, err := strconv.ParseBool(comments); err == nil {
 			filters.HasComments = &val
+		}
+	}
+
+	if ownedByMe := c.Query("ownedByMe"); ownedByMe != "" {
+		if val, err := strconv.ParseBool(ownedByMe); err == nil {
+			filters.OwnedByMe = &val
 		}
 	}
 
@@ -344,6 +351,16 @@ func getCurrentUserID(c *gin.Context) string {
 	return "default-user"
 }
 
+// getCurrentUsername returns the username to compare acknowledgment ownership
+// against. AcknowledgedBy stores a username (see processAlertAction), not a
+// user ID, so "owned by me" needs the username, not getCurrentUserID's ID.
+func getCurrentUsername(c *gin.Context) string {
+	if user := middleware.GetEffectiveUser(c); user != nil && user.Username != "" {
+		return user.Username
+	}
+	return getCurrentUserID(c)
+}
+
 func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	userSettingsMu.RLock()
 	settings, exists := userSettings[userID]
@@ -353,9 +370,10 @@ func getUserSettings(userID string) *webuimodels.DashboardSettings {
 	}
 
 	defaultSettings := &webuimodels.DashboardSettings{
-		UserID:          userID,
-		Theme:           "light",
-		RefreshInterval: 5,
+		UserID:                 userID,
+		Theme:                  "light",
+		RefreshInterval:        5,
+		StaleAckThresholdHours: 4,
 		DefaultFilters: webuimodels.DashboardFilters{
 			DisplayMode: webuimodels.DisplayModeClassic,
 			ViewMode:    webuimodels.ViewModeList,
@@ -430,6 +448,7 @@ func filtersAffectResolvedCount(filters webuimodels.DashboardFilters, sessionID 
 		len(filters.LabelFilters) > 0 ||
 		filters.Acknowledged != nil ||
 		filters.HasComments != nil ||
+		(filters.OwnedByMe != nil && *filters.OwnedByMe) ||
 		len(filters.FilterHiddenAlerts) > 0 ||
 		len(filters.FilterHiddenRules) > 0 {
 		return true
@@ -460,7 +479,7 @@ func alertPassesAlertLevelFilters(alert *webuimodels.DashboardAlert, filters web
 	return true
 }
 
-func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string) []*webuimodels.DashboardAlert {
+func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string, currentUsername string) []*webuimodels.DashboardAlert {
 	var filtered []*webuimodels.DashboardAlert
 
 	// Pre-compile filter-specific hidden rules for performance
@@ -522,6 +541,11 @@ func applyDashboardFilters(alerts []*webuimodels.DashboardAlert, filters webuimo
 			if hasComments != *filters.HasComments {
 				continue
 			}
+		}
+
+		// Apply "owned by me" filter - the acked view's shift-handover worklist
+		if filters.OwnedByMe != nil && *filters.OwnedByMe && alert.AcknowledgedBy != currentUsername {
+			continue
 		}
 
 		filtered = append(filtered, alert)
@@ -608,6 +632,8 @@ func applySorting(alerts []*webuimodels.DashboardAlert, sorting webuimodels.Dash
 			less = sorted[i].Source < sorted[j].Source
 		case "startsAt":
 			less = sorted[i].StartsAt.Before(sorted[j].StartsAt)
+		case "acknowledgedAt":
+			less = sorted[i].AcknowledgedAt.Before(sorted[j].AcknowledgedAt)
 		default:
 			// Default to duration
 			less = sorted[i].Duration < sorted[j].Duration
@@ -778,7 +804,7 @@ func computeAvailableFilters(alerts []*webuimodels.DashboardAlert) webuimodels.D
 	return available
 }
 
-func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
+func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string, currentUsername string) webuimodels.DashboardMetadata {
 	counters := webuimodels.DashboardCounters{
 		SeverityCounters: make(map[string]int),
 	}
@@ -850,7 +876,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 			} else {
 				resolvedAlerts = alertCache.GetResolvedAlerts()
 			}
-			filteredResolvedAlerts := applyDashboardFilters(resolvedAlerts, filters, sessionID)
+			filteredResolvedAlerts := applyDashboardFilters(resolvedAlerts, filters, sessionID, currentUsername)
 
 			for _, alert := range filteredResolvedAlerts {
 				// Only count resolved alerts in the Resolved counter for Classic/Acknowledge views
@@ -859,6 +885,20 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 				if alert.Status.State == "resolved" {
 					counters.Resolved++
 				}
+			}
+		}
+	}
+
+	// Stale-ack count for the Acknowledged mode button's badge, always computed
+	// over the full acked set (not the current filtered/paginated view) so it's
+	// visible from classic mode too and matches the same authoritative pass
+	// regardless of which display mode triggered this call.
+	threshold := getUserSettings(userID).StaleAckThresholdHours
+	if threshold > 0 {
+		staleCutoff := time.Now().Add(-time.Duration(threshold) * time.Hour)
+		for _, alert := range getAcknowledgedAlerts() {
+			if alert.AcknowledgedAt.Before(staleCutoff) {
+				counters.StaleAcknowledged++
 			}
 		}
 	}
@@ -1010,10 +1050,15 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 		// Update local cache under the cache lock (GetAlert returns a snapshot).
 		// Mirror the change on the snapshot so the statistics goroutine below
 		// sees the acknowledged state without touching cache-resident memory.
+		// AcknowledgedBy stores a username (matching what the periodic cache
+		// refresh writes from the backend's Acknowledgment.Username - see
+		// alert_cache.go applyAcknowledgments) so the Owner column shows the
+		// right value immediately instead of a numeric ID until the next poll.
 		ackAt := time.Now()
+		ackUsername := getCurrentUsername(c)
 		applyAck := func(a *webuimodels.DashboardAlert) {
 			a.IsAcknowledged = true
-			a.AcknowledgedBy = userID
+			a.AcknowledgedBy = ackUsername
 			a.AcknowledgedAt = ackAt
 			// Always increment comment count since we add an acknowledgment comment
 			a.CommentCount++
@@ -1166,7 +1211,7 @@ func GetDashboardSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(settings))
 }
 
-func getFilteredAndSortedAlerts(filters webuimodels.DashboardFilters, sorting webuimodels.DashboardSorting, userID string, sessionID string) []*webuimodels.DashboardAlert {
+func getFilteredAndSortedAlerts(filters webuimodels.DashboardFilters, sorting webuimodels.DashboardSorting, userID string, sessionID string, currentUsername string) []*webuimodels.DashboardAlert {
 	// Get alerts based on display mode
 	var allAlerts []*webuimodels.DashboardAlert
 
@@ -1194,7 +1239,7 @@ func getFilteredAndSortedAlerts(filters webuimodels.DashboardFilters, sorting we
 	}
 
 	// Apply filters
-	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID)
+	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID, currentUsername)
 
 	// Apply sorting
 	sortedAlerts := applySorting(filteredAlerts, sorting)
@@ -1202,7 +1247,7 @@ func getFilteredAndSortedAlerts(filters webuimodels.DashboardFilters, sorting we
 	return sortedAlerts
 }
 
-func getDashboardMetadata(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string) webuimodels.DashboardMetadata {
+func getDashboardMetadata(alerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string, currentUsername string) webuimodels.DashboardMetadata {
 	// Get all alerts for total counts
 	var allAlerts []*webuimodels.DashboardAlert
 
@@ -1230,11 +1275,12 @@ func getDashboardMetadata(alerts []*webuimodels.DashboardAlert, filters webuimod
 		allAlerts = alertCache.GetAllAlerts()
 	}
 
-	return buildDashboardMetadata(allAlerts, alerts, filters, userID, sessionID)
+	return buildDashboardMetadata(allAlerts, alerts, filters, userID, sessionID, currentUsername)
 }
 
 func PostDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
+	currentUsername := getCurrentUsername(c)
 	sessionID := middleware.GetSessionID(c)
 
 	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
@@ -1258,7 +1304,7 @@ func PostDashboardIncremental(c *gin.Context) {
 	}
 
 	// Get current alerts
-	currentAlerts := getFilteredAndSortedAlerts(filters, sorting, userID, sessionID)
+	currentAlerts := getFilteredAndSortedAlerts(filters, sorting, userID, sessionID, currentUsername)
 
 	// Get client's current alert fingerprints from POST body
 	var req webuimodels.DashboardIncrementalRequest
@@ -1275,11 +1321,12 @@ func PostDashboardIncremental(c *gin.Context) {
 	}
 
 	// Process incremental update
-	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, lastUpdate)
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, currentUsername, lastUpdate)
 }
 
 func GetDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
+	currentUsername := getCurrentUsername(c)
 	sessionID := middleware.GetSessionID(c)
 
 	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
@@ -1308,7 +1355,7 @@ func GetDashboardIncremental(c *gin.Context) {
 	}
 
 	// Get current alerts
-	currentAlerts := getFilteredAndSortedAlerts(filters, sorting, userID, sessionID)
+	currentAlerts := getFilteredAndSortedAlerts(filters, sorting, userID, sessionID, currentUsername)
 
 	// Get client's current alert fingerprints from query parameter
 	clientFingerprintsStr := c.Query("clientAlerts")
@@ -1322,10 +1369,10 @@ func GetDashboardIncremental(c *gin.Context) {
 	}
 
 	// Process incremental update
-	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, lastUpdate)
+	processIncremental(c, currentAlerts, clientFingerprints, settings, userID, sessionID, currentUsername, lastUpdate)
 }
 
-func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAlert, clientFingerprints map[string]bool, settings *webuimodels.DashboardSettings, userID string, sessionID string, lastUpdate int64) {
+func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAlert, clientFingerprints map[string]bool, settings *webuimodels.DashboardSettings, userID string, sessionID string, currentUsername string, lastUpdate int64) {
 	// Parse filters from query parameters for metadata
 	filters := parseDashboardFilters(c)
 
@@ -1362,7 +1409,7 @@ func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAl
 	}
 
 	// Get updated metadata
-	metadata := getDashboardMetadata(currentAlerts, filters, userID, sessionID)
+	metadata := getDashboardMetadata(currentAlerts, filters, userID, sessionID, currentUsername)
 
 	// Get colors for new and updated alerts (combined; helper returns nil if none)
 	alertsForColors := make([]*webuimodels.DashboardAlert, 0, len(newAlerts)+len(updatedAlerts))
@@ -1919,7 +1966,7 @@ func GetAlertColors(c *gin.Context) {
 	}
 
 	// Apply filters (same as dashboard data)
-	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID)
+	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID, getCurrentUsername(c))
 
 	// Check if color service is available
 	if colorService == nil {
