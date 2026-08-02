@@ -16,15 +16,15 @@ The whole page is a single Alpine component, `newDashboard()`
 (`scripts/dashboard_core.templ:5`), mounted with `x-data` on the outer div
 (`NewDashboard.templ:14`). Its logic is split across script files that each attach methods to a
 `window.dashboard*Mixin` global; `init()` merges them onto the one instance with
-`Object.assign(this, window.dashboardDataMixin || {})` etc. (`dashboard_core.templ:287`). This is
+`Object.assign(this, window.dashboardDataMixin || {})` etc. (`dashboard_core.templ:314`). This is
 a **hand-rolled mixin pattern, not an Alpine plugin.**
 
-The scripts included at the bottom of the page (`NewDashboard.templ:986`):
+The scripts included at the bottom of the page (`NewDashboard.templ:964`):
 `NotificationService`, `DashboardFilterPresetsMixin`, `DashboardResolvedAlertsMixin`,
 `DashboardCore`, `DashboardData`, `DashboardActions`, `DashboardUtilities`, `DashboardModal`,
 `DashboardSettings`.
 
-`init()` (`dashboard_core.templ:287`) also sets **`window.dashboardInstance = this`** — a
+`init()` (`dashboard_core.templ:314`) also sets **`window.dashboardInstance = this`** — a
 load-bearing global that modals, dropdowns, the Sentry loader, and the logout handler all reach
 into. Removing it silently breaks unrelated features. `init()` further installs a `fetch`
 interceptor that redirects to `/login` on any 401, tracks first-load state in `sessionStorage`,
@@ -36,7 +36,7 @@ filters, starts SSE (or polling), and opens the alert modal if the URL is `/dash
 ### Full load
 
 `loadDashboardData()` (`scripts/dashboard_data.templ:6`) → `GET /api/v1/dashboard/data` →
-`GetDashboardData` (`dashboard_handlers.go:112`). The server reads from the in-memory
+`GetDashboardData` (`dashboard_handlers.go:121`). The server reads from the in-memory
 **`alertCache`** (not a per-request Alertmanager call — see [webui](webui.md#alert-cache)); the
 subset depends on `displayMode`:
 
@@ -47,15 +47,15 @@ subset depends on `displayMode`:
 | `resolved` | statistics "recently resolved" (see [statistics](statistics.md)) |
 | `hidden` / `full` | active + resolved combined |
 
-The server then applies filters (`applyDashboardFilters`, `dashboard_handlers.go:356`), sorting,
+The server then applies filters (`applyDashboardFilters`, `dashboard_handlers.go:422`), sorting,
 pagination, and either flat-list or group-by rendering. Filter **dropdown option lists** and
-counters (`buildDashboardMetadata:628`) are computed from the *full* alert set for that display
+counters (`buildDashboardMetadata:735`) are computed from the *full* alert set for that display
 mode, not the filtered page — so dropdowns don't shrink as you filter (intentional, looks like a
 bug but isn't).
 
 ### Live updates (SSE) and the client-side merge
 
-`initSSE()` (`dashboard_core.templ:458`) opens `EventSource('/api/v1/dashboard/stream')`; `update`
+`initSSE()` (`dashboard_core.templ:497`) opens `EventSource('/api/v1/dashboard/stream')`; `update`
 events go to `applyIncrementalUpdate()`. Server side, `SSEStream`
 (`internal/webui/handlers/sse_handler.go:25`) subscribes to `alertCache.Subscribe()` and forwards
 each change plus a 30s `ping`. On SSE error the client falls back to polling
@@ -73,7 +73,7 @@ filter-out. See [notifications](notifications.md#what-triggers-a-notification).
 
 > ⚠️ **SSE broadcasts unfiltered, colorless data to every subscriber.** The server does no
 > per-user filtering on the SSE path (unlike the polling path). Therefore the client re-applies
-> filters itself via **`alertMatchesFilters()`** (`dashboard_data.templ:421`) — a full JS
+> filters itself via **`alertMatchesFilters()`** (`dashboard_data.templ:514`) — a full JS
 > reimplementation of the server's `applyDashboardFilters`. **These two must be kept in sync:**
 > any new server-side filter dimension that isn't mirrored in `alertMatchesFilters` silently
 > breaks live updates for that filter. Colors aren't in SSE payloads either, so the client
@@ -82,7 +82,7 @@ filter-out. See [notifications](notifications.md#what-triggers-a-notification).
 > `this.alerts` is set), fixing first-paint color lag; the standalone `GET /alert-colors` endpoint
 > remains as a fallback.
 
-**Adaptive polling** (only when not on SSE, `dashboard_core.templ:506`): every 10 polls it slows
+**Adaptive polling** (only when not on SSE, `dashboard_core.templ:546`): every 10 polls it slows
 toward 60s if <10% of polls saw changes, or speeds toward 5s if >50% did.
 
 ## Filtering and grouping
@@ -102,18 +102,18 @@ See [domain](domain.md#collaboration-state-persisted-by-the-backend).
 
 **Grouping** (`viewMode = 'group'`) renders `AlertsGroupView`; the group-by field
 (`groupByLabel`, default `alertname`) is grouped server-side by `groupAlertsByLabel`
-(`dashboard_handlers.go:559`) — supports `alertname`/`severity`/`team`/`instance` plus any
+(`dashboard_handlers.go:605`) — supports `alertname`/`severity`/`team`/`instance` plus any
 arbitrary label key (fallback bucket `"Other"`). Each group carries a `WorstSeverity`.
 
 ## The dynamic table and configurable columns
 
 The table (`components/dynamic_alerts_table.templ`) is fully driven by `this.columns` /
 `this.visibleColumns`. Cells are rendered by `renderCell(alert, column)`
-(`dashboard_utilities.templ:655`), dispatching on `column.formatter`
+(`dashboard_utilities.templ:666`), dispatching on `column.formatter`
 (`checkbox|text|badge|duration|timestamp|count|actions`) to functions that emit HTML strings
 inserted via `x-html`. `getFieldValue` resolves dotted `field_path` (e.g. `labels.environment`).
 
-11 default columns (`getDefaultColumns:639`). The Column Config modal
+11 default columns (`getDefaultColumns:649`). The Column Config modal
 (`components/column_config_modal.templ`) supports drag-reorder, visibility, width (50–800px),
 and creating **custom columns** backed by any label/annotation. Preferences persist via
 `GET/PUT /api/v1/dashboard/column-preferences`, and column configs can also travel inside a filter
@@ -123,7 +123,7 @@ preset. Server validates configs (unique id/order, width bounds, allowed formatt
 ## Alert actions
 
 Every single and bulk action funnels through **`POST /api/v1/dashboard/bulk-action`** →
-`BulkActionAlerts` (`dashboard_handlers.go:759`) → per-fingerprint `processAlertAction`. The
+`BulkActionAlerts` (`dashboard_handlers.go:832`) → per-fingerprint `processAlertAction`. The
 response's top-level `success` reflects `FailedCount == 0` — a partial failure returns HTTP 200
 with `success: false` and a per-target `failures: [{target, kind, error}]` list, not a hardcoded
 `true` with the errors buried in an ignored `errors` field.
@@ -152,8 +152,18 @@ can be triaged without the mouse: `j`/`k` move the cursor, `Enter`/`o` open its 
 `x` toggles its selection (`Shift+X` selects/clears all), `a`/`s` acknowledge/silence the cursor
 row **or the current multi-selection if one exists**, `c` opens details on the Comments tab, `h`
 hides the cursor row, and `?` toggles a shortcuts-help sheet (`keyboard_shortcuts_help.templ`).
-`Escape` closes the help sheet, defers to an open dashboard modal's own handler, or clears the
-selection.
+
+**`Escape` is owned by this handler, not by the modals.** The dashboard's modals are plain
+`x-show` divs with no key handling of their own, so `closeTopModal()`
+(`dashboard_keyboard.templ:217`) holds a single ordered list of layers — help sheet, the settings
+modal's hidden-rule dialog, the add-column dialog, Ack, Silence, alert details, filter presets,
+column config, settings — and closes **only the top-most open one**, through the same call its own
+Cancel button / backdrop click uses (`closeAlertModal()` for the details modal, so the deep-link
+URL is popped too). Per-modal `@keydown.escape.window` listeners were deliberately not used: they
+all fire on the same event and would collapse the whole stack at once. Settings swallows `Escape`
+while a save is in flight, mirroring its backdrop. If nothing is open, `Escape` clears the alert
+selection — unless focus is in a text field, so `Escape` in the search box leaves the selection
+alone.
 
 Shortcuts are gated by `shortcutsActive()`: disabled while any dashboard modal is open
 (`modalOpen()`), while a Ctrl/Cmd/Alt modifier is held (so browser/OS shortcuts aren't hijacked),
@@ -195,14 +205,14 @@ comment/audit write sites; a `comments.Kind` column and a `comments.created_at` 
 
 ## Alert detail modal
 
-`AlertDetailsModal` (`components/modal_components.templ:921`), opened by
-`showAlertDetails(fingerprint)` (`dashboard_modal.templ:6`), which `pushState`s the URL to
-`/dashboard/alert/:fingerprint` so deep links work (`router.go:354` re-renders the page and
+`AlertDetailsModal` (`components/modal_components.templ:934`), opened by
+`showAlertDetails(fingerprint)` (`dashboard_modal.templ:52`), which `pushState`s the URL to
+`/dashboard/alert/:fingerprint` so deep links work (`router.go:379` re-renders the page and
 `checkAlertFromURL()` reopens the modal). A fingerprint unknown to both the live cache and
 `resolved_alerts`, or a fetch failure, now surfaces a `showActionError()` toast instead of just
 a browser-console log — a bare deep link to a purged/expired alert used to fail silently.
 Data comes from `GET /api/v1/dashboard/alert/:fingerprint`
-→ `GetAlertDetails` (`dashboard_handlers.go:1231`): the cached alert plus, if the backend is
+→ `GetAlertDetails` (`dashboard_handlers.go:1342`): the cached alert plus, if the backend is
 connected, its comments and acknowledgments.
 
 Tabs: **Overview**, **Details** (fingerprint, generator URL), **Labels** / **Annotations**
@@ -212,12 +222,12 @@ and **Sentry** (only if the alert carries a `sentry` annotation/label; lazy-load
 host is validated against the configured `sentry.base_url` and a mismatch is rejected rather than
 fetched, see [Sentry SSRF fix](#gotchas)). Header offers Silence/Unsilence, configurable per-user
 **annotation buttons**, Ack/Unack, "Source" (`generatorURL`), "Copy as Issue" (builds a Markdown
-issue and copies it), and **"Copy link"** (`copyAlertLink()`, `dashboard_modal.templ:128` — copies
+issue and copies it), and **"Copy link"** (`copyAlertLink()`, `dashboard_modal.templ:129` — copies
 the same `/dashboard/alert/:fingerprint` deep-link URL used for `pushState`, with a 2s inline
 checkmark icon swap on the button itself).
 
 The **History** tab's data also feeds a client-only **30-day frequency sparkline**
-(`computeSparkline()`, `dashboard_modal.templ:627`): a pure-JS histogram over the already
+(`computeSparkline()`, `dashboard_modal.templ:635`): a pure-JS histogram over the already
 lazy-loaded history entries bucketed into 30 daily bins, showing total occurrences (capped at the
 history endpoint's 50-entry limit, shown as "≥N"), and a week-over-week trend arrow. No new
 endpoint or charting library. It's hidden for alerts with only a single occurrence
@@ -228,8 +238,10 @@ The severity badge (both here and in the alert modal's shared header partial,
 (`.toLowerCase().startsWith('critical'|'warning'|'info')`) rather than an exact match, so values
 like `critical-high` or `Warning` still get the right color.
 
-> ⚠️ The modal's `Silences` field is **always empty** (`dashboard_handlers.go:1289`, not
-> implemented) — only `status.silencedBy` IDs are available.
+> The modal's `Silences` field is filled by `fetchAlertSilences` (`silence_handlers.go:146`, called
+> from `dashboard_handlers.go:1402`): it resolves each `status.silencedBy` ID against **only the
+> Alertmanager the alert came from** (one request per ID), and skips IDs it can't resolve rather
+> than failing the modal — so an unresolvable silence shows up as a missing entry, not an error.
 
 ## Filter presets, resolved view, colors
 
@@ -245,7 +257,7 @@ like `critical-high` or `Warning` still get the right color.
 - **Resolved alerts view** (`displayMode==='resolved'`) is **not** from the cache — it queries the
   statistics subsystem (`POST /api/v1/statistics/recently-resolved`) and reconciles historical
   "resolved" against live cache status. Full detail in [statistics](statistics.md#recently-resolved).
-- **Colors**: `getAlertColor()` (`dashboard_utilities.templ:540`) returns per-row colors from
+- **Colors**: `getAlertColor()` (`dashboard_utilities.templ:536`) returns per-row colors from
   either rule-based **user color preferences** (server-computed, `/alert-colors`) or a hardcoded
   severity-fallback palette. See [domain](domain.md#collaboration-state-persisted-by-the-backend).
 
@@ -253,7 +265,7 @@ like `critical-high` or `Warning` still get the right color.
 
 The dashboard doesn't implement notifications; it calls `window.notificationService`. On first
 load it seeds the "seen" set (`initializeSeenAlerts`); on every merge it calls
-`processNewAlerts(this.alerts, this.filters, this.currentUser.id)` (`dashboard_data.templ:367`). A
+`processNewAlerts(this.alerts, this.filters, this.currentUser.id)` (`dashboard_data.templ:457`). A
 dismissible banner prompts for browser-notification permission. Full behavior in
 [notifications](notifications.md).
 
@@ -277,7 +289,7 @@ dismissible banner prompts for browser-notification permission. Full behavior in
 - **Resolve is local-only; Silence bypasses the backend** (see actions above).
 - **`window.dashboardInstance`** is relied on across the codebase — don't rename/remove it.
 - Classic-mode ack/resolved counters are special-cased with a second pass
-  (`dashboard_handlers.go:681`) — account for it when changing counter logic.
+  (`dashboard_handlers.go:775`) — account for it when changing counter logic.
 - **`hideCursorRow()` (keyboard `h`) deliberately doesn't reuse `hideSelected()`** — borrowing
   `selectedAlerts` as scratch space would let `x`/`Shift+X`/`a`/`s` observe or clobber it mid-request.
   It fires its own request and guards against key-repeat with an in-flight flag.

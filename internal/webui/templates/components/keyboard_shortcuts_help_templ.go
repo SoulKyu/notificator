@@ -42,7 +42,7 @@ func KeyboardShortcutsHelp() templ.Component {
 			{"s", "Silence — cursor row, or the selection if non-empty"},
 			{"c", "Open the detail modal on the Comments tab"},
 			{"h", "Hide the cursor row"},
-			{"Esc", "Clear selection, or close the top-most modal"},
+			{"Esc", "Close the top-most modal, or clear the selection"},
 			{"?", "Toggle this cheat sheet"},
 		} {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex items-center justify-between gap-4\"><dt class=\"text-gray-600 dark:text-gray-400\">")

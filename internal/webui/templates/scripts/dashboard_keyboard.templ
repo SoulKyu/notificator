@@ -207,18 +207,44 @@ templ DashboardKeyboardMixin() {
 				}
 			},
 
+			// Escape is owned here rather than by each modal: the dashboard's modals are
+			// plain x-show divs with no key handling of their own, and giving each one a
+			// @keydown.escape.window listener would fire them all on the same event,
+			// collapsing a whole stack of layers at once. One ordered list instead,
+			// top-most layer first (z-70 down to z-50), each entry closing through the
+			// same path as that layer's own Cancel button / backdrop click. Every state
+			// modalOpen() reports is covered, so `false` means nothing was open.
+			closeTopModal() {
+				// showHiddenRuleModal and settingsSaving live in the settings modal's own
+				// Alpine scope; its init() publishes that scope on window for reach-ins like this.
+				const settings = window.currentSettingsModal;
+				const layers = [
+					[() => this.showShortcutsHelp, () => { this.showShortcutsHelp = false; }],
+					[() => this.showSettings && settings && settings.showHiddenRuleModal, () => settings.cancelHiddenRule()],
+					[() => this.showAddColumnDialog, () => {
+						this.showAddColumnDialog = false;
+						this.editingColumn = null;
+						this.resetNewColumnConfig();
+					}],
+					[() => this.showAckModal, () => { this.showAckModal = false; }],
+					[() => this.showSilenceModal, () => { this.showSilenceModal = false; }],
+					[() => this.showAlertModal, () => this.closeAlertModal()],
+					[() => this.showFilterPresetsModal, () => { this.showFilterPresetsModal = false; }],
+					[() => this.showColumnConfigModal, () => { this.showColumnConfigModal = false; }],
+					// Settings swallows Escape while a save is in flight, like its backdrop click does.
+					[() => this.showSettings, () => {
+						if (!(settings && settings.settingsSaving)) this.showSettings = false;
+					}],
+				];
+				const layer = layers.find(([isOpen]) => isOpen());
+				if (!layer) return false;
+				layer[1]();
+				return true;
+			},
+
 			handleDashboardKeydown(event) {
 				if (event.key === 'Escape') {
-					if (this.showShortcutsHelp) {
-						this.showShortcutsHelp = false;
-						return;
-					}
-					// A dashboard modal is open — let its own Escape handler close it
-					// instead of also clearing the selection underneath it.
-					if (this.showSettings || this.showAckModal || this.showSilenceModal ||
-						this.showAlertModal || this.showFilterPresetsModal || this.showColumnConfigModal) {
-						return;
-					}
+					if (this.closeTopModal()) return;
 					// Escape on a text field (e.g. the search box) should not clear the
 					// alert selection as a side effect of blurring/clearing that field.
 					if (this.isTypingTarget(event.target)) return;
