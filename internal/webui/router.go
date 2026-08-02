@@ -264,6 +264,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 			dashboard.POST("/settings", handlers.SaveDashboardSettings)
 			dashboard.GET("/alert/:fingerprint", handlers.GetAlertDetails)
 			dashboard.GET("/alert/:fingerprint/history", handlers.HandleGetAlertHistory)
+			dashboard.GET("/alert/:fingerprint/related", handlers.HandleGetRelatedAlerts)
 			dashboard.POST("/alert/:fingerprint/comments", handlers.AddAlertComment)
 			dashboard.DELETE("/alert/:fingerprint/comments/:commentId", handlers.DeleteAlertComment)
 			dashboard.POST("/alerts/bulk-status", handlers.GetBulkAlertStatus)
