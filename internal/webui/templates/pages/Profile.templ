@@ -173,7 +173,7 @@ templ ProfileContent(data ProfileData) {
 							</a>
 							
 							if data.User.OAuthProvider == nil {
-								<button @click="showChangePassword" class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+								<button @click="showChangePasswordModal = true" class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
 									<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
 									</svg>
@@ -197,7 +197,71 @@ templ ProfileContent(data ProfileData) {
 				</div>
 			</div>
 		</div>
-		
+
+		<!-- Change Password Modal -->
+		<div x-show="showChangePasswordModal" class="fixed inset-0 z-50 overflow-y-auto" x-transition style="display: none;">
+			<div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+				<div class="fixed inset-0 bg-gray-500/75 dark:bg-black/60 backdrop-blur-sm transition-opacity z-0" @click="closeChangePasswordModal()"></div>
+
+				<div class="inline-block align-bottom bg-white dark:bg-dark-bg-secondary rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full relative z-10 border border-gray-200/50 dark:border-dark-border-subtle/50" @click.stop>
+					<div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-dark-border-subtle">
+						<h3 class="text-lg font-semibold text-gray-900 dark:text-white">Change Password</h3>
+						<button @click="closeChangePasswordModal()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary transition-colors group">
+							<svg class="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+						</button>
+					</div>
+
+					<div class="px-6 py-4 space-y-4">
+						<div x-show="changePasswordError" class="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-400" x-text="changePasswordError"></div>
+						<div x-show="changePasswordSuccess" class="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-sm text-green-700 dark:text-green-400">
+							Password changed successfully.
+						</div>
+
+						<div x-show="!changePasswordSuccess">
+							<label for="current-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
+							<input type="password" id="current-password" name="current-password"
+								x-model="currentPassword" autocomplete="current-password"
+								class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white sm:text-sm"/>
+						</div>
+
+						<div x-show="!changePasswordSuccess">
+							<label for="new-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
+							<input type="password" id="new-password" name="new-password"
+								x-model="newPassword" autocomplete="new-password"
+								class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white sm:text-sm"/>
+						</div>
+
+						<div x-show="!changePasswordSuccess">
+							<label for="confirm-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
+							<input type="password" id="confirm-password" name="confirm-password"
+								x-model="confirmPassword" autocomplete="new-password"
+								@keydown.enter="changePassword()"
+								class="block w-full border-gray-300 dark:border-dark-border-DEFAULT rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-dark-bg-tertiary dark:text-white sm:text-sm"/>
+						</div>
+					</div>
+
+					<div class="px-6 py-4 border-t border-gray-200 dark:border-dark-border-subtle flex gap-2">
+						<button x-show="!changePasswordSuccess" @click="changePassword()" :disabled="changePasswordLoading"
+							:class="changePasswordLoading ? 'opacity-50 cursor-not-allowed' : ''"
+							class="flex-1 inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+							<span x-show="!changePasswordLoading">Change Password</span>
+							<span x-show="changePasswordLoading">Changing...</span>
+						</button>
+						<button x-show="changePasswordSuccess" @click="closeChangePasswordModal()"
+							class="flex-1 inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+							Done
+						</button>
+						<button x-show="!changePasswordSuccess" @click="closeChangePasswordModal()"
+							class="inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-dark-border-DEFAULT text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-gray-700">
+							Cancel
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 	</div>
 
 	<script>
@@ -205,6 +269,14 @@ templ ProfileContent(data ProfileData) {
 			return {
 				idCopied: false,
 				userId: '',
+
+				showChangePasswordModal: false,
+				currentPassword: '',
+				newPassword: '',
+				confirmPassword: '',
+				changePasswordError: '',
+				changePasswordSuccess: false,
+				changePasswordLoading: false,
 
 				init() {
 					this.userId = this.$el.dataset.userId;
@@ -232,9 +304,57 @@ templ ProfileContent(data ProfileData) {
 					});
 				},
 
-				showChangePassword() {
-					// TODO: Implement change password modal
-					alert('Change password functionality coming soon!');
+				closeChangePasswordModal() {
+					this.showChangePasswordModal = false;
+					this.currentPassword = '';
+					this.newPassword = '';
+					this.confirmPassword = '';
+					this.changePasswordError = '';
+					this.changePasswordSuccess = false;
+					this.changePasswordLoading = false;
+				},
+
+				async changePassword() {
+					this.changePasswordError = '';
+
+					if (!this.currentPassword || !this.newPassword || !this.confirmPassword) {
+						this.changePasswordError = 'All fields are required';
+						return;
+					}
+					if (this.newPassword !== this.confirmPassword) {
+						this.changePasswordError = 'New password and confirmation do not match';
+						return;
+					}
+					if (this.newPassword.length < 4) {
+						this.changePasswordError = 'New password must be at least 4 characters long';
+						return;
+					}
+
+					this.changePasswordLoading = true;
+					try {
+						const response = await fetch('/api/v1/auth/change-password', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({
+								old_password: this.currentPassword,
+								new_password: this.newPassword
+							})
+						});
+						const data = await response.json();
+						if (!response.ok || !data.success) {
+							this.changePasswordError = data.error || 'Failed to change password';
+							return;
+						}
+						this.changePasswordSuccess = true;
+						this.currentPassword = '';
+						this.newPassword = '';
+						this.confirmPassword = '';
+					} catch (err) {
+						console.error('Failed to change password:', err);
+						this.changePasswordError = 'Failed to change password';
+					} finally {
+						this.changePasswordLoading = false;
+					}
 				}
 			}
 		}

@@ -705,6 +705,118 @@ func (x *UpdateTimezoneResponse) GetError() string {
 	return ""
 }
 
+type ChangePasswordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	OldPassword   string                 `protobuf:"bytes,2,opt,name=old_password,json=oldPassword,proto3" json:"old_password,omitempty"`
+	NewPassword   string                 `protobuf:"bytes,3,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangePasswordRequest) Reset() {
+	*x = ChangePasswordRequest{}
+	mi := &file_proto_auth_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangePasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangePasswordRequest) ProtoMessage() {}
+
+func (x *ChangePasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangePasswordRequest.ProtoReflect.Descriptor instead.
+func (*ChangePasswordRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ChangePasswordRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *ChangePasswordRequest) GetOldPassword() string {
+	if x != nil {
+		return x.OldPassword
+	}
+	return ""
+}
+
+func (x *ChangePasswordRequest) GetNewPassword() string {
+	if x != nil {
+		return x.NewPassword
+	}
+	return ""
+}
+
+type ChangePasswordResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangePasswordResponse) Reset() {
+	*x = ChangePasswordResponse{}
+	mi := &file_proto_auth_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangePasswordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangePasswordResponse) ProtoMessage() {}
+
+func (x *ChangePasswordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangePasswordResponse.ProtoReflect.Descriptor instead.
+func (*ChangePasswordResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ChangePasswordResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ChangePasswordResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -721,7 +833,7 @@ type User struct {
 
 func (x *User) Reset() {
 	*x = User{}
-	mi := &file_proto_auth_proto_msgTypes[12]
+	mi := &file_proto_auth_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -733,7 +845,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[12]
+	mi := &file_proto_auth_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -746,7 +858,7 @@ func (x *User) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use User.ProtoReflect.Descriptor instead.
 func (*User) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{12}
+	return file_proto_auth_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *User) GetId() string {
@@ -815,7 +927,7 @@ type SearchUsersRequest struct {
 
 func (x *SearchUsersRequest) Reset() {
 	*x = SearchUsersRequest{}
-	mi := &file_proto_auth_proto_msgTypes[13]
+	mi := &file_proto_auth_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -827,7 +939,7 @@ func (x *SearchUsersRequest) String() string {
 func (*SearchUsersRequest) ProtoMessage() {}
 
 func (x *SearchUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[13]
+	mi := &file_proto_auth_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -840,7 +952,7 @@ func (x *SearchUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUsersRequest.ProtoReflect.Descriptor instead.
 func (*SearchUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{13}
+	return file_proto_auth_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SearchUsersRequest) GetQuery() string {
@@ -867,7 +979,7 @@ type SearchUsersResponse struct {
 
 func (x *SearchUsersResponse) Reset() {
 	*x = SearchUsersResponse{}
-	mi := &file_proto_auth_proto_msgTypes[14]
+	mi := &file_proto_auth_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -879,7 +991,7 @@ func (x *SearchUsersResponse) String() string {
 func (*SearchUsersResponse) ProtoMessage() {}
 
 func (x *SearchUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[14]
+	mi := &file_proto_auth_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -892,7 +1004,7 @@ func (x *SearchUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUsersResponse.ProtoReflect.Descriptor instead.
 func (*SearchUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{14}
+	return file_proto_auth_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SearchUsersResponse) GetUsers() []*User {
@@ -920,7 +1032,7 @@ type ListUsersRequest struct {
 
 func (x *ListUsersRequest) Reset() {
 	*x = ListUsersRequest{}
-	mi := &file_proto_auth_proto_msgTypes[15]
+	mi := &file_proto_auth_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -932,7 +1044,7 @@ func (x *ListUsersRequest) String() string {
 func (*ListUsersRequest) ProtoMessage() {}
 
 func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[15]
+	mi := &file_proto_auth_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -945,7 +1057,7 @@ func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
 func (*ListUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{15}
+	return file_proto_auth_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListUsersRequest) GetSessionId() string {
@@ -981,7 +1093,7 @@ type ListUsersResponse struct {
 
 func (x *ListUsersResponse) Reset() {
 	*x = ListUsersResponse{}
-	mi := &file_proto_auth_proto_msgTypes[16]
+	mi := &file_proto_auth_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -993,7 +1105,7 @@ func (x *ListUsersResponse) String() string {
 func (*ListUsersResponse) ProtoMessage() {}
 
 func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[16]
+	mi := &file_proto_auth_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1006,7 +1118,7 @@ func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersResponse.ProtoReflect.Descriptor instead.
 func (*ListUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{16}
+	return file_proto_auth_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListUsersResponse) GetSuccess() bool {
@@ -1047,7 +1159,7 @@ type ResolveSilenceCreatorsRequest struct {
 
 func (x *ResolveSilenceCreatorsRequest) Reset() {
 	*x = ResolveSilenceCreatorsRequest{}
-	mi := &file_proto_auth_proto_msgTypes[17]
+	mi := &file_proto_auth_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1059,7 +1171,7 @@ func (x *ResolveSilenceCreatorsRequest) String() string {
 func (*ResolveSilenceCreatorsRequest) ProtoMessage() {}
 
 func (x *ResolveSilenceCreatorsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[17]
+	mi := &file_proto_auth_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1072,7 +1184,7 @@ func (x *ResolveSilenceCreatorsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveSilenceCreatorsRequest.ProtoReflect.Descriptor instead.
 func (*ResolveSilenceCreatorsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{17}
+	return file_proto_auth_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ResolveSilenceCreatorsRequest) GetSessionId() string {
@@ -1100,7 +1212,7 @@ type ResolveSilenceCreatorsResponse struct {
 
 func (x *ResolveSilenceCreatorsResponse) Reset() {
 	*x = ResolveSilenceCreatorsResponse{}
-	mi := &file_proto_auth_proto_msgTypes[18]
+	mi := &file_proto_auth_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1224,7 @@ func (x *ResolveSilenceCreatorsResponse) String() string {
 func (*ResolveSilenceCreatorsResponse) ProtoMessage() {}
 
 func (x *ResolveSilenceCreatorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[18]
+	mi := &file_proto_auth_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1237,7 @@ func (x *ResolveSilenceCreatorsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveSilenceCreatorsResponse.ProtoReflect.Descriptor instead.
 func (*ResolveSilenceCreatorsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{18}
+	return file_proto_auth_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ResolveSilenceCreatorsResponse) GetSuccess() bool {
@@ -1160,7 +1272,7 @@ type OAuthAuthURLRequest struct {
 
 func (x *OAuthAuthURLRequest) Reset() {
 	*x = OAuthAuthURLRequest{}
-	mi := &file_proto_auth_proto_msgTypes[19]
+	mi := &file_proto_auth_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1172,7 +1284,7 @@ func (x *OAuthAuthURLRequest) String() string {
 func (*OAuthAuthURLRequest) ProtoMessage() {}
 
 func (x *OAuthAuthURLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[19]
+	mi := &file_proto_auth_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1185,7 +1297,7 @@ func (x *OAuthAuthURLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OAuthAuthURLRequest.ProtoReflect.Descriptor instead.
 func (*OAuthAuthURLRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{19}
+	return file_proto_auth_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *OAuthAuthURLRequest) GetProvider() string {
@@ -1213,7 +1325,7 @@ type OAuthAuthURLResponse struct {
 
 func (x *OAuthAuthURLResponse) Reset() {
 	*x = OAuthAuthURLResponse{}
-	mi := &file_proto_auth_proto_msgTypes[20]
+	mi := &file_proto_auth_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1225,7 +1337,7 @@ func (x *OAuthAuthURLResponse) String() string {
 func (*OAuthAuthURLResponse) ProtoMessage() {}
 
 func (x *OAuthAuthURLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[20]
+	mi := &file_proto_auth_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,7 +1350,7 @@ func (x *OAuthAuthURLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OAuthAuthURLResponse.ProtoReflect.Descriptor instead.
 func (*OAuthAuthURLResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{20}
+	return file_proto_auth_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *OAuthAuthURLResponse) GetSuccess() bool {
@@ -1273,7 +1385,7 @@ type OAuthCallbackRequest struct {
 
 func (x *OAuthCallbackRequest) Reset() {
 	*x = OAuthCallbackRequest{}
-	mi := &file_proto_auth_proto_msgTypes[21]
+	mi := &file_proto_auth_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1285,7 +1397,7 @@ func (x *OAuthCallbackRequest) String() string {
 func (*OAuthCallbackRequest) ProtoMessage() {}
 
 func (x *OAuthCallbackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[21]
+	mi := &file_proto_auth_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1298,7 +1410,7 @@ func (x *OAuthCallbackRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OAuthCallbackRequest.ProtoReflect.Descriptor instead.
 func (*OAuthCallbackRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{21}
+	return file_proto_auth_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *OAuthCallbackRequest) GetProvider() string {
@@ -1330,7 +1442,7 @@ type GetOAuthProvidersRequest struct {
 
 func (x *GetOAuthProvidersRequest) Reset() {
 	*x = GetOAuthProvidersRequest{}
-	mi := &file_proto_auth_proto_msgTypes[22]
+	mi := &file_proto_auth_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1342,7 +1454,7 @@ func (x *GetOAuthProvidersRequest) String() string {
 func (*GetOAuthProvidersRequest) ProtoMessage() {}
 
 func (x *GetOAuthProvidersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[22]
+	mi := &file_proto_auth_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1355,7 +1467,7 @@ func (x *GetOAuthProvidersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOAuthProvidersRequest.ProtoReflect.Descriptor instead.
 func (*GetOAuthProvidersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{22}
+	return file_proto_auth_proto_rawDescGZIP(), []int{24}
 }
 
 type GetOAuthProvidersResponse struct {
@@ -1367,7 +1479,7 @@ type GetOAuthProvidersResponse struct {
 
 func (x *GetOAuthProvidersResponse) Reset() {
 	*x = GetOAuthProvidersResponse{}
-	mi := &file_proto_auth_proto_msgTypes[23]
+	mi := &file_proto_auth_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1379,7 +1491,7 @@ func (x *GetOAuthProvidersResponse) String() string {
 func (*GetOAuthProvidersResponse) ProtoMessage() {}
 
 func (x *GetOAuthProvidersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[23]
+	mi := &file_proto_auth_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1392,7 +1504,7 @@ func (x *GetOAuthProvidersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOAuthProvidersResponse.ProtoReflect.Descriptor instead.
 func (*GetOAuthProvidersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{23}
+	return file_proto_auth_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetOAuthProvidersResponse) GetProviders() []*OAuthProvider {
@@ -1410,7 +1522,7 @@ type GetOAuthConfigRequest struct {
 
 func (x *GetOAuthConfigRequest) Reset() {
 	*x = GetOAuthConfigRequest{}
-	mi := &file_proto_auth_proto_msgTypes[24]
+	mi := &file_proto_auth_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1422,7 +1534,7 @@ func (x *GetOAuthConfigRequest) String() string {
 func (*GetOAuthConfigRequest) ProtoMessage() {}
 
 func (x *GetOAuthConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[24]
+	mi := &file_proto_auth_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1435,7 +1547,7 @@ func (x *GetOAuthConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOAuthConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetOAuthConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{24}
+	return file_proto_auth_proto_rawDescGZIP(), []int{26}
 }
 
 type GetOAuthConfigResponse struct {
@@ -1450,7 +1562,7 @@ type GetOAuthConfigResponse struct {
 
 func (x *GetOAuthConfigResponse) Reset() {
 	*x = GetOAuthConfigResponse{}
-	mi := &file_proto_auth_proto_msgTypes[25]
+	mi := &file_proto_auth_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1462,7 +1574,7 @@ func (x *GetOAuthConfigResponse) String() string {
 func (*GetOAuthConfigResponse) ProtoMessage() {}
 
 func (x *GetOAuthConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[25]
+	mi := &file_proto_auth_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1475,7 +1587,7 @@ func (x *GetOAuthConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOAuthConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetOAuthConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{25}
+	return file_proto_auth_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetOAuthConfigResponse) GetEnabled() bool {
@@ -1517,7 +1629,7 @@ type OAuthProvider struct {
 
 func (x *OAuthProvider) Reset() {
 	*x = OAuthProvider{}
-	mi := &file_proto_auth_proto_msgTypes[26]
+	mi := &file_proto_auth_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1529,7 +1641,7 @@ func (x *OAuthProvider) String() string {
 func (*OAuthProvider) ProtoMessage() {}
 
 func (x *OAuthProvider) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[26]
+	mi := &file_proto_auth_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1542,7 +1654,7 @@ func (x *OAuthProvider) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OAuthProvider.ProtoReflect.Descriptor instead.
 func (*OAuthProvider) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{26}
+	return file_proto_auth_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *OAuthProvider) GetName() string {
@@ -1577,7 +1689,7 @@ type GetUserGroupsRequest struct {
 
 func (x *GetUserGroupsRequest) Reset() {
 	*x = GetUserGroupsRequest{}
-	mi := &file_proto_auth_proto_msgTypes[27]
+	mi := &file_proto_auth_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1589,7 +1701,7 @@ func (x *GetUserGroupsRequest) String() string {
 func (*GetUserGroupsRequest) ProtoMessage() {}
 
 func (x *GetUserGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[27]
+	mi := &file_proto_auth_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1602,7 +1714,7 @@ func (x *GetUserGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserGroupsRequest.ProtoReflect.Descriptor instead.
 func (*GetUserGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{27}
+	return file_proto_auth_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *GetUserGroupsRequest) GetUserId() string {
@@ -1628,7 +1740,7 @@ type GetUserGroupsResponse struct {
 
 func (x *GetUserGroupsResponse) Reset() {
 	*x = GetUserGroupsResponse{}
-	mi := &file_proto_auth_proto_msgTypes[28]
+	mi := &file_proto_auth_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1640,7 +1752,7 @@ func (x *GetUserGroupsResponse) String() string {
 func (*GetUserGroupsResponse) ProtoMessage() {}
 
 func (x *GetUserGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[28]
+	mi := &file_proto_auth_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1653,7 +1765,7 @@ func (x *GetUserGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserGroupsResponse.ProtoReflect.Descriptor instead.
 func (*GetUserGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{28}
+	return file_proto_auth_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GetUserGroupsResponse) GetGroups() []*UserGroup {
@@ -1677,7 +1789,7 @@ type UserGroup struct {
 
 func (x *UserGroup) Reset() {
 	*x = UserGroup{}
-	mi := &file_proto_auth_proto_msgTypes[29]
+	mi := &file_proto_auth_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1689,7 +1801,7 @@ func (x *UserGroup) String() string {
 func (*UserGroup) ProtoMessage() {}
 
 func (x *UserGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[29]
+	mi := &file_proto_auth_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1702,7 +1814,7 @@ func (x *UserGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserGroup.ProtoReflect.Descriptor instead.
 func (*UserGroup) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{29}
+	return file_proto_auth_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *UserGroup) GetId() string {
@@ -1758,7 +1870,7 @@ type SyncUserGroupsRequest struct {
 
 func (x *SyncUserGroupsRequest) Reset() {
 	*x = SyncUserGroupsRequest{}
-	mi := &file_proto_auth_proto_msgTypes[30]
+	mi := &file_proto_auth_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1770,7 +1882,7 @@ func (x *SyncUserGroupsRequest) String() string {
 func (*SyncUserGroupsRequest) ProtoMessage() {}
 
 func (x *SyncUserGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[30]
+	mi := &file_proto_auth_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1783,7 +1895,7 @@ func (x *SyncUserGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncUserGroupsRequest.ProtoReflect.Descriptor instead.
 func (*SyncUserGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{30}
+	return file_proto_auth_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *SyncUserGroupsRequest) GetUserId() string {
@@ -1818,7 +1930,7 @@ type SyncUserGroupsResponse struct {
 
 func (x *SyncUserGroupsResponse) Reset() {
 	*x = SyncUserGroupsResponse{}
-	mi := &file_proto_auth_proto_msgTypes[31]
+	mi := &file_proto_auth_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1830,7 +1942,7 @@ func (x *SyncUserGroupsResponse) String() string {
 func (*SyncUserGroupsResponse) ProtoMessage() {}
 
 func (x *SyncUserGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[31]
+	mi := &file_proto_auth_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1843,7 +1955,7 @@ func (x *SyncUserGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncUserGroupsResponse.ProtoReflect.Descriptor instead.
 func (*SyncUserGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{31}
+	return file_proto_auth_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *SyncUserGroupsResponse) GetSuccess() bool {
@@ -1878,7 +1990,7 @@ type GetUserSentryConfigRequest struct {
 
 func (x *GetUserSentryConfigRequest) Reset() {
 	*x = GetUserSentryConfigRequest{}
-	mi := &file_proto_auth_proto_msgTypes[32]
+	mi := &file_proto_auth_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1890,7 +2002,7 @@ func (x *GetUserSentryConfigRequest) String() string {
 func (*GetUserSentryConfigRequest) ProtoMessage() {}
 
 func (x *GetUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[32]
+	mi := &file_proto_auth_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1903,7 +2015,7 @@ func (x *GetUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserSentryConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetUserSentryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{32}
+	return file_proto_auth_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *GetUserSentryConfigRequest) GetUserId() string {
@@ -1931,7 +2043,7 @@ type GetUserSentryConfigResponse struct {
 
 func (x *GetUserSentryConfigResponse) Reset() {
 	*x = GetUserSentryConfigResponse{}
-	mi := &file_proto_auth_proto_msgTypes[33]
+	mi := &file_proto_auth_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1943,7 +2055,7 @@ func (x *GetUserSentryConfigResponse) String() string {
 func (*GetUserSentryConfigResponse) ProtoMessage() {}
 
 func (x *GetUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[33]
+	mi := &file_proto_auth_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1956,7 +2068,7 @@ func (x *GetUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserSentryConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetUserSentryConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{33}
+	return file_proto_auth_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *GetUserSentryConfigResponse) GetSuccess() bool {
@@ -1992,7 +2104,7 @@ type SaveUserSentryConfigRequest struct {
 
 func (x *SaveUserSentryConfigRequest) Reset() {
 	*x = SaveUserSentryConfigRequest{}
-	mi := &file_proto_auth_proto_msgTypes[34]
+	mi := &file_proto_auth_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2004,7 +2116,7 @@ func (x *SaveUserSentryConfigRequest) String() string {
 func (*SaveUserSentryConfigRequest) ProtoMessage() {}
 
 func (x *SaveUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[34]
+	mi := &file_proto_auth_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2017,7 +2129,7 @@ func (x *SaveUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveUserSentryConfigRequest.ProtoReflect.Descriptor instead.
 func (*SaveUserSentryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{34}
+	return file_proto_auth_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *SaveUserSentryConfigRequest) GetUserId() string {
@@ -2058,7 +2170,7 @@ type SaveUserSentryConfigResponse struct {
 
 func (x *SaveUserSentryConfigResponse) Reset() {
 	*x = SaveUserSentryConfigResponse{}
-	mi := &file_proto_auth_proto_msgTypes[35]
+	mi := &file_proto_auth_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2070,7 +2182,7 @@ func (x *SaveUserSentryConfigResponse) String() string {
 func (*SaveUserSentryConfigResponse) ProtoMessage() {}
 
 func (x *SaveUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[35]
+	mi := &file_proto_auth_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2083,7 +2195,7 @@ func (x *SaveUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveUserSentryConfigResponse.ProtoReflect.Descriptor instead.
 func (*SaveUserSentryConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{35}
+	return file_proto_auth_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *SaveUserSentryConfigResponse) GetSuccess() bool {
@@ -2110,7 +2222,7 @@ type DeleteUserSentryConfigRequest struct {
 
 func (x *DeleteUserSentryConfigRequest) Reset() {
 	*x = DeleteUserSentryConfigRequest{}
-	mi := &file_proto_auth_proto_msgTypes[36]
+	mi := &file_proto_auth_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2122,7 +2234,7 @@ func (x *DeleteUserSentryConfigRequest) String() string {
 func (*DeleteUserSentryConfigRequest) ProtoMessage() {}
 
 func (x *DeleteUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[36]
+	mi := &file_proto_auth_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2135,7 +2247,7 @@ func (x *DeleteUserSentryConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteUserSentryConfigRequest.ProtoReflect.Descriptor instead.
 func (*DeleteUserSentryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{36}
+	return file_proto_auth_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *DeleteUserSentryConfigRequest) GetUserId() string {
@@ -2162,7 +2274,7 @@ type DeleteUserSentryConfigResponse struct {
 
 func (x *DeleteUserSentryConfigResponse) Reset() {
 	*x = DeleteUserSentryConfigResponse{}
-	mi := &file_proto_auth_proto_msgTypes[37]
+	mi := &file_proto_auth_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2174,7 +2286,7 @@ func (x *DeleteUserSentryConfigResponse) String() string {
 func (*DeleteUserSentryConfigResponse) ProtoMessage() {}
 
 func (x *DeleteUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[37]
+	mi := &file_proto_auth_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2187,7 +2299,7 @@ func (x *DeleteUserSentryConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteUserSentryConfigResponse.ProtoReflect.Descriptor instead.
 func (*DeleteUserSentryConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{37}
+	return file_proto_auth_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *DeleteUserSentryConfigResponse) GetSuccess() bool {
@@ -2214,7 +2326,7 @@ type GetUserSentryTokenRequest struct {
 
 func (x *GetUserSentryTokenRequest) Reset() {
 	*x = GetUserSentryTokenRequest{}
-	mi := &file_proto_auth_proto_msgTypes[38]
+	mi := &file_proto_auth_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2226,7 +2338,7 @@ func (x *GetUserSentryTokenRequest) String() string {
 func (*GetUserSentryTokenRequest) ProtoMessage() {}
 
 func (x *GetUserSentryTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[38]
+	mi := &file_proto_auth_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2239,7 +2351,7 @@ func (x *GetUserSentryTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserSentryTokenRequest.ProtoReflect.Descriptor instead.
 func (*GetUserSentryTokenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{38}
+	return file_proto_auth_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetUserSentryTokenRequest) GetUserId() string {
@@ -2268,7 +2380,7 @@ type GetUserSentryTokenResponse struct {
 
 func (x *GetUserSentryTokenResponse) Reset() {
 	*x = GetUserSentryTokenResponse{}
-	mi := &file_proto_auth_proto_msgTypes[39]
+	mi := &file_proto_auth_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2280,7 +2392,7 @@ func (x *GetUserSentryTokenResponse) String() string {
 func (*GetUserSentryTokenResponse) ProtoMessage() {}
 
 func (x *GetUserSentryTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[39]
+	mi := &file_proto_auth_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2293,7 +2405,7 @@ func (x *GetUserSentryTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserSentryTokenResponse.ProtoReflect.Descriptor instead.
 func (*GetUserSentryTokenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{39}
+	return file_proto_auth_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetUserSentryTokenResponse) GetSuccess() bool {
@@ -2336,7 +2448,7 @@ type UserSentryConfig struct {
 
 func (x *UserSentryConfig) Reset() {
 	*x = UserSentryConfig{}
-	mi := &file_proto_auth_proto_msgTypes[40]
+	mi := &file_proto_auth_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2348,7 +2460,7 @@ func (x *UserSentryConfig) String() string {
 func (*UserSentryConfig) ProtoMessage() {}
 
 func (x *UserSentryConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[40]
+	mi := &file_proto_auth_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2361,7 +2473,7 @@ func (x *UserSentryConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserSentryConfig.ProtoReflect.Descriptor instead.
 func (*UserSentryConfig) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{40}
+	return file_proto_auth_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *UserSentryConfig) GetUserId() string {
@@ -2402,7 +2514,7 @@ type GetConnectedUsersRequest struct {
 
 func (x *GetConnectedUsersRequest) Reset() {
 	*x = GetConnectedUsersRequest{}
-	mi := &file_proto_auth_proto_msgTypes[41]
+	mi := &file_proto_auth_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2414,7 +2526,7 @@ func (x *GetConnectedUsersRequest) String() string {
 func (*GetConnectedUsersRequest) ProtoMessage() {}
 
 func (x *GetConnectedUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[41]
+	mi := &file_proto_auth_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2427,7 +2539,7 @@ func (x *GetConnectedUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConnectedUsersRequest.ProtoReflect.Descriptor instead.
 func (*GetConnectedUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{41}
+	return file_proto_auth_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GetConnectedUsersRequest) GetSessionId() string {
@@ -2449,7 +2561,7 @@ type GetConnectedUsersResponse struct {
 
 func (x *GetConnectedUsersResponse) Reset() {
 	*x = GetConnectedUsersResponse{}
-	mi := &file_proto_auth_proto_msgTypes[42]
+	mi := &file_proto_auth_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2461,7 +2573,7 @@ func (x *GetConnectedUsersResponse) String() string {
 func (*GetConnectedUsersResponse) ProtoMessage() {}
 
 func (x *GetConnectedUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[42]
+	mi := &file_proto_auth_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2474,7 +2586,7 @@ func (x *GetConnectedUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConnectedUsersResponse.ProtoReflect.Descriptor instead.
 func (*GetConnectedUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{42}
+	return file_proto_auth_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *GetConnectedUsersResponse) GetSuccess() bool {
@@ -2518,7 +2630,7 @@ type ConnectedUser struct {
 
 func (x *ConnectedUser) Reset() {
 	*x = ConnectedUser{}
-	mi := &file_proto_auth_proto_msgTypes[43]
+	mi := &file_proto_auth_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2530,7 +2642,7 @@ func (x *ConnectedUser) String() string {
 func (*ConnectedUser) ProtoMessage() {}
 
 func (x *ConnectedUser) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_auth_proto_msgTypes[43]
+	mi := &file_proto_auth_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2543,7 +2655,7 @@ func (x *ConnectedUser) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectedUser.ProtoReflect.Descriptor instead.
 func (*ConnectedUser) Descriptor() ([]byte, []int) {
-	return file_proto_auth_proto_rawDescGZIP(), []int{43}
+	return file_proto_auth_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ConnectedUser) GetUserId() string {
@@ -2633,6 +2745,14 @@ const file_proto_auth_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1a\n" +
 	"\btimezone\x18\x02 \x01(\tR\btimezone\"H\n" +
 	"\x16UpdateTimezoneResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"|\n" +
+	"\x15ChangePasswordRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
+	"\fold_password\x18\x02 \x01(\tR\voldPassword\x12!\n" +
+	"\fnew_password\x18\x03 \x01(\tR\vnewPassword\"H\n" +
+	"\x16ChangePasswordResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\x9c\x02\n" +
 	"\x04User\x12\x0e\n" +
@@ -2775,7 +2895,7 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12#\n" +
 	"\rsession_count\x18\x04 \x01(\x05R\fsessionCount\x12?\n" +
-	"\rlast_activity\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\flastActivity2\xe9\x0f\n" +
+	"\rlast_activity\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\flastActivity2\xce\x10\n" +
 	"\vAuthService\x12Q\n" +
 	"\bRegister\x12!.notificator.auth.RegisterRequest\x1a\".notificator.auth.RegisterResponse\x12H\n" +
 	"\x05Login\x12\x1e.notificator.auth.LoginRequest\x1a\x1f.notificator.auth.LoginResponse\x12K\n" +
@@ -2783,7 +2903,8 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\x0fValidateSession\x12(.notificator.auth.ValidateSessionRequest\x1a).notificator.auth.ValidateSessionResponse\x12W\n" +
 	"\n" +
 	"GetProfile\x12#.notificator.auth.GetProfileRequest\x1a$.notificator.auth.GetProfileResponse\x12c\n" +
-	"\x0eUpdateTimezone\x12'.notificator.auth.UpdateTimezoneRequest\x1a(.notificator.auth.UpdateTimezoneResponse\x12Z\n" +
+	"\x0eUpdateTimezone\x12'.notificator.auth.UpdateTimezoneRequest\x1a(.notificator.auth.UpdateTimezoneResponse\x12c\n" +
+	"\x0eChangePassword\x12'.notificator.auth.ChangePasswordRequest\x1a(.notificator.auth.ChangePasswordResponse\x12Z\n" +
 	"\vSearchUsers\x12$.notificator.auth.SearchUsersRequest\x1a%.notificator.auth.SearchUsersResponse\x12T\n" +
 	"\tListUsers\x12\".notificator.auth.ListUsersRequest\x1a#.notificator.auth.ListUsersResponse\x12{\n" +
 	"\x16ResolveSilenceCreators\x12/.notificator.auth.ResolveSilenceCreatorsRequest\x1a0.notificator.auth.ResolveSilenceCreatorsResponse\x12`\n" +
@@ -2811,7 +2932,7 @@ func file_proto_auth_proto_rawDescGZIP() []byte {
 	return file_proto_auth_proto_rawDescData
 }
 
-var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
+var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_proto_auth_proto_goTypes = []any{
 	(*RegisterRequest)(nil),                // 0: notificator.auth.RegisterRequest
 	(*RegisterResponse)(nil),               // 1: notificator.auth.RegisterResponse
@@ -2825,101 +2946,105 @@ var file_proto_auth_proto_goTypes = []any{
 	(*GetProfileResponse)(nil),             // 9: notificator.auth.GetProfileResponse
 	(*UpdateTimezoneRequest)(nil),          // 10: notificator.auth.UpdateTimezoneRequest
 	(*UpdateTimezoneResponse)(nil),         // 11: notificator.auth.UpdateTimezoneResponse
-	(*User)(nil),                           // 12: notificator.auth.User
-	(*SearchUsersRequest)(nil),             // 13: notificator.auth.SearchUsersRequest
-	(*SearchUsersResponse)(nil),            // 14: notificator.auth.SearchUsersResponse
-	(*ListUsersRequest)(nil),               // 15: notificator.auth.ListUsersRequest
-	(*ListUsersResponse)(nil),              // 16: notificator.auth.ListUsersResponse
-	(*ResolveSilenceCreatorsRequest)(nil),  // 17: notificator.auth.ResolveSilenceCreatorsRequest
-	(*ResolveSilenceCreatorsResponse)(nil), // 18: notificator.auth.ResolveSilenceCreatorsResponse
-	(*OAuthAuthURLRequest)(nil),            // 19: notificator.auth.OAuthAuthURLRequest
-	(*OAuthAuthURLResponse)(nil),           // 20: notificator.auth.OAuthAuthURLResponse
-	(*OAuthCallbackRequest)(nil),           // 21: notificator.auth.OAuthCallbackRequest
-	(*GetOAuthProvidersRequest)(nil),       // 22: notificator.auth.GetOAuthProvidersRequest
-	(*GetOAuthProvidersResponse)(nil),      // 23: notificator.auth.GetOAuthProvidersResponse
-	(*GetOAuthConfigRequest)(nil),          // 24: notificator.auth.GetOAuthConfigRequest
-	(*GetOAuthConfigResponse)(nil),         // 25: notificator.auth.GetOAuthConfigResponse
-	(*OAuthProvider)(nil),                  // 26: notificator.auth.OAuthProvider
-	(*GetUserGroupsRequest)(nil),           // 27: notificator.auth.GetUserGroupsRequest
-	(*GetUserGroupsResponse)(nil),          // 28: notificator.auth.GetUserGroupsResponse
-	(*UserGroup)(nil),                      // 29: notificator.auth.UserGroup
-	(*SyncUserGroupsRequest)(nil),          // 30: notificator.auth.SyncUserGroupsRequest
-	(*SyncUserGroupsResponse)(nil),         // 31: notificator.auth.SyncUserGroupsResponse
-	(*GetUserSentryConfigRequest)(nil),     // 32: notificator.auth.GetUserSentryConfigRequest
-	(*GetUserSentryConfigResponse)(nil),    // 33: notificator.auth.GetUserSentryConfigResponse
-	(*SaveUserSentryConfigRequest)(nil),    // 34: notificator.auth.SaveUserSentryConfigRequest
-	(*SaveUserSentryConfigResponse)(nil),   // 35: notificator.auth.SaveUserSentryConfigResponse
-	(*DeleteUserSentryConfigRequest)(nil),  // 36: notificator.auth.DeleteUserSentryConfigRequest
-	(*DeleteUserSentryConfigResponse)(nil), // 37: notificator.auth.DeleteUserSentryConfigResponse
-	(*GetUserSentryTokenRequest)(nil),      // 38: notificator.auth.GetUserSentryTokenRequest
-	(*GetUserSentryTokenResponse)(nil),     // 39: notificator.auth.GetUserSentryTokenResponse
-	(*UserSentryConfig)(nil),               // 40: notificator.auth.UserSentryConfig
-	(*GetConnectedUsersRequest)(nil),       // 41: notificator.auth.GetConnectedUsersRequest
-	(*GetConnectedUsersResponse)(nil),      // 42: notificator.auth.GetConnectedUsersResponse
-	(*ConnectedUser)(nil),                  // 43: notificator.auth.ConnectedUser
-	nil,                                    // 44: notificator.auth.ResolveSilenceCreatorsResponse.UsernamesEntry
-	(*timestamppb.Timestamp)(nil),          // 45: google.protobuf.Timestamp
+	(*ChangePasswordRequest)(nil),          // 12: notificator.auth.ChangePasswordRequest
+	(*ChangePasswordResponse)(nil),         // 13: notificator.auth.ChangePasswordResponse
+	(*User)(nil),                           // 14: notificator.auth.User
+	(*SearchUsersRequest)(nil),             // 15: notificator.auth.SearchUsersRequest
+	(*SearchUsersResponse)(nil),            // 16: notificator.auth.SearchUsersResponse
+	(*ListUsersRequest)(nil),               // 17: notificator.auth.ListUsersRequest
+	(*ListUsersResponse)(nil),              // 18: notificator.auth.ListUsersResponse
+	(*ResolveSilenceCreatorsRequest)(nil),  // 19: notificator.auth.ResolveSilenceCreatorsRequest
+	(*ResolveSilenceCreatorsResponse)(nil), // 20: notificator.auth.ResolveSilenceCreatorsResponse
+	(*OAuthAuthURLRequest)(nil),            // 21: notificator.auth.OAuthAuthURLRequest
+	(*OAuthAuthURLResponse)(nil),           // 22: notificator.auth.OAuthAuthURLResponse
+	(*OAuthCallbackRequest)(nil),           // 23: notificator.auth.OAuthCallbackRequest
+	(*GetOAuthProvidersRequest)(nil),       // 24: notificator.auth.GetOAuthProvidersRequest
+	(*GetOAuthProvidersResponse)(nil),      // 25: notificator.auth.GetOAuthProvidersResponse
+	(*GetOAuthConfigRequest)(nil),          // 26: notificator.auth.GetOAuthConfigRequest
+	(*GetOAuthConfigResponse)(nil),         // 27: notificator.auth.GetOAuthConfigResponse
+	(*OAuthProvider)(nil),                  // 28: notificator.auth.OAuthProvider
+	(*GetUserGroupsRequest)(nil),           // 29: notificator.auth.GetUserGroupsRequest
+	(*GetUserGroupsResponse)(nil),          // 30: notificator.auth.GetUserGroupsResponse
+	(*UserGroup)(nil),                      // 31: notificator.auth.UserGroup
+	(*SyncUserGroupsRequest)(nil),          // 32: notificator.auth.SyncUserGroupsRequest
+	(*SyncUserGroupsResponse)(nil),         // 33: notificator.auth.SyncUserGroupsResponse
+	(*GetUserSentryConfigRequest)(nil),     // 34: notificator.auth.GetUserSentryConfigRequest
+	(*GetUserSentryConfigResponse)(nil),    // 35: notificator.auth.GetUserSentryConfigResponse
+	(*SaveUserSentryConfigRequest)(nil),    // 36: notificator.auth.SaveUserSentryConfigRequest
+	(*SaveUserSentryConfigResponse)(nil),   // 37: notificator.auth.SaveUserSentryConfigResponse
+	(*DeleteUserSentryConfigRequest)(nil),  // 38: notificator.auth.DeleteUserSentryConfigRequest
+	(*DeleteUserSentryConfigResponse)(nil), // 39: notificator.auth.DeleteUserSentryConfigResponse
+	(*GetUserSentryTokenRequest)(nil),      // 40: notificator.auth.GetUserSentryTokenRequest
+	(*GetUserSentryTokenResponse)(nil),     // 41: notificator.auth.GetUserSentryTokenResponse
+	(*UserSentryConfig)(nil),               // 42: notificator.auth.UserSentryConfig
+	(*GetConnectedUsersRequest)(nil),       // 43: notificator.auth.GetConnectedUsersRequest
+	(*GetConnectedUsersResponse)(nil),      // 44: notificator.auth.GetConnectedUsersResponse
+	(*ConnectedUser)(nil),                  // 45: notificator.auth.ConnectedUser
+	nil,                                    // 46: notificator.auth.ResolveSilenceCreatorsResponse.UsernamesEntry
+	(*timestamppb.Timestamp)(nil),          // 47: google.protobuf.Timestamp
 }
 var file_proto_auth_proto_depIdxs = []int32{
-	12, // 0: notificator.auth.LoginResponse.user:type_name -> notificator.auth.User
-	45, // 1: notificator.auth.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
-	12, // 2: notificator.auth.ValidateSessionResponse.user:type_name -> notificator.auth.User
-	12, // 3: notificator.auth.GetProfileResponse.user:type_name -> notificator.auth.User
-	45, // 4: notificator.auth.User.created_at:type_name -> google.protobuf.Timestamp
-	45, // 5: notificator.auth.User.last_login:type_name -> google.protobuf.Timestamp
-	12, // 6: notificator.auth.SearchUsersResponse.users:type_name -> notificator.auth.User
-	12, // 7: notificator.auth.ListUsersResponse.users:type_name -> notificator.auth.User
-	44, // 8: notificator.auth.ResolveSilenceCreatorsResponse.usernames:type_name -> notificator.auth.ResolveSilenceCreatorsResponse.UsernamesEntry
-	26, // 9: notificator.auth.GetOAuthProvidersResponse.providers:type_name -> notificator.auth.OAuthProvider
-	26, // 10: notificator.auth.GetOAuthConfigResponse.providers:type_name -> notificator.auth.OAuthProvider
-	29, // 11: notificator.auth.GetUserGroupsResponse.groups:type_name -> notificator.auth.UserGroup
-	40, // 12: notificator.auth.GetUserSentryConfigResponse.config:type_name -> notificator.auth.UserSentryConfig
-	45, // 13: notificator.auth.UserSentryConfig.created_at:type_name -> google.protobuf.Timestamp
-	45, // 14: notificator.auth.UserSentryConfig.updated_at:type_name -> google.protobuf.Timestamp
-	43, // 15: notificator.auth.GetConnectedUsersResponse.users:type_name -> notificator.auth.ConnectedUser
-	45, // 16: notificator.auth.ConnectedUser.last_activity:type_name -> google.protobuf.Timestamp
+	14, // 0: notificator.auth.LoginResponse.user:type_name -> notificator.auth.User
+	47, // 1: notificator.auth.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	14, // 2: notificator.auth.ValidateSessionResponse.user:type_name -> notificator.auth.User
+	14, // 3: notificator.auth.GetProfileResponse.user:type_name -> notificator.auth.User
+	47, // 4: notificator.auth.User.created_at:type_name -> google.protobuf.Timestamp
+	47, // 5: notificator.auth.User.last_login:type_name -> google.protobuf.Timestamp
+	14, // 6: notificator.auth.SearchUsersResponse.users:type_name -> notificator.auth.User
+	14, // 7: notificator.auth.ListUsersResponse.users:type_name -> notificator.auth.User
+	46, // 8: notificator.auth.ResolveSilenceCreatorsResponse.usernames:type_name -> notificator.auth.ResolveSilenceCreatorsResponse.UsernamesEntry
+	28, // 9: notificator.auth.GetOAuthProvidersResponse.providers:type_name -> notificator.auth.OAuthProvider
+	28, // 10: notificator.auth.GetOAuthConfigResponse.providers:type_name -> notificator.auth.OAuthProvider
+	31, // 11: notificator.auth.GetUserGroupsResponse.groups:type_name -> notificator.auth.UserGroup
+	42, // 12: notificator.auth.GetUserSentryConfigResponse.config:type_name -> notificator.auth.UserSentryConfig
+	47, // 13: notificator.auth.UserSentryConfig.created_at:type_name -> google.protobuf.Timestamp
+	47, // 14: notificator.auth.UserSentryConfig.updated_at:type_name -> google.protobuf.Timestamp
+	45, // 15: notificator.auth.GetConnectedUsersResponse.users:type_name -> notificator.auth.ConnectedUser
+	47, // 16: notificator.auth.ConnectedUser.last_activity:type_name -> google.protobuf.Timestamp
 	0,  // 17: notificator.auth.AuthService.Register:input_type -> notificator.auth.RegisterRequest
 	2,  // 18: notificator.auth.AuthService.Login:input_type -> notificator.auth.LoginRequest
 	4,  // 19: notificator.auth.AuthService.Logout:input_type -> notificator.auth.LogoutRequest
 	6,  // 20: notificator.auth.AuthService.ValidateSession:input_type -> notificator.auth.ValidateSessionRequest
 	8,  // 21: notificator.auth.AuthService.GetProfile:input_type -> notificator.auth.GetProfileRequest
 	10, // 22: notificator.auth.AuthService.UpdateTimezone:input_type -> notificator.auth.UpdateTimezoneRequest
-	13, // 23: notificator.auth.AuthService.SearchUsers:input_type -> notificator.auth.SearchUsersRequest
-	15, // 24: notificator.auth.AuthService.ListUsers:input_type -> notificator.auth.ListUsersRequest
-	17, // 25: notificator.auth.AuthService.ResolveSilenceCreators:input_type -> notificator.auth.ResolveSilenceCreatorsRequest
-	19, // 26: notificator.auth.AuthService.GetOAuthAuthURL:input_type -> notificator.auth.OAuthAuthURLRequest
-	21, // 27: notificator.auth.AuthService.OAuthCallback:input_type -> notificator.auth.OAuthCallbackRequest
-	22, // 28: notificator.auth.AuthService.GetOAuthProviders:input_type -> notificator.auth.GetOAuthProvidersRequest
-	24, // 29: notificator.auth.AuthService.GetOAuthConfig:input_type -> notificator.auth.GetOAuthConfigRequest
-	27, // 30: notificator.auth.AuthService.GetUserGroups:input_type -> notificator.auth.GetUserGroupsRequest
-	30, // 31: notificator.auth.AuthService.SyncUserGroups:input_type -> notificator.auth.SyncUserGroupsRequest
-	32, // 32: notificator.auth.AuthService.GetUserSentryConfig:input_type -> notificator.auth.GetUserSentryConfigRequest
-	38, // 33: notificator.auth.AuthService.GetUserSentryToken:input_type -> notificator.auth.GetUserSentryTokenRequest
-	34, // 34: notificator.auth.AuthService.SaveUserSentryConfig:input_type -> notificator.auth.SaveUserSentryConfigRequest
-	36, // 35: notificator.auth.AuthService.DeleteUserSentryConfig:input_type -> notificator.auth.DeleteUserSentryConfigRequest
-	41, // 36: notificator.auth.AuthService.GetConnectedUsers:input_type -> notificator.auth.GetConnectedUsersRequest
-	1,  // 37: notificator.auth.AuthService.Register:output_type -> notificator.auth.RegisterResponse
-	3,  // 38: notificator.auth.AuthService.Login:output_type -> notificator.auth.LoginResponse
-	5,  // 39: notificator.auth.AuthService.Logout:output_type -> notificator.auth.LogoutResponse
-	7,  // 40: notificator.auth.AuthService.ValidateSession:output_type -> notificator.auth.ValidateSessionResponse
-	9,  // 41: notificator.auth.AuthService.GetProfile:output_type -> notificator.auth.GetProfileResponse
-	11, // 42: notificator.auth.AuthService.UpdateTimezone:output_type -> notificator.auth.UpdateTimezoneResponse
-	14, // 43: notificator.auth.AuthService.SearchUsers:output_type -> notificator.auth.SearchUsersResponse
-	16, // 44: notificator.auth.AuthService.ListUsers:output_type -> notificator.auth.ListUsersResponse
-	18, // 45: notificator.auth.AuthService.ResolveSilenceCreators:output_type -> notificator.auth.ResolveSilenceCreatorsResponse
-	20, // 46: notificator.auth.AuthService.GetOAuthAuthURL:output_type -> notificator.auth.OAuthAuthURLResponse
-	3,  // 47: notificator.auth.AuthService.OAuthCallback:output_type -> notificator.auth.LoginResponse
-	23, // 48: notificator.auth.AuthService.GetOAuthProviders:output_type -> notificator.auth.GetOAuthProvidersResponse
-	25, // 49: notificator.auth.AuthService.GetOAuthConfig:output_type -> notificator.auth.GetOAuthConfigResponse
-	28, // 50: notificator.auth.AuthService.GetUserGroups:output_type -> notificator.auth.GetUserGroupsResponse
-	31, // 51: notificator.auth.AuthService.SyncUserGroups:output_type -> notificator.auth.SyncUserGroupsResponse
-	33, // 52: notificator.auth.AuthService.GetUserSentryConfig:output_type -> notificator.auth.GetUserSentryConfigResponse
-	39, // 53: notificator.auth.AuthService.GetUserSentryToken:output_type -> notificator.auth.GetUserSentryTokenResponse
-	35, // 54: notificator.auth.AuthService.SaveUserSentryConfig:output_type -> notificator.auth.SaveUserSentryConfigResponse
-	37, // 55: notificator.auth.AuthService.DeleteUserSentryConfig:output_type -> notificator.auth.DeleteUserSentryConfigResponse
-	42, // 56: notificator.auth.AuthService.GetConnectedUsers:output_type -> notificator.auth.GetConnectedUsersResponse
-	37, // [37:57] is the sub-list for method output_type
-	17, // [17:37] is the sub-list for method input_type
+	12, // 23: notificator.auth.AuthService.ChangePassword:input_type -> notificator.auth.ChangePasswordRequest
+	15, // 24: notificator.auth.AuthService.SearchUsers:input_type -> notificator.auth.SearchUsersRequest
+	17, // 25: notificator.auth.AuthService.ListUsers:input_type -> notificator.auth.ListUsersRequest
+	19, // 26: notificator.auth.AuthService.ResolveSilenceCreators:input_type -> notificator.auth.ResolveSilenceCreatorsRequest
+	21, // 27: notificator.auth.AuthService.GetOAuthAuthURL:input_type -> notificator.auth.OAuthAuthURLRequest
+	23, // 28: notificator.auth.AuthService.OAuthCallback:input_type -> notificator.auth.OAuthCallbackRequest
+	24, // 29: notificator.auth.AuthService.GetOAuthProviders:input_type -> notificator.auth.GetOAuthProvidersRequest
+	26, // 30: notificator.auth.AuthService.GetOAuthConfig:input_type -> notificator.auth.GetOAuthConfigRequest
+	29, // 31: notificator.auth.AuthService.GetUserGroups:input_type -> notificator.auth.GetUserGroupsRequest
+	32, // 32: notificator.auth.AuthService.SyncUserGroups:input_type -> notificator.auth.SyncUserGroupsRequest
+	34, // 33: notificator.auth.AuthService.GetUserSentryConfig:input_type -> notificator.auth.GetUserSentryConfigRequest
+	40, // 34: notificator.auth.AuthService.GetUserSentryToken:input_type -> notificator.auth.GetUserSentryTokenRequest
+	36, // 35: notificator.auth.AuthService.SaveUserSentryConfig:input_type -> notificator.auth.SaveUserSentryConfigRequest
+	38, // 36: notificator.auth.AuthService.DeleteUserSentryConfig:input_type -> notificator.auth.DeleteUserSentryConfigRequest
+	43, // 37: notificator.auth.AuthService.GetConnectedUsers:input_type -> notificator.auth.GetConnectedUsersRequest
+	1,  // 38: notificator.auth.AuthService.Register:output_type -> notificator.auth.RegisterResponse
+	3,  // 39: notificator.auth.AuthService.Login:output_type -> notificator.auth.LoginResponse
+	5,  // 40: notificator.auth.AuthService.Logout:output_type -> notificator.auth.LogoutResponse
+	7,  // 41: notificator.auth.AuthService.ValidateSession:output_type -> notificator.auth.ValidateSessionResponse
+	9,  // 42: notificator.auth.AuthService.GetProfile:output_type -> notificator.auth.GetProfileResponse
+	11, // 43: notificator.auth.AuthService.UpdateTimezone:output_type -> notificator.auth.UpdateTimezoneResponse
+	13, // 44: notificator.auth.AuthService.ChangePassword:output_type -> notificator.auth.ChangePasswordResponse
+	16, // 45: notificator.auth.AuthService.SearchUsers:output_type -> notificator.auth.SearchUsersResponse
+	18, // 46: notificator.auth.AuthService.ListUsers:output_type -> notificator.auth.ListUsersResponse
+	20, // 47: notificator.auth.AuthService.ResolveSilenceCreators:output_type -> notificator.auth.ResolveSilenceCreatorsResponse
+	22, // 48: notificator.auth.AuthService.GetOAuthAuthURL:output_type -> notificator.auth.OAuthAuthURLResponse
+	3,  // 49: notificator.auth.AuthService.OAuthCallback:output_type -> notificator.auth.LoginResponse
+	25, // 50: notificator.auth.AuthService.GetOAuthProviders:output_type -> notificator.auth.GetOAuthProvidersResponse
+	27, // 51: notificator.auth.AuthService.GetOAuthConfig:output_type -> notificator.auth.GetOAuthConfigResponse
+	30, // 52: notificator.auth.AuthService.GetUserGroups:output_type -> notificator.auth.GetUserGroupsResponse
+	33, // 53: notificator.auth.AuthService.SyncUserGroups:output_type -> notificator.auth.SyncUserGroupsResponse
+	35, // 54: notificator.auth.AuthService.GetUserSentryConfig:output_type -> notificator.auth.GetUserSentryConfigResponse
+	41, // 55: notificator.auth.AuthService.GetUserSentryToken:output_type -> notificator.auth.GetUserSentryTokenResponse
+	37, // 56: notificator.auth.AuthService.SaveUserSentryConfig:output_type -> notificator.auth.SaveUserSentryConfigResponse
+	39, // 57: notificator.auth.AuthService.DeleteUserSentryConfig:output_type -> notificator.auth.DeleteUserSentryConfigResponse
+	44, // 58: notificator.auth.AuthService.GetConnectedUsers:output_type -> notificator.auth.GetConnectedUsersResponse
+	38, // [38:59] is the sub-list for method output_type
+	17, // [17:38] is the sub-list for method input_type
 	17, // [17:17] is the sub-list for extension type_name
 	17, // [17:17] is the sub-list for extension extendee
 	0,  // [0:17] is the sub-list for field type_name
@@ -2936,7 +3061,7 @@ func file_proto_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_auth_proto_rawDesc), len(file_proto_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   45,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

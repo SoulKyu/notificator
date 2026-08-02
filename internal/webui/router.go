@@ -204,6 +204,7 @@ func SetupRouter(backendAddress string) (*gin.Engine, *services.AlertCache) {
 			authProtected.POST("/logout", handlers.Logout)
 			authProtected.GET("/me", handlers.GetCurrentUser)
 			authProtected.GET("/profile", handlers.GetCurrentUser) // Alias for user profile
+			authProtected.POST("/change-password", handlers.ChangePassword)
 		}
 
 		// Profile routes

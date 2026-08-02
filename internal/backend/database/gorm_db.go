@@ -239,6 +239,10 @@ func (gdb *GormDB) UpdateUserTimezone(userID, timezone string) error {
 	return gdb.db.Model(&models.User{}).Where("id = ?", userID).Update("timezone", timezone).Error
 }
 
+func (gdb *GormDB) UpdateUserPassword(userID, passwordHash string) error {
+	return gdb.db.Model(&models.User{}).Where("id = ?", userID).Update("password_hash", passwordHash).Error
+}
+
 func (gdb *GormDB) UpdateLastLogin(userID string) error {
 	now := time.Now()
 	return gdb.db.Model(&models.User{}).Where("id = ?", userID).Update("last_login", &now).Error
@@ -314,6 +318,11 @@ func (gdb *GormDB) DeleteSession(sessionID string) error {
 
 func (gdb *GormDB) CleanupExpiredSessions() error {
 	return gdb.db.Where("expires_at < ?", time.Now()).Delete(&models.Session{}).Error
+}
+
+// InvalidateUserSessions deletes all of a user's sessions except exceptSessionID.
+func (gdb *GormDB) InvalidateUserSessions(userID, exceptSessionID string) error {
+	return gdb.db.Where("user_id = ? AND id != ?", userID, exceptSessionID).Delete(&models.Session{}).Error
 }
 
 // ConnectedUserInfo represents a user with active session(s)
