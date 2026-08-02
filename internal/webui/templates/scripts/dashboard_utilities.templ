@@ -13,6 +13,7 @@ templ DashboardUtilities() {
 				if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 				if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 				(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
+				if (this.filters.ownedByMe) params.set('ownedByMe', 'true');
 				if (this.displayMode !== 'classic') params.set('displayMode', this.displayMode);
 				if (this.viewMode !== 'list') params.set('viewMode', this.viewMode);
 				if (this.sortField !== 'duration') params.set('sortField', this.sortField);
@@ -41,6 +42,7 @@ templ DashboardUtilities() {
 						? { key: raw.slice(0, raw.indexOf('=')), value: raw.slice(raw.indexOf('=') + 1) }
 						: null)
 					.filter(Boolean);
+				this.filters.ownedByMe = params.get('ownedByMe') === 'true';
 				this.displayMode = params.get('displayMode') || 'classic';
 				this.viewMode = params.get('viewMode') || 'list';
 				this.sortField = params.get('sortField') || 'duration';
@@ -688,6 +690,8 @@ templ DashboardUtilities() {
 					{id: "col_duration", label: "Duration", field_type: "system", field_path: "duration", formatter: "duration", width: 150, sortable: true, visible: true, order: 9, resizable: true, critical: false},
 					{id: "col_starts_at", label: "Triggered At", field_type: "system", field_path: "startsAt", formatter: "timestamp", width: 190, sortable: true, visible: true, order: 10, resizable: true, critical: false},
 					{id: "col_source", label: "Alertmanager", field_type: "system", field_path: "source", formatter: "text", width: 180, sortable: true, visible: true, order: 11, resizable: true, critical: false},
+					{id: "col_owner", label: "Owner", field_type: "system", field_path: "acknowledgedBy", formatter: "text", width: 160, sortable: false, visible: false, order: 12, resizable: true, critical: false},
+					{id: "col_ack_age", label: "Ack Age", field_type: "system", field_path: "acknowledgedAt", formatter: "ackage", width: 130, sortable: true, visible: false, order: 13, resizable: true, critical: false},
 				];
 			},
 
@@ -709,6 +713,8 @@ templ DashboardUtilities() {
 						return this.renderCount(value);
 					case 'actions':
 						return this.renderActions(alert);
+					case 'ackage':
+						return this.renderAckAge(alert);
 					default:
 						return this.renderText(value, column.field_path);
 				}
@@ -866,6 +872,40 @@ templ DashboardUtilities() {
 				} catch (e) {
 					return `<span class="text-sm font-mono text-gray-700 dark:text-gray-300">${this.escapeHtml(String(timestamp))}</span>`;
 				}
+			},
+
+			// Relative time since acknowledgement, with an amber "stale" marker once
+			// it exceeds the user's staleAckThresholdMinutes setting (0 = never stale)
+			renderAckAge(alert) {
+				if (!alert.isAcknowledged || !alert.acknowledgedAt) {
+					return '<span class="text-gray-400 dark:text-gray-500">-</span>';
+				}
+
+				const ackedAt = new Date(alert.acknowledgedAt).getTime();
+				const ageMs = Date.now() - ackedAt;
+				const ageMinutes = Math.floor(ageMs / 60000);
+
+				let ageText;
+				if (ageMinutes < 60) {
+					ageText = `${Math.max(ageMinutes, 0)}m`;
+				} else if (ageMinutes < 1440) {
+					ageText = `${Math.floor(ageMinutes / 60)}h`;
+				} else {
+					ageText = `${Math.floor(ageMinutes / 1440)}d`;
+				}
+
+				const thresholdHours = this.settings?.staleAckThresholdHours || 0;
+				const isStale = thresholdHours > 0 && ageMs > thresholdHours * 3600000;
+				const reason = alert.acknowledgeReason ? this.escapeHtml(alert.acknowledgeReason) : 'No reason given';
+
+				const classes = isStale
+					? 'inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400'
+					: 'text-sm font-mono text-gray-700 dark:text-gray-300 tabular-nums';
+
+				return `<span class="${classes}" title="${reason}">
+					${isStale ? '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>' : ''}
+					${ageText}${isStale ? ' stale' : ''}
+				</span>`;
 			},
 
 			renderCount(count) {

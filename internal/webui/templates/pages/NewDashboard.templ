@@ -137,10 +137,10 @@ templ NewDashboardContent() {
 									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
 								Resolved
 							</button>
-							<button @click="setDisplayMode('acknowledge')" 
-									:class="displayMode === 'acknowledge' ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'" 
+							<button @click="setDisplayMode('acknowledge')"
+									:class="displayMode === 'acknowledge' ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'"
 									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
-								Acknowledged
+								Acknowledged<span x-show="metadata.counters.staleAcknowledged > 0" x-text="' · ' + metadata.counters.staleAcknowledged + ' stale'" class="text-amber-600 dark:text-amber-400"></span>
 							</button>
 							<button @click="setDisplayMode('hidden')" 
 									:class="displayMode === 'hidden' ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'" 
@@ -149,9 +149,23 @@ templ NewDashboardContent() {
 							</button>
 						</div>
 
+						<!-- Mine / Everyone Toggle (acknowledged view only - the shift handover worklist) -->
+						<div x-show="displayMode === 'acknowledge'" x-cloak class="hidden md:flex items-center space-x-1 bg-gray-100 dark:bg-dark-bg-tertiary rounded-lg p-1">
+							<button @click="filters.ownedByMe = false; applyFilters()"
+									:class="!filters.ownedByMe ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'"
+									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
+								Everyone
+							</button>
+							<button @click="filters.ownedByMe = true; applyFilters()"
+									:class="filters.ownedByMe ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'"
+									class="px-3 py-1 text-sm font-medium rounded-md transition-colors">
+								Mine
+							</button>
+						</div>
+
 						<!-- View Mode Toggle -->
 						<div class="flex items-center space-x-1 bg-gray-100 dark:bg-dark-bg-tertiary rounded-lg p-1">
-							<button @click="setViewMode('list')" 
+							<button @click="setViewMode('list')"
 									:class="viewMode === 'list' ? 'bg-white dark:bg-dark-bg-secondary shadow text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'" 
 									class="p-2 rounded-md transition-colors">
 								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
