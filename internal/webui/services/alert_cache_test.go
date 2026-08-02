@@ -1459,6 +1459,10 @@ func TestAlertCache_CaptureAlertFiredSnapshot(t *testing.T) {
 	// grpc.NewClient connects lazily, so this never dials: IsConnected() is
 	// true immediately, and CaptureAlertFired reads its alert argument before
 	// it ever touches the network.
+	// Connect requires the shared service token since the gRPC auth interceptor
+	// landed; any 32+ char value satisfies the client-side length check (the
+	// lazy grpc.NewClient never dials, so it is never validated server-side).
+	t.Setenv("NOTIFICATOR_SERVICE_TOKEN", "0123456789abcdef0123456789abcdef0123456789abcdef")
 	backendClient := client.NewBackendClient("127.0.0.1:1")
 	if err := backendClient.Connect(); err != nil {
 		t.Fatalf("Connect: %v", err)
