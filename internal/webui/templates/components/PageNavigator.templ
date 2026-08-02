@@ -124,6 +124,9 @@ templ PageNavigator(activePage string) {
 				timer: null,
 
 				init() {
+					// The mentions view marks what it rendered as seen; recount straight away
+					// instead of waiting out the 30s poll.
+					window.addEventListener('notificator:mentions-seen', () => this.poll());
 					this.start();
 				},
 
@@ -156,7 +159,9 @@ templ PageNavigator(activePage string) {
 
 				async poll() {
 					try {
-						const response = await fetch('/api/v1/dashboard/activity?mentionsOnly=true&windowMinutes=10080', {
+						// No windowMinutes: a mentionsOnly request already defaults to the
+						// server's mentions window, the same one the mentions view opens at.
+						const response = await fetch('/api/v1/dashboard/activity?mentionsOnly=true', {
 							credentials: 'include'
 						});
 						const result = await response.json();
@@ -267,11 +272,10 @@ templ PageNavigator(activePage string) {
 					}
 				},
 
+				// Navigation only. The seen watermark is advanced by the mentions view once
+				// it has actually rendered the mentions - marking them seen here consumed
+				// every mention the view then failed to display.
 				openMentions() {
-					if (this.userId) {
-						localStorage.setItem(this.seenKey(), String(Date.now()));
-					}
-					this.unseenCount = 0;
 					window.location.href = '/activity?mentions=1';
 				}
 			};

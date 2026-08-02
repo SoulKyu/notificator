@@ -36,3 +36,13 @@ test("does not highlight a mention embedded after a longer token", () => {
 		"contact db01@bob.internal now",
 	);
 });
+
+test("a longer non-ascii handle is one mention, not addressed to the shorter user", () => {
+	const html = renderMentionText("handover to @bobé only", "bob");
+	assert.doesNotMatch(html, /mention-me/, "@bobé is not a mention of bob");
+	assert.match(html, />@bobé</, "the handle is wrapped whole");
+});
+
+test("the non-ascii handle is addressed to its own owner", () => {
+	assert.match(renderMentionText("handover to @bobé", "bobé"), /mention-me/);
+});

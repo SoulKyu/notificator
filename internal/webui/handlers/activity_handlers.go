@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,6 +18,12 @@ import (
 
 	"github.com/a-h/templ"
 )
+
+// MentionWindowMinutes is how far back a mentions feed reaches. It is the default
+// for any mentionsOnly request, so the unseen-mentions badge and the mentions view
+// cover exactly the same set of comments — a mention the badge counts is always a
+// mention the view can show.
+const MentionWindowMinutes = 7 * 24 * 60
 
 // alertResolver returns an alert's display fields from the cache.
 type alertResolver func(alertKey string) (name, source, severity, team string, ok bool)
@@ -70,37 +79,37 @@ func matchesActivitySearch(ev webuimodels.ActivityEvent, term string) bool {
 		strings.Contains(strings.ToLower(ev.AlertName), term)
 }
 
-// isMentionBoundaryByte reports whether b can be part of a username, so that
-// e.g. "@bob" is not treated as mentioning "bob" when the text actually says
-// "@bobby".
-func isMentionBoundaryByte(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
+// mentionHandleRE matches a whole "@handle" run. The handle character class is
+// Unicode-aware - letters and digits from any script, plus "_" and "-" - so an
+// accented handle like "@bobé" is one token rather than "@bob" followed by
+// something that a byte-wise scan mistakes for a word boundary.
+var mentionHandleRE = regexp.MustCompile(`@[\p{L}\p{N}_-]+`)
+
+// isMentionHandleRune reports whether r can be part of an "@handle".
+func isMentionHandleRune(r rune) bool {
+	return r == '_' || r == '-' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
-// mentionsUsername reports whether content contains an "@username" mention of
-// username, case-insensitively, and only when username isn't itself a prefix of
-// a longer handle in the text (so "@bob" does not match "@bobby"), nor embedded
-// after a longer token like an email address or hostname (so "ops-team@bob" or
-// "db01@bob.internal" does not match "bob").
+// mentionsUsername reports whether content @-mentions username, case-insensitively.
+//
+// Every "@handle" run in the text is extracted whole and compared to username as a
+// unit, so a longer handle can never be read as a mention of a shorter one: not for
+// ASCII ("@bobby" is not "bob") and not across a multi-byte rune ("@bobé" is not
+// "bob"). A run preceded by another handle rune is an address rather than a mention,
+// which keeps "ops-team@bob" and "db01@bob.internal" out.
 func mentionsUsername(content, username string) bool {
 	if username == "" {
 		return false
 	}
-	lower := strings.ToLower(content)
-	target := "@" + strings.ToLower(username)
-	for start := 0; ; {
-		idx := strings.Index(lower[start:], target)
-		if idx < 0 {
-			return false
+	for _, m := range mentionHandleRE.FindAllStringIndex(content, -1) {
+		if prev, _ := utf8.DecodeLastRuneInString(content[:m[0]]); isMentionHandleRune(prev) {
+			continue
 		}
-		pos := start + idx
-		end := pos + len(target)
-		if (pos == 0 || !isMentionBoundaryByte(lower[pos-1])) &&
-			(end == len(lower) || !isMentionBoundaryByte(lower[end])) {
+		if strings.EqualFold(content[m[0]+len("@"):m[1]], username) {
 			return true
 		}
-		start = pos + 1
 	}
+	return false
 }
 
 // GetActivity serves the activity feed JSON.
@@ -114,16 +123,6 @@ func GetActivity(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, webuimodels.ErrorResponse("Not authenticated"))
 		return
 	}
-
-	// window: minutes back from now, default 60. Only guarded for n > 0; there is no
-	// upper bound here — result size is instead bounded by the backend query's limit=200.
-	minutes := 60
-	if v := c.Query("windowMinutes"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			minutes = n
-		}
-	}
-	since := time.Now().Add(-time.Duration(minutes) * time.Minute)
 
 	// mentionsOnly narrows the feed to comments that @-mention the current user. Resolve
 	// the requesting user up front so the mention can be pushed into the backend query
@@ -139,6 +138,23 @@ func GetActivity(c *gin.Context) {
 		}
 		mentionUsername = u.Username
 	}
+
+	// window: minutes back from now. The general feed is a live tail, so it defaults to
+	// the last hour; a mentions feed defaults to MentionWindowMinutes because a mention
+	// is addressed to one person and has to keep until they read it. Both the badge and
+	// the mentions view derive their window from this single default, so they cannot
+	// disagree about which mentions exist. Only guarded for n > 0; there is no upper
+	// bound here — result size is instead bounded by the backend query's limit=200.
+	minutes := 60
+	if mentionsOnly {
+		minutes = MentionWindowMinutes
+	}
+	if v := c.Query("windowMinutes"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			minutes = n
+		}
+	}
+	since := time.Now().Add(-time.Duration(minutes) * time.Minute)
 
 	events, err := backendClient.GetRecentActivity(sessionID, since, 200, mentionUsername)
 	if err != nil {
@@ -233,6 +249,7 @@ func ActivityPage(c *gin.Context) {
 		return
 	}
 	templ.Handler(pages.Activity(pages.ActivityData{
-		User: pages.ProfileUser{ID: user.ID, Username: user.Username, Email: user.Email},
+		User:                 pages.ProfileUser{ID: user.ID, Username: user.Username, Email: user.Email},
+		MentionWindowMinutes: MentionWindowMinutes,
 	})).ServeHTTP(c.Writer, c.Request)
 }

@@ -18,10 +18,16 @@
 			.replace(/'/g, "&#39;");
 	}
 
+	// The handle class is Unicode-aware (letters/digits from any script, plus "_" and
+	// "-") and mirrors mentionHandleRE in internal/webui/handlers/activity_handlers.go.
+	// An ASCII-only class split "@bobé" into "@bob" + a boundary, so bob saw someone
+	// else's handle highlighted as addressed to him.
+	const MENTION_RE = /(?<![\p{L}\p{N}_-])@([\p{L}\p{N}_-]+)/gu;
+
 	function renderMentionText(content, currentUsername) {
 		const escaped = escapeHtml(content);
 		const me = String(currentUsername || "").toLowerCase();
-		return escaped.replace(/(?<![A-Za-z0-9_-])@([A-Za-z0-9_-]+)/g, function (match, name) {
+		return escaped.replace(MENTION_RE, function (match, name) {
 			const isMe = me !== "" && name.toLowerCase() === me;
 			const cls = isMe
 				? "mention mention-me inline-block px-1 rounded bg-blue-600 text-white font-semibold"

@@ -65,6 +65,12 @@ func TestMentionsUsername(t *testing.T) {
 		{"empty username never matches", "@bob is here", "", false},
 		{"does not match mention embedded after a longer token", "Please email ops-team@bob for the runbook", "bob", false},
 		{"does not match mention embedded after a longer token in hostname", "contact db01@bob.internal now", "bob", false},
+		{"does not match a longer non-ascii handle", "second handover to @bobé only", "bob", false},
+		{"matches the non-ascii handle itself", "second handover to @bobé only", "bobé", true},
+		{"non-ascii matching is case-insensitive", "ping @BOBÉ about this", "bobé", true},
+		{"shorter ascii handle does not match a non-ascii user", "@bob is on call", "bobé", false},
+		{"does not match a longer handle across a non-ascii tail", "@marié owns the runbook", "marie", false},
+		{"non-ascii handle after a longer token is an address", "mail ops@bobé.internal", "bobé", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
