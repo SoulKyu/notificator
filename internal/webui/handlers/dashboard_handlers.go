@@ -217,6 +217,10 @@ func GetDashboardData(c *gin.Context) {
 	// colored (avoids a second /alert-colors round-trip and the color-lag race)
 	response.Colors = computeAlertColorsMap(paginatedAlerts, sessionID)
 
+	// Embed source freshness so the Sources pill/banner are correct on first
+	// paint, before any SSE update arrives.
+	response.Sources = alertCache.GetSourceStatusViews()
+
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(response))
 }
 
@@ -1333,6 +1337,7 @@ func processIncremental(c *gin.Context, currentAlerts []*webuimodels.DashboardAl
 		Metadata:       &metadata,
 		Settings:       settings,
 		Colors:         colorsMap,
+		Sources:        alertCache.GetSourceStatusViews(),
 		LastUpdateTime: now,
 	}
 

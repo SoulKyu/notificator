@@ -66,6 +66,7 @@ templ DashboardData() {
 						this.metadata = result.data.metadata;
 						this.totalItems = result.data.metadata.totalCount || result.data.metadata.totalAlerts || 0;
 						this.settings = { ...this.settings, ...result.data.settings };
+						this.applySourcesUpdate(result.data.sources);
 						this.lastUpdateTime = Date.now();
 						this.normalizeCursor();
 
@@ -423,7 +424,10 @@ templ DashboardData() {
 				if (update.settings) {
 					this.settings = { ...this.settings, ...update.settings };
 				}
-				
+				if (update.sources) {
+					this.applySourcesUpdate(update.sources);
+				}
+
 				// Update colors for new and updated alerts
 				if (update.colors && Object.keys(update.colors).length > 0) {
 					// Merge new colors with existing ones

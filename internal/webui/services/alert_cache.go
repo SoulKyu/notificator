@@ -38,6 +38,38 @@ func transformSeverity(severity string) string {
 // alertFetcher abstracts alertmanager.MultiClient so tests can fake fetches.
 type alertFetcher interface {
 	FetchAllAlertsDetailed() ([]alertmanager.AlertWithSource, map[string]error)
+	GetClientNames() []string
+}
+
+// SourceStatus tracks the poll freshness of a single configured Alertmanager,
+// derived only from the fetches refreshAlerts already performs (no extra
+// TestConnection calls). LastSuccessAt stays zero until the source's first
+// successful poll, which is what lets an always-failing source read as
+// "unreachable" rather than merely "stale".
+type SourceStatus struct {
+	LastSuccessAt       time.Time
+	LastError           string
+	ConsecutiveFailures int
+	AlertCount          int
+}
+
+// sourceStaleAfterFailures is the number of consecutive failed polls after
+// which a previously-live source is considered stale. It rides on the
+// existing refresh interval (3 missed polls) rather than a wall-clock
+// duration, so no new config key is needed.
+const sourceStaleAfterFailures = 3
+
+// state classifies a SourceStatus for the dashboard: "unreachable" takes
+// priority over "stale" because a source that has never answered has no
+// last-known-good alerts to trust, unlike one that is merely late.
+func (s SourceStatus) state() string {
+	if s.LastSuccessAt.IsZero() {
+		return "unreachable"
+	}
+	if s.ConsecutiveFailures >= sourceStaleAfterFailures {
+		return "stale"
+	}
+	return "live"
 }
 
 // collabLoader abstracts the backend calls that feed collaboration state into the
@@ -64,6 +96,7 @@ type AlertCache struct {
 	mu                 sync.RWMutex
 	alerts             map[string]*webuimodels.DashboardAlert // fingerprint -> alert
 	userHiddenAlerts   map[string]map[string]bool             // userID -> fingerprint -> hidden
+	sourceStatuses     map[string]*SourceStatus               // source name -> poll status, guarded by mu
 	alertmanagerClient alertFetcher
 	backendClient      *client.BackendClient
 	collabClient       collabLoader // same object as backendClient, narrowed so tests can fake it
@@ -129,6 +162,7 @@ func NewAlertCache(amClient *alertmanager.MultiClient, backendClient *client.Bac
 	return &AlertCache{
 		alerts:                make(map[string]*webuimodels.DashboardAlert),
 		userHiddenAlerts:      make(map[string]map[string]bool),
+		sourceStatuses:        make(map[string]*SourceStatus),
 		alertmanagerClient:    fetcher,
 		backendClient:         backendClient,
 		collabClient:          collab,
@@ -212,8 +246,17 @@ func (ac *AlertCache) refreshAlerts() {
 	for source, fetchErr := range fetchErrors {
 		log.Printf("Alert cache refresh: failed to fetch alerts from %s, keeping its cached alerts untouched: %v", source, fetchErr)
 	}
+
 	if len(alertsWithSource) == 0 && len(fetchErrors) > 0 {
-		// No source returned anything usable; leave the cache as-is.
+		// No source returned anything usable; leave the cache as-is. Still record
+		// the poll outcome: that is exactly the case a stale/unreachable source
+		// needs to surface.
+		if ac.recordSourceStatuses(fetchErrors) {
+			ac.notifySubscribers(&webuimodels.DashboardIncrementalUpdate{
+				Sources:        ac.GetSourceStatusViews(),
+				LastUpdateTime: time.Now().Unix(),
+			})
+		}
 		return
 	}
 
@@ -323,15 +366,20 @@ func (ac *AlertCache) refreshAlerts() {
 
 	log.Printf("Alert cache refresh complete: %d active alerts, %d newly resolved", activeCount, resolvedCount)
 
+	// Recorded after the cache reconciliation above so AlertCount reflects this
+	// cycle's alerts, not the previous one.
+	sourcesChanged := ac.recordSourceStatuses(fetchErrors)
+
 	// Emit the poll diff before anything else can write to the cache. These are
 	// snapshots taken under ac.mu, so a collaboration write landing right after the
 	// unlock above must not be allowed to push its fresher payload first and then be
 	// overwritten by this older one — the dashboard replaces alert objects wholesale.
-	if len(newAlertsForSSE) > 0 || len(updatedAlertsForSSE) > 0 || len(removedFingerprints) > 0 {
+	if len(newAlertsForSSE) > 0 || len(updatedAlertsForSSE) > 0 || len(removedFingerprints) > 0 || sourcesChanged {
 		update := &webuimodels.DashboardIncrementalUpdate{
 			NewAlerts:      newAlertsForSSE,
 			UpdatedAlerts:  updatedAlertsForSSE,
 			RemovedAlerts:  removedFingerprints,
+			Sources:        ac.GetSourceStatusViews(),
 			LastUpdateTime: time.Now().Unix(),
 		}
 		ac.notifySubscribers(update)
@@ -693,6 +741,79 @@ func (ac *AlertCache) loadCommentCountsEfficiently() {
 	ac.notifyAlertsUpdated(changed, now)
 
 	log.Printf("Successfully loaded comment counts for %d alerts (%d with comments) using batch query", totalAlerts, alertsWithComments)
+}
+
+// recordSourceStatuses updates the poll outcome for every currently configured
+// Alertmanager and reports whether any source's computed state (live/stale/
+// unreachable) changed, so callers can decide whether an SSE push is warranted
+// even when no individual alert changed.
+func (ac *AlertCache) recordSourceStatuses(fetchErrors map[string]error) bool {
+	names := ac.alertmanagerClient.GetClientNames()
+	now := time.Now()
+
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+
+	counts := make(map[string]int)
+	for _, alert := range ac.alerts {
+		counts[alert.Source]++
+	}
+
+	changed := false
+	for _, name := range names {
+		st, exists := ac.sourceStatuses[name]
+		if !exists {
+			st = &SourceStatus{}
+			ac.sourceStatuses[name] = st
+		}
+		before := st.state()
+
+		if err, failed := fetchErrors[name]; failed {
+			st.ConsecutiveFailures++
+			st.LastError = err.Error()
+		} else {
+			st.ConsecutiveFailures = 0
+			st.LastError = ""
+			st.LastSuccessAt = now
+		}
+		st.AlertCount = counts[name]
+
+		if st.state() != before {
+			changed = true
+		}
+	}
+
+	return changed
+}
+
+// GetSourceStatuses returns a snapshot of the raw per-source poll bookkeeping.
+func (ac *AlertCache) GetSourceStatuses() map[string]SourceStatus {
+	ac.mu.RLock()
+	defer ac.mu.RUnlock()
+
+	result := make(map[string]SourceStatus, len(ac.sourceStatuses))
+	for name, st := range ac.sourceStatuses {
+		result[name] = *st
+	}
+	return result
+}
+
+// GetSourceStatusViews returns the wire representation of source freshness,
+// with the live/stale/unreachable state computed from the raw bookkeeping.
+func (ac *AlertCache) GetSourceStatusViews() map[string]webuimodels.SourceStatus {
+	raw := ac.GetSourceStatuses()
+
+	views := make(map[string]webuimodels.SourceStatus, len(raw))
+	for name, st := range raw {
+		views[name] = webuimodels.SourceStatus{
+			State:               st.state(),
+			LastSuccessAt:       st.LastSuccessAt,
+			LastError:           st.LastError,
+			ConsecutiveFailures: st.ConsecutiveFailures,
+			AlertCount:          st.AlertCount,
+		}
+	}
+	return views
 }
 
 func (ac *AlertCache) GetAllAlerts() []*webuimodels.DashboardAlert {

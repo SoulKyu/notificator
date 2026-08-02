@@ -821,10 +821,15 @@ func TestAlertCache_SSEPubSub(t *testing.T) {
 type fakeAlertFetcher struct {
 	alerts      []alertmanager.AlertWithSource
 	fetchErrors map[string]error
+	clientNames []string
 }
 
 func (f *fakeAlertFetcher) FetchAllAlertsDetailed() ([]alertmanager.AlertWithSource, map[string]error) {
 	return f.alerts, f.fetchErrors
+}
+
+func (f *fakeAlertFetcher) GetClientNames() []string {
+	return f.clientNames
 }
 
 // TestAlertCache_RefreshKeepsAcknowledgementState covers the SSE regression where
@@ -1498,4 +1503,100 @@ func TestAlertCache_CaptureAlertFiredSnapshot(t *testing.T) {
 	// Give the CaptureAlertFired goroutines time to run their (unsynchronized,
 	// pre-fix) field reads before the test process exits.
 	time.Sleep(300 * time.Millisecond)
+}
+
+// TestAlertCache_GetSourceStatuses covers the success -> failure -> recovery
+// transitions the dashboard's Sources pill relies on, plus a source that has
+// never answered since startup (unreachable, not merely stale).
+func TestAlertCache_GetSourceStatuses(t *testing.T) {
+	prodAlert := alertmanager.AlertWithSource{
+		Alert: models.Alert{
+			Labels:   map[string]string{"alertname": "HighMemoryUsage"},
+			Status:   models.AlertStatus{State: "firing"},
+			StartsAt: time.Now().Add(-time.Hour),
+		},
+		Source: "prod",
+	}
+
+	fetcher := &fakeAlertFetcher{clientNames: []string{"prod", "dead"}}
+	cache := NewAlertCache(nil, nil, 90, 10*time.Second)
+	cache.alertmanagerClient = fetcher
+
+	// "dead" never answers from the very first cycle onward.
+	fetcher.fetchErrors = map[string]error{"dead": errors.New("connection refused")}
+
+	// 1. success: prod reports one alert, dead fails.
+	fetcher.alerts = []alertmanager.AlertWithSource{prodAlert}
+	cache.refreshAlerts()
+
+	statuses := cache.GetSourceStatuses()
+	prod, ok := statuses["prod"]
+	if !ok {
+		t.Fatal("prod should be tracked after a successful poll")
+	}
+	if prod.state() != "live" || prod.ConsecutiveFailures != 0 || prod.AlertCount != 1 {
+		t.Errorf("prod after success: expected live/0/1, got state=%s failures=%d count=%d", prod.state(), prod.ConsecutiveFailures, prod.AlertCount)
+	}
+	if prod.LastSuccessAt.IsZero() {
+		t.Error("prod LastSuccessAt should be set after a successful poll")
+	}
+
+	dead, ok := statuses["dead"]
+	if !ok {
+		t.Fatal("dead should be tracked even though it has never succeeded")
+	}
+	if dead.state() != "unreachable" {
+		t.Errorf("dead never succeeded: expected unreachable, got %s", dead.state())
+	}
+	if !dead.LastSuccessAt.IsZero() {
+		t.Error("dead has never succeeded, LastSuccessAt must stay zero")
+	}
+	if dead.LastError == "" {
+		t.Error("dead should carry the last fetch error")
+	}
+
+	// 2. failure: prod starts failing too. Below the threshold it stays live.
+	fetcher.fetchErrors = map[string]error{
+		"prod": errors.New("timeout"),
+		"dead": errors.New("connection refused"),
+	}
+	fetcher.alerts = nil
+	cache.refreshAlerts()
+	cache.refreshAlerts()
+
+	prod = cache.GetSourceStatuses()["prod"]
+	if prod.state() != "live" || prod.ConsecutiveFailures != 2 {
+		t.Errorf("prod after 2 failures: expected live/2, got state=%s failures=%d", prod.state(), prod.ConsecutiveFailures)
+	}
+
+	// A third consecutive failure crosses the staleness threshold.
+	cache.refreshAlerts()
+	prod = cache.GetSourceStatuses()["prod"]
+	if prod.state() != "stale" || prod.ConsecutiveFailures != 3 {
+		t.Errorf("prod after 3 failures: expected stale/3, got state=%s failures=%d", prod.state(), prod.ConsecutiveFailures)
+	}
+	if prod.LastError == "" {
+		t.Error("prod should carry the last fetch error once stale")
+	}
+
+	// 3. recovery: prod answers again, its cached alert count reflects the kept alerts.
+	fetcher.fetchErrors = map[string]error{"dead": errors.New("connection refused")}
+	fetcher.alerts = []alertmanager.AlertWithSource{prodAlert}
+	cache.refreshAlerts()
+
+	prod = cache.GetSourceStatuses()["prod"]
+	if prod.state() != "live" || prod.ConsecutiveFailures != 0 {
+		t.Errorf("prod after recovery: expected live/0, got state=%s failures=%d", prod.state(), prod.ConsecutiveFailures)
+	}
+	if prod.LastError != "" {
+		t.Errorf("prod after recovery: LastError should be cleared, got %q", prod.LastError)
+	}
+
+	views := cache.GetSourceStatusViews()
+	if views["prod"].State != "live" {
+		t.Errorf("GetSourceStatusViews should expose the computed state, got %+v", views["prod"])
+	}
+	if views["dead"].State != "unreachable" {
+		t.Errorf("GetSourceStatusViews should expose unreachable, got %+v", views["dead"])
+	}
 }
