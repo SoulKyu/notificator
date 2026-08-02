@@ -2,27 +2,44 @@
 
 Issue: [SoulKyu/notificator#90](https://github.com/SoulKyu/notificator/issues/90)
 
+## Reference convention
+
+Every code reference in this document is **`path` + a symbol** — a function, a struct field, or a
+literal string you can `rg` for — and deliberately carries **no line numbers**.
+
+The first two revisions of this spec cited `file:line` throughout. Both went stale on the next
+rebase of this branch (`8034ae8` → `6a8fee4` "fix §1-6 stale refs" → stale again on `8f99a21`),
+with non-uniform drift (`0`, `+4`, `+46`, `+28`, `−6` depending on the file), so no reader could
+apply a mental offset. A line number that has silently rotted is strictly worse than no line
+number: it points confidently at a *different real function*, which is how an implementer ends up
+editing `mergeSystemColumns` while believing they are in `renderCell`. Symbols survive rebases;
+locate them with `rg -n '<symbol>' <path>`.
+
+Anyone editing this spec: keep it line-free. If a reference is not greppable, quote enough of the
+surrounding code that it becomes greppable.
+
 ## Problem
 
-`GetDashboardData` (`internal/webui/handlers/dashboard_handlers.go:121`) excludes acknowledged
-alerts from `classic` mode (`getStandardAlerts`, `dashboard_handlers.go:353`) — the default view
-everyone lives in. The moment an alert is acked it disappears behind the `acknowledge` display
-mode, and nothing in the UI surfaces what happened to it:
+`GetDashboardData` (`internal/webui/handlers/dashboard_handlers.go`) excludes acknowledged alerts
+from `classic` mode (`getStandardAlerts`, same file) — the default view everyone lives in. The
+moment an alert is acked it disappears behind the `acknowledge` display mode, and nothing in the UI
+surfaces what happened to it:
 
-- The ack block (`IsAcknowledged` / `AcknowledgedBy` / `AcknowledgedAt` / `AcknowledgeReason`,
-  `internal/webui/models/dashboard.go:26-29`, populated in
-  `internal/webui/services/alert_cache.go:602-604`) is already on every cached alert, but none of
-  the 12 default columns (`getDefaultColumns`,
-  `internal/webui/templates/scripts/dashboard_utilities.templ:649-663`, orders `0-11`) render them.
-- `Duration` (`models/dashboard.go:44`) is fire-time, not ack age — an alert acked 8h ago and one
-  acked 2m ago look identical.
-- The acked view (`getAcknowledgedAlerts`, `dashboard_handlers.go:366`) has no ordering or
-  worklist semantics — no way to answer "what did the last shift take and never finish?".
-- `processAlertAction` (`dashboard_handlers.go:936`) stores the acking **user ID**
-  (`a.AcknowledgedBy = userID`, `dashboard_handlers.go:970`), while the cache refresh path later
-  overwrites it with the **username** (`acknowledgment.Username`, `alert_cache.go:602`). Any column
-  built on this field shows an opaque ID for ~10s after acking, then a username — a bug independent
-  of this feature, but one this feature makes visible and must fix first.
+- The ack block (`IsAcknowledged` / `AcknowledgedBy` / `AcknowledgedAt` / `AcknowledgeReason` on
+  `DashboardAlert`, `internal/webui/models/dashboard.go`, populated by `applyAcknowledgments` in
+  `internal/webui/services/alert_cache.go`) is already on every cached alert, but none of the 12
+  default columns (`getDefaultColumns`,
+  `internal/webui/templates/scripts/dashboard_utilities.templ`, orders `0-11`) render them.
+- `DashboardAlert.Duration` (`models/dashboard.go`) is fire-time, not ack age — an alert acked 8h
+  ago and one acked 2m ago look identical.
+- The acked view (`getAcknowledgedAlerts`, `dashboard_handlers.go`) has no ordering or worklist
+  semantics — no way to answer "what did the last shift take and never finish?".
+- `processAlertAction` (`dashboard_handlers.go`) stores the acking **user ID**
+  (`a.AcknowledgedBy = userID`), while the cache refresh path later overwrites it with the
+  **username** (`alert.AcknowledgedBy = acknowledgment.Username` in `applyAcknowledgments`,
+  `alert_cache.go`). Any column built on this field shows an opaque ID for ~10s after acking, then
+  a username — a bug independent of this feature, but one this feature makes visible and must fix
+  first.
 
 ## Goals
 
@@ -48,34 +65,37 @@ mode, and nothing in the UI surfaces what happened to it:
 
 ## Approach
 
-WebUI-only. `DashboardAlert` already carries every field needed (`models/dashboard.go:26-29`) and
-is already serialized to the browser — no proto change, no new RPC, no new persistence table.
+WebUI-only. `DashboardAlert` already carries every field needed (`models/dashboard.go`) and is
+already serialized to the browser — no proto change, no new RPC, no new persistence table.
 
 Two client/server mirrors decide most of the design below, and both have burned this repo before:
 
 - **Every filter predicate exists twice** — server `applyDashboardFilters`
-  (`dashboard_handlers.go:422`) and client `alertMatchesFilters` (`dashboard_data.templ:514`).
-  Documented as the #1 dashboard footgun (`openwiki/dashboard.md:244`).
-- **Every sort exists twice** — server `applySorting` (`dashboard_handlers.go:541`) and client
-  `sortAlerts` (`dashboard_data.templ:467`), the latter re-applied on every live update.
+  (`dashboard_handlers.go`) and client `alertMatchesFilters`
+  (`internal/webui/templates/scripts/dashboard_data.templ`). Documented as the #1 dashboard footgun
+  (`openwiki/dashboard.md`, § "Gotchas", the *"`alertMatchesFilters()` (client) must mirror
+  `applyDashboardFilters()` (server)"* bullet).
+- **Every sort exists twice** — server `applySorting` (`dashboard_handlers.go`) and client
+  `sortAlerts` (`dashboard_data.templ`), the latter re-applied on every live update.
 
 Anything this feature adds to one half must be added to the other half in the same change.
 
 ### 1. Prerequisite fix — ack username at ack time
 
-`processAlertAction` (`dashboard_handlers.go:936`, case `"acknowledge"`) sets
-`a.AcknowledgedBy = userID` (`:970`) where `userID` comes from `getCurrentUserID(c)`
-(`dashboard_handlers.go:314`), which returns `middleware.GetEffectiveUserID(c)`
-(`internal/webui/middleware/auth.go:194`) — an opaque ID, not a display name. Resolve the acting
+`processAlertAction` (`dashboard_handlers.go`, case `"acknowledge"`) sets
+`a.AcknowledgedBy = userID`, where `userID` comes from `getCurrentUserID(c)`
+(same file), which returns `middleware.GetEffectiveUserID(c)`
+(`internal/webui/middleware/auth.go`) — an opaque ID, not a display name. Resolve the acting
 username the same way `middleware.GetCurrentUser(c)` does (session `username` key,
-`internal/webui/middleware/session.go:59-61`), respecting impersonation
-(`GetImpersonatedUsername`, `middleware/session.go:111`), and store that in `AcknowledgedBy`
-instead. This makes the field consistent with what `alert_cache.go:602` already writes 10s later on
-the next cache refresh, so nothing downstream needs to special-case "ID now, username later".
+`GetSessionValue(c, "username")` in `internal/webui/middleware/session.go`), respecting
+impersonation (`GetImpersonatedUsername`, same file), and store that in `AcknowledgedBy` instead.
+This makes the field consistent with what `applyAcknowledgments` (`alert_cache.go`) already writes
+10s later on the next cache refresh, so nothing downstream needs to special-case "ID now, username
+later".
 
 ### 2. Two new opt-in system columns
 
-`getDefaultColumns()` (`dashboard_utilities.templ:649`) gets two entries appended, both
+`getDefaultColumns()` (`dashboard_utilities.templ`) gets two entries appended, both
 `visible: false` so existing saved configs are unaffected:
 
 ```js
@@ -86,24 +106,25 @@ the next cache refresh, so nothing downstream needs to special-case "ID now, use
 ```
 
 `sortable: false` on `col_owner` is deliberate, not an oversight: `sortByColumn(column)`
-(`dashboard_utilities.templ:899-914`) sends `column.field_path` verbatim as `sortField`, so a
-sortable Owner header would issue `sortField=acknowledgedBy`, hit the `default:` branch of
-`applySorting` (`dashboard_handlers.go:565-567`) and silently sort by **Duration**. The issue only
-requires Ack Age to be sortable; adding an `acknowledgedBy` sort would mean a third pair of
-server+client cases for no requirement.
+(`dashboard_utilities.templ`) sends `column.field_path` verbatim as `sortField`, so a sortable
+Owner header would issue `sortField=acknowledgedBy`, hit the `default:` branch of `applySorting`'s
+`switch sorting.Field` (`dashboard_handlers.go`, `// Default to duration`) and silently sort by
+**Duration**. The issue only requires Ack Age to be sortable; adding an `acknowledgedBy` sort would
+mean a third pair of server+client cases for no requirement.
 
-`mergeSystemColumns()` (`dashboard_utilities.templ:638`) already back-fills newly added system
+`mergeSystemColumns(saved)` (`dashboard_utilities.templ`) already back-fills newly added system
 columns into saved configs by `id` — no extra work needed for existing users to see them appear
 (hidden) in the Column Config modal.
 
-Add an `ackage` branch to `renderCell()`'s formatter switch (`dashboard_utilities.templ:666`):
-renders relative age (reuse the existing `formatDuration`-style logic already used client-side for
-`Triggered At` / `Duration`, e.g. "3m", "8h", "2d") from `acknowledgedAt`, blank for
-non-acknowledged alerts. **Guard against Go's zero time value** (`"0001-01-01T00:00:00Z"`) which is
-truthy in JS — `omitempty` does not drop a zero `time.Time`, so the API really does emit it for
-every un-acked alert, and the existing `renderTimestamp` guard (`dashboard_utilities.templ:809`,
-`if (!timestamp)`) does not catch it. Use `if (!timestamp || timestamp.startsWith("0001"))` or
-similar. On hover, a `title` attribute with `alert.acknowledgeReason`.
+Add an `ackage` branch to the `switch(column.formatter)` in `renderCell(alert, column)`
+(`dashboard_utilities.templ`): renders relative age (reuse the existing `formatDuration`-style
+logic already used client-side for `Triggered At` / `Duration`, e.g. "3m", "8h", "2d") from
+`acknowledgedAt`, blank for non-acknowledged alerts. **Guard against Go's zero time value**
+(`"0001-01-01T00:00:00Z"`) which is truthy in JS — `omitempty` does not drop a zero `time.Time`, so
+the API really does emit it for every un-acked alert, and the existing `renderTimestamp(timestamp)`
+guard (`dashboard_utilities.templ`, `if (!timestamp)`) does not catch it. Use
+`if (!timestamp || timestamp.startsWith("0001"))` or similar. On hover, a `title` attribute with
+`alert.acknowledgeReason`.
 
 The amber stale marker (Ack Age cell only) is computed client-side from
 `this.settings.staleAckThresholdMinutes` — the same number the browser sends to the server for the
@@ -112,11 +133,13 @@ The amber stale marker (Ack Age cell only) is computed client-side from
 ### 2b. Grouped view
 
 `renderCell` / `visibleColumns` exist **only** in `dynamic_alerts_table.templ` and the scripts. The
-grouped view renders `@components.AlertsGroupView()` (`NewDashboard.templ:879`), whose per-group
-table is a hardcoded 5-column `Alert / Instance / Status / Duration / Actions`
-(`internal/webui/templates/components/group_components.templ:109-113`, rows at `:117`). It never
-touches the column system, so §2 alone has **zero** effect there — yet the issue's AC 1 asks for
-Owner + Ack Age "in both flat and grouped views".
+grouped view renders `@components.AlertsGroupView()`
+(`internal/webui/templates/pages/NewDashboard.templ`), whose per-group table is a hardcoded
+5-column `Alert / Instance / Status / Duration / Actions` — the `<th>` row and the
+`<template x-for="alert in group.alerts">` body in
+`internal/webui/templates/components/group_components.templ`. It never touches the column system,
+so §2 alone has **zero** effect there — yet the issue's AC 1 asks for Owner + Ack Age "in both flat
+and grouped views".
 
 Add the two cells explicitly to `group_components.templ`, gated on the user's own opt-in so the
 grouped table stays 5 columns for anyone who hasn't enabled them:
@@ -126,30 +149,32 @@ grouped table stays 5 columns for anyone who hasn't enabled them:
 <th x-show="visibleColumns.some(c => c.id === 'col_ack_age')" …>Ack Age</th>
 ```
 
-with the matching `<td>`s in the `x-for` at `:117` reusing the same `renderCell(alert, column)`
-helper (`x-html`), so the ack-age formatting and the zero-time guard have exactly one
-implementation. If AC 1 gets amended to scope grouped views out, delete this section — but do not
-leave §Validation asking for a grouped-view check that the code cannot satisfy.
+with the matching `<td>`s in that `x-for` reusing the same `renderCell(alert, column)` helper
+(`x-html`), so the ack-age formatting and the zero-time guard have exactly one implementation. If
+AC 1 gets amended to scope grouped views out, delete this section — but do not leave §Validation
+asking for a grouped-view check that the code cannot satisfy.
 
 ### 3. Sorting by ack age — both halves
 
-**Server.** `applySorting()` (`dashboard_handlers.go:541`) gets one more `case` in the
-`sorting.Field` switch (`:548-568`):
+**Server.** `applySorting()` (`dashboard_handlers.go`) gets one more `case` in its
+`switch sorting.Field`:
 
 ```go
 case "acknowledgedAt":
     less = sorted[i].AcknowledgedAt.Before(sorted[j].AcknowledgedAt)
 ```
 
-This runs before `applyPagination` (`dashboard_handlers.go:524`, called at `:189` after
-`applySorting` at `:183`), so it composes with pagination without special-casing.
+`GetDashboardData` calls `applySorting` and only then `applyPagination`
+(`filteredAlerts` → `sortedAlerts` → `paginatedAlerts`), so the new case composes with pagination
+without special-casing.
 
-**Client — mandatory, not optional.** `sortAlerts()` (`dashboard_data.templ:467`) is an independent
-re-implementation of the same switch, and its `case 'duration':` falls through from `default:`
-(`:497-498`). It is re-applied to `this.alerts` on **every** live update that adds rows
-(`dashboard_data.templ:404` and `:415`). Without the mirrored case, an acked-mode worklist sorted
-`acknowledgedAt asc` silently re-orders itself by duration the first time an SSE push lands — the
-same footgun class as §6's filters, one function away:
+**Client — mandatory, not optional.** `sortAlerts(alerts)` (`dashboard_data.templ`) is an
+independent re-implementation of the same switch, and its `case 'duration':` shares a body with
+`default:`. It is re-applied to `this.alerts` on **every** live update that adds rows — two
+`this.alerts = this.sortAlerts(this.alerts)` calls inside `applyIncrementalUpdate()`. Without the
+mirrored case, an acked-mode worklist sorted `acknowledgedAt asc` silently re-orders itself by
+duration the first time an SSE push lands — the same footgun class as §6's filters, one function
+away:
 
 ```js
 case 'acknowledgedAt':
@@ -163,53 +188,57 @@ Both halves order zero times (`0001-01-01`) first in `asc`. That is only reachab
 don't "fix" it in one half only.
 
 **Default sort when entering `acknowledge` mode:** `acknowledgedAt` ascending (oldest/stalest
-first), set client-side in `setDisplayMode('acknowledge')` (`dashboard_core.templ:457-482`) next to
-the existing `currentPage = 1` reset, before the `loadDashboardData()` call at `:474`. This is a
-one-time initialization; unlike `DefaultSorting` (a stored `DashboardSettings` field), ack-mode
-sorting is a fixed UX choice.
+first), set client-side in `setDisplayMode(mode)`
+(`internal/webui/templates/scripts/dashboard_core.templ`) next to the existing `currentPage = 1`
+reset — i.e. before *either* of that method's `loadDashboardData()` calls, not just the first. This
+is a one-time initialization; unlike `DefaultSorting` (a stored `DashboardSettings` field),
+ack-mode sorting is a fixed UX choice.
 
 ### 4. Stale threshold — a client-side setting, like `resolvedAlertsLimit`
 
-**Do not add a field to `DashboardSettings`** (`models/dashboard.go:115-124`) and do not route this
-through `SaveDashboardSettings`. That path does not work today and this feature is not fixing it:
+**Do not add a field to `DashboardSettings`** (`models/dashboard.go`) and do not route this through
+`SaveDashboardSettings`. That path does not work today and this feature is not fixing it:
 
-- The "💾 Save All Settings" button (`modal_components.templ:638`) resolves to the settings modal's
-  own `saveSettings()` (`dashboard_settings.templ:455`), which writes
-  `localStorage.setItem('dashboardSettings', …)` (`:468`) and then only POSTs colors, hidden rules
-  and notification preferences. It never calls `POST /api/v1/dashboard/settings`.
-- The dashboard's other `saveSettings()` (`dashboard_utilities.templ:199`) is the one that would
-  POST — and it has no caller.
-- Consequence: `getUserSettings(userID)` (`dashboard_handlers.go:325`) returns its hard-coded
-  defaults (`:333-345`) forever, and `userSettings` (`dashboard_handlers.go:29`) is never written
+- The "💾 Save All Settings" button (`internal/webui/templates/components/modal_components.templ`,
+  `<span x-show="!settingsSaving">💾 Save All Settings</span>`) resolves to the settings modal's own
+  `saveSettings()` (`internal/webui/templates/scripts/dashboard_settings.templ`), which writes
+  `localStorage.setItem('dashboardSettings', …)` and then only POSTs colors, hidden rules and
+  notification preferences. It never calls `POST /api/v1/dashboard/settings`.
+- The dashboard's other `saveSettings()` (`dashboard_utilities.templ`) is the one that would POST —
+  and it has no caller.
+- Consequence: `getUserSettings(userID)` (`dashboard_handlers.go`) returns its hard-coded
+  `defaultSettings` forever, and the package-level `userSettings` map (same file) is never written
   for a real user. A Go field here would be a field the server never receives.
 
 Instead, follow `resolvedAlertsLimit`, which is exactly this shape and already works end to end:
 
 | step | `resolvedAlertsLimit` | `staleAckThresholdMinutes` |
 |---|---|---|
-| client default | `dashboard_core.templ:35` (`settings` object, `:32-36`) | add `staleAckThresholdMinutes: 240` |
-| modal input | `modal_components.templ:91-93`, labelled "(stored locally)" `:96` | new number input next to it, same label wording |
-| persisted | `localStorage` via `dashboard_settings.templ:468`, re-read by `loadSettings()` (`dashboard_utilities.templ:185-197`) | identical, no code needed |
-| reaches the server | query param, set at `dashboard_data.templ:34-36` | same, in all three query builders |
-| parsed | `dashboard_handlers.go:249-253` | same block |
-| carried | `DashboardFilters.ResolvedAlertsLimit` (`models/dashboard.go:95`) | `StaleAckThresholdMinutes int \`json:"staleAckThresholdMinutes,omitempty"\`` |
+| client default | the `settings` object literal in `dashboard_core.templ` (`resolvedAlertsLimit: 100`) | add `staleAckThresholdMinutes: 240` |
+| modal input | `modal_components.templ`, the `x-model="settings.resolvedAlertsLimit"` number input, labelled "(stored locally)" | new number input next to it, same label wording |
+| persisted | `localStorage` via `dashboard_settings.templ`'s `saveSettings()`, re-read by `loadSettings()` (`dashboard_utilities.templ`) | identical, no code needed |
+| reaches the server | query param, set in `loadDashboardData()`'s `URLSearchParams` (`dashboard_data.templ`) | same, in all three query builders |
+| parsed | the `c.Query("resolvedAlertsLimit")` block in `parseDashboardFilters` (`dashboard_handlers.go`) | same block — but see the `0` note below |
+| carried | `DashboardFilters.ResolvedAlertsLimit` (`models/dashboard.go`) | `StaleAckThresholdMinutes int \`json:"staleAckThresholdMinutes,omitempty"\`` |
 
 Notes:
 
 - Use `x-model.number` (or coerce with `Number(...)` on read). Plain `x-model` on an
   `<input type="number">` stores a **string** — `settings.refreshInterval` is `"60"` today.
-- Default `240` (4h); `0` = never stale, everywhere. `0` must survive the round-trip, so send the
-  param unconditionally rather than behind an `if (value > 0)` truthiness test — this is the one
-  place where copying `resolvedAlertsLimit`'s param code verbatim (`dashboard_data.templ:34`) would
-  be wrong.
+- Default `240` (4h); `0` = never stale, everywhere. **`0` must survive the round-trip, and this is
+  the one place where copying `resolvedAlertsLimit` verbatim is wrong at *both* ends:** the client
+  sends it behind `if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0)`
+  and the server parses it behind `err == nil && val > 0`. Send the threshold param
+  unconditionally, and parse it with `val >= 0`.
 - All three client query builders must set it, or the badge flips between the user's value and the
-  default depending on which request last landed: `loadDashboardData` (`dashboard_data.templ:10`),
-  `loadDashboardIncremental` (`:102`), `loadAlertColors` (`:193` — harmless but keeps the three in
-  sync).
+  default depending on which request last landed: `loadDashboardData()`,
+  `loadDashboardIncremental()` and `loadAlertColors(force)` — all three in `dashboard_data.templ`,
+  each building its own `new URLSearchParams()`.
 - `this.settings` is overwritten by the server on every load
-  (`this.settings = { ...this.settings, ...result.data.settings }`, `dashboard_data.templ:68`).
-  Keeping the threshold **off** `DashboardSettings` is what stops the server from clobbering the
-  user's value with a default — the same reason `resolvedAlertsLimit` isn't a Go settings field.
+  (`this.settings = { ...this.settings, ...result.data.settings }` in `loadDashboardData()`, and
+  again from `update.settings` in `applyIncrementalUpdate()`). Keeping the threshold **off**
+  `DashboardSettings` is what stops the server from clobbering the user's value with a default —
+  the same reason `resolvedAlertsLimit` isn't a Go settings field.
 
 Putting it on `DashboardFilters` rather than threading a new parameter through
 `buildDashboardMetadata` / `getDashboardMetadata` / `processIncremental` costs one line in the
@@ -220,60 +249,71 @@ call site.
 
 The badge must be server-computed: the button is visible from `classic` mode, where the browser
 holds **no** acked alerts at all, and elsewhere it only holds the current page — the client
-physically cannot count the acked set. `buildDashboardMetadata()` (`dashboard_handlers.go:735`)
-already receives `filteredAlerts` **pre-pagination** (`:180-189`, call at `:212`) plus `filters`,
-so it has both the rows and the threshold.
+physically cannot count the acked set. `buildDashboardMetadata()` (`dashboard_handlers.go`) already
+receives `filteredAlerts` **pre-pagination** — `GetDashboardData` computes `filteredAlerts` from
+`applyDashboardFilters`, then sorts and paginates *copies* of it, and passes the unpaginated
+`filteredAlerts` to `buildDashboardMetadata` alongside `filters` — so it has both the rows and the
+threshold.
 
-Add `StaleAcknowledged int` to `DashboardCounters` (`models/dashboard.go:173`) and increment it
-alongside `counters.Acknowledged` (`dashboard_handlers.go:767`) and in the classic-mode recount
-(`:776-784`), using `filters.StaleAckThresholdMinutes` (`0` → never increment). Both metadata call
-sites are covered without a signature change: `GetDashboardData` (`:212`) and the incremental path
-`getDashboardMetadata` (`:1159` → `:1187`, called from `processIncremental` at `:1319`, shared by
-`PostDashboardIncremental` `:1190` and `GetDashboardIncremental` `:1235`). SSE pushes carry no
-metadata (`sse_handler.go`), so there is no fourth path.
+Add `StaleAcknowledged int` to `DashboardCounters` (`models/dashboard.go`) and increment it
+alongside both `counters.Acknowledged++` sites in `buildDashboardMetadata`: the one in the
+`for _, alert := range filteredAlerts` loop, and the one in the classic-mode recount block
+(`counters.Acknowledged = 0` followed by the `range allAlerts` loop). Use
+`filters.StaleAckThresholdMinutes` (`0` → never increment).
+
+Both metadata call sites are covered without a signature change: `GetDashboardData` calls
+`buildDashboardMetadata` directly, and the incremental path goes through `getDashboardMetadata`
+(whose body ends in `return buildDashboardMetadata(...)`), called from `processIncremental`, itself
+called from both `PostDashboardIncremental` and `GetDashboardIncremental`. SSE pushes carry no
+metadata (`internal/webui/handlers/sse_handler.go` never builds any), so there is no fourth path.
 
 **Why this cannot drift from §2's client-side markers:** there is one value, owned by the browser.
 The client renders amber rows from `this.settings.staleAckThresholdMinutes` and sends that same
 number on the request whose response produces the badge. Threshold `0` disables both at once. The
 server never stores a threshold, so it cannot hold a stale one.
 
-Render `Acked · 3 stale` on the display-mode button (`NewDashboard.templ:137-141`) — append the
-count only when `metadata.counters.staleAcknowledged > 0`.
+Render `Acked · 3 stale` on the display-mode button in `pages/NewDashboard.templ` — the one whose
+handler is `@click="setDisplayMode('acknowledge')"` (label `Acknowledged`; note the visually
+identical `Resolved` button sits immediately above it) — appending the count only when
+`metadata.counters.staleAcknowledged > 0`.
 
 ### 6. Mine / Everyone toggle
 
-New filter dimension, mirroring the existing boolean-filter pattern (`Acknowledged *bool`,
-`models/dashboard.go:91`):
+New filter dimension, mirroring the existing boolean-filter pattern (`Acknowledged *bool` on
+`DashboardFilters`, `models/dashboard.go`):
 
 ```go
 OwnedByMe *bool `json:"ownedByMe,omitempty"` // nil = everyone, true = only current user's acks
 ```
 
-- Parsed in `parseDashboardFilters()` (`dashboard_handlers.go:223`, alongside the existing
-  `acknowledged` / `hasComments` bool parsing at `:236-246`).
-- Applied in `applyDashboardFilters()` (`dashboard_handlers.go:422`): when set, drop alerts where
+- Parsed in `parseDashboardFilters()` (`dashboard_handlers.go`), alongside the existing
+  `c.Query("acknowledged")` / `c.Query("hasComments")` `strconv.ParseBool` blocks.
+- Applied in `applyDashboardFilters()` (`dashboard_handlers.go`): when set, drop alerts where
   `alert.AcknowledgedBy != currentUsername`. Needs the *username*, not the user ID that
   `applyDashboardFilters` currently has available — plumb it through the same way `sessionID` is
   already threaded into this function today.
 - **Must be mirrored in FOUR places:**
-  1. `alertMatchesFilters()` (`dashboard_data.templ:514`), the client-side predicate used to
-     accept/reject SSE updates at `:376` / `:384` / `:410` — filters that only exist server-side go
-     stale on every live update because SSE pushes arrive unfiltered and the client decides locally
-     whether to keep them (`openwiki/dashboard.md:244`).
-  2. `filtersAffectResolvedCount()` (`dashboard_handlers.go:383`) — its own code comment says
+  1. `alertMatchesFilters(alert)` (`dashboard_data.templ`), the client-side predicate used to
+     accept/reject SSE updates — its three call sites all live in `applyIncrementalUpdate()`
+     (two on `update.updatedAlerts`, one filtering `update.newAlerts`). Filters that only exist
+     server-side go stale on every live update because SSE pushes arrive unfiltered and the client
+     decides locally whether to keep them (`openwiki/dashboard.md`, § "Gotchas").
+  2. `filtersAffectResolvedCount()` (`dashboard_handlers.go`) — its own doc comment says
      *"Mirrors every rejection in applyDashboardFilters."* `OwnedByMe` **can** exclude a resolved
      alert, so it belongs in the predicate.
   3. `TestFiltersAffectResolvedCountCoversEveryFilterField`
-     (`internal/webui/handlers/dashboard_resolved_count_test.go:79`) reflects over
-     `DashboardFilters` against a hand-written `known` map (`:80-87`). It hard-fails on **any** new
-     field, so mirroring `filtersAffectResolvedCount` alone will not turn CI green — both
-     `OwnedByMe` (predicate) and `StaleAckThresholdMinutes` (non-predicate, next to
-     `"ResolvedAlertsLimit"` on `:86`) must be added to that map in the same commit.
+     (`internal/webui/handlers/dashboard_resolved_count_test.go`) reflects over `DashboardFilters`
+     against a hand-written `known` map. It hard-fails on **any** new field, so mirroring
+     `filtersAffectResolvedCount` alone will not turn CI green — both `OwnedByMe` (predicate) and
+     `StaleAckThresholdMinutes` (non-predicate, next to the `"ResolvedAlertsLimit": true` entry
+     under the `// Not filtering predicates in applyDashboardFilters:` comment) must be added to
+     that map in the same commit.
   4. Filter presets, **both directions**: `captureCurrentFilterState()`
-     (`dashboard_filter_presets.templ:287-306`) as `owned_by_me`, **and** the restore side
-     `applyFilterPreset()` (`:163-210`, filter assignments at `:172-177`). Capture without restore
-     saves a preset that silently drops the toggle on load. Note there is no precedent here for a
-     `*bool`: today's presets round-trip only strings and arrays, so pick and document a nil
+     (`internal/webui/templates/scripts/dashboard_filter_presets.templ`) as `owned_by_me`, **and**
+     the restore side `applyFilterPreset(preset)` (same file, the
+     `this.filters.<x> = data.<x> || …` assignment block under `// Apply filters`). Capture without
+     restore saves a preset that silently drops the toggle on load. Note there is no precedent here
+     for a `*bool`: today's presets round-trip only strings and arrays, so pick and document a nil
      encoding (omit the key for "Everyone") rather than assuming `false` means nil.
 - UI: a small toggle in the acked-view toolbar, visible only when `displayMode === 'acknowledge'`.
 
