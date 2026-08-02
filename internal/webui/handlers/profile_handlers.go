@@ -127,6 +127,38 @@ func UpdateTimezone(c *gin.Context) {
 	}))
 }
 
+// ChangePassword changes the current user's password
+func ChangePassword(c *gin.Context) {
+	user := middleware.GetCurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse("Not authenticated"))
+		return
+	}
+
+	var req struct {
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse("Invalid request: current and new password are required"))
+		return
+	}
+
+	if backendClient == nil || !backendClient.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, models.ErrorResponse("Backend not available"))
+		return
+	}
+
+	if err := backendClient.ChangePassword(middleware.GetSessionID(c), req.OldPassword, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, models.SuccessResponse(gin.H{
+		"message": "Password changed successfully",
+	}))
+}
+
 // GetTimezone returns the user's timezone preference
 func GetTimezone(c *gin.Context) {
 	user := middleware.GetCurrentUserFromContext(c)
