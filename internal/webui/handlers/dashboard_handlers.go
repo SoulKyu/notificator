@@ -1182,27 +1182,26 @@ func processGroupAction(c *gin.Context, groupName, action, comment, userID strin
 	return nil
 }
 
+// SaveDashboardSettings persists the per-user settings the WebUI actually
+// reads back server-side. Only StaleAckThresholdHours qualifies today - it
+// drives buildDashboardMetadata's stale-ack counter. Everything else in
+// webuimodels.DashboardSettings (RefreshInterval included) is client-local,
+// stored in the browser's localStorage; it must NOT be accepted here, since
+// alertCache is a single process-wide instance and any client's stale local
+// value would silently reset the shared Alertmanager poll cadence for every
+// user on the deployment.
 func SaveDashboardSettings(c *gin.Context) {
-	var settings webuimodels.DashboardSettings
-	if err := c.ShouldBindJSON(&settings); err != nil {
+	var incoming webuimodels.DashboardSettings
+	if err := c.ShouldBindJSON(&incoming); err != nil {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid settings format"))
 		return
 	}
 
 	userID := getCurrentUserID(c)
-	settings.UserID = userID
-
-	// Update cache retention if changed
-	if alertCache != nil {
-		// Resolved alert retention is now handled by the backend TTL cleanup job
-		if settings.RefreshInterval < 1 {
-			settings.RefreshInterval = 1 // seconds; avoid time.NewTicker(0) panic
-		}
-		alertCache.SetRefreshInterval(time.Duration(settings.RefreshInterval) * time.Second)
-	}
+	settings := getUserSettings(userID)
 
 	userSettingsMu.Lock()
-	userSettings[userID] = &settings
+	settings.StaleAckThresholdHours = incoming.StaleAckThresholdHours
 	userSettingsMu.Unlock()
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{

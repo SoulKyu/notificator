@@ -485,12 +485,16 @@ templ DashboardSettings() {
 						localStorage.setItem('dashboardSettings', JSON.stringify(this.settings));
 
 						// Also persist to the backend - staleAckThresholdHours drives the
-						// server-computed stale-ack badge count, which needs to see it
+						// server-computed stale-ack badge count, which needs to see it.
+						// Only send this one field: the rest of this.settings is
+						// localStorage-only, and the backend's SaveDashboardSettings
+						// rejects the rest anyway to avoid a stale client-local
+						// refreshInterval clobbering the shared alertCache poll cadence.
 						const settingsResponse = await fetch('/api/v1/dashboard/settings', {
 							method: 'POST',
 							credentials: 'include',
 							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify(this.settings)
+							body: JSON.stringify({ staleAckThresholdHours: this.settings.staleAckThresholdHours })
 						});
 						if (!settingsResponse.ok) {
 							fail('Failed to save general settings');
