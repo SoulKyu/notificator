@@ -1219,7 +1219,9 @@ func SaveDashboardSettings(c *gin.Context) {
 	settings := getUserSettings(userID)
 
 	userSettingsMu.Lock()
-	settings.StaleAckThresholdHours = incoming.StaleAckThresholdHours
+	updated := *settings
+	updated.StaleAckThresholdHours = incoming.StaleAckThresholdHours
+	userSettings[userID] = &updated
 	userSettingsMu.Unlock()
 
 	c.JSON(http.StatusOK, webuimodels.SuccessResponse(gin.H{
