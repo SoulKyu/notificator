@@ -100,7 +100,9 @@ page, client for SSE/incremental merges.
 Settings → Hidden tab) *and* filter-scoped hides stored inside a filter preset's `filter_data`.
 See [domain](domain.md#collaboration-state-persisted-by-the-backend).
 
-**Grouping** (`viewMode = 'group'`) renders `AlertsGroupView`; the group-by field
+**Grouping** (`viewMode = 'group'`) renders `AlertsGroupView`, which draws the same
+`visibleColumns` / `renderCell` table as the list view (so Owner, Ack Age and any custom column
+show up in both); the group-by field
 (`groupByLabel`, default `alertname`) is grouped server-side by `groupAlertsByLabel`
 (`dashboard_handlers.go:559`) — supports `alertname`/`severity`/`team`/`instance` plus any
 arbitrary label key (fallback bucket `"Other"`). Each group carries a `WorstSeverity`.
@@ -109,16 +111,18 @@ arbitrary label key (fallback bucket `"Other"`). Each group carries a `WorstSeve
 
 The table (`components/dynamic_alerts_table.templ`) is fully driven by `this.columns` /
 `this.visibleColumns`. Cells are rendered by `renderCell(alert, column)`
-(`dashboard_utilities.templ:655`), dispatching on `column.formatter`
-(`checkbox|text|badge|duration|timestamp|count|actions`) to functions that emit HTML strings
+(`dashboard_utilities.templ:670`), dispatching on `column.formatter`
+(`checkbox|text|badge|duration|timestamp|count|actions|ackage`) to functions that emit HTML strings
 inserted via `x-html`. `getFieldValue` resolves dotted `field_path` (e.g. `labels.environment`).
 
-11 default columns (`getDefaultColumns:639`). The Column Config modal
+13 default columns (`getDefaultColumns:651`). The Column Config modal
 (`components/column_config_modal.templ`) supports drag-reorder, visibility, width (50–800px),
 and creating **custom columns** backed by any label/annotation. Preferences persist via
 `GET/PUT /api/v1/dashboard/column-preferences`, and column configs can also travel inside a filter
-preset. Server validates configs (unique id/order, width bounds, allowed formatter/field_type) in
-`filter_preset_handlers.go:92`.
+preset. All three save paths (column preferences, filter preset create/update) validate configs
+(unique id/order, width bounds, allowed formatter/field_type) through the single
+`webui/models.ValidateColumnConfigs` (`filter_preset.go:118`), whose formatter allowlist is
+`backend/models.ValidColumnFormatters` — a new `renderCell` formatter is added there once.
 
 ## Alert actions
 

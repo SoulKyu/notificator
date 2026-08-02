@@ -60,6 +60,31 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 		}
 	})
 
+	t.Run("resolved acks count, because the acknowledge view still renders and marks them", func(t *testing.T) {
+		setThreshold(4)
+		resolvedStale := &webuimodels.DashboardAlert{Fingerprint: "resolved-stale", IsAcknowledged: true, IsResolved: true, AcknowledgedBy: "alice", AcknowledgedAt: old}
+		neverAcked := &webuimodels.DashboardAlert{Fingerprint: "never-acked"}
+		alerts := []*webuimodels.DashboardAlert{aliceStale, resolvedStale, neverAcked}
+
+		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
+		metadata := buildDashboardMetadata(alerts, alerts, filters, userID, "", "alice")
+		if metadata.Counters.StaleAcknowledged != 2 {
+			t.Fatalf("want 2 stale (active + resolved ack), got %d", metadata.Counters.StaleAcknowledged)
+		}
+	})
+
+	t.Run("acked without an ack timestamp is never stale", func(t *testing.T) {
+		setThreshold(4)
+		noTimestamp := &webuimodels.DashboardAlert{Fingerprint: "no-ts", IsAcknowledged: true, AcknowledgedBy: "alice"}
+		alerts := []*webuimodels.DashboardAlert{noTimestamp}
+
+		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
+		metadata := buildDashboardMetadata(alerts, alerts, filters, userID, "", "alice")
+		if metadata.Counters.StaleAcknowledged != 0 {
+			t.Fatalf("zero ack time: want 0 stale, got %d", metadata.Counters.StaleAcknowledged)
+		}
+	})
+
 	t.Run("classic mode sources from allAlerts since filteredAlerts excludes acked rows", func(t *testing.T) {
 		setThreshold(4)
 		allAlerts := []*webuimodels.DashboardAlert{aliceStale, bobStale}
