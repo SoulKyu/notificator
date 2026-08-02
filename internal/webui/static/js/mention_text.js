@@ -25,7 +25,7 @@
 	// without "." rendered "@bob.smith" as "@bob" + ".smith" for bob.
 	const STOP_CHARS = "@<>\"`()[]{},;!?\\/|=*&#%^~$+";
 	const TRIM_CHARS = ".:'";
-	const ADDRESS_RE = /[\p{L}\p{N}_\-.]/u;
+	const ADDRESS_END_RE = /[\p{L}\p{N}_\-.]$/u;
 
 	// handleAt returns the handle beginning at start (just past an "@"), trailing sentence
 	// punctuation removed so "cc @bob." mentions bob while "@bob.smith" does not.
@@ -55,10 +55,12 @@
 			const at = text.indexOf("@", i);
 			if (at === -1) break;
 			const handle = handleAt(text, at + 1);
-			const prev = at > 0 ? text[at - 1] : "";
 			// A handle glued to a preceding word is an address, not a mention:
-			// "ops-team@bob", "db01@bob.internal".
-			if (!handle || ADDRESS_RE.test(prev)) {
+			// "ops-team@bob", "db01@bob.internal". Tested against the full text
+			// (not a single code unit) so a supplementary-plane letter before "@"
+			// (a surrogate pair) is still recognized as an address character.
+			const prevIsAddress = ADDRESS_END_RE.test(text.slice(0, at));
+			if (!handle || prevIsAddress) {
 				i = at + 1;
 				continue;
 			}
