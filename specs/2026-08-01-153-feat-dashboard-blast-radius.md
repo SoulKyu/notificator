@@ -48,8 +48,12 @@ modal.
    came from.
 4. Each group has a **Filter dashboard on this** action that closes the modal and
    applies that label value as the dashboard's search filter.
-5. An alert that is the only one firing shows an explicit empty state, not a spinner or
-   an empty box.
+5. **Every outcome of the Related tab renders a labelled state.** An alert that is the
+   only one firing shows an explicit empty state; an alert that is no longer firing says
+   so; a failed or unavailable fetch says so and offers a retry. No reachable combination
+   of state renders a stuck spinner or an empty box — and that is enforced by the panel's
+   markup shape, not promised in prose (see "The panel is a state machine, not two
+   booleans").
 6. Hidden alerts and hidden rules (`HiddenAlertsService`) are respected — a muted alert
    never appears in a group, and never inflates a group's count. **This includes the open
    alert itself**, which in the Hidden view is muted by definition: it is counted only if
@@ -63,7 +67,10 @@ modal.
 ## Non-goals
 
 - Cross-alert correlation over *resolved* history or statistics. Live firing alerts
-  only — no backend RPC, no schema/proto change.
+  only — no Alertmanager call, no new backend RPC, no schema/proto change. What backend
+  traffic the panel can still *inherit* is audited call by call in "Cache-only: the exact
+  backend cost", including the one place the issue's "no backend RPC" cannot be met
+  literally.
 - Causality, root-cause ranking, or any scoring beyond "shares a label value".
 - Bulk-acting on the related set from inside the modal. Bulk actions stay on the table.
 - Persisting a per-user choice of which labels to correlate on.
@@ -88,25 +95,46 @@ following the shape of `HandleGetAlertHistory` (`dashboard_handlers.go:2464`) an
 1. Read `fingerprint` from the path param; 400 if empty.
 2. 503 if `alertCache == nil` (same guard `GetAvailableFields` uses at
    `dashboard_handlers.go:2546`).
-3. Look up the source alert with `alertCache.GetAlert(fingerprint)`
-   (`internal/webui/services/alert_cache.go:807`) — snapshot, not a live pointer. 404 if
-   it doesn't exist, **and 404 the same way on `alert.IsResolved`**. Two paths reach a
-   resolved source and the check must cover both: `GetAlert` falls through to the
-   backend's resolved-alert store on a cache miss (`alert_cache.go:820-830`, setting
-   `IsResolved = true` at `:825`), *and* a cache-resident alert can be resolved in place —
-   the `bulk-action` handler's `resolve` case mutates the cached struct
-   (`dashboard_handlers.go:1016-1024`), so a resolved alert is a perfectly ordinary cache
-   hit. Test `IsResolved` on the returned snapshot, never "did it come from the cache".
-   Related only makes sense for a live alert.
+3. Look up the source alert **cache-only**, with
+   `alertCache.GetLiveAlert(fingerprint)`
+   (`internal/webui/services/alert_cache.go:899`) — a map read under `RLock` returning a
+   copy, `nil` when absent. Not `GetAlert` (`alert_cache.go:807`): its own doc comment
+   (`:895-898`) says what the previous revision of this spec bought by calling it — every
+   miss falls through to `backendClient.GetResolvedAlert` (`:820-829`), one gRPC round
+   trip plus a JSONB point query, and a miss is *exactly* what a no-longer-firing source
+   alert produces. Related is a live-alerts panel: the miss is the answer, not a reason to
+   go ask the database.
+
+   **`alert == nil || alert.IsResolved` is one outcome, not two — and it is a 200, not a
+   404.** Both mean "this alert is not firing any more", both are ordinary clicks rather
+   than errors, and both must be covered because two paths reach them: `full` display mode
+   lists resolved alerts and its rows open *this* modal (`showAlertDetails(alert.fingerprint)`
+   at `internal/webui/templates/components/dynamic_alerts_table.templ:74`,
+   `table_components.templ:54` and `group_components.templ:119`), and a cache-resident
+   alert can be resolved in place by the `bulk-action` handler's `resolve` case
+   (`dashboard_handlers.go:1016-1024`), so `IsResolved` must be tested on the returned
+   snapshot rather than inferred from "was it in the cache". The handler returns
+   `200 {"state": "notLive", "groups": []}` and the panel renders the matching state.
+   The 404-on-resolved this replaces is what produced the blank panel: an error status on
+   a normal UI path, in front of a frontend that had no error rendering at all. A status
+   code is not a state machine — see "The panel is a state machine, not two booleans".
 4. Build the candidate set **through the dashboard's own pipeline, not a parallel one**
    (see "Count parity" below): `filters := parseDashboardFilters(c)`
    (`dashboard_handlers.go:223`, which already defaults `displayMode` to `classic` at
    `:231`), then the single mode override of step 4b below,
-   `sessionID := middleware.GetSessionID(c)` (as `HandleGetAlertHistory` does),
-   the same `hiddenAlertsService.LoadUserData(sessionID)` warm-up `GetDashboardData` runs
-   first (`dashboard_handlers.go:139-141`, nil- and empty-session-guarded there), then
+   `sessionID := middleware.GetSessionID(c)` (as `HandleGetAlertHistory` does), then
    `candidates := applyDashboardFilters(alertsForDisplayMode(filters), filters, sessionID)`
    (`applyDashboardFilters` at `dashboard_handlers.go:422`).
+
+   **No `hiddenAlertsService.LoadUserData(sessionID)` warm-up.** `GetDashboardData` runs
+   one (`dashboard_handlers.go:139-141`) because it is the endpoint that keeps the
+   session's hidden-alerts snapshot fresh for the table; `/related` deliberately does not,
+   and dropping it costs nothing: `IsAlertHidden` already loads on demand when the session
+   has no snapshot (`internal/webui/services/hidden_alerts_service.go:197-203`). It is
+   also the only call in this handler that would reach the backend *unconditionally*
+   whenever the snapshot is merely stale. Skipping it tightens parity rather than
+   loosening it — Related then reads the exact snapshot the table's last render used
+   instead of refreshing underneath it. Full accounting in "Cache-only" below.
 5. Drop `IsResolved` alerts from the result of step 4. **Do not remove the source alert's
    fingerprint here** — the candidate slice is handed to the helper exactly as the
    dashboard produced it, so it contains the source alert if and only if the table does,
@@ -145,9 +173,16 @@ following the shape of `HandleGetAlertHistory` (`dashboard_handlers.go:2464`) an
    `full` — pass through untouched and keep full parity.
 6. Call the new pure helper (below) with the source alert, that candidate slice, and the
    `maxGroups` / `maxAlertsPerGroup` caps.
-7. Return `webuimodels.SuccessResponse` with the group list; empty `groups: []` (not an
-   error) when nothing correlates — the frontend renders the empty state on an empty
-   array, no separate "empty" flag needed.
+7. Return `webuimodels.SuccessResponse`
+   (`internal/webui/models/api_response.go:17`) with
+   `{"state": "ok", "groups": [...]}` — `groups` is `[]`, never null and never an error,
+   when nothing correlates. `state` is the panel's discriminant, so the frontend switches
+   on a payload field instead of decoding meaning out of HTTP status codes: `ok` (render
+   the groups, or the empty state when `groups.length === 0`) and `notLive` (step 3).
+   Everything that is not a 200 carrying `success: true` — the 400 of step 1, the 503 of
+   step 2, a transport failure — is the frontend's single `error` state, whatever it is.
+   The state list is closed here and consumed there; adding a case means adding a sibling
+   block to the panel, which the markup rule below makes hard to forget.
 
 #### Count parity: share the selection code, don't re-enumerate the filters
 
@@ -220,9 +255,48 @@ The invariant is now stateable without an "if": **`Count` is a count of rows the
 lists.** Nothing adds to it. The one-line rule for any future edit to this helper — if you
 find yourself writing `+ 1`, the set is wrong, not the arithmetic.
 
-No Alertmanager call, no gRPC call, no lock held across the aggregation (the cache calls
-already return copies) — this is an in-memory scan over the current live set, which the
-issue caps at "a few thousand active alerts", comfortably under the 100ms target.
+#### Cache-only: the exact backend cost, and the one AC that cannot be met literally
+
+The issue's acceptance criterion reads "no Alertmanager call and **no backend RPC** — cache
+only — sub-100ms". Two of those three hold unconditionally. The third cannot hold at the
+same time as goal 6, and the previous revision asserted it anyway while its own step 4
+prescribed a `LoadUserData` that makes two gRPC calls. Audited call by call, on the design
+above:
+
+| Step | Backend traffic | Why |
+|---|---|---|
+| 3 — source lookup | **none, by construction** | `GetLiveAlert` is a map read under `RLock` (`alert_cache.go:899-912`). The `GetAlert` the previous revision used costs one `GetResolvedAlert` RPC per miss (`:820-829`), and a resolved source alert *is* a miss — it paid an RPC on the commonest non-live path. |
+| 4 — candidate set | **none** | `alertsForDisplayMode` reads `AlertCache` slices; `applyDashboardFilters` is pure over them plus the hidden snapshot. |
+| 4 — hidden snapshot | **none when the session has a snapshot; one `GetUserHiddenAlerts` + `GetUserHiddenRules` pair when it has none at all** | `IsAlertHidden` self-loads only when `userHiddenAlerts[sessionID] == nil` (`hidden_alerts_service.go:197-203`) — never loaded, or dropped by `InvalidateCache` after a hidden-rule mutation (`:441-458`). A merely *stale* snapshot is served as-is, because this handler no longer calls `LoadUserData`. |
+| 6 — aggregation | none | in-memory scan over copies; no lock held across it, since every cache accessor already returns copies. |
+| Alertmanager | **none, on every path** | no request handler talks to Alertmanager; the cache refresher does, on its own schedule. |
+
+So `/related` initiates backend traffic in exactly one case: **the session has no
+hidden-alerts snapshot at all.** Reaching that from the UI takes a hidden-rule save or
+removal landing between the last dashboard poll and the click — the modal is only reachable
+from a rendered table, and rendering it ran `loadDashboardData` → `GetDashboardData` →
+`LoadUserData` (`dashboard_handlers.go:139-141`), deep-links included. When it does happen
+it is ≤2 calls, exactly the pair the next poll would have made, coalesced through the same
+30s-TTL per-session cache (`hiddenAlertsCacheTTL`, `hidden_alerts_service.go:24`) — not a
+per-request cost.
+
+Why it cannot be driven to a literal zero: the mute set lives in the backend database, and
+goal 6 says a muted alert never appears in a group and never inflates a count. The only two
+ways to honour "no backend RPC" as an absolute are to treat a session with no snapshot as
+"nothing is muted" — which breaks goal 6 silently, precisely in the moment just after the
+user changed their mute rules — or to fail the panel, which breaks goal 5. **Goal 6 wins,
+and the AC is restated as what is achievable and checkable:** no Alertmanager call ever, no
+new RPC surface, no per-request RPC, no RPC at all in steady state, and sub-100ms either way
+(7–15 ms measured on the QA stack, warm and cold). Stating the refinement here is the point:
+the previous revision left it as a claim the implementation would have falsified on its
+first cold session.
+
+One inherited behaviour worth naming rather than re-deriving: if that snapshot load fails
+(backend down), `LoadUserData` logs and publishes an empty snapshot
+(`hidden_alerts_service.go:148-150`) that it deliberately never marks fresh, so the next
+request retries (`:167-171`) — but in the meantime nothing reads as muted. Related is then
+wrong in exactly the same way, and to exactly the same extent, as the table it is read next
+to — the parity argument covers the error path too, and this feature adds no new divergence.
 
 ### Correlation helper — pure function, unit-testable in isolation
 
@@ -406,18 +480,125 @@ alert instead of counting key occurrence.
 
 ### Frontend: Related tab, following the Comments/History tab pattern
 
+#### The panel is a state machine, not two booleans
+
+This is the criterion the spec has now failed twice, and both failures came out of the same
+instruction — *mirror `loadAlertHistory`*. The History panel it points at **is the bug**.
+Its three blocks are:
+
+- spinner — `x-show="historyLoading"` (`modal_components.templ:1669`)
+- timeline — `x-show="!historyLoading && alertHistory?.history"` (`:1674`)
+- "No history data available for this alert." — `x-show="!alertHistory?.history || alertHistory.history.length === 0"`
+  (`:1721-1724`), **nested inside the timeline block**, which only closes at `:1725`.
+
+The empty state can therefore only render when the block that already requires
+`alertHistory?.history` is showing. Meanwhile `loadAlertHistory` sets `alertHistory = null`
+on every failure path (`dashboard_modal.templ:617`, `:621`, `:626`) and clears
+`historyLoading` in `finally` (`:630`). Failure lands on: no spinner, no content, no empty
+state — a blank box, which is what QA measured by forcing that endpoint to 500. "Render the
+empty state on an empty array" cannot fix that shape, because the array is never empty, it
+is *absent*. Two booleans encode four combinations and the markup only renders two of them.
+
+Related does not copy the shape. **One variable, one sibling block per value, and the blocks
+cover the whole domain of the variable:**
+
+`relatedState` ∈ `idle | loading | ready | empty | notLive | error`
+
+| state | the panel renders | reached from |
+|---|---|---|
+| `loading` | spinner | assigned synchronously at the top of `loadRelatedAlerts` |
+| `ready` | the group list | 200, `state: "ok"`, `groups.length > 0` |
+| `empty` | "Nothing else is firing with these labels" — goal 5 | 200, `state: "ok"`, `groups.length === 0` |
+| `notLive` | "This alert is no longer firing — Related covers live alerts only" | 200, `state: "notLive"` (handler step 3) |
+| `error` | the failure message plus a **Retry** button | everything else: non-2xx, `success: false`, thrown fetch — **and `idle`, and any value not in the four above** |
+
+That last row is the invariant, and it lives in the markup rather than in this paragraph:
+the four positive blocks are **siblings** under the tab panel, each
+`x-show="relatedState === '<state>'"`, and the error block is the negation of all four —
+
+```html
+<div x-show="!['loading','ready','empty','notLive'].includes(relatedState)">…Retry…</div>
+```
+
+— so every string the variable can ever hold renders something: `idle`, a typo, a state
+added later and forgotten here. **No block may be nested inside another**, which is exactly
+what broke History. The review check for this panel is one line: *five top-level `x-show`
+siblings, no `x-show` nested inside any of them.*
+
+`loadRelatedAlerts` is a total function into that variable — every exit assigns it exactly
+once, or deliberately leaves it to a newer call:
+
+```js
+window.dashboardModalMixin.loadRelatedAlerts = async function() {
+    const requestedFingerprint = this.alertDetails?.alert?.fingerprint;
+    if (!requestedFingerprint) {
+        this.relatedState = 'error';
+        this.relatedError = 'No alert selected';
+        return;
+    }
+    this.relatedState = 'loading';
+    this.relatedError = '';
+    try {
+        const response = await fetch(
+            `/api/v1/dashboard/alert/${requestedFingerprint}/related?${this.buildAlertQueryParams().toString()}`,
+            { credentials: 'include' }
+        );
+        // Same stale-response guard as loadAlertHistory (dashboard_modal.templ:609):
+        // the open alert can change while the fetch is in flight.
+        if (this.alertDetails?.alert?.fingerprint !== requestedFingerprint) return;
+        const result = response.ok ? await response.json() : null;
+        if (!result?.success) {
+            this.relatedState = 'error';
+            this.relatedError = `Could not load related alerts (HTTP ${response.status})`;
+            return;
+        }
+        if (result.data.state === 'notLive') {
+            this.relatedState = 'notLive';
+            return;
+        }
+        this.relatedGroups = result.data.groups || [];
+        this.relatedState = this.relatedGroups.length ? 'ready' : 'empty';
+    } catch (error) {
+        if (this.alertDetails?.alert?.fingerprint !== requestedFingerprint) return;
+        this.relatedState = 'error';
+        this.relatedError = 'Could not load related alerts';
+    }
+};
+```
+
+Two differences from the History precedent beyond covering the branches, both deliberate:
+
+- **No `finally`.** History clears `historyLoading` there (`dashboard_modal.templ:627-632`)
+  because the flag is separate from the data and can be left set. With a single variable
+  there is no flag to clear: `loading` is a value, and it is overwritten by whichever call
+  owns the panel.
+- **The stale-response guard returns without assigning**, on purpose. The state then belongs
+  to the newer alert, which `showAlertDetails` / `showResolvedAlertDetails` already reset to
+  `idle` — and both also reset `currentAlertTab` to `'overview'`, so the Related panel is
+  not even on screen at that moment. If it somehow were, `idle` falls into the catch-all
+  block and offers Retry. There is no path to a blank panel to reason about.
+
+The Alpine state itself lives with the rest of the modal state on the shared dashboard
+component, **not** in `dashboard_modal.templ`: add `relatedState: 'idle'`,
+`relatedGroups: []` and `relatedError: ''` next to `alertHistory` / `historyLoading`
+(`internal/webui/templates/scripts/dashboard_core.templ:86-89`).
+
 **`internal/webui/templates/components/modal_components.templ`** (the `AlertDetailsModal`
 template used by the live dashboard modal): add the `Related` tab as a **hand-written
-`<button>` next to the History one** (`modal_components.templ:1131-1132`), copying its
-`@click="currentAlertTab = 'related'; if (!relatedAlerts && !relatedLoading) loadRelatedAlerts()"`
-shape and its `:class` pill styling. Not `@AlertModalTabButton` — that helper
+`<button>` next to the History one** (`modal_components.templ:1132`), copying its
+`@click` shape — `@click="currentAlertTab = 'related'; if (relatedState === 'idle') loadRelatedAlerts()"`,
+the same guard keyed on the one state variable instead of History's `!alertHistory &&
+!historyLoading` pair — and its `:class` pill styling. Re-clicking the tab does not
+re-fetch; a failed load is retried from the error block's Retry button (which calls
+`loadRelatedAlerts()` unconditionally), not by switching tabs back and forth.
+Not `@AlertModalTabButton` — that helper
 (`alert_modal_shared.templ:302`) takes four strings and hardcodes
 `@click="<tabVar> = '<tab>'"`, so it cannot carry the lazy-load call; that is exactly why
 History is hand-written while the six purely-declarative tabs above it
 (`modal_components.templ:1120-1125`) use the helper. Then add a
-`x-show="currentAlertTab === 'related'"` panel
-next to the History panel (`modal_components.templ:1662`) rendering the group list — each
-group is a disclosure/accordion header (`label=value (N firing)`, `N` being the group's
+`x-show="currentAlertTab === 'related'"` panel next to the History panel
+(`modal_components.templ:1663`), holding the five sibling state blocks above — and, inside
+the `ready` one only, the group list. Each group is a disclosure/accordion header (`label=value (N firing)`, `N` being the group's
 `Count`, i.e. the table's row count for that value) that expands to the group's `alerts`
 array as a compact list (name, severity badge, instance, age). Render the header from
 `Count` and the list from `alerts.length` — never `Count - 1`, since the open alert is in
@@ -449,18 +630,26 @@ wanted, is a separate follow-up.
 (`dashboard_modal.templ:79`, `this.loadAlertHistory()`), Related loads lazily — only
 when the tab is opened for the first time, per the issue. Add:
 
-- `relatedAlerts: null` and `relatedLoading: false` to the modal's Alpine state (next to
-  `alertHistory` / `historyLoading`), reset in `showAlertDetails` alongside
-  `this.alertHistory = null` (`dashboard_modal.templ:57`) so switching alerts doesn't
-  leak the previous alert's groups.
-- `window.dashboardModalMixin.loadRelatedAlerts`, mirroring `loadAlertHistory`
-  (`dashboard_modal.templ:594-633`) including its fingerprint-guard-after-await pattern
-  (the alert can change while the fetch is in flight; a stale response must not
-  overwrite the now-current alert's state).
-- The lazy-load trigger is the tab button's own `@click` guard
-  (`if (!relatedAlerts && !relatedLoading) loadRelatedAlerts()`), byte-for-byte the
-  History precedent at `modal_components.templ:1132` — no watcher, no `x-init`, and
-  re-clicking the tab does not re-fetch.
+- The three state fields (`relatedState`, `relatedGroups`, `relatedError`,
+  `dashboard_core.templ:86-89`) reset to `'idle' / [] / ''` in **both** entry points that
+  open this modal, not just the obvious one: `showAlertDetails`
+  (`dashboard_modal.templ:52`, alongside `this.alertHistory = null` at `:57`) **and**
+  `showResolvedAlertDetails` (`dashboard_resolved_alerts.templ:246`, alongside the same
+  reset at `:251`). The resolved-alerts table opens the *same* `AlertDetailsModal`
+  (`showAlertModal = true` at `dashboard_resolved_alerts.templ:248`), so resetting only in
+  the first leaks the previous alert's groups into it — a stale panel that looks exactly
+  like a correct one.
+- `window.dashboardModalMixin.loadRelatedAlerts` — the function written out in "The panel
+  is a state machine" above. It takes `loadAlertHistory`'s
+  fingerprint-guard-after-await (`dashboard_modal.templ:609`, `:624`) and nothing else:
+  `loadAlertHistory` (`:594-633`) is the source of the blank-box bug this feature must not
+  inherit, so it is a reference for the concurrency pattern only, never for the
+  state/render shape.
+- The lazy-load trigger is the tab button's own `@click` guard —
+  `if (relatedState === 'idle') loadRelatedAlerts()`, the same *placement* as the History
+  precedent at `modal_components.templ:1132`, keyed on the single state variable. No
+  watcher, no `x-init`; re-clicking the tab does not re-fetch, since only `idle` triggers
+  a load and every terminal state is a different value.
 - `loadRelatedAlerts` must send the dashboard's **current filter query string** so the
   backend can rebuild the table's exact alert set (see "Count parity"). That query is
   already built inline three times in `dashboard_data.templ` as byte-identical blocks —
@@ -541,6 +730,21 @@ never hand-edit the generated `*_templ.go` output.
 - **Extracting `alertsForDisplayMode` touches `GetDashboardData`.** A pure move of an
   existing switch, but it is production code on the dashboard's hot path, so it lands as
   its own commit with `go test ./internal/webui/...` green before the handler is added.
+- **The History panel's blank box is pre-existing, and this spec does not fix it.** Its
+  empty state is nested inside its content block (`modal_components.templ:1674` wrapping
+  `:1721-1724`) and it has no error branch, so any failure of
+  `/api/v1/dashboard/alert/:fingerprint/history` renders nothing at all. Fixing it means
+  lifting that div out of the wrapper and adding an error state — a two-block change in a
+  tab this feature does not otherwise touch, so it is a named follow-up, not scope creep.
+  What matters here is that Related must not be built by copying it, which the state
+  machine above makes structurally impossible rather than a matter of care.
+- **Related reads the hidden snapshot, it never refreshes it.** Dropping the
+  `LoadUserData` warm-up (step 4) means a mute made in *another* session can stay invisible
+  to Related for as long as it stays invisible to the table — bounded by the dashboard's
+  own poll (5s base, adaptive up to 60s: `dashboard_core.templ:137-139`) honouring the 30s
+  snapshot TTL. That is the deliberate direction: Related is exactly as fresh as the table
+  it is read next to and never fresher, which is what parity means here, and it removes the
+  handler's only unconditional backend call.
 - **Hidden-alerts filtering happens at read time, not cached.** Every `/related` call
   re-runs `applyDashboardFilters` over the whole live set, `IsAlertHidden` included. Same
   cost model `GetDashboardData` already accepts for the main table; not a new risk, just
@@ -598,6 +802,35 @@ never hand-edit the generated `*_templ.go` output.
   what filtering the dashboard table on that label shows; click a related alert and
   confirm Back returns to the original; use "Filter dashboard on this" and confirm the
   modal closes with the table filtered.
+- **Blank-panel regression check — the other criterion that has failed twice.** The
+  assertion is the same for every case and it is the one QA used to catch this:
+  `panel.innerText.trim() !== ''`, plus the rendered text naming the state. Run it for all
+  five reachable outcomes, four of which need no injected failure at all:
+  1. only-one-firing alert → the goal-5 empty state;
+  2. a resolved alert opened from `full` display mode → the "no longer firing" state,
+     HTTP **200**, and **no 404 in the network tab** (the path that produced the blank box);
+  3. a normal storm alert → the group list;
+  4. `relatedState` set to `'zzz'` from the console → the catch-all error block with its
+     Retry button, not a blank box;
+  5. the endpoint forced to 500, and separately to 503 with the cache detached → the error
+     state, and clicking **Retry** re-issues the request (network tab) and lands on a
+     terminal state.
+  Structural check to run once on the diff, because it is what actually prevents a
+  regression: the Related panel has exactly five top-level `x-show` blocks and none of them
+  contains another `x-show` — the nesting that makes the History empty state unreachable.
+- **Stale-panel check across modal entry points.** Open alert A, open its Related tab, then
+  open alert B **from the resolved-alerts table** (`showResolvedAlertDetails`) and open
+  Related: it must show B's own state, never A's groups. Repeat with B opened from the live
+  table and via browser Back.
+- **Backend-call check (the corrected AC).** With gRPC calls logged: on a session whose
+  dashboard has polled at least once, open and re-open Related on several alerts — expect
+  **no** `GetUserHiddenAlerts`, `GetUserHiddenRules` or `GetResolvedAlert` attributable to
+  those requests. `GetResolvedAlert` must never appear at all, in any scenario including a
+  resolved source alert; that is `GetLiveAlert` doing its job and it is the check that
+  fails if someone reintroduces `GetAlert`. Then save a hidden rule (which invalidates the
+  session snapshot) and open Related: at most one `GetUserHiddenAlerts` +
+  `GetUserHiddenRules` pair, and none on the calls after it. No Alertmanager request in any
+  case. Latency stays under 100ms throughout.
 - **Count-parity regression check, the one that has bitten this design twice.** With
   several alerts sharing an `alertname`, acknowledge one of them, stay in the default
   `classic` display mode, and confirm the Related group header drops by one in lockstep
