@@ -32,6 +32,7 @@ type FilterPresetData struct {
 	AlertNames    []string `json:"alert_names,omitempty"`
 	Acknowledged  string   `json:"acknowledged,omitempty"` // "yes", "no", "all"
 	Comments      string   `json:"comments,omitempty"`     // "with", "without", "all"
+	OwnedByMe     bool     `json:"owned_by_me,omitempty"`  // acknowledge mode: only alerts acked by the preset's user
 
 	// Display settings
 	DisplayMode string `json:"display_mode,omitempty"` // "classic", "full", "resolved", "acknowledge", "hidden"

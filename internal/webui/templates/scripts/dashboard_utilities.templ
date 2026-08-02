@@ -28,8 +28,15 @@ templ DashboardUtilities() {
 			},
 
 			loadFiltersFromURL() {
+				// An empty query string carries no state to restore - overwriting the
+				// live filters with defaults here would wipe the default preset init()
+				// has just applied
+				if (!window.location.search) {
+					return;
+				}
+
 				const params = new URLSearchParams(window.location.search);
-				
+
 				this.searchQuery = params.get('search') || '';
 				this.filters.alertmanagers = params.get('alertmanagers') ? params.get('alertmanagers').split(',') : [];
 				this.filters.severities = params.get('severities') ? params.get('severities').split(',') : [];
@@ -42,8 +49,8 @@ templ DashboardUtilities() {
 						? { key: raw.slice(0, raw.indexOf('=')), value: raw.slice(raw.indexOf('=') + 1) }
 						: null)
 					.filter(Boolean);
-				this.filters.ownedByMe = params.get('ownedByMe') === 'true';
 				this.displayMode = params.get('displayMode') || 'classic';
+				this.applyOwnedByMe(params.get('ownedByMe') === 'true');
 				this.viewMode = params.get('viewMode') || 'list';
 				this.sortField = params.get('sortField') || 'duration';
 				this.sortDirection = params.get('sortDirection') || 'asc';
@@ -100,7 +107,8 @@ templ DashboardUtilities() {
 					statuses: [],
 					teams: [],
 					alertNames: [],
-					labels: []
+					labels: [],
+					ownedByMe: false
 				};
 				this.activePresetName = null; // Clear active preset indicator
 				this.currentPage = 1;

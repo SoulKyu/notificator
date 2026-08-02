@@ -485,6 +485,14 @@ templ DashboardCore() {
 					}
 				},
 
+				// Mine/Everyone only exists in the acked worklist, so every path that
+				// sets it (toggle, mode switch, saved preset, URL) goes through here
+				// instead of assigning filters.ownedByMe directly. Restoring it in
+				// another mode would apply a filter with no visible control.
+				applyOwnedByMe(value) {
+					this.filters.ownedByMe = this.displayMode === 'acknowledge' && value === true;
+				},
+
 				setDisplayMode(mode) {
 					if (this.displayMode !== mode) {
 						const previousMode = this.displayMode;
@@ -497,11 +505,8 @@ templ DashboardCore() {
 						if (mode === 'acknowledge') {
 							this.sortField = 'acknowledgedAt';
 							this.sortDirection = 'asc';
-						} else {
-							// Mine/Everyone is scoped to the acked worklist - don't let it
-							// silently filter other modes when carried across a switch
-							this.filters.ownedByMe = false;
 						}
+						this.applyOwnedByMe(this.filters.ownedByMe);
 
 						// Always reload when switching back from resolved to other views
 						if (previousMode === 'resolved' && mode !== 'resolved') {
