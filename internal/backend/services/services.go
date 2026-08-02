@@ -326,6 +326,85 @@ func (s *AuthServiceGorm) UpdateTimezone(ctx context.Context, req *authpb.Update
 	}, nil
 }
 
+// ChangePassword implements the ChangePassword RPC method
+func (s *AuthServiceGorm) ChangePassword(ctx context.Context, req *authpb.ChangePasswordRequest) (*authpb.ChangePasswordResponse, error) {
+	if s.classicAuthDisabled() {
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "Username/password authentication is disabled. Please use OAuth authentication.",
+		}, nil
+	}
+
+	if req.SessionId == "" {
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "Session ID is required",
+		}, nil
+	}
+
+	user, err := s.db.GetUserBySession(req.SessionId)
+	if err != nil {
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "Invalid session",
+		}, nil
+	}
+
+	if user.IsOAuthUser() || !user.HasPassword() {
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "OAuth accounts do not have a password to change",
+		}, nil
+	}
+
+	if req.OldPassword == "" || req.NewPassword == "" {
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "Current and new password are required",
+		}, nil
+	}
+
+	if len(req.NewPassword) < 4 {
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "New password must be at least 4 characters long",
+		}, nil
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "Current password is incorrect",
+		}, nil
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "Internal server error",
+		}, nil
+	}
+
+	if err := s.db.UpdateUserPassword(user.ID, string(newHash)); err != nil {
+		log.Printf("Error updating password for user %s: %v", user.ID, err)
+		return &authpb.ChangePasswordResponse{
+			Success: false,
+			Error:   "Failed to update password",
+		}, nil
+	}
+
+	if err := s.db.InvalidateUserSessions(user.ID, req.SessionId); err != nil {
+		log.Printf("Error invalidating other sessions for user %s: %v", user.ID, err)
+		// Don't fail the password change for this
+	}
+
+	return &authpb.ChangePasswordResponse{
+		Success: true,
+	}, nil
+}
+
 // SearchUsers implements the SearchUsers RPC method
 func (s *AuthServiceGorm) SearchUsers(ctx context.Context, req *authpb.SearchUsersRequest) (*authpb.SearchUsersResponse, error) {
 	// Default limit if not specified

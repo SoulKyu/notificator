@@ -27,6 +27,7 @@ const (
 	AuthService_ValidateSession_FullMethodName        = "/notificator.auth.AuthService/ValidateSession"
 	AuthService_GetProfile_FullMethodName             = "/notificator.auth.AuthService/GetProfile"
 	AuthService_UpdateTimezone_FullMethodName         = "/notificator.auth.AuthService/UpdateTimezone"
+	AuthService_ChangePassword_FullMethodName         = "/notificator.auth.AuthService/ChangePassword"
 	AuthService_SearchUsers_FullMethodName            = "/notificator.auth.AuthService/SearchUsers"
 	AuthService_ListUsers_FullMethodName              = "/notificator.auth.AuthService/ListUsers"
 	AuthService_ResolveSilenceCreators_FullMethodName = "/notificator.auth.AuthService/ResolveSilenceCreators"
@@ -55,6 +56,7 @@ type AuthServiceClient interface {
 	ValidateSession(ctx context.Context, in *ValidateSessionRequest, opts ...grpc.CallOption) (*ValidateSessionResponse, error)
 	GetProfile(ctx context.Context, in *GetProfileRequest, opts ...grpc.CallOption) (*GetProfileResponse, error)
 	UpdateTimezone(ctx context.Context, in *UpdateTimezoneRequest, opts ...grpc.CallOption) (*UpdateTimezoneResponse, error)
+	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	ResolveSilenceCreators(ctx context.Context, in *ResolveSilenceCreatorsRequest, opts ...grpc.CallOption) (*ResolveSilenceCreatorsResponse, error)
@@ -137,6 +139,16 @@ func (c *authServiceClient) UpdateTimezone(ctx context.Context, in *UpdateTimezo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateTimezoneResponse)
 	err := c.cc.Invoke(ctx, AuthService_UpdateTimezone_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangePasswordResponse)
+	err := c.cc.Invoke(ctx, AuthService_ChangePassword_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -295,6 +307,7 @@ type AuthServiceServer interface {
 	ValidateSession(context.Context, *ValidateSessionRequest) (*ValidateSessionResponse, error)
 	GetProfile(context.Context, *GetProfileRequest) (*GetProfileResponse, error)
 	UpdateTimezone(context.Context, *UpdateTimezoneRequest) (*UpdateTimezoneResponse, error)
+	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	ResolveSilenceCreators(context.Context, *ResolveSilenceCreatorsRequest) (*ResolveSilenceCreatorsResponse, error)
@@ -340,6 +353,9 @@ func (UnimplementedAuthServiceServer) GetProfile(context.Context, *GetProfileReq
 }
 func (UnimplementedAuthServiceServer) UpdateTimezone(context.Context, *UpdateTimezoneRequest) (*UpdateTimezoneResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateTimezone not implemented")
+}
+func (UnimplementedAuthServiceServer) ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChangePassword not implemented")
 }
 func (UnimplementedAuthServiceServer) SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchUsers not implemented")
@@ -508,6 +524,24 @@ func _AuthService_UpdateTimezone_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).UpdateTimezone(ctx, req.(*UpdateTimezoneRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ChangePassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangePasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ChangePassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ChangePassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ChangePassword(ctx, req.(*ChangePasswordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -794,6 +828,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateTimezone",
 			Handler:    _AuthService_UpdateTimezone_Handler,
+		},
+		{
+			MethodName: "ChangePassword",
+			Handler:    _AuthService_ChangePassword_Handler,
 		},
 		{
 			MethodName: "SearchUsers",
