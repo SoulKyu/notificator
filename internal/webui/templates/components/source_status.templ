@@ -32,7 +32,7 @@ templ SourceStatusPill() {
 							  x-text="source.state"></span>
 					</div>
 					<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
-						<span x-text="'Last poll: ' + sourceRelativeTime(source.lastSuccessAt)"></span>
+						<span x-text="source.state === 'unreachable' ? 'Last poll: never' : 'Last poll: ' + sourceRelativeTime(source.lastSuccessAt)"></span>
 						<span x-text="source.alertCount + ' alert' + (source.alertCount === 1 ? '' : 's')"></span>
 					</div>
 					<div x-show="source.lastError" class="mt-1 text-xs text-red-600 dark:text-red-400 truncate" :title="source.lastError" x-text="source.lastError"></div>
