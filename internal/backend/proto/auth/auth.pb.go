@@ -1439,12 +1439,13 @@ func (*GetOAuthConfigRequest) Descriptor() ([]byte, []int) {
 }
 
 type GetOAuthConfigResponse struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Enabled            bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	DisableClassicAuth bool                   `protobuf:"varint,2,opt,name=disable_classic_auth,json=disableClassicAuth,proto3" json:"disable_classic_auth,omitempty"`
-	Providers          []*OAuthProvider       `protobuf:"bytes,3,rep,name=providers,proto3" json:"providers,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Enabled             bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	DisableClassicAuth  bool                   `protobuf:"varint,2,opt,name=disable_classic_auth,json=disableClassicAuth,proto3" json:"disable_classic_auth,omitempty"`
+	Providers           []*OAuthProvider       `protobuf:"bytes,3,rep,name=providers,proto3" json:"providers,omitempty"`
+	RegistrationEnabled bool                   `protobuf:"varint,4,opt,name=registration_enabled,json=registrationEnabled,proto3" json:"registration_enabled,omitempty"` // False when OAuth-only mode or backend.allow_registration=false
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *GetOAuthConfigResponse) Reset() {
@@ -1496,6 +1497,13 @@ func (x *GetOAuthConfigResponse) GetProviders() []*OAuthProvider {
 		return x.Providers
 	}
 	return nil
+}
+
+func (x *GetOAuthConfigResponse) GetRegistrationEnabled() bool {
+	if x != nil {
+		return x.RegistrationEnabled
+	}
+	return false
 }
 
 type OAuthProvider struct {
@@ -2681,11 +2689,12 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\x18GetOAuthProvidersRequest\"Z\n" +
 	"\x19GetOAuthProvidersResponse\x12=\n" +
 	"\tproviders\x18\x01 \x03(\v2\x1f.notificator.auth.OAuthProviderR\tproviders\"\x17\n" +
-	"\x15GetOAuthConfigRequest\"\xa3\x01\n" +
+	"\x15GetOAuthConfigRequest\"\xd6\x01\n" +
 	"\x16GetOAuthConfigResponse\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x120\n" +
 	"\x14disable_classic_auth\x18\x02 \x01(\bR\x12disableClassicAuth\x12=\n" +
-	"\tproviders\x18\x03 \x03(\v2\x1f.notificator.auth.OAuthProviderR\tproviders\"`\n" +
+	"\tproviders\x18\x03 \x03(\v2\x1f.notificator.auth.OAuthProviderR\tproviders\x121\n" +
+	"\x14registration_enabled\x18\x04 \x01(\bR\x13registrationEnabled\"`\n" +
 	"\rOAuthProvider\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x18\n" +

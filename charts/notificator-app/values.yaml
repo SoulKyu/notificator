@@ -56,6 +56,12 @@ backend:
     # NOTIFICATOR_BACKEND_GRPC_LISTEN: ":50051"
     # NOTIFICATOR_BACKEND_HTTP_LISTEN: ":8080"
 
+    # Allow self-service account creation via the Register endpoint. Defaults to
+    # "true" to keep existing deployments working; set to "false" to close public
+    # sign-up. Ignored (registration is always rejected) when OAuth is enabled
+    # with OAUTH_DISABLE_CLASSIC_AUTH=true.
+    # NOTIFICATOR_BACKEND_ALLOW_REGISTRATION: "true"
+
     # Encryption key for Sentry personal tokens at rest (REQUIRED - backend refuses to start
     # without it). 64 lowercase hex characters, generate with: openssl rand -hex 32
     # NOTIFICATOR_ENCRYPTION_KEY: "your-64-character-hex-secret-here"

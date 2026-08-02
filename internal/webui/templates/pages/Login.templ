@@ -6,6 +6,7 @@ import "notificator/internal/webui/templates/components"
 type OAuthConfig struct {
 	Enabled             bool
 	DisableClassicAuth  bool
+	RegistrationEnabled bool
 	Providers           []components.OAuthProvider
 }
 
@@ -185,8 +186,8 @@ templ LoginContent(oauthConfig *OAuthConfig) {
 				}
 			</script>
 
-			<!-- Register link (hidden if OAuth-only mode) -->
-			if oauthConfig == nil || !oauthConfig.DisableClassicAuth {
+			<!-- Register link (hidden when registration is disabled) -->
+			if oauthConfig == nil || oauthConfig.RegistrationEnabled {
 				<p class="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
 					Not registered?
 					<a href="/register" class="font-semibold leading-6 text-primary-600 hover:text-primary-500">

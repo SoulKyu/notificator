@@ -1,6 +1,9 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -67,5 +70,81 @@ func TestSnakeCaseBackendKeysSurviveUnmarshal(t *testing.T) {
 		if tc.got != tc.want {
 			t.Errorf("%s = %q, want %q", tc.name, tc.got, tc.want)
 		}
+	}
+}
+
+// resetViper wires viper the way cmd/root.go does, so the tests below exercise
+// the real loading path instead of a hand-rolled one.
+func resetViper(t *testing.T) {
+	t.Helper()
+	viper.Reset()
+	viper.SetEnvPrefix("NOTIFICATOR")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+	t.Cleanup(viper.Reset)
+}
+
+// TestMultiWordKeysReachTheStruct is the regression guard for #64: unmarshalling
+// used to drop every multi-word key, so backend.allow_registration=false was
+// read by viper and then thrown away, leaving the gate permanently open.
+func TestMultiWordKeysReachTheStruct(t *testing.T) {
+	resetViper(t)
+	t.Setenv("NOTIFICATOR_BACKEND_ALLOW_REGISTRATION", "false")
+	t.Setenv("NOTIFICATOR_BACKEND_GRPC_LISTEN", ":9999")
+	t.Setenv("NOTIFICATOR_BACKEND_DATABASE_SSL_MODE", "require")
+
+	cfg, err := LoadConfigWithViper()
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if cfg.Backend.AllowRegistration {
+		t.Error("NOTIFICATOR_BACKEND_ALLOW_REGISTRATION=false was dropped, registration stays open")
+	}
+	if cfg.Backend.GRPCListen != ":9999" {
+		t.Errorf("GRPCListen = %q, want :9999", cfg.Backend.GRPCListen)
+	}
+	if cfg.Backend.Database.SSLMode != "require" {
+		t.Errorf("SSLMode = %q, want require", cfg.Backend.Database.SSLMode)
+	}
+}
+
+// TestAllowRegistrationFromConfigFile covers the other config source: a JSON
+// file must be able to close registration too.
+func TestAllowRegistrationFromConfigFile(t *testing.T) {
+	resetViper(t)
+
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"backend":{"enabled":true,"allow_registration":false}}`), 0o600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	viper.SetConfigFile(path)
+	if err := viper.ReadInConfig(); err != nil {
+		t.Fatalf("failed to read config file: %v", err)
+	}
+
+	cfg, err := LoadConfigWithViper()
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if !cfg.Backend.Enabled {
+		t.Error("backend.enabled from the config file was dropped")
+	}
+	if cfg.Backend.AllowRegistration {
+		t.Error("backend.allow_registration=false from the config file was dropped")
+	}
+}
+
+// TestAllowRegistrationDefaultsOpen keeps existing deployments working.
+func TestAllowRegistrationDefaultsOpen(t *testing.T) {
+	resetViper(t)
+
+	cfg, err := LoadConfigWithViper()
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	if !cfg.Backend.AllowRegistration {
+		t.Error("registration must stay enabled when the flag is not set")
 	}
 }

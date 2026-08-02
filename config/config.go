@@ -9,8 +9,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 )
+
+// useJSONTags makes viper resolve config keys through the `json` struct tags.
+//
+// mapstructure's default is a case-insensitive match on the *field name*, so
+// every multi-word key was silently dropped: `backend.allow_registration` never
+// reached `AllowRegistration`, `backend.grpc_listen` never reached `GRPCListen`,
+// and the struct kept its default while `viper.Get` happily returned the value
+// from the env var or the config file. Single-word keys (`enabled`) matched by
+// accident, which is why the breakage went unnoticed.
+//
+// Every field of Config already carries a json tag naming its key, so the tags
+// are the single source of truth: a new field is wired up the moment it is
+// declared, with no second tag to forget.
+func useJSONTags(dc *mapstructure.DecoderConfig) { dc.TagName = "json" }
 
 type Config struct {
 	Alertmanagers  []AlertmanagerConfig `json:"alertmanagers"`
@@ -62,12 +77,13 @@ func (a *AdminConfig) IsAdmin(usernameOrEmail string) bool {
 // struct keeps its zero value. Keep the tags in sync with the viper keys in
 // setViperDefaults.
 type BackendConfig struct {
-	Enabled          bool           `json:"enabled" mapstructure:"enabled"`
-	GRPCListen       string         `json:"grpc_listen" mapstructure:"grpc_listen"`             // Port for gRPC server (e.g., ":50051")
-	GRPCClient       string         `json:"grpc_client" mapstructure:"grpc_client"`             // Address for gRPC client (e.g., "localhost:50051")
-	HTTPListen       string         `json:"http_listen" mapstructure:"http_listen"`             // Port for HTTP server (e.g., ":8080")
-	EnableReflection bool           `json:"enable_reflection" mapstructure:"enable_reflection"` // Dev-only: exposes the gRPC schema to any caller
-	Database         DatabaseConfig `json:"database" mapstructure:"database"`
+	Enabled           bool           `json:"enabled" mapstructure:"enabled"`
+	GRPCListen        string         `json:"grpc_listen" mapstructure:"grpc_listen"`               // Port for gRPC server (e.g., ":50051")
+	GRPCClient        string         `json:"grpc_client" mapstructure:"grpc_client"`               // Address for gRPC client (e.g., "localhost:50051")
+	HTTPListen        string         `json:"http_listen" mapstructure:"http_listen"`               // Port for HTTP server (e.g., ":8080")
+	EnableReflection  bool           `json:"enable_reflection" mapstructure:"enable_reflection"`   // Dev-only: exposes the gRPC schema to any caller
+	AllowRegistration bool           `json:"allow_registration" mapstructure:"allow_registration"` // Allow self-service account creation via Register
+	Database          DatabaseConfig `json:"database" mapstructure:"database"`
 }
 
 type DatabaseConfig struct {
@@ -213,11 +229,12 @@ func DefaultConfig() *Config {
 			SyncInterval: 10 * time.Second, // Default sync interval for WebUI alert cache
 		},
 		Backend: BackendConfig{
-			Enabled:          false,
-			GRPCListen:       ":50051",
-			GRPCClient:       "localhost:50051",
-			HTTPListen:       ":8080",
-			EnableReflection: false,
+			Enabled:           false,
+			GRPCListen:        ":50051",
+			GRPCClient:        "localhost:50051",
+			HTTPListen:        ":8080",
+			EnableReflection:  false,
+			AllowRegistration: true, // keep existing deployments working; set to false to close public sign-up
 			Database: DatabaseConfig{
 				Type:       "sqlite",
 				SQLitePath: "./notificator.db",
@@ -283,7 +300,7 @@ func LoadConfigWithViper() (*Config, error) {
 	cfg := DefaultConfig()
 	setViperDefaults(cfg)
 
-	if err := viper.Unmarshal(cfg); err != nil {
+	if err := viper.Unmarshal(cfg, useJSONTags); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
@@ -454,6 +471,7 @@ func setViperDefaults(cfg *Config) {
 	viper.SetDefault("backend.http_listen", cfg.Backend.HTTPListen)
 	viper.SetDefault("backend.enable_reflection", cfg.Backend.EnableReflection)
 	viper.BindEnv("backend.enable_reflection", "NOTIFICATOR_GRPC_REFLECTION")
+	viper.SetDefault("backend.allow_registration", cfg.Backend.AllowRegistration)
 
 	// Database defaults - only set if not already configured from config file or env vars
 	// IMPORTANT: Don't set database.type default - let it come from config file

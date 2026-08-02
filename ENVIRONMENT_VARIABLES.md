@@ -26,6 +26,7 @@ Example: `backend.grpc_listen` → `NOTIFICATOR_BACKEND_GRPC_LISTEN`
 - `NOTIFICATOR_GRPC_REFLECTION` - Enable gRPC server reflection (true/false, default: false). Exposes
   the full RPC schema to any caller that can reach the port — dev/debugging only, leave disabled in
   production.
+- `NOTIFICATOR_BACKEND_ALLOW_REGISTRATION` - Allow self-service account creation via the Register endpoint (true/false, default: true). Set to `false` to close public sign-up on deployments that don't use OAuth. When OAuth is enabled with `OAUTH_DISABLE_CLASSIC_AUTH=true`, registration is already rejected regardless of this flag.
 
 ### Database Configuration
 - `NOTIFICATOR_BACKEND_DATABASE_TYPE` - Database type: "sqlite" or "postgres"
