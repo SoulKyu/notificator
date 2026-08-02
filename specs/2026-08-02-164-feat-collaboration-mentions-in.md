@@ -59,8 +59,11 @@ building on them:
    `deleteComment`, `refreshComments`). That part of the issue's claim (comment
    *behavior* lives there) is correct; the box/rendering does not.
 3. **There is no "existing dashboard refresh cadence" to hook into for a global
-   badge.** `internal/webui/templates/layouts/Base.templ` (the layout wrapped
-   around every page) has no polling loop. The adaptive refresh loop that exists
+   badge.** `internal/webui/templates/layouts/Base.templ`'s only existing poll
+   (`connectedUsersDropdown`, :242-274, `setInterval(... 30000)` at :262) is
+   admin-gated and fetches `/api/admin/connected-users` — unrelated to
+   activity/mentions, so there's no *dashboard-refresh-shaped* loop to hook a
+   mentions badge into. The adaptive refresh loop that exists
    (`startAutoRefresh`/`loadDashboardIncremental`,
    `internal/webui/templates/scripts/dashboard_core.templ:597-602`) only runs on
    the dashboard page's Alpine component — Silences, Statistics and Activity don't
@@ -471,7 +474,8 @@ naive push into the alert-shaped queue.
   across `internal/webui/templates/`, read both files directly.
 - `dashboard_modal.templ` is JS-only, no HTML — read the file, confirmed 0
   `<div>`/`<template>`/`<textarea>` occurrences via grep.
-- No global refresh loop in `Base.templ`; dashboard's adaptive loop is
+- `Base.templ`'s only poll (`connectedUsersDropdown`, :242-274) is admin-gated
+  and unrelated to activity/mentions; dashboard's adaptive loop is
   page-scoped — read `Base.templ` in full and `dashboard_core.templ:597-602`;
   grepped `PageNavigator` usage across `pages/*.templ`.
 - `/api/v1/users` group does not exist; existing groups enumerated — read
