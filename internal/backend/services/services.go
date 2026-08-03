@@ -243,6 +243,9 @@ func (s *AuthServiceGorm) ValidateSession(ctx context.Context, req *authpb.Valid
 	if user.Timezone != nil {
 		resp.User.Timezone = *user.Timezone
 	}
+	if user.LastLogin != nil {
+		resp.User.LastLogin = timestamppb.New(*user.LastLogin)
+	}
 	return resp, nil
 }
 
@@ -271,6 +274,9 @@ func (s *AuthServiceGorm) GetProfile(ctx context.Context, req *authpb.GetProfile
 	}
 	if user.Timezone != nil {
 		resp.User.Timezone = *user.Timezone
+	}
+	if user.LastLogin != nil {
+		resp.User.LastLogin = timestamppb.New(*user.LastLogin)
 	}
 	return resp, nil
 }
