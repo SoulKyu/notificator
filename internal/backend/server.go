@@ -27,7 +27,6 @@ type Server struct {
 	alertService      *services.AlertServiceGorm
 	statisticsService *services.StatisticsServiceGorm
 	oauthService      *services.OAuthService
-	statisticsWorker  *services.StatisticsWorkerPool
 	db                *database.GormDB
 	config            *config.Config
 	dbType            string
@@ -137,17 +136,6 @@ func (s *Server) initServices() {
 	s.authService = services.NewAuthServiceGorm(s.db, s.oauthService, &s.config.Admin, s.config.Backend.AllowRegistration)
 	s.alertService = services.NewAlertServiceGorm(s.db, &s.config.Admin)
 	s.statisticsService = services.NewStatisticsServiceGorm(s.db, &s.config.Admin)
-
-	// Initialize statistics worker pool
-	// 10 workers with queue size of 1000 jobs
-	captureService := services.NewStatisticsCaptureService(s.db)
-	s.statisticsWorker = services.NewStatisticsWorkerPool(captureService, 10, 1000)
-	s.statisticsWorker.Start()
-
-	// Set worker pool on statistics service for async capture
-	s.statisticsService.SetWorkerPool(s.statisticsWorker)
-
-	log.Printf("✅ Statistics worker pool initialized (10 workers, queue size: 1000)")
 }
 
 func (s *Server) startGRPCServer() error {
@@ -215,11 +203,6 @@ func (s *Server) startHTTPServer() error {
 	return nil
 }
 
-// GetStatisticsWorker returns the statistics worker pool
-func (s *Server) GetStatisticsWorker() *services.StatisticsWorkerPool {
-	return s.statisticsWorker
-}
-
 func (s *Server) setupGracefulShutdown(shutdownChan chan struct{}) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -229,11 +212,6 @@ func (s *Server) setupGracefulShutdown(shutdownChan chan struct{}) {
 		log.Println("🛑 Shutting down servers...")
 
 		s.stopResolvedAlertCleanup()
-
-		// Stop statistics worker pool first to finish queued jobs
-		if s.statisticsWorker != nil {
-			s.statisticsWorker.Stop()
-		}
 
 		if s.grpcServer != nil {
 			s.grpcServer.GracefulStop()
