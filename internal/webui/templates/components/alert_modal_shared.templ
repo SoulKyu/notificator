@@ -479,23 +479,52 @@ templ AlertModalCommentsReadonly(dataVar string) {
 	</div>
 }
 
+// MentionAutocompleteDropdown renders the @mention suggestion list. Requires the
+// mentionAutocompleteMixin (static/js/mention_autocomplete.js) fields/methods in the
+// enclosing Alpine scope and must sit right after the comment textarea inside a
+// relatively-positioned wrapper.
+templ MentionAutocompleteDropdown() {
+	<div
+		x-show="mentionAc.open"
+		style="display: none"
+		class="absolute left-0 right-0 top-full mt-1 z-20 max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-dark-bg-secondary shadow-lg"
+	>
+		<template x-for="(user, i) in mentionAc.items" :key="user.id">
+			<button
+				type="button"
+				@mousedown.prevent="mentionAcSelect(user)"
+				:class="i === mentionAc.index ? 'bg-blue-100 dark:bg-blue-900/50' : ''"
+				class="block w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/30"
+				x-text="'@' + user.username"
+			></button>
+		</template>
+	</div>
+}
+
 // AlertModalCommentsWritable renders the read-only comment list plus an add-comment form.
 // Used by the statistics resolved-alert modal. Relies on Alpine fields newCommentContent /
 // commentSubmitting and the method addComment() being present in the page component scope,
-// plus a currentUsername field for mention highlighting.
+// plus a currentUsername field for mention highlighting and the mentionAutocompleteMixin
+// for the @mention dropdown.
 // dataVar: the comments array variable (e.g., "individualAlertData?.comments")
 templ AlertModalCommentsWritable(dataVar string) {
 	<div class="space-y-4">
 		@AlertModalCommentsReadonly(dataVar)
 		<div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-			<textarea
-				x-model="newCommentContent"
-				rows="3"
-				maxlength="1000"
-				placeholder="Add a comment..."
-				class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
-				@keydown.meta.enter="addComment()"
-				@keydown.ctrl.enter="addComment()"></textarea>
+			<div class="relative">
+				<textarea
+					x-model="newCommentContent"
+					rows="3"
+					maxlength="1000"
+					placeholder="Add a comment... (@ to mention)"
+					class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-bg-tertiary text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+					@input="mentionAcOnInput($event)"
+					@keydown="mentionAcOnKeydown($event)"
+					@blur="mentionAcClose()"
+					@keydown.meta.enter="addComment()"
+					@keydown.ctrl.enter="addComment()"></textarea>
+				@MentionAutocompleteDropdown()
+			</div>
 			<div class="flex items-center justify-between mt-2">
 				<span class="text-xs text-gray-400 dark:text-gray-500" x-text="newCommentContent.length + '/1000'"></span>
 				<button

@@ -1756,6 +1756,7 @@ templ StatisticsDashboardContent(data StatisticsDashboardData) {
 	<script>
 		function statisticsDashboardPage() {
 			return {
+				...(window.mentionAutocompleteMixin ? window.mentionAutocompleteMixin() : {}),
 				currentUserId: '',
 				currentUsername: '',
 				loading: false,

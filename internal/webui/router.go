@@ -214,6 +214,13 @@ func SetupRouter(backendAddress string) (*gin.Engine, *services.AlertCache) {
 			profile.PUT("/timezone", handlers.UpdateTimezone)
 		}
 
+		// Mentionable users for @mention autocomplete in comments
+		users := api.Group("/users")
+		users.Use(authMiddleware.RequireAuth())
+		{
+			users.GET("/mentionable", handlers.GetMentionableUsers)
+		}
+
 		// Protected OAuth routes
 		oauthProtected := api.Group("/oauth")
 		oauthProtected.Use(authMiddleware.RequireAuth())

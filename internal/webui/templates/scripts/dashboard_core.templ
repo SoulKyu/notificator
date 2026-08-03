@@ -349,6 +349,7 @@ templ DashboardCore() {
 					Object.assign(this, window.dashboardResolvedAlertsMixin || {});
 					Object.assign(this, window.dashboardKeyboardMixin || {});
 					Object.assign(this, window.dashboardSourcesMixin || {});
+					Object.assign(this, window.mentionAutocompleteMixin ? window.mentionAutocompleteMixin() : {});
 
 					window.dashboardInstance = this;
 

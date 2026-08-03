@@ -247,7 +247,9 @@ func (gdb *GormDB) UpdateLastLogin(userID string) error {
 func (gdb *GormDB) SearchUsers(query string, limit int) ([]models.User, error) {
 	var users []models.User
 
-	err := gdb.db.Where("LOWER(username) LIKE LOWER(?)", query+"%").
+	// The query is user input for a prefix match, not a LIKE pattern.
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
+	err := gdb.db.Where(`LOWER(username) LIKE LOWER(?) ESCAPE '\'`, escaped+"%").
 		Limit(limit).
 		Order("username").
 		Find(&users).Error

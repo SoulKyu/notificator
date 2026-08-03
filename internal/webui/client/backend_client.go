@@ -1084,6 +1084,34 @@ func (c *BackendClient) SyncUserGroups(userID, provider, sessionID string) error
 	return nil
 }
 
+// SearchUsers returns users whose username starts with query (for @mention autocomplete)
+func (c *BackendClient) SearchUsers(query string, limit int) ([]*User, error) {
+	if c.authClient == nil {
+		return nil, fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.authClient.SearchUsers(ctx, &authpb.SearchUsersRequest{
+		Query: query,
+		Limit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	users := make([]*User, len(resp.Users))
+	for i, u := range resp.Users {
+		users[i] = &User{
+			ID:       u.Id,
+			Username: u.Username,
+		}
+	}
+
+	return users, nil
+}
+
 // ListUsers retrieves all users with pagination (for impersonation dropdown)
 func (c *BackendClient) ListUsers(sessionID string, limit, offset int) ([]*User, int32, error) {
 	if c.authClient == nil {
