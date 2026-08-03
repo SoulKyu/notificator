@@ -19,7 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(backendAddress string) *gin.Engine {
+func SetupRouter(backendAddress string) (*gin.Engine, *services.AlertCache) {
 	r := gin.New()
 
 	// Load configuration with Viper to support environment variables
@@ -384,7 +384,7 @@ func SetupRouter(backendAddress string) *gin.Engine {
 		protectedPages.GET("/activity", handlers.ActivityPage)
 	}
 
-	return r
+	return r, alertCache
 }
 
 // generateRandomSecret generates a cryptographically secure random secret

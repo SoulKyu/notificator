@@ -4,8 +4,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -51,11 +57,34 @@ func runWebUI(cmd *cobra.Command, args []string) {
 	fmt.Printf("   Listen: %s\n", listenAddr)
 	fmt.Printf("   Backend: %s\n", backendAddr)
 
-	router := webui.SetupRouter(backendAddr)
+	router, alertCache := webui.SetupRouter(backendAddr)
 
 	fmt.Printf("Visit http://localhost%s to view the WebUI\n", listenAddr)
 
-	if err := router.Run(listenAddr); err != nil {
-		log.Fatal("Failed to start WebUI server:", err)
+	srv := &http.Server{
+		Addr:    listenAddr,
+		Handler: router,
 	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Failed to start WebUI server:", err)
+		}
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+
+	fmt.Println("🛑 Shutting down WebUI server...")
+
+	alertCache.Stop()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("WebUI server shutdown error: %v", err)
+	}
+
+	fmt.Println("✅ WebUI server shut down gracefully")
 }
