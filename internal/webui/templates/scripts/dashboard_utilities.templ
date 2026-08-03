@@ -664,17 +664,26 @@ templ DashboardUtilities() {
 				this.updateVisibleColumns();
 			},
 
+			// The position of a column in this.columns is its display order, and
+			// col.order is only the serialised form of that position. Every mutation
+			// (merge, drag, add, delete, visibility toggle) ends here, so renumbering
+			// from the array index here is what keeps the saved layout free of the
+			// duplicate orders the server used to reject - permanently, for any user
+			// whose custom column happened to share an order with a new system one.
 			updateVisibleColumns() {
-				this.visibleColumns = this.columns
-					.filter(col => col.visible)
-					.sort((a, b) => a.order - b.order);
+				this.columns.forEach((col, idx) => { col.order = idx; });
+				this.visibleColumns = this.columns.filter(col => col.visible);
 			},
 
 			// Ensure every system default column exists in a saved/loaded config.
 			// Newly added system columns (e.g. "Triggered At") are injected into older saved
 			// configs so they are always present for everyone. Custom columns are preserved.
+			// Sorting by the saved order first is what turns it back into a position;
+			// updateVisibleColumns() then renumbers.
 			mergeSystemColumns(saved) {
-				const cols = Array.isArray(saved) ? [...saved] : [];
+				const cols = (Array.isArray(saved) ? [...saved] : [])
+					.map((col, idx) => ({...col, order: Number.isFinite(col.order) ? col.order : idx}))
+					.sort((a, b) => a.order - b.order);
 				const existing = new Set(cols.map(c => c.id));
 				this.getDefaultColumns().forEach(def => {
 					if (def.field_type === "system" && !existing.has(def.id)) {
@@ -1194,11 +1203,6 @@ templ DashboardUtilities() {
 				const [movedColumn] = newColumns.splice(sourceIndex, 1);
 				newColumns.splice(targetIndex, 0, movedColumn);
 
-				// Update order property
-				newColumns.forEach((col, idx) => {
-					col.order = idx;
-				});
-
 				this.columns = newColumns;
 				this.updateVisibleColumns();
 				this.draggingColumn = null;
@@ -1287,6 +1291,7 @@ templ DashboardUtilities() {
 						width: config.width,
 						sortable: config.formatter === 'text' || config.formatter === 'badge',
 						visible: true,
+						// order is the array position; updateVisibleColumns() assigns it
 						order: this.columns.length,
 						resizable: true,
 						locked: false

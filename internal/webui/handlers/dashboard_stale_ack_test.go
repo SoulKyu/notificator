@@ -85,6 +85,19 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 		}
 	})
 
+	// time.Duration(hours) * time.Hour overflows int64 long before math.MaxInt,
+	// which used to push staleCutoff into the future and count every ack while
+	// the client (plain float milliseconds) marked none of them.
+	t.Run("out-of-range threshold counts nothing instead of overflowing the cutoff", func(t *testing.T) {
+		setThreshold(9999999999)
+		alerts := []*webuimodels.DashboardAlert{aliceStale, bobStale, aliceFresh}
+		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
+		metadata := buildDashboardMetadata(alerts, alerts, filters, userID, "", "alice")
+		if metadata.Counters.StaleAcknowledged != 0 {
+			t.Fatalf("out-of-range threshold: want 0 stale, got %d", metadata.Counters.StaleAcknowledged)
+		}
+	})
+
 	t.Run("classic mode sources from allAlerts since filteredAlerts excludes acked rows", func(t *testing.T) {
 		setThreshold(4)
 		allAlerts := []*webuimodels.DashboardAlert{aliceStale, bobStale}

@@ -115,14 +115,18 @@ The table (`components/dynamic_alerts_table.templ`) is fully driven by `this.col
 (`checkbox|text|badge|duration|timestamp|count|actions|ackage`) to functions that emit HTML strings
 inserted via `x-html`. `getFieldValue` resolves dotted `field_path` (e.g. `labels.environment`).
 
-13 default columns (`getDefaultColumns:651`). The Column Config modal
+14 default columns (`getDefaultColumns:696`). The Column Config modal
 (`components/column_config_modal.templ`) supports drag-reorder, visibility, width (50–800px),
 and creating **custom columns** backed by any label/annotation. Preferences persist via
 `GET/PUT /api/v1/dashboard/column-preferences`, and column configs can also travel inside a filter
-preset. All three save paths (column preferences, filter preset create/update) validate configs
-(unique id/order, width bounds, allowed formatter/field_type) through the single
-`webui/models.ValidateColumnConfigs` (`filter_preset.go:118`), whose formatter allowlist is
+preset. All three save paths (column preferences, filter preset create/update) go through the
+single `webui/models.NormalizeColumnConfigs` (`filter_preset.go:131`), which rejects duplicate ids,
+out-of-range widths and unknown formatter/field_type, and *repairs* `order` by sorting and
+renumbering `0..n-1` — order is a position, not user data, so a collision is canonicalised rather
+than turned into a permanently failing save. Its formatter allowlist is
 `backend/models.ValidColumnFormatters` — a new `renderCell` formatter is added there once.
+Client-side the same rule holds: `updateVisibleColumns` (`dashboard_utilities.templ:673`)
+re-derives `col.order` from the array index after every mutation.
 
 ## Alert actions
 

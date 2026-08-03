@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	backendmodels "notificator/internal/backend/models"
@@ -111,40 +112,53 @@ type ColumnConfig struct {
 	Critical  bool   `json:"critical"`   // Cannot be deleted (but can be hidden/reordered)
 }
 
-// ValidateColumnConfigs is the one validation used by every column-config save
-// path (column preferences, filter preset create and update). Those paths used
-// to carry their own copy of these rules, which is how the "ackage" formatter
-// ended up rejected on save while the client happily rendered it: the allowlist
-// now lives in backendmodels.ValidColumnFormatters only.
-func ValidateColumnConfigs(configs []ColumnConfig) error {
-	seenIDs := make(map[string]bool, len(configs))
-	seenOrders := make(map[int]bool, len(configs))
+// NormalizeColumnConfigs is the one gate every column-config save path goes
+// through (column preferences, filter preset create and update). Those paths
+// used to carry their own copy of the rules, which is how the "ackage"
+// formatter ended up rejected on save while the client happily rendered it:
+// the formatter allowlist now lives in backendmodels.ValidColumnFormatters
+// only.
+//
+// Order is a position, not user data. It used to be validated for uniqueness
+// and rejected on collision, but a client has no single place to mint it -
+// system defaults carry literals, custom columns used to count the array
+// length - so a saved layout could hold two columns at the same order and
+// then fail *every* save, including a no-op one, with no way out of the modal.
+// A position has an obvious canonical repair, so it is repaired here instead:
+// configs come back sorted by their incoming order and renumbered 0..n-1. The
+// remaining rules (duplicate IDs, width, formatter, field type) are genuine
+// validation and still reject.
+func NormalizeColumnConfigs(configs []ColumnConfig) ([]ColumnConfig, error) {
+	normalized := make([]ColumnConfig, len(configs))
+	copy(normalized, configs)
+	sort.SliceStable(normalized, func(i, j int) bool { return normalized[i].Order < normalized[j].Order })
 
-	for _, col := range configs {
+	seenIDs := make(map[string]bool, len(normalized))
+
+	for i := range normalized {
+		col := &normalized[i]
+
 		if seenIDs[col.ID] {
-			return fmt.Errorf("Duplicate column ID: %s", col.ID)
+			return nil, fmt.Errorf("Duplicate column ID: %s", col.ID)
 		}
 		seenIDs[col.ID] = true
 
-		if seenOrders[col.Order] {
-			return fmt.Errorf("Duplicate column order: %d", col.Order)
-		}
-		seenOrders[col.Order] = true
-
 		if col.Width < 50 || col.Width > 800 {
-			return fmt.Errorf("Column '%s' width must be between 50 and 800 pixels", col.ID)
+			return nil, fmt.Errorf("Column '%s' width must be between 50 and 800 pixels", col.ID)
 		}
 
 		if !backendmodels.ValidColumnFormatters[col.Formatter] {
-			return fmt.Errorf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID)
+			return nil, fmt.Errorf("Invalid formatter '%s' for column '%s'", col.Formatter, col.ID)
 		}
 
 		if col.FieldType != "system" && col.FieldType != "label" && col.FieldType != "annotation" {
-			return fmt.Errorf("Invalid field type '%s' for column '%s'", col.FieldType, col.ID)
+			return nil, fmt.Errorf("Invalid field type '%s' for column '%s'", col.FieldType, col.ID)
 		}
+
+		col.Order = i
 	}
 
-	return nil
+	return normalized, nil
 }
 
 // UserColumnPreference stores user's default column configuration
