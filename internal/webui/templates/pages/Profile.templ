@@ -173,7 +173,7 @@ templ ProfileContent(data ProfileData) {
 							</a>
 							
 							if data.User.OAuthProvider == nil {
-								<button @click="showChangePasswordModal = true" class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+								<button @click="openChangePasswordModal()" class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-bg-tertiary hover:bg-gray-50 dark:hover:bg-dark-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
 									<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
 									</svg>
@@ -277,6 +277,7 @@ templ ProfileContent(data ProfileData) {
 				changePasswordError: '',
 				changePasswordSuccess: false,
 				changePasswordLoading: false,
+				changePasswordAttempt: 0,
 
 				init() {
 					this.userId = this.$el.dataset.userId;
@@ -304,8 +305,12 @@ templ ProfileContent(data ProfileData) {
 					});
 				},
 
-				closeChangePasswordModal() {
-					this.showChangePasswordModal = false;
+				// The modal's state is owned by exactly one attempt at a time.
+				// resetChangePassword() bumps the attempt counter, so any request
+				// still in flight is disowned and its response can no longer write
+				// to a modal it no longer belongs to (closed, reopened, or replaced).
+				resetChangePassword() {
+					this.changePasswordAttempt++;
 					this.currentPassword = '';
 					this.newPassword = '';
 					this.confirmPassword = '';
@@ -314,7 +319,24 @@ templ ProfileContent(data ProfileData) {
 					this.changePasswordLoading = false;
 				},
 
+				openChangePasswordModal() {
+					this.resetChangePassword();
+					this.showChangePasswordModal = true;
+				},
+
+				closeChangePasswordModal() {
+					this.showChangePasswordModal = false;
+					this.resetChangePassword();
+				},
+
 				async changePassword() {
+					// Single-flight: submitting is only legal from an idle modal.
+					// Guarding here rather than on each trigger covers every entry
+					// point at once (Enter key, button, anything added later).
+					if (this.changePasswordLoading || this.changePasswordSuccess) {
+						return;
+					}
+
 					this.changePasswordError = '';
 
 					if (!this.currentPassword || !this.newPassword || !this.confirmPassword) {
@@ -331,6 +353,7 @@ templ ProfileContent(data ProfileData) {
 					}
 
 					this.changePasswordLoading = true;
+					const attempt = ++this.changePasswordAttempt;
 					try {
 						const response = await fetch('/api/v1/auth/change-password', {
 							method: 'POST',
@@ -341,7 +364,7 @@ templ ProfileContent(data ProfileData) {
 							})
 						});
 						const data = await response.json();
-						if (!this.showChangePasswordModal) return;
+						if (attempt !== this.changePasswordAttempt) return;
 						if (!response.ok || !data.success) {
 							this.changePasswordError = data.error || 'Failed to change password';
 							return;
@@ -352,9 +375,12 @@ templ ProfileContent(data ProfileData) {
 						this.confirmPassword = '';
 					} catch (err) {
 						console.error('Failed to change password:', err);
+						if (attempt !== this.changePasswordAttempt) return;
 						this.changePasswordError = 'Failed to change password';
 					} finally {
-						this.changePasswordLoading = false;
+						if (attempt === this.changePasswordAttempt) {
+							this.changePasswordLoading = false;
+						}
 					}
 				}
 			}
