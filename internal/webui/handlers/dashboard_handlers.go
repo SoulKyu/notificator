@@ -918,6 +918,12 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 	// condition of its own. Adding one here is what made the badge disagree with
 	// the amber rows on screen: it skipped resolved acks the view still lists.
 	threshold := getUserSettings(userID).StaleAckThresholdHours
+	if !webuimodels.ValidStaleAckThreshold(threshold) {
+		// Same rule SaveDashboardSettings rejects on, applied again on read so an
+		// out-of-range value can never overflow staleCutoff into the future and
+		// make the badge count rows the client leaves unmarked.
+		threshold = 0
+	}
 	if threshold > 0 {
 		staleCutoff := time.Now().Add(-time.Duration(threshold) * time.Hour)
 		for _, alert := range staleAckSource(allAlerts, filteredAlerts, filters, sessionID, currentUsername) {
@@ -1212,6 +1218,12 @@ func SaveDashboardSettings(c *gin.Context) {
 	var incoming webuimodels.DashboardSettings
 	if err := c.ShouldBindJSON(&incoming); err != nil {
 		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse("Invalid settings format"))
+		return
+	}
+
+	if !webuimodels.ValidStaleAckThreshold(incoming.StaleAckThresholdHours) {
+		c.JSON(http.StatusBadRequest, webuimodels.ErrorResponse(fmt.Sprintf(
+			"staleAckThresholdHours must be between 0 and %d", webuimodels.MaxStaleAckThresholdHours)))
 		return
 	}
 
@@ -2853,8 +2865,9 @@ func SaveUserColumnPreferences(c *gin.Context) {
 		return
 	}
 
-	// Validate column configs (same validation as filter presets)
-	if err := webuimodels.ValidateColumnConfigs(req.ColumnConfigs); err != nil {
+	// Validate column configs (same gate as filter presets)
+	normalizedColumns, err := webuimodels.NormalizeColumnConfigs(req.ColumnConfigs)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -2863,7 +2876,7 @@ func SaveUserColumnPreferences(c *gin.Context) {
 	}
 
 	// Save to backend
-	err := backendClient.SaveUserColumnPreferences(sessionID.(string), effectiveUserID, req.ColumnConfigs)
+	err = backendClient.SaveUserColumnPreferences(sessionID.(string), effectiveUserID, normalizedColumns)
 	if err != nil {
 		log.Printf("Error saving column preferences: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

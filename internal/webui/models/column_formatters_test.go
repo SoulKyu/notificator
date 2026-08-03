@@ -43,22 +43,50 @@ func TestValidColumnFormattersCoverRenderCell(t *testing.T) {
 	}
 }
 
-func TestValidateColumnConfigs(t *testing.T) {
+func TestNormalizeColumnConfigs(t *testing.T) {
 	ackAge := ColumnConfig{ID: "col_ack_age", FieldType: "system", FieldPath: "acknowledgedAt", Formatter: "ackage", Width: 130, Order: 0}
 
-	if err := ValidateColumnConfigs([]ColumnConfig{ackAge}); err != nil {
+	if _, err := NormalizeColumnConfigs([]ColumnConfig{ackAge}); err != nil {
 		t.Fatalf("ack age column must be saveable: %v", err)
 	}
 
 	bogus := ackAge
 	bogus.Formatter = "definitely-not-a-formatter"
-	if err := ValidateColumnConfigs([]ColumnConfig{bogus}); err == nil {
+	if _, err := NormalizeColumnConfigs([]ColumnConfig{bogus}); err == nil {
 		t.Fatal("unknown formatter must be rejected")
 	}
 
-	dupe := ackAge
-	dupe.ID = "col_other"
-	if err := ValidateColumnConfigs([]ColumnConfig{ackAge, dupe}); err == nil {
-		t.Fatal("duplicate order must be rejected")
+	sameID := ackAge
+	sameID.Order = 7
+	if _, err := NormalizeColumnConfigs([]ColumnConfig{ackAge, sameID}); err == nil {
+		t.Fatal("duplicate column ID must be rejected")
+	}
+
+	// A layout carrying two columns at the same order used to fail every save
+	// with no way out of the Column Config modal. It is a position, so it is
+	// repaired rather than rejected - and the input slice is left untouched.
+	custom := ackAge
+	custom.ID = "col_custom_label_env"
+	custom.Formatter = "text"
+	custom.FieldType = "label"
+	later := custom
+	later.ID = "col_owner"
+	later.Order = 5
+
+	input := []ColumnConfig{later, ackAge, custom}
+	normalized, err := NormalizeColumnConfigs(input)
+	if err != nil {
+		t.Fatalf("duplicate order must be repaired, not rejected: %v", err)
+	}
+	for i, col := range normalized {
+		if col.Order != i {
+			t.Fatalf("column %q: want order %d, got %d", col.ID, i, col.Order)
+		}
+	}
+	if normalized[2].ID != "col_owner" {
+		t.Fatalf("higher incoming order must sort last, got %q", normalized[2].ID)
+	}
+	if input[0].Order != 5 {
+		t.Fatalf("input slice must not be mutated, got order %d", input[0].Order)
 	}
 }

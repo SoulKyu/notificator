@@ -135,7 +135,22 @@ type DashboardSettings struct {
 	HiddenColumns     []string         `json:"hiddenColumns"`
 	// StaleAckThresholdHours flags an acknowledged alert as stale on the Ack Age
 	// column once it has been acked longer than this many hours. 0 = never stale.
+	// Must satisfy ValidStaleAckThreshold.
 	StaleAckThresholdHours int `json:"staleAckThresholdHours"`
+}
+
+// MaxStaleAckThresholdHours bounds StaleAckThresholdHours. The server decides
+// "stale" with time.Duration(hours) * time.Hour while the client decides it
+// with ageMs > hours*3600000: an unbounded value overflows int64 nanoseconds
+// server-side only, pushing the cutoff into the future so the badge counts
+// every ack while the client marks none. A year is far past any useful ack age
+// and keeps both evaluations exact.
+const MaxStaleAckThresholdHours = 8760
+
+// ValidStaleAckThreshold is the one rule for an acceptable stale-ack
+// threshold, enforced when settings are written and again when they are read.
+func ValidStaleAckThreshold(hours int) bool {
+	return hours >= 0 && hours <= MaxStaleAckThresholdHours
 }
 
 // DashboardIncrementalRequest represents the request body for POST /api/v1/dashboard/incremental
