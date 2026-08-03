@@ -88,14 +88,16 @@ func CreateFilterPreset(c *gin.Context) {
 		return
 	}
 
-	// Validate column configurations if present
-	if err := models.ValidateColumnConfigs(req.FilterData.ColumnConfigs); err != nil {
+	// Validate and canonicalise column configurations if present
+	normalizedColumns, err := models.NormalizeColumnConfigs(req.FilterData.ColumnConfigs)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	req.FilterData.ColumnConfigs = normalizedColumns
 
 	// Get impersonated user ID if impersonating
 	impersonateUserID := middleware.GetImpersonatedUserID(c)
@@ -169,14 +171,16 @@ func UpdateFilterPreset(c *gin.Context) {
 		return
 	}
 
-	// Validate column configurations if present
-	if err := models.ValidateColumnConfigs(req.FilterData.ColumnConfigs); err != nil {
+	// Validate and canonicalise column configurations if present
+	normalizedColumns, err := models.NormalizeColumnConfigs(req.FilterData.ColumnConfigs)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+	req.FilterData.ColumnConfigs = normalizedColumns
 
 	// Update preset via backend
 	preset, err := filterPresetBackendClient.UpdateFilterPreset(
