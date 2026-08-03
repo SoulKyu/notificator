@@ -103,7 +103,10 @@ This is separate from the backend's gRPC collaboration stream — see
   `OAuthCallback`, `Index`, `Playground` (dev/demo landing when `WebUI.Playground` is on),
   `Silences` (`/silences` — creation/preview/extend/expire), `Activity` (`/activity` — the
   cross-alert team activity feed, see [dashboard](dashboard.md#activity-feed)).
-  Browser/sound alerts are covered in [notifications](notifications.md).
+  Browser/sound alerts are covered in [notifications](notifications.md). `Profile`'s account/
+  session stats (acknowledged alerts, comments, color preferences) come from real per-user
+  queries in `profile_handlers.go` / `services.go` — a previous version hardcoded these numbers
+  and its Copy-ID button copied a literal template string instead of the user's actual ID.
 - `components/` — tables, modals, filter/group views, timezone selector, page navigator, etc.
 - `scripts/` — **`.templ` files whose entire body is a `<script>` of hand-written Alpine.js**
   (e.g. `dashboard_core.templ` defines `function newDashboard(){…}`). Included into pages via

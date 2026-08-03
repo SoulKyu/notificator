@@ -30,7 +30,7 @@ the field a `mapstructure:"<key>"` tag (see `BackendConfig`) or read it explicit
 | Section | Purpose |
 |---------|---------|
 | `alertmanagers[]` | Alertmanager endpoints (name, url, auth, headers, oauth) — see below |
-| `backend` | `grpc_listen`, `grpc_client`, `http_listen`, `database{…}` |
+| `backend` | `grpc_listen`, `grpc_client`, `http_listen`, `database{…}`, `allow_registration` |
 | `backend.database` | `type` (`sqlite`/`postgres`), host/port/name/user/password/ssl_mode, `sqlite_path` |
 | `webui` | `playground` toggle (dev landing page) |
 | `oauth` | OAuth portal config (nilable) — see [OAuth](#oauth) |
@@ -76,6 +76,14 @@ Group sync (`OAUTH_GROUP_SYNC_*`) maps OAuth groups → roles with a cache (defa
 
 > **Reminder:** roles are computed and stored, but **no RPC actually enforces them** today
 > (see [backend](backend.md#auth)).
+
+**Disabling public sign-up:** `backend.allow_registration` (`NOTIFICATOR_BACKEND_ALLOW_REGISTRATION`,
+default `true`) gates classic `Register`/`Login` server-side in `AuthServiceGorm`, independent of
+the WebUI. When `oauth.enabled && oauth.disable_classic_auth`, the backend rejects classic
+auth regardless of this flag — previously that gate only lived in the WebUI's OAuth-config
+fetch and failed open if the fetch errored. `GetOAuthConfig` now returns a server-computed
+`registration_enabled` so `Login.templ` hides the Register link consistently with the
+enforced backend behavior.
 
 ## Sentry {#sentry}
 
