@@ -1310,14 +1310,6 @@ func (s *AlertServiceGorm) CreateResolvedAlert(ctx context.Context, req *alertpb
 		UpdatedAt:       timestamppb.New(resolvedAlert.UpdatedAt),
 	}
 
-	// Broadcast resolved alert update to subscribers
-	go s.broadcastResolvedAlertUpdate(req.Fingerprint, &alertpb.ResolvedAlertUpdate{
-		Fingerprint:   req.Fingerprint,
-		UpdateType:    alertpb.ResolvedAlertUpdateType_RESOLVED_ALERT_CREATED,
-		ResolvedAlert: pbResolvedAlert,
-		Timestamp:     timestamppb.Now(),
-	})
-
 	return &alertpb.CreateResolvedAlertResponse{
 		Success:       true,
 		ResolvedAlert: pbResolvedAlert,
@@ -1463,88 +1455,13 @@ func (s *AlertServiceGorm) GetResolvedAlert(ctx context.Context, req *alertpb.Ge
 	}, nil
 }
 
-// StreamResolvedAlertUpdates implements the StreamResolvedAlertUpdates RPC method
+// StreamResolvedAlertUpdates implements the StreamResolvedAlertUpdates RPC method.
+// Unimplemented: no consumer in the codebase subscribes to this stream, and the
+// former per-subscriber-goroutine broadcast + double-close-on-dead-stream design
+// could crash the whole backend (see #183). Re-add only with a single writer
+// goroutine per subscription and a stream.Context().Done() watch.
 func (s *AlertServiceGorm) StreamResolvedAlertUpdates(req *alertpb.StreamResolvedAlertUpdatesRequest, stream grpc.ServerStreamingServer[alertpb.ResolvedAlertUpdate]) error {
-	if req.SessionId == "" {
-		return fmt.Errorf("session ID is required")
-	}
-
-	// Validate session
-	_, err := s.db.GetUserBySession(req.SessionId)
-	if err != nil {
-		return fmt.Errorf("invalid session")
-	}
-
-	// Create subscription for resolved alert updates
-	sub := &ResolvedAlertSubscription{
-		SessionID: req.SessionId,
-		Stream:    stream,
-		Done:      make(chan bool),
-	}
-
-	// Add subscription
-	s.addResolvedAlertSubscription(sub)
-	defer s.removeResolvedAlertSubscription(sub)
-
-	// Wait for stream to close
-	<-sub.Done
-
-	return nil
-}
-
-// Helper methods for resolved alert subscriptions
-type ResolvedAlertSubscription struct {
-	SessionID string
-	Stream    grpc.ServerStreamingServer[alertpb.ResolvedAlertUpdate]
-	Done      chan bool
-}
-
-// Add resolved alert subscription tracking
-var (
-	resolvedAlertSubscriptions      = make(map[string][]*ResolvedAlertSubscription)
-	resolvedAlertSubscriptionsMutex sync.RWMutex
-)
-
-func (s *AlertServiceGorm) addResolvedAlertSubscription(sub *ResolvedAlertSubscription) {
-	resolvedAlertSubscriptionsMutex.Lock()
-	defer resolvedAlertSubscriptionsMutex.Unlock()
-
-	resolvedAlertSubscriptions["global"] = append(resolvedAlertSubscriptions["global"], sub)
-}
-
-func (s *AlertServiceGorm) removeResolvedAlertSubscription(sub *ResolvedAlertSubscription) {
-	resolvedAlertSubscriptionsMutex.Lock()
-	defer resolvedAlertSubscriptionsMutex.Unlock()
-
-	subs := resolvedAlertSubscriptions["global"]
-	for i, s := range subs {
-		if s == sub {
-			resolvedAlertSubscriptions["global"] = append(subs[:i], subs[i+1:]...)
-			break
-		}
-	}
-}
-
-func (s *AlertServiceGorm) broadcastResolvedAlertUpdate(fingerprint string, update *alertpb.ResolvedAlertUpdate) {
-	resolvedAlertSubscriptionsMutex.RLock()
-	defer resolvedAlertSubscriptionsMutex.RUnlock()
-
-	subs := resolvedAlertSubscriptions["global"]
-	for _, sub := range subs {
-		go func(s *ResolvedAlertSubscription) {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("Recovered from panic in resolved alert broadcast: %v", r)
-					close(s.Done)
-				}
-			}()
-
-			if err := s.Stream.Send(update); err != nil {
-				log.Printf("Error sending resolved alert update to subscriber %s: %v", s.SessionID, err)
-				close(s.Done)
-			}
-		}(sub)
-	}
+	return status.Errorf(codes.Unimplemented, "StreamResolvedAlertUpdates is not implemented")
 }
 
 // Helper function to generate secure session ID
