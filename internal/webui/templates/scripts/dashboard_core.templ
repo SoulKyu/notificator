@@ -18,6 +18,7 @@ templ DashboardCore() {
 						firing: 0,
 						resolved: 0,
 						acknowledged: 0,
+						staleAcknowledged: 0,
 						withComments: 0,
 						severityCounters: {}
 					},
@@ -32,7 +33,8 @@ templ DashboardCore() {
 				settings: {
 					theme: 'light',
 					refreshInterval: 5,
-					resolvedAlertsLimit: 100
+					resolvedAlertsLimit: 100,
+					staleAckThresholdHours: 4
 				},
 				
 				isRemovingResolvedAlerts: false,
@@ -126,7 +128,8 @@ templ DashboardCore() {
 					teams: [],
 					alertNames: [],
 					// Exact label matches ({key, value}), e.g. from the blast-radius panel
-					labels: []
+					labels: [],
+					ownedByMe: false
 				},
 
 				selectedAlerts: [],
@@ -482,12 +485,28 @@ templ DashboardCore() {
 					}
 				},
 
+				// Mine/Everyone only exists in the acked worklist, so every path that
+				// sets it (toggle, mode switch, saved preset, URL) goes through here
+				// instead of assigning filters.ownedByMe directly. Restoring it in
+				// another mode would apply a filter with no visible control.
+				applyOwnedByMe(value) {
+					this.filters.ownedByMe = this.displayMode === 'acknowledge' && value === true;
+				},
+
 				setDisplayMode(mode) {
 					if (this.displayMode !== mode) {
 						const previousMode = this.displayMode;
 						this.displayMode = mode;
 						this.clearSelection();
 						this.currentPage = 1; // Each mode has its own result set size
+
+						// Surface the oldest (most stale) acks first when entering the
+						// worklist - that's the handover order that matters
+						if (mode === 'acknowledge') {
+							this.sortField = 'acknowledgedAt';
+							this.sortDirection = 'asc';
+						}
+						this.applyOwnedByMe(this.filters.ownedByMe);
 
 						// Always reload when switching back from resolved to other views
 						if (previousMode === 'resolved' && mode !== 'resolved') {

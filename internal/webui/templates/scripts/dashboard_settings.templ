@@ -30,6 +30,7 @@ templ DashboardSettings() {
 					theme: 'light',
 					resolvedAlertsLimit: 100,
 					refreshInterval: 30,
+					staleAckThresholdHours: 4,
 					onCallSchedule: {
 						weekdayStart: '18:00',
 						weekdayEnd: '08:00',
@@ -112,6 +113,18 @@ templ DashboardSettings() {
 						// Also check for theme preference from dashboard instance
 						if (window.dashboardInstance && window.dashboardInstance.currentTheme) {
 							this.settings.theme = window.dashboardInstance.currentTheme;
+						}
+
+						// staleAckThresholdHours drives the server's stale-ack badge count too,
+						// so the backend copy (not just localStorage) is the source of truth.
+						// Only merge this one field - the rest of this tab's settings are
+						// localStorage-only today, and the backend's copy of them is stale.
+						const response = await fetch('/api/v1/dashboard/settings', { credentials: 'include' });
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success && result.data && typeof result.data.staleAckThresholdHours === 'number') {
+								this.settings.staleAckThresholdHours = result.data.staleAckThresholdHours;
+							}
 						}
 
 						console.log('Loaded general settings:', this.settings);
@@ -470,12 +483,28 @@ templ DashboardSettings() {
 					try {
 						// Save general settings to localStorage
 						localStorage.setItem('dashboardSettings', JSON.stringify(this.settings));
-						
+
+						// Also persist to the backend - staleAckThresholdHours drives the
+						// server-computed stale-ack badge count, which needs to see it.
+						// Only send this one field: the rest of this.settings is
+						// localStorage-only, and the backend's SaveDashboardSettings
+						// rejects the rest anyway to avoid a stale client-local
+						// refreshInterval clobbering the shared alertCache poll cadence.
+						const settingsResponse = await fetch('/api/v1/dashboard/settings', {
+							method: 'POST',
+							credentials: 'include',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ staleAckThresholdHours: this.settings.staleAckThresholdHours })
+						});
+						if (!settingsResponse.ok) {
+							fail('Failed to save general settings');
+						}
+
 						// Apply theme change immediately if changed
 						if (window.dashboardInstance && typeof window.dashboardInstance.setTheme === 'function') {
 							window.dashboardInstance.setTheme(this.settings.theme);
 						}
-						
+
 						console.log('General settings saved:', this.settings);
 
 						// Save color preferences (save all existing preferences)

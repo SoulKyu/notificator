@@ -165,7 +165,7 @@ func HandleGetRelatedAlerts(c *gin.Context) {
 		DisplayMode:        webuimodels.DisplayModeClassic,
 		FilterHiddenAlerts: hiddenAlerts,
 		FilterHiddenRules:  hiddenRules,
-	}, sessionID)
+	}, sessionID, getCurrentUsername(c))
 
 	groups := computeRelatedAlertGroups(target, active)
 

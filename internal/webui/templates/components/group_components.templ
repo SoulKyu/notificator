@@ -104,59 +104,34 @@ templ AlertsGroupView() {
 				<div x-show="expandedGroups.includes(group.groupName)" x-transition>
 					<div class="overflow-x-auto">
 						<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+							<!-- Same columns as the list view: driven by visibleColumns, rendered by
+								 renderCell(). Hard-coding them here is what kept Owner and Ack Age
+								 (and every future column) invisible in grouped mode. -->
 							<thead class="bg-gray-100 dark:bg-dark-bg-primary">
 								<tr>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Alert</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Instance</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Duration</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+									<template x-for="column in visibleColumns" :key="'group-head-' + group.groupName + '-' + column.id">
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+											:style="`width: ${column.width}px; min-width: ${column.width}px;`"
+											x-text="column.label"></th>
+									</template>
 								</tr>
 							</thead>
 							<tbody class="bg-white dark:bg-dark-bg-secondary divide-y divide-gray-200 dark:divide-dark-border-subtle">
 								<template x-for="alert in group.alerts" x-key="alert.fingerprint">
 									<tr class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary cursor-pointer transition-colors"
-										@click="if (!$event.target.closest('button')) showAlertDetails(alert.fingerprint)"
+										@click="if (!$event.target.closest('input[type=checkbox]') && !$event.target.closest('button')) showAlertDetails(alert.fingerprint)"
 										:class="{
 											'border-l-4 border-l-severity-critical-light bg-severity-critical-bg-light/20 dark:bg-severity-critical-bg-dark/20 dark:border-l-severity-critical-dark': alert.severity === 'critical' || alert.severity === 'CRITICAL',
 											'border-l-4 border-l-severity-critical-daytime-light bg-severity-critical-daytime-bg-light/20 dark:bg-severity-critical-daytime-bg-dark/20 dark:border-l-severity-critical-daytime-dark': alert.severity === 'critical-daytime',
 											'border-l-4 border-l-severity-warning-light bg-severity-warning-bg-light/20 dark:bg-severity-warning-bg-dark/20 dark:border-l-severity-warning-dark': alert.severity === 'warning' || alert.severity === 'WARNING',
 											'border-l-4 border-l-severity-info-light bg-severity-info-bg-light/20 dark:bg-severity-info-bg-dark/20 dark:border-l-severity-info-dark': alert.severity === 'info' || alert.severity === 'INFO' || alert.severity === 'information' || alert.severity === 'INFORMATION'
 										}">
-										<td class="px-6 py-4 whitespace-nowrap">
-											<div class="text-sm font-medium text-gray-900 dark:text-white" x-text="alert.alertName"></div>
-											<div class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs" x-text="alert.summary"></div>
-										</td>
-										<td class="px-6 py-4 whitespace-nowrap">
-											<div class="text-sm text-gray-900 dark:text-white" x-text="alert.instance"></div>
-										</td>
-										<td class="px-6 py-4 whitespace-nowrap">
-											<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-												  :class="{
-													  'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': statusMatches(alert.status, 'firing') || statusMatches(alert.status, 'active'),
-													  'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': statusMatches(alert.status, 'resolved'),
-													  'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200': statusMatches(alert.status, 'silenced'),
-													  'bg-gray-100 text-gray-800 dark:bg-dark-bg-tertiary dark:text-gray-200': !['firing', 'active', 'resolved', 'silenced'].includes(getDisplayStatus(alert.status))
-												  }">
-												<!-- Fire emoji for active/firing -->
-												<span x-show="statusMatches(alert.status, 'firing') || statusMatches(alert.status, 'active')" class="mr-1">🔥</span>
-												<!-- Mute emoji for silenced -->
-												<span x-show="statusMatches(alert.status, 'silenced')" class="mr-1">🔇</span>
-												<span x-text="(statusMatches(alert.status, 'firing') || statusMatches(alert.status, 'active')) ? 'Active' : 
-															statusMatches(alert.status, 'silenced') ? 'Silenced' : 
-															statusMatches(alert.status, 'resolved') ? 'Resolved' : 
-															getDisplayStatus(alert.status)?.toUpperCase()"></span>
-											</span>
-										</td>
-										<td class="px-6 py-4 whitespace-nowrap">
-											<div class="text-sm text-gray-500 dark:text-gray-400" x-text="formatDuration(alert.duration)"></div>
-										</td>
-										<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-											<button x-show="!alert.isAcknowledged" @click.stop="acknowledgeAlert(alert.fingerprint)" 
-													class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">
-												Ack
-											</button>
-										</td>
+										<template x-for="column in visibleColumns" :key="'group-cell-' + alert.fingerprint + '-' + column.id">
+											<td class="px-6 py-4 align-middle overflow-hidden"
+												:style="`width: ${column.width}px; min-width: ${column.width}px; max-width: ${column.width}px;`"
+												x-html="renderCell(alert, column)">
+											</td>
+										</template>
 									</tr>
 								</template>
 							</tbody>
