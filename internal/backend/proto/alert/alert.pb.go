@@ -639,12 +639,16 @@ func (x *Comment) GetKind() string {
 }
 
 type GetRecentActivityRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Since         *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=since,proto3" json:"since,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SessionId string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Since     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=since,proto3" json:"since,omitempty"`
+	Limit     int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	// When set, narrows the query itself to comments mentioning this username
+	// (an "@username" substring match, case-insensitive), so limit applies to
+	// the relevant subset instead of the whole activity firehose.
+	MentionUsername string `protobuf:"bytes,4,opt,name=mention_username,json=mentionUsername,proto3" json:"mention_username,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetRecentActivityRequest) Reset() {
@@ -696,6 +700,13 @@ func (x *GetRecentActivityRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *GetRecentActivityRequest) GetMentionUsername() string {
+	if x != nil {
+		return x.MentionUsername
+	}
+	return ""
 }
 
 type ActivityEvent struct {
@@ -10180,12 +10191,13 @@ const file_proto_alert_proto_rawDesc = "" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x129\n" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x12\n" +
-	"\x04kind\x18\a \x01(\tR\x04kind\"\x81\x01\n" +
+	"\x04kind\x18\a \x01(\tR\x04kind\"\xac\x01\n" +
 	"\x18GetRecentActivityRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x120\n" +
 	"\x05since\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\xda\x01\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12)\n" +
+	"\x10mention_username\x18\x04 \x01(\tR\x0fmentionUsername\"\xda\x01\n" +
 	"\rActivityEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\talert_key\x18\x02 \x01(\tR\balertKey\x12\x12\n" +

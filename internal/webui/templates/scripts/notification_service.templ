@@ -665,6 +665,10 @@ templ NotificationService() {
 				}
 			},
 
+			// Mention notifications are owned by mentionsWatcher() in
+			// components/PageNavigator.templ: they must fire on every page, including the ones
+			// that never load this service, and they ignore severity/preset scoping entirely.
+
 			// Show notification immediately (used internally, bypasses rate limit check)
 			showNotificationImmediate(alert) {
 				// Record that we're showing a notification

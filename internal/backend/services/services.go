@@ -671,7 +671,7 @@ func (s *AlertServiceGorm) GetRecentActivity(ctx context.Context, req *alertpb.G
 		since = req.Since.AsTime()
 	}
 
-	rows, err := s.db.GetRecentActivity(since, limit)
+	rows, err := s.db.GetRecentActivity(since, limit, strings.ToLower(req.GetMentionUsername()))
 	if err != nil {
 		log.Printf("Error getting recent activity: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to load activity: %v", err)

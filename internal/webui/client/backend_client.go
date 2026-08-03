@@ -605,7 +605,9 @@ func (c *BackendClient) DeleteComment(sessionID, commentID string) error {
 }
 
 // GetRecentActivity fetches recent cross-alert collaboration events for the activity feed.
-func (c *BackendClient) GetRecentActivity(sessionID string, since time.Time, limit int) ([]*alertpb.ActivityEvent, error) {
+// When mentionUsername is non-empty, the query itself is narrowed to comments mentioning
+// that username, so limit caps the relevant subset instead of the whole activity firehose.
+func (c *BackendClient) GetRecentActivity(sessionID string, since time.Time, limit int, mentionUsername string) ([]*alertpb.ActivityEvent, error) {
 	if c.alertClient == nil {
 		return nil, fmt.Errorf("not connected to backend")
 	}
@@ -614,9 +616,10 @@ func (c *BackendClient) GetRecentActivity(sessionID string, since time.Time, lim
 	defer cancel()
 
 	resp, err := c.alertClient.GetRecentActivity(ctx, &alertpb.GetRecentActivityRequest{
-		SessionId: sessionID,
-		Since:     timestamppb.New(since),
-		Limit:     int32(limit),
+		SessionId:       sessionID,
+		Since:           timestamppb.New(since),
+		Limit:           int32(limit),
+		MentionUsername: mentionUsername,
 	})
 	if err != nil {
 		return nil, err

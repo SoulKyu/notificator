@@ -1,12 +1,18 @@
 package pages
 
 import (
+	"strconv"
+
 	"notificator/internal/webui/templates/components"
 	"notificator/internal/webui/templates/layouts"
 )
 
 type ActivityData struct {
 	User ProfileUser
+	// MentionWindowMinutes is the server's mentions window (handlers.MentionWindowMinutes),
+	// handed to the page so the mentions view and the unseen-mentions badge cannot drift
+	// apart into showing less than the badge counts.
+	MentionWindowMinutes int
 }
 
 templ Activity(data ActivityData) {
@@ -71,7 +77,9 @@ templ activityFilterDropdown(label, title, key, placeholder string, severityDots
 }
 
 templ ActivityContent(data ActivityData) {
-	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="activityPage()">
+	<div class="min-h-screen bg-slate-50 dark:bg-dark-bg-primary" x-data="activityPage()"
+		data-user-id={ data.User.ID }
+		data-mention-window={ strconv.Itoa(data.MentionWindowMinutes) }>
 		<!-- Sticky Header Bar -->
 		<header class="sticky top-0 z-40 bg-white/95 dark:bg-dark-bg-secondary/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50">
 			<div class="px-6 py-4">
@@ -117,7 +125,7 @@ templ ActivityContent(data ActivityData) {
 					<div x-show="open" x-cloak @click.away="open = false" x-transition
 						class="absolute left-0 mt-2 w-44 rounded-md shadow-lg bg-white dark:bg-dark-bg-secondary ring-1 ring-black ring-opacity-5 z-50">
 						<div class="py-1">
-							<template x-for="opt in [{ label: 'Last 15 minutes', value: 15 }, { label: 'Last hour', value: 60 }, { label: 'Last 8 hours', value: 480 }, { label: 'Last 24 hours', value: 1440 }]" :key="opt.value">
+							<template x-for="opt in windowOptions" :key="opt.value">
 								<button @click="windowMinutes = opt.value; open = false; load()"
 									:class="windowMinutes === opt.value ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-200'"
 									class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-dark-bg-tertiary"
@@ -178,6 +186,13 @@ templ ActivityContent(data ActivityData) {
 						class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
 					>Mine</button>
 				</div>
+
+				<!-- Mentions-only toggle -->
+				<button
+					@click="toggleMentionsOnly()"
+					:class="mentionsOnly ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400'"
+					class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors"
+				>{ "@ Mentions" }</button>
 
 				<div class="relative flex-1 min-w-[200px]">
 					<input type="text" x-model="search" @input.debounce.400ms="load()" placeholder="Search alert, user or comment..."
@@ -266,11 +281,24 @@ templ ActivityContent(data ActivityData) {
 				scope: 'everyone',
 				windowMinutes: 60,
 				search: '',
+				mentionsOnly: false,
 				error: '',
 				timer: null,
+				userId: '',
+				mentionWindowMinutes: 10080,
 				metadata: { availableFilters: { severities: [], teams: [], alertmanagers: [], alertNames: [] } },
 
 				init() {
+					// Both come from the server, so the page agrees with the handler about who
+					// the user is and how far back a mentions feed reaches.
+					this.userId = this.$el.dataset.userId || '';
+					this.mentionWindowMinutes = Number(this.$el.dataset.mentionWindow) || this.mentionWindowMinutes;
+					// Deep link from the Mentions badge (PageNavigator): open straight into the
+					// mentions-only view, over the same window the badge counted.
+					this.mentionsOnly = new URLSearchParams(window.location.search).get('mentions') === '1';
+					if (this.mentionsOnly) {
+						this.windowMinutes = this.mentionWindowMinutes;
+					}
 					this.load();
 					document.addEventListener('visibilitychange', () => this.syncPolling());
 					this.syncPolling();
@@ -293,6 +321,7 @@ templ ActivityContent(data ActivityData) {
 					if (this.filters.alertmanagers.length) params.set('alertmanagers', this.filters.alertmanagers.join(','));
 					if (this.filters.alertNames.length) params.set('alertNames', this.filters.alertNames.join(','));
 					if (this.search) params.set('search', this.search);
+					if (this.mentionsOnly) params.set('mentionsOnly', 'true');
 					try {
 						const r = await fetch('/api/v1/dashboard/activity?' + params.toString());
 						const p = await r.json();
@@ -308,9 +337,34 @@ templ ActivityContent(data ActivityData) {
 							alertNames: af.alertNames || []
 						};
 						this.error = '';
+						this.markMentionsSeen();
 					} catch (err) {
 						this.error = err.message;
 					}
+				},
+
+				// The unseen-mentions badge is cleared by this view, not by the click that
+				// opened it: a mention is only consumed once it has actually been rendered
+				// here. Clearing on click discarded every mention the view did not show.
+				//
+				// Any narrowing control makes the rows on screen a subset of what the badge
+				// counted, so the watermark only moves on the plain, full-window feed.
+				markMentionsSeen() {
+					if (!this.userId || !this.mentionsOnly) return;
+					const narrowed = this.search || this.kinds.length || this.scope !== 'everyone' ||
+						this.windowMinutes < this.mentionWindowMinutes ||
+						this.filters.severities.length || this.filters.teams.length ||
+						this.filters.alertmanagers.length || this.filters.alertNames.length;
+					if (narrowed) return;
+
+					const key = 'notificator_mention_seen_' + this.userId; // = seenKey() in PageNavigator.templ
+					const seenAt = this.events.reduce(
+						(max, e) => Math.max(max, new Date(e.createdAt).getTime() || 0),
+						Number(localStorage.getItem(key)) || 0
+					);
+					localStorage.setItem(key, String(seenAt));
+					// Lets the badge in PageNavigator drop now instead of at its next 30s poll.
+					window.dispatchEvent(new CustomEvent('notificator:mentions-seen'));
 				},
 
 				clearFilter(type) {
@@ -318,13 +372,30 @@ templ ActivityContent(data ActivityData) {
 					this.load();
 				},
 
+				// The mentions entry is the server's window (data-mention-window), so widening
+				// it server-side widens the selector too.
+				get windowOptions() {
+					const days = Math.round(this.mentionWindowMinutes / 1440);
+					return [
+						{ label: 'Last 15 minutes', value: 15 },
+						{ label: 'Last hour', value: 60 },
+						{ label: 'Last 8 hours', value: 480 },
+						{ label: 'Last 24 hours', value: 1440 },
+						{ label: 'Last ' + days + (days > 1 ? ' days' : ' day'), value: this.mentionWindowMinutes }
+					];
+				},
+
 				windowLabel() {
-					return {
-						15: 'Last 15 minutes',
-						60: 'Last hour',
-						480: 'Last 8 hours',
-						1440: 'Last 24 hours'
-					}[this.windowMinutes] || 'Last hour';
+					const opt = this.windowOptions.find(o => o.value === this.windowMinutes);
+					return opt ? opt.label : 'Last ' + this.windowMinutes + ' minutes';
+				},
+
+				// Mentions are read over the full mentions window; anything narrower would
+				// hide mentions the badge counts. Leaving the filter restores the live tail.
+				toggleMentionsOnly() {
+					this.mentionsOnly = !this.mentionsOnly;
+					this.windowMinutes = this.mentionsOnly ? this.mentionWindowMinutes : 60;
+					this.load();
 				},
 
 				toggleKind(kind) {

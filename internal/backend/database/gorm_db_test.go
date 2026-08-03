@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -122,7 +123,7 @@ func TestLegacyCommentKindStaysEmpty(t *testing.T) {
 		t.Fatalf("raw insert: %v", err)
 	}
 
-	got, err := gdb.GetRecentActivity(now.Add(-time.Minute), 100)
+	got, err := gdb.GetRecentActivity(now.Add(-time.Minute), 100, "")
 	if err != nil {
 		t.Fatalf("GetRecentActivity: %v", err)
 	}
@@ -293,7 +294,7 @@ func TestGetRecentActivity(t *testing.T) {
 	}
 
 	// window = last 2h → excludes c1; newest first → c3, c2
-	got, err := gdb.GetRecentActivity(base.Add(-2*time.Hour), 100)
+	got, err := gdb.GetRecentActivity(base.Add(-2*time.Hour), 100, "")
 	if err != nil {
 		t.Fatalf("GetRecentActivity: %v", err)
 	}
@@ -305,12 +306,107 @@ func TestGetRecentActivity(t *testing.T) {
 	}
 
 	// limit caps the result
-	got, err = gdb.GetRecentActivity(base.Add(-4*time.Hour), 1)
+	got, err = gdb.GetRecentActivity(base.Add(-4*time.Hour), 1, "")
 	if err != nil {
 		t.Fatalf("GetRecentActivity: %v", err)
 	}
 	if len(got) != 1 || got[0].ID != "c3" {
 		t.Fatalf("limit=1 got %v, want [c3]", ids(got))
+	}
+}
+
+// TestGetRecentActivityMentionFilterAvoidsTruncation pins the fix for the mentions
+// path being silently truncated by the limit: without mentionUsername narrowing the
+// query itself, a mention older than 200 more-recent non-mention rows falls outside
+// a limit=200 slice and is invisible to callers. Passing mentionUsername pushes the
+// match into the query, so limit applies only to the relevant subset.
+func TestGetRecentActivityMentionFilterAvoidsTruncation(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	base := time.Now().UTC().Truncate(time.Second)
+
+	// The oldest row is the one mentioning bob; everything after it is newer and
+	// does not mention bob, so a naive limit=200 query (no mention filter) returns
+	// only the 200 newest non-mention rows and never reaches the mention.
+	mention := models.Comment{
+		ID: "mention-1", AlertKey: "k1", UserID: u.ID, Content: "cc @bob please check",
+		Kind: "comment", CreatedAt: base.Add(-201 * time.Minute),
+	}
+	if err := gdb.db.Create(&mention).Error; err != nil {
+		t.Fatalf("seed mention: %v", err)
+	}
+	for i := range 200 {
+		c := models.Comment{
+			ID: fmt.Sprintf("noise-%d", i), AlertKey: "k1", UserID: u.ID, Content: "just noise",
+			Kind: "comment", CreatedAt: base.Add(-time.Duration(200-i) * time.Minute),
+		}
+		if err := gdb.db.Create(&c).Error; err != nil {
+			t.Fatalf("seed noise %d: %v", i, err)
+		}
+	}
+
+	since := base.Add(-24 * time.Hour)
+
+	// Without mention narrowing, the mention is truncated away by limit=200.
+	got, err := gdb.GetRecentActivity(since, 200, "")
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	for _, r := range got {
+		if r.ID == "mention-1" {
+			t.Fatalf("unnarrowed query unexpectedly returned the mention within limit=200; test setup invalid")
+		}
+	}
+
+	// With mention narrowing, the query itself is scoped to matching rows, so the
+	// same limit=200 does not truncate it away.
+	got, err = gdb.GetRecentActivity(since, 200, "bob")
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "mention-1" {
+		t.Fatalf("got %v, want [mention-1]", ids(got))
+	}
+}
+
+// TestGetRecentActivityMentionFilterEscapesWildcards pins the fix for the SQL
+// LIKE prefilter over-matching when mentionUsername itself contains '_' or '%'
+// (both valid in OAuth-derived usernames, since they come from the email local
+// part). Unescaped, "%@john_doe%" also matches "@johnXdoe" for any X, which can
+// crowd a genuine older mention out of the same limit-window truncation this
+// filter exists to avoid.
+func TestGetRecentActivityMentionFilterEscapesWildcards(t *testing.T) {
+	gdb := newTestDB(t)
+	u := models.User{ID: "u1", Username: "alice", Email: "a@example.com"}
+	if err := gdb.db.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	base := time.Now().UTC()
+
+	decoy := models.Comment{
+		ID: "decoy", AlertKey: "k1", UserID: u.ID, Content: "cc @johnXdoe fyi",
+		Kind: "comment", CreatedAt: base.Add(-time.Minute),
+	}
+	real := models.Comment{
+		ID: "real", AlertKey: "k1", UserID: u.ID, Content: "cc @john_doe please check",
+		Kind: "comment", CreatedAt: base.Add(-2 * time.Minute),
+	}
+	if err := gdb.db.Create(&decoy).Error; err != nil {
+		t.Fatalf("seed decoy: %v", err)
+	}
+	if err := gdb.db.Create(&real).Error; err != nil {
+		t.Fatalf("seed real: %v", err)
+	}
+
+	got, err := gdb.GetRecentActivity(base.Add(-24*time.Hour), 200, "john_doe")
+	if err != nil {
+		t.Fatalf("GetRecentActivity: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "real" {
+		t.Fatalf("got %v, want [real]; unescaped '_' let the decoy through", ids(got))
 	}
 }
 

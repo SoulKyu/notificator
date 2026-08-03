@@ -1350,7 +1350,9 @@ func AlertModalDetailsGeneratorURL(dataVar string) templ.Component {
 // COMMENTS & ACKNOWLEDGMENTS (READ-ONLY)
 // =============================================================================
 
-// AlertModalCommentsReadonly displays the comments list (read-only, no add/delete)
+// AlertModalCommentsReadonly displays the comments list (read-only, no add/delete).
+// Highlights @mentions via the global renderMentionText() (static/js/mention_text.js),
+// which needs a currentUsername field in the caller's Alpine scope.
 // dataVar: the comments array variable (e.g., "individualAlertData?.comments")
 func AlertModalCommentsReadonly(dataVar string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -1380,7 +1382,7 @@ func AlertModalCommentsReadonly(dataVar string) templ.Component {
 		var templ_7745c5c3_Var78 string
 		templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + " && " + dataVar + ".length > 0")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 455, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 457, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 		if templ_7745c5c3_Err != nil {
@@ -1393,20 +1395,20 @@ func AlertModalCommentsReadonly(dataVar string) templ.Component {
 		var templ_7745c5c3_Var79 string
 		templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs("comment in " + dataVar)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 456, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 458, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "\" :key=\"comment.id\"><div class=\"bg-gray-50 dark:bg-dark-bg-tertiary rounded-lg p-4 border border-gray-100 dark:border-gray-700\"><div class=\"flex items-center justify-between mb-2\"><div class=\"flex items-center space-x-2\"><svg class=\"w-4 h-4 text-gray-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z\"></path></svg> <span class=\"text-sm font-semibold text-gray-900 dark:text-white\" x-text=\"comment.username\"></span></div><span class=\"text-xs text-gray-500 dark:text-gray-400\" x-text=\"comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''\"></span></div><p class=\"text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words\" x-text=\"comment.content\"></p></div></template></div><div x-show=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "\" :key=\"comment.id\"><div class=\"bg-gray-50 dark:bg-dark-bg-tertiary rounded-lg p-4 border border-gray-100 dark:border-gray-700\"><div class=\"flex items-center justify-between mb-2\"><div class=\"flex items-center space-x-2\"><svg class=\"w-4 h-4 text-gray-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z\"></path></svg> <span class=\"text-sm font-semibold text-gray-900 dark:text-white\" x-text=\"comment.username\"></span></div><span class=\"text-xs text-gray-500 dark:text-gray-400\" x-text=\"comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''\"></span></div><p class=\"text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words\" x-html=\"renderMentionText(comment.content, currentUsername)\"></p></div></template></div><div x-show=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var80 string
 		templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs("!" + dataVar + " || " + dataVar + ".length === 0")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 471, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 473, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 		if templ_7745c5c3_Err != nil {
@@ -1422,7 +1424,8 @@ func AlertModalCommentsReadonly(dataVar string) templ.Component {
 
 // AlertModalCommentsWritable renders the read-only comment list plus an add-comment form.
 // Used by the statistics resolved-alert modal. Relies on Alpine fields newCommentContent /
-// commentSubmitting and the method addComment() being present in the page component scope.
+// commentSubmitting and the method addComment() being present in the page component scope,
+// plus a currentUsername field for mention highlighting.
 // dataVar: the comments array variable (e.g., "individualAlertData?.comments")
 func AlertModalCommentsWritable(dataVar string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -1491,7 +1494,7 @@ func AlertModalAcknowledgmentsReadonly(dataVar string) templ.Component {
 		var templ_7745c5c3_Var83 string
 		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + " && " + dataVar + ".length > 0")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 513, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 516, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 		if templ_7745c5c3_Err != nil {
@@ -1504,7 +1507,7 @@ func AlertModalAcknowledgmentsReadonly(dataVar string) templ.Component {
 		var templ_7745c5c3_Var84 string
 		templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs("ack in " + dataVar)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 514, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 517, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 		if templ_7745c5c3_Err != nil {
@@ -1517,7 +1520,7 @@ func AlertModalAcknowledgmentsReadonly(dataVar string) templ.Component {
 		var templ_7745c5c3_Var85 string
 		templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs("!" + dataVar + " || " + dataVar + ".length === 0")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 529, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 532, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 		if templ_7745c5c3_Err != nil {
@@ -1566,7 +1569,7 @@ func AlertModalSilences(dataVar string) templ.Component {
 		var templ_7745c5c3_Var87 string
 		templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + " && " + dataVar + ".length > 0")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 546, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 549, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 		if templ_7745c5c3_Err != nil {
@@ -1579,7 +1582,7 @@ func AlertModalSilences(dataVar string) templ.Component {
 		var templ_7745c5c3_Var88 string
 		templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs("silence in " + dataVar)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 553, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 556, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 		if templ_7745c5c3_Err != nil {
@@ -1592,7 +1595,7 @@ func AlertModalSilences(dataVar string) templ.Component {
 		var templ_7745c5c3_Var89 string
 		templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs("!" + dataVar + " || " + dataVar + ".length === 0")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 573, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 576, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 		if templ_7745c5c3_Err != nil {
@@ -1645,7 +1648,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var92 string
 		templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(showVar)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 603, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 606, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 		if templ_7745c5c3_Err != nil {
@@ -1671,7 +1674,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var94 string
 		templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(closeFunc)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 616, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 619, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 		if templ_7745c5c3_Err != nil {
@@ -1684,7 +1687,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var95 string
 		templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(closeFunc)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 619, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 622, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 		if templ_7745c5c3_Err != nil {
@@ -1719,7 +1722,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var98 string
 		templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(showVar)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 626, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 629, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 		if templ_7745c5c3_Err != nil {
@@ -1732,7 +1735,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var99 string
 		templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinStringErrs(loadingVar)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 637, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 640, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 		if templ_7745c5c3_Err != nil {
@@ -1753,7 +1756,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var100 string
 		templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs("!" + loadingVar + " && " + dataVar)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 642, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 645, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 		if templ_7745c5c3_Err != nil {
@@ -1766,7 +1769,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var101 string
 		templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(closeFunc)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 656, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 659, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 		if templ_7745c5c3_Err != nil {
@@ -1787,7 +1790,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var102 string
 		templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + "?.alert?.alertName || 'Alert Details'")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 669, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 672, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var102))
 		if templ_7745c5c3_Err != nil {
@@ -1848,7 +1851,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 			var templ_7745c5c3_Var104 string
 			templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + "?.comments?.length")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 690, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 693, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var104))
 			if templ_7745c5c3_Err != nil {
@@ -1861,7 +1864,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 			var templ_7745c5c3_Var105 string
 			templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + "?.comments?.length || 0")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 690, Col: 176}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 693, Col: 176}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 			if templ_7745c5c3_Err != nil {
@@ -1896,7 +1899,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 			var templ_7745c5c3_Var107 string
 			templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + "?.acknowledgments?.length")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 693, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 696, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var107))
 			if templ_7745c5c3_Err != nil {
@@ -1909,7 +1912,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 			var templ_7745c5c3_Var108 string
 			templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + "?.acknowledgments?.length || 0")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 693, Col: 190}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 696, Col: 190}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 			if templ_7745c5c3_Err != nil {
@@ -1944,7 +1947,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 			var templ_7745c5c3_Var110 string
 			templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(occurrencesVar + "?.length || 0")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 696, Col: 131}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 699, Col: 131}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var110))
 			if templ_7745c5c3_Err != nil {
@@ -1995,7 +1998,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var111 string
 		templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.JoinStringErrs(dataVar + "?.alert?.fingerprint")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 723, Col: 117}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 726, Col: 117}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var111))
 		if templ_7745c5c3_Err != nil {
@@ -2008,7 +2011,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var112 string
 		templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.JoinStringErrs("copyToClipboard(" + dataVar + "?.alert?.fingerprint)")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 725, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 728, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var112))
 		if templ_7745c5c3_Err != nil {
@@ -2073,7 +2076,7 @@ func AlertModalReadonly(showVar string, loadingVar string, dataVar string, occur
 		var templ_7745c5c3_Var113 string
 		templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs("!" + dataVar + "?.alert?.generatorURL")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 765, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/components/alert_modal_shared.templ`, Line: 768, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 		if templ_7745c5c3_Err != nil {

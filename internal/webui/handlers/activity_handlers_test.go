@@ -48,6 +48,53 @@ func TestBuildActivityFeedUncachedBehavior(t *testing.T) {
 	}
 }
 
+func TestMentionsUsername(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		user    string
+		want    bool
+	}{
+		{"simple mention", "this is the payment DB, @marie owns it", "marie", true},
+		{"case-insensitive", "hey @Bob check this out", "bob", true},
+		{"case-insensitive target", "hey @bob check this out", "Bob", true},
+		{"no mention", "just a regular comment", "bob", false},
+		{"does not match longer handle", "@bobby is on call", "bob", false},
+		{"matches at end of content", "assigning to @bob", "bob", true},
+		{"matches with trailing punctuation", "cc @bob, please check", "bob", true},
+		{"empty username never matches", "@bob is here", "", false},
+		{"does not match mention embedded after a longer token", "Please email ops-team@bob for the runbook", "bob", false},
+		{"does not match mention embedded after a longer token in hostname", "contact db01@bob.internal now", "bob", false},
+		{"does not match a longer non-ascii handle", "second handover to @bobé only", "bob", false},
+		{"matches the non-ascii handle itself", "second handover to @bobé only", "bobé", true},
+		{"non-ascii matching is case-insensitive", "ping @BOBÉ about this", "bobé", true},
+		{"shorter ascii handle does not match a non-ascii user", "@bob is on call", "bobé", false},
+		{"does not match a longer handle across a non-ascii tail", "@marié owns the runbook", "marie", false},
+		{"non-ascii handle after a longer token is an address", "mail ops@bobé.internal", "bobé", false},
+		{"dotted handle is not a mention of its prefix", "@bob.smith please page the payment DB owner", "bob", false},
+		{"dotted handle mentions its own owner", "@bob.smith please page the payment DB owner", "bob.smith", true},
+		{"dotted handle is case-insensitive", "cc @Bob.Smith", "bob.smith", true},
+		{"trailing period is punctuation, not part of the handle", "please ping @bob.", "bob", true},
+		{"apostrophe handle mentions its own owner", "handover to @o'brien now", "o'brien", true},
+		{"combining mark makes a different handle", "handover to @bob́", "bob", false},
+		{"handle wrapped in parentheses still matches", "(@bob) owns this", "bob", true},
+		{"handle followed by markup is not extended", "@bob <img src=x>", "bob", true},
+		{"email address is not a mention of its local part", "cert renewal is owned by tls-ops@bob.example.com", "bob", false},
+		{"email-shaped handle is not a mention of its local part", "@bob@corp.com you own the payment DB", "bob", false},
+		{"email-shaped handle mentions its own owner", "@bob@corp.com you own the payment DB", "bob@corp.com", true},
+		{"plus-tagged handle is not a mention of its prefix", "@bob+oncall please take this", "bob", false},
+		{"plus-tagged handle mentions its own owner", "@bob+oncall please take this", "bob+oncall", true},
+		{"unregistered email-shaped handle mentions nobody", "@bob@nowhere.invalid ping", "bob@corp.com", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := mentionsUsername(tc.content, tc.user); got != tc.want {
+				t.Errorf("mentionsUsername(%q, %q) = %v, want %v", tc.content, tc.user, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestMatchesActivitySearch(t *testing.T) {
 	ev := webuimodels.ActivityEvent{
 		Content:   "🔇 Alert silenced for 2h: KafkaLagHigh",

@@ -3,7 +3,7 @@ package components
 // PageNavigator renders a prominent navigation switcher between Dashboard, Silences, Statistics and Activity
 // activePage should be "dashboard", "silences", "statistics" or "activity"
 templ PageNavigator(activePage string) {
-	<nav class="page-navigator" aria-label="Main navigation">
+	<nav class="page-navigator flex items-center gap-2" aria-label="Main navigation" x-data="mentionsWatcher()">
 		<div class="flex items-center bg-slate-100 dark:bg-slate-800/50 rounded-xl p-1 shadow-inner">
 			<!-- Alerts/Dashboard Tab -->
 			<a
@@ -89,5 +89,196 @@ templ PageNavigator(activePage string) {
 				}
 			</a>
 		</div>
+
+		<!-- Mentions indicator: comments that @-mention the current user, not yet seen -->
+		<button
+			@click="openMentions()"
+			type="button"
+			title="Comments mentioning you"
+			class="relative inline-flex items-center p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors"
+		>
+			<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 10-2.636 6.364M16.5 12V8.25"/>
+			</svg>
+			<span x-show="unseenCount > 0" x-cloak x-text="unseenCount > 99 ? '99+' : unseenCount"
+				class="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[10px] font-bold bg-red-500 text-white"></span>
+		</button>
 	</nav>
+
+	<script>
+		// Polls for unseen @mentions, shows a badge next to the Activity tab and raises the
+		// browser notification for each new mention, on every page (this component is embedded
+		// wherever PageNavigator is). Fetches its own current-user id via /api/v1/auth/profile
+		// rather than threading one through every caller's page template - one extra cheap GET
+		// per page load, in exchange for staying fully self-contained.
+		//
+		// Mention notifications are raised here rather than delegated to NotificationService:
+		// that service is loaded by the dashboard page only, and even there it boots
+		// asynchronously, so any hand-off is a race the first poll loses. Self-contained
+		// delivery also makes the "mentions ignore severity and filter-preset scoping" rule
+		// true by construction instead of by a bypass inside the alert pipeline.
+		function mentionsWatcher() {
+			return {
+				unseenCount: 0,
+				userId: null,
+				timer: null,
+
+				init() {
+					// The mentions view marks what it rendered as seen; recount straight away
+					// instead of waiting out the 30s poll.
+					window.addEventListener('notificator:mentions-seen', () => this.poll());
+					this.start();
+				},
+
+				async start() {
+					try {
+						const response = await fetch('/api/v1/auth/profile', { credentials: 'include' });
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success && result.data?.user?.id) {
+								this.userId = result.data.user.id;
+							}
+						}
+					} catch (error) {
+						console.error('Failed to load current user for mentions watcher:', error);
+					}
+					if (!this.userId) {
+						return;
+					}
+					await this.poll();
+					this.timer = setInterval(() => this.poll(), 30000);
+				},
+
+				seenKey() {
+					return 'notificator_mention_seen_' + this.userId;
+				},
+
+				notifiedKey() {
+					return 'notificator_mention_notified_' + this.userId;
+				},
+
+				async poll() {
+					try {
+						// No windowMinutes: a mentionsOnly request already defaults to the
+						// server's mentions window, the same one the mentions view opens at.
+						const response = await fetch('/api/v1/dashboard/activity?mentionsOnly=true', {
+							credentials: 'include'
+						});
+						const result = await response.json();
+						if (!response.ok || !result.success) {
+							return;
+						}
+						const events = result.data.events || [];
+
+						const seenAt = Number(localStorage.getItem(this.seenKey())) || 0;
+						this.unseenCount = events.filter(e => new Date(e.createdAt).getTime() > seenAt).length;
+
+						await this.notifyFresh(events);
+					} catch (error) {
+						console.error('Failed to poll mentions:', error);
+					}
+				},
+
+				// The notified watermark is a delivery receipt, not a "we looked at this poll"
+				// marker: it moves past a mention only once that mention has actually been
+				// shown, or once we know the user asked not to be notified. Anything that
+				// leaves delivery undecided (preferences unreachable) leaves the watermark
+				// alone so the next poll retries, instead of consuming the mention silently.
+				//
+				// This component is instantiated once per open tab, and every instance reads
+				// and writes the same localStorage watermark. Without coordination, two tabs
+				// polling close together can both read the same stale watermark and both
+				// notify for the same mention. navigator.locks scopes the read-decide-write
+				// below to one tab at a time per user; browsers without the Web Locks API
+				// fall back to running unlocked (the pre-existing, racy behavior).
+				async notifyFresh(events) {
+					if ('locks' in navigator) {
+						await navigator.locks.request(this.notifiedKey(), () => this._notifyFresh(events));
+					} else {
+						await this._notifyFresh(events);
+					}
+				},
+
+				async _notifyFresh(events) {
+					const notifiedAt = Number(localStorage.getItem(this.notifiedKey()));
+					// First poll in this browser, or a corrupted watermark: start at "now" so a
+					// pre-existing backlog doesn't fire a burst of notifications.
+					if (!Number.isFinite(notifiedAt) || notifiedAt <= 0) {
+						localStorage.setItem(this.notifiedKey(), String(Date.now()));
+						return;
+					}
+
+					const fresh = events.filter(e => new Date(e.createdAt).getTime() > notifiedAt);
+					if (fresh.length === 0) {
+						return;
+					}
+
+					const enabled = await this.notificationsEnabled();
+					if (enabled === null) {
+						return;
+					}
+					if (enabled) {
+						fresh.forEach(e => this.showMention(e));
+					}
+
+					const maxCreated = fresh.reduce((max, e) => Math.max(max, new Date(e.createdAt).getTime()), notifiedAt);
+					localStorage.setItem(this.notifiedKey(), String(maxCreated));
+				},
+
+				// true/false = the user does/doesn't want browser notifications, null = we
+				// couldn't find out. Read at delivery time rather than cached at page load:
+				// the preference can be flipped from the settings modal or another tab.
+				// Severity and filter-preset scoping are deliberately not consulted - a mention
+				// is a direct ask from a teammate, not a fired alert.
+				async notificationsEnabled() {
+					if (!('Notification' in window) || Notification.permission !== 'granted') {
+						return false;
+					}
+					try {
+						const response = await fetch('/api/v1/notifications/preferences', { credentials: 'include' });
+						if (!response.ok) {
+							return null;
+						}
+						const result = await response.json();
+						if (!result.success || !result.data) {
+							return null;
+						}
+						return result.data.browser_notifications_enabled === true;
+					} catch (error) {
+						console.error('Failed to read notification preferences for mentions:', error);
+						return null;
+					}
+				},
+
+				showMention(event) {
+					try {
+						const notification = new Notification('You were mentioned', {
+							body: (event.content || '').slice(0, 200),
+							icon: '/static/images/info-icon.png',
+							tag: 'mention-' + event.id
+						});
+
+						notification.onclick = () => {
+							window.focus();
+							if (window.location.pathname.startsWith('/dashboard') && window.dashboardInstance?.showAlertDetails) {
+								window.dashboardInstance.showAlertDetails(event.alertKey);
+							} else {
+								window.location.href = '/dashboard/alert/' + event.alertKey;
+							}
+							notification.close();
+						};
+					} catch (error) {
+						console.error('Failed to show mention notification:', error);
+					}
+				},
+
+				// Navigation only. The seen watermark is advanced by the mentions view once
+				// it has actually rendered the mentions - marking them seen here consumed
+				// every mention the view then failed to display.
+				openMentions() {
+					window.location.href = '/activity?mentions=1';
+				}
+			};
+		}
+	</script>
 }
