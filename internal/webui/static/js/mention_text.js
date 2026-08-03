@@ -23,7 +23,10 @@
 	// usernames have no charset rule, and every character missing from such a list
 	// truncated the handle and highlighted someone else's mention as yours - a class
 	// without "." rendered "@bob.smith" as "@bob" + ".smith" for bob.
-	const STOP_CHARS = "@<>\"`()[]{},;!?\\/|=*&#%^~$+";
+	// "@" and "+" are handle characters, not stops: e-mail-shaped usernames
+	// (bob@corp.com) and plus-tags (bob+oncall) must be read whole, mirroring
+	// mentionStopRunes in activity_handlers.go.
+	const STOP_CHARS = "<>\"`()[]{},;!?\\/|=*&#%^~$";
 	const TRIM_CHARS = ".:'";
 	const ADDRESS_END_RE = /[\p{L}\p{N}_\-.]$/u;
 

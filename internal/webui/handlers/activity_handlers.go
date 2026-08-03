@@ -89,8 +89,11 @@ func matchesActivitySearch(ev webuimodels.ActivityEvent, term string) bool {
 // MentionStopRunes end a handle run. Sentence punctuation that can also occur inside a
 // username ("." in first.last, "'" in o'brien) is not a stop rune - it is dropped only
 // when it trails the run, so "cc @bob." mentions bob while "@bob.smith" does not.
+// "@" and "+" are not stop runes either: e-mail-shaped usernames (the standard
+// OIDC/SSO handle, registrable here) and plus-tags contain them, and stopping there
+// read "@bob@corp.com" as a mention of bob while bob@corp.com was never told.
 const (
-	mentionStopRunes = "@<>\"`()[]{},;!?\\/|=*&#%^~$+"
+	mentionStopRunes = "<>\"`()[]{},;!?\\/|=*&#%^~$"
 	mentionTrimRunes = ".:'"
 )
 

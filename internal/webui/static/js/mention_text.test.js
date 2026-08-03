@@ -85,3 +85,23 @@ test("an ampersand next to a mention is escaped once, not read as a handle chara
 		'cc <span class="mention inline-block px-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 font-medium">@alice</span> &amp; carol',
 	);
 });
+
+test("an email-shaped handle is one mention, not addressed to its local part", () => {
+	const html = renderMentionText("@bob@corp.com you own the payment DB", "bob");
+	assert.doesNotMatch(html, /mention-me/, "@bob@corp.com is not a mention of bob");
+	assert.match(html, />@bob@corp\.com</, "the handle is wrapped whole");
+});
+
+test("the email-shaped handle is addressed to its own owner", () => {
+	assert.match(renderMentionText("@bob@corp.com please take this", "bob@corp.com"), /mention-me/);
+});
+
+test("a plus-tagged handle is one mention, not addressed to its prefix", () => {
+	const html = renderMentionText("@bob+oncall please take this", "bob");
+	assert.doesNotMatch(html, /mention-me/, "@bob+oncall is not a mention of bob");
+	assert.match(html, />@bob\+oncall</, "the handle is wrapped whole");
+});
+
+test("the plus-tagged handle is addressed to its own owner", () => {
+	assert.match(renderMentionText("@bob+oncall please take this", "bob+oncall"), /mention-me/);
+});

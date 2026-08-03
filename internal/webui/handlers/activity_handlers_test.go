@@ -80,6 +80,11 @@ func TestMentionsUsername(t *testing.T) {
 		{"handle wrapped in parentheses still matches", "(@bob) owns this", "bob", true},
 		{"handle followed by markup is not extended", "@bob <img src=x>", "bob", true},
 		{"email address is not a mention of its local part", "cert renewal is owned by tls-ops@bob.example.com", "bob", false},
+		{"email-shaped handle is not a mention of its local part", "@bob@corp.com you own the payment DB", "bob", false},
+		{"email-shaped handle mentions its own owner", "@bob@corp.com you own the payment DB", "bob@corp.com", true},
+		{"plus-tagged handle is not a mention of its prefix", "@bob+oncall please take this", "bob", false},
+		{"plus-tagged handle mentions its own owner", "@bob+oncall please take this", "bob+oncall", true},
+		{"unregistered email-shaped handle mentions nobody", "@bob@nowhere.invalid ping", "bob@corp.com", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
