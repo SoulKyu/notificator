@@ -85,6 +85,16 @@ filter-out. See [notifications](notifications.md#what-triggers-a-notification).
 **Adaptive polling** (only when not on SSE, `dashboard_core.templ:506`): every 10 polls it slows
 toward 60s if <10% of polls saw changes, or speeds toward 5s if >50% did.
 
+### Source freshness
+
+`alertCache` (`internal/webui/services/alert_cache.go`) tracks per-Alertmanager `LastSuccessAt`,
+`LastError`, and `ConsecutiveFailures` alongside the cached alerts, updated on every refresh — no
+extra probing. Status is derived, not stored: **unreachable** if the source has never succeeded,
+**stale** at 3+ consecutive failures, otherwise **live**. `GetSourceStatusViews()` embeds this in
+every full dashboard payload and SSE update; the UI shows it as a Sources pill with a popover
+(`components/source_status.templ`, `scripts/dashboard_sources.templ`), a dismissible banner when
+any source is stale/unreachable, and a marker on alerts from a non-live source.
+
 ## Filtering and grouping
 
 Filter dimensions: free-text `searchQuery`; multi-select `severities`, `statuses`, `teams`,
@@ -98,6 +108,11 @@ page, client for SSE/incremental merges.
 
 **Hidden alerts are two-tier:** global per-user hidden alerts/rules (via `hiddenAlertsService`,
 Settings → Hidden tab) *and* filter-scoped hides stored inside a filter preset's `filter_data`.
+Global hides can be **permanent or snoozed**: `UserHiddenAlert.ExpiresAt` (nilable) — nil hides
+forever, a timestamp wakes the alert back up automatically (`GetUserHiddenAlerts` filters on
+`expires_at IS NULL OR expires_at > now()`). The Hidden tab offers duration presets (1h/4h/8h/
+"until tomorrow 9am"/forever), an extend action, and a "wake now" action; a unique index +
+upsert on `(user_id, fingerprint)` prevents duplicate rows when the same alert is re-hidden.
 See [domain](domain.md#collaboration-state-persisted-by-the-backend).
 
 **Grouping** (`viewMode = 'group'`) renders `AlertsGroupView`; the group-by field
@@ -175,6 +190,14 @@ severities, teams, alert names). The page polls every 30s **only while visible**
 event carries a `Kind` (`comment | ack | unack | silence | resolve`) recorded directly by the
 comment/audit write sites; a `comments.Kind` column and a `comments.created_at` index back this.
 
+**@mentions:** comment text is scanned for `@handle` tokens (`static/js/mention_text.js`,
+case-insensitive, self-mentions excluded) and rendered as highlighted links client-side. Server-side,
+`GetRecentActivity` accepts a `mentionsOnly` flag (`?scope=mentions` on `/activity`) that narrows
+the feed to comments mentioning the caller via a `LIKE`-filtered query
+(`internal/backend/database/gorm_db.go:409`); a shared `MentionWindowMinutes` (7 days) bounds both
+the feed and any unread-mentions badge. This is feed/badge only — no push or sound notification
+is triggered by a mention.
+
 ## Alert detail modal
 
 `AlertDetailsModal` (`components/modal_components.templ:921`), opened by
@@ -190,9 +213,15 @@ connected, its comments and acknowledgments.
 Tabs: **Overview**, **Details** (fingerprint, generator URL), **Labels** / **Annotations**
 (copy-to-clipboard), **Acknowledgments**, **Comments** (add/delete; system comments show a badge),
 **History** (lazy `GET /alert/:fp/history` → up to 50 fire/resolve/ack occurrences with MTTR/MTTA),
-and **Sentry** (only if the alert carries a `sentry` annotation/label; lazy-loaded — the target
+**Sentry** (only if the alert carries a `sentry` annotation/label; lazy-loaded — the target
 host is validated against the configured `sentry.base_url` and a mismatch is rejected rather than
-fetched, see [Sentry SSRF fix](#gotchas)). Header offers Silence/Unsilence, configurable per-user
+fetched, see [Sentry SSRF fix](#gotchas)), and **Related** (blast-radius panel,
+`handlers/alert_related.go`): groups other *currently active* alerts (same cache/filter path as
+the main table, so counts match "Filter dashboard on this") that share a label value with the
+open alert. Labels shared by ≤1 other alert or present on ≥90% of active alerts are dropped as
+non-discriminating (`degenerateShareRatio`), and the result is capped at 5 groups of 20 alerts
+each, sorted by group size. No Alertmanager/backend call — cache-only, so it's instant. Header
+offers Silence/Unsilence, configurable per-user
 **annotation buttons**, Ack/Unack, "Source" (`generatorURL`), "Copy as Issue" (builds a Markdown
 issue and copies it), and **"Copy link"** (`copyAlertLink()`, `dashboard_modal.templ:128` — copies
 the same `/dashboard/alert/:fingerprint` deep-link URL used for `pushState`, with a 2s inline

@@ -48,6 +48,14 @@ Alerts flow through one choke point, `applyIncrementalUpdate(update, source)`
 normalized severity being in `enabledSeverities`. `critical-daytime` is normalized to `critical`
 so it can notify (and gets `requireInteraction`).
 
+**Scoping to a saved filter preset:** `NotificationPreference.NotificationFilterPresetID`
+(empty = all alerts, no scoping) lets a user restrict browser/sound notifications to one saved
+filter preset. `matchesNotificationFilterPreset(alert, filterData)`
+(`static/js/notification_matcher.js`) replays the preset's `filter_data` client-side
+(alertmanagers/severities/statuses/teams/alert_names, plus the preset's own hidden-alert/rule
+checks) before `shouldNotify` fires — the same matching logic the dashboard table uses, so
+"what I see" and "what notifies me" agree when a preset is selected.
+
 **Resolved / flapping alerts re-notify.** When the SSE stream reports an alert removed (a genuine
 Alertmanager resolve), `applyIncrementalUpdate` calls `forgetAlerts()` to evict it from the
 seen-set — so a later re-fire of the same fingerprint notifies again. This eviction is scoped to
@@ -80,7 +88,8 @@ opens the alert detail modal (or navigates to `/dashboard/alert/<fingerprint>`).
 
 Model `NotificationPreference` (`internal/backend/models/notification_preference.go`): one row per
 user (`browser_notifications_enabled` default false, `enabled_severities` JSONB default
-`[critical, warning]`, `sound_notifications_enabled` default true). Path:
+`[critical, warning]`, `sound_notifications_enabled` default true, `notification_filter_preset_id`
+nilable — see scoping above). Path:
 `GET/POST /api/v1/notifications/preferences` (`handlers/notification_handlers.go`) →
 `backendClient` gRPC → `services.go` → `database/notification_db.go`.
 
