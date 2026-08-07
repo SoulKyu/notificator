@@ -412,6 +412,29 @@ func (c *BackendClient) UpdateTimezone(sessionID, timezone string) error {
 	return nil
 }
 
+func (c *BackendClient) ChangePassword(sessionID, oldPassword, newPassword string) error {
+	if c.authClient == nil {
+		return fmt.Errorf("not connected to backend")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.authClient.ChangePassword(ctx, &authpb.ChangePasswordRequest{
+		SessionId:   sessionID,
+		OldPassword: oldPassword,
+		NewPassword: newPassword,
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+
+	return nil
+}
+
 // Alert acknowledgment and resolution methods
 
 // AddAcknowledgment acknowledges an alert
