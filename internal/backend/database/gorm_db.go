@@ -557,11 +557,11 @@ func (gdb *GormDB) GetAllAcknowledgedAlerts(alertKeys []string) (map[string]mode
 	return result, nil
 }
 
-// isEmptyAcknowledgmentSnapshot reports whether the caller supplied no usable
-// acknowledgment history — either nothing at all, because its fetch failed, or
-// an empty JSON payload.
-func isEmptyAcknowledgmentSnapshot(acknowledgments []byte) bool {
-	switch strings.TrimSpace(string(acknowledgments)) {
+// isEmptyJSONSnapshot reports whether the caller supplied no usable history
+// payload — either nothing at all, because its fetch failed, or an empty JSON
+// payload.
+func isEmptyJSONSnapshot(snapshot []byte) bool {
+	switch strings.TrimSpace(string(snapshot)) {
 	case "", "null", "[]", "{}":
 		return true
 	}
@@ -593,6 +593,15 @@ func snapshotAcknowledgments(tx *gorm.DB, fingerprint string) ([]byte, error) {
 	return snapshot, nil
 }
 
+// resolvedAlertFlapWindow bounds how fast one fingerprint can grow the
+// resolution history: a resolution landing within the window of the previous
+// one refreshes that row instead of inserting a new one. Without it, a
+// flapping alert writes a full JSONB snapshot per flap — 46k alerts expiring
+// and re-firing every ~8 minutes once filled 28 GB in a week.
+// ponytail: fixed window; make it configurable if a deployment needs distinct
+// episodes closer than an hour apart.
+const resolvedAlertFlapWindow = time.Hour
+
 func (gdb *GormDB) CreateResolvedAlert(fingerprint, source string, alertData, comments, acknowledgments []byte, ttlHours int) (*models.ResolvedAlert, error) {
 	now := time.Now()
 	resolvedAlert := &models.ResolvedAlert{
@@ -613,7 +622,7 @@ func (gdb *GormDB) CreateResolvedAlert(fingerprint, source string, alertData, co
 	// may have failed — so the rows are read here when it is missing. Snapshot
 	// and delete then share one transaction and the history cannot be lost.
 	err := gdb.db.Transaction(func(tx *gorm.DB) error {
-		if isEmptyAcknowledgmentSnapshot(acknowledgments) {
+		if isEmptyJSONSnapshot(acknowledgments) {
 			snapshot, err := snapshotAcknowledgments(tx, fingerprint)
 			if err != nil {
 				return err
@@ -622,9 +631,37 @@ func (gdb *GormDB) CreateResolvedAlert(fingerprint, source string, alertData, co
 				resolvedAlert.Acknowledgments = models.JSONB(snapshot)
 			}
 		}
-		if err := tx.Create(resolvedAlert).Error; err != nil {
-			return fmt.Errorf("failed to create resolved alert: %w", err)
+
+		var last models.ResolvedAlert
+		flapErr := tx.Where("fingerprint = ? AND resolved_at > ?", fingerprint, now.Add(-resolvedAlertFlapWindow)).
+			Order("resolved_at DESC").First(&last).Error
+		switch {
+		case flapErr == nil:
+			// Same episode still flapping: refresh the existing row. Comments and
+			// acknowledgments only overwrite when this resolution brought some —
+			// this call's fetch may have failed while an earlier flap captured them.
+			last.AlertData = resolvedAlert.AlertData
+			if !isEmptyJSONSnapshot(resolvedAlert.Comments) {
+				last.Comments = resolvedAlert.Comments
+			}
+			if !isEmptyJSONSnapshot(resolvedAlert.Acknowledgments) {
+				last.Acknowledgments = resolvedAlert.Acknowledgments
+			}
+			last.ResolvedAt = resolvedAlert.ResolvedAt
+			last.ExpiresAt = resolvedAlert.ExpiresAt
+			last.Source = resolvedAlert.Source
+			if err := tx.Save(&last).Error; err != nil {
+				return fmt.Errorf("failed to refresh flapping resolved alert: %w", err)
+			}
+			resolvedAlert = &last
+		case errors.Is(flapErr, gorm.ErrRecordNotFound):
+			if err := tx.Create(resolvedAlert).Error; err != nil {
+				return fmt.Errorf("failed to create resolved alert: %w", err)
+			}
+		default:
+			return fmt.Errorf("failed to check for flapping resolved alert: %w", flapErr)
 		}
+
 		if err := tx.Where("alert_key = ?", fingerprint).Delete(&models.Acknowledgment{}).Error; err != nil {
 			return fmt.Errorf("failed to clear acknowledgments for resolved alert: %w", err)
 		}

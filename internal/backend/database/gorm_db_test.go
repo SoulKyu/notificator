@@ -223,6 +223,62 @@ func TestCreateResolvedAlertSnapshotsAcknowledgmentsWhenCallerHasNone(t *testing
 	}
 }
 
+// TestCreateResolvedAlertFlapGuard pins the storage guard against flapping
+// alerts: a resolution landing within resolvedAlertFlapWindow of the previous
+// one for the same fingerprint must refresh that row, not insert a new one,
+// and must not erase comments an earlier flap captured.
+func TestCreateResolvedAlertFlapGuard(t *testing.T) {
+	gdb := newTestDB(t)
+
+	comments := []byte(`[{"username":"alice","content":"seen"}]`)
+	first, err := gdb.CreateResolvedAlert("flappy", "prod", []byte(`{"v":1}`), comments, nil, 24)
+	if err != nil {
+		t.Fatalf("first CreateResolvedAlert: %v", err)
+	}
+
+	second, err := gdb.CreateResolvedAlert("flappy", "prod", []byte(`{"v":2}`), nil, nil, 24)
+	if err != nil {
+		t.Fatalf("second CreateResolvedAlert: %v", err)
+	}
+
+	var count int64
+	if err := gdb.db.Model(&models.ResolvedAlert{}).Where("fingerprint = ?", "flappy").Count(&count).Error; err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("flap within the window must reuse the row, got %d rows", count)
+	}
+	if second.ID != first.ID {
+		t.Errorf("refresh must keep the row identity, got %q then %q", first.ID, second.ID)
+	}
+	if string(second.AlertData) != `{"v":2}` {
+		t.Errorf("refresh must carry the latest alert data, got %q", second.AlertData)
+	}
+	if string(second.Comments) != string(comments) {
+		t.Errorf("refresh without comments must keep the captured ones, got %q", second.Comments)
+	}
+	if second.ResolvedAt.Before(first.ResolvedAt) {
+		t.Errorf("resolved_at must move forward on refresh: %v then %v", first.ResolvedAt, second.ResolvedAt)
+	}
+
+	// Age the episode past the window: the next resolution is a new one.
+	aged := time.Now().Add(-resolvedAlertFlapWindow - time.Minute)
+	if err := gdb.db.Model(&models.ResolvedAlert{}).Where("fingerprint = ?", "flappy").
+		Update("resolved_at", aged).Error; err != nil {
+		t.Fatalf("backdate: %v", err)
+	}
+
+	if _, err := gdb.CreateResolvedAlert("flappy", "prod", []byte(`{"v":3}`), nil, nil, 24); err != nil {
+		t.Fatalf("third CreateResolvedAlert: %v", err)
+	}
+	if err := gdb.db.Model(&models.ResolvedAlert{}).Where("fingerprint = ?", "flappy").Count(&count).Error; err != nil {
+		t.Fatalf("count after window: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("a resolution past the window must start a new row, got %d rows", count)
+	}
+}
+
 // TestCleanupResolvedAcknowledgments covers the startup migration that drops
 // acknowledgment rows orphaned by resolutions that happened before the fix. It
 // re-runs on every boot, so it must keep the acknowledgment of an alert that
