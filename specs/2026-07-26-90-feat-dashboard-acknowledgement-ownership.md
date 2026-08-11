@@ -78,6 +78,11 @@ Two client/server mirrors decide most of the design below, and both have burned 
 - **Every sort exists twice** — server `applySorting` (`dashboard_handlers.go`) and client
   `sortAlerts` (`dashboard_data.templ`), the latter re-applied on every live update.
 
+- **"Stale ack" is one population, defined once** — the server badge (§5) and the client amber
+  marker (§2) must agree on *which alerts are stale*, not just on the threshold number. The
+  existing `counters.Acknowledged` is the counter-example: it is computed from two different
+  populations depending on `filters.DisplayMode`, which is why §5 does not extend it.
+
 Anything this feature adds to one half must be added to the other half in the same change.
 
 ### 1. Prerequisite fix — ack username at ack time
@@ -128,7 +133,10 @@ guard (`dashboard_utilities.templ`, `if (!timestamp)`) does not catch it. Use
 
 The amber stale marker (Ack Age cell only) is computed client-side from
 `this.settings.staleAckThresholdMinutes` — the same number the browser sends to the server for the
-§5 badge, so the two cannot disagree (see §4/§5).
+§5 badge, so the threshold cannot disagree (see §4/§5). The *population* must match too: mark amber
+only when `alert.isAcknowledged && !alert.isResolved` and the age exceeds the threshold. Skipping
+resolved-acked rows is not cosmetic — it is what makes the marker count equal the §5 badge, whose
+single population also excludes them.
 
 ### 2b. Grouped view
 
@@ -224,16 +232,19 @@ Instead, follow `resolvedAlertsLimit`, which is exactly this shape and already w
 Notes:
 
 - Use `x-model.number` (or coerce with `Number(...)` on read). Plain `x-model` on an
-  `<input type="number">` stores a **string** — `settings.refreshInterval` is `"60"` today.
+  `<input type="number">` stores a **string**: typing `250` into today's
+  `x-model="settings.resolvedAlertsLimit"` input yields `"250"`, and `0` yields the *truthy* `"0"`.
 - Default `240` (4h); `0` = never stale, everywhere. **`0` must survive the round-trip, and this is
   the one place where copying `resolvedAlertsLimit` verbatim is wrong at *both* ends:** the client
   sends it behind `if (this.settings.resolvedAlertsLimit && this.settings.resolvedAlertsLimit > 0)`
   and the server parses it behind `err == nil && val > 0`. Send the threshold param
   unconditionally, and parse it with `val >= 0`.
-- All three client query builders must set it, or the badge flips between the user's value and the
-  default depending on which request last landed: `loadDashboardData()`,
-  `loadDashboardIncremental()` and `loadAlertColors(force)` — all three in `dashboard_data.templ`,
-  each building its own `new URLSearchParams()`.
+- Both **metadata-producing** query builders must set it, or the badge flips between the user's
+  value and the default depending on which request last landed: `loadDashboardData()` and
+  `loadDashboardIncremental()` (`dashboard_data.templ`), each building its own
+  `new URLSearchParams()`. The third builder in that file, `loadAlertColors(force)`, does **not**
+  need it: `GetAlertColors` (`dashboard_handlers.go`) responds with `colors` / `colorCount` /
+  `timestamp` only and never calls `buildDashboardMetadata`, so it cannot move the badge.
 - `this.settings` is overwritten by the server on every load
   (`this.settings = { ...this.settings, ...result.data.settings }` in `loadDashboardData()`, and
   again from `update.settings` in `applyIncrementalUpdate()`). Keeping the threshold **off**
@@ -249,17 +260,63 @@ call site.
 
 The badge must be server-computed: the button is visible from `classic` mode, where the browser
 holds **no** acked alerts at all, and elsewhere it only holds the current page — the client
-physically cannot count the acked set. `buildDashboardMetadata()` (`dashboard_handlers.go`) already
-receives `filteredAlerts` **pre-pagination** — `GetDashboardData` computes `filteredAlerts` from
-`applyDashboardFilters`, then sorts and paginates *copies* of it, and passes the unpaginated
-`filteredAlerts` to `buildDashboardMetadata` alongside `filters` — so it has both the rows and the
-threshold.
+physically cannot count the acked set. `buildDashboardMetadata()` (`dashboard_handlers.go`) is the
+right home: it runs on every metadata path, and `filters` (which carries the threshold, §4) already
+reaches it. It reads the acked set from the cache, not from its own parameters — see below.
 
-Add `StaleAcknowledged int` to `DashboardCounters` (`models/dashboard.go`) and increment it
-alongside both `counters.Acknowledged++` sites in `buildDashboardMetadata`: the one in the
-`for _, alert := range filteredAlerts` loop, and the one in the classic-mode recount block
-(`counters.Acknowledged = 0` followed by the `range allAlerts` loop). Use
-`filters.StaleAckThresholdMinutes` (`0` → never increment).
+Add `StaleAcknowledged int` to `DashboardCounters` (`models/dashboard.go`).
+
+**Do not mirror `counters.Acknowledged`.** Its two increment sites in `buildDashboardMetadata`
+count *different populations*, so a stale count that shadows them changes with the display mode:
+
+| site | source | gate |
+|---|---|---|
+| `for _, alert := range filteredAlerts` loop | `filteredAlerts` — the acked set **after** the user's filters in `acknowledge` mode; in `classic` mode it holds no acked alerts at all | `alert.IsAcknowledged` only |
+| classic recount block (`counters.Acknowledged = 0`, then `range allAlerts`) | `allAlerts`, which is `alertCache.GetAllAlerts()` in classic mode (`GetDashboardData` swaps in `metadataAllAlerts`; `getDashboardMetadata` does the same in its `default:` branch) | `alert.IsAcknowledged && !alert.IsResolved` |
+
+An alert can be acked *and* resolved while still in the active cache — that is exactly why the
+classic block carries the `!IsResolved` gate and `getAcknowledgedAlerts()` (no gate) does not.
+Live consequence of shadowing both sites: three acked alerts, one of them since resolved →
+`acknowledge` mode reports `3`, `classic` mode reports `2`, for the same instant and the same data.
+
+Compute it instead in **its own block**, from **one population**, independent of `filters.DisplayMode`
+and of the user's filters. Neither `allAlerts` nor `filteredAlerts` may be read here — those are the
+mode-dependent inputs:
+
+```go
+// Mode-independent by construction: reads the cache directly, not the
+// mode-shaped allAlerts / filteredAlerts params.
+if filters.StaleAckThresholdMinutes > 0 {
+    cutoff := time.Now().Add(-time.Duration(filters.StaleAckThresholdMinutes) * time.Minute)
+    for _, alert := range alertCache.GetAllAlerts() {
+        if alert.IsAcknowledged && !alert.IsResolved &&
+            !alert.AcknowledgedAt.IsZero() && alert.AcknowledgedAt.Before(cutoff) {
+            counters.StaleAcknowledged++
+        }
+    }
+}
+```
+
+The population, stated so the implementer does not have to rediscover it from a bug report:
+
+- **Source: `alertCache.GetAllAlerts()`** — already the package-level cache `buildDashboardMetadata`
+  reaches for (`alertCache.GetResolvedAlertsCount()` in the block just below), so no signature change.
+- **`!IsResolved`** — an ack on a resolved alert is not a worklist item. This is the classic
+  recount's gate, promoted to the single definition. It follows that alerts already moved to the
+  resolved store are out of the badge too, which `GetAllAlerts()` gives for free.
+- **`!AcknowledgedAt.IsZero()`** — same trap as §2: a zero `time.Time` is `Before(cutoff)` for any
+  cutoff, so an ack with no timestamp would count as infinitely stale.
+- **Unfiltered.** The badge renders in `classic` mode, where the user's filters describe the firing
+  set; applying them to the acked set would make the badge mean something different per mode, which
+  is the defect this design removes. The badge is "acks needing attention", not "acks matching your
+  current filters".
+- Skipped entirely when the threshold is `0`. Otherwise it is one extra pass over the active cache
+  per metadata build, next to the one `computeAvailableFilters` already does.
+
+**§2 must match on the client side:** the amber marker skips rows where `alert.isResolved`
+(`json:"isResolved"`, always present, no `omitempty`), not just un-acked ones. Without that, a
+resolved-acked row renders amber while the badge excludes it — the same disagreement, moved to the
+browser.
 
 Both metadata call sites are covered without a signature change: `GetDashboardData` calls
 `buildDashboardMetadata` directly, and the incremental path goes through `getDashboardMetadata`
@@ -339,6 +396,13 @@ files.
 - **`OwnedByMe` needs a username, `applyDashboardFilters` currently only has a user ID/session.**
   Small plumbing change (pass username alongside `sessionID`) rather than a redesign — same shape
   as the existing `sessionID` parameter.
+- **The stale badge ignores the user's active filters.** Deliberate (§5): it is the only definition
+  that survives being read from `classic` mode, where those filters describe the firing set. Cost:
+  in `acknowledge` mode with a filter on, the badge can exceed the amber rows on screen. The
+  alternative — filter-aware, therefore mode-dependent — is the defect this design removes.
+- **One extra pass over the active cache per metadata build** for the stale count, skipped entirely
+  at threshold `0`. Same order as the `computeAvailableFilters` pass already there; not worth
+  fusing into an existing loop, since fusing is exactly what coupled it to `DisplayMode`.
 - **Two more entries in the client/server mirror inventory** (`sortAlerts` §3, `alertMatchesFilters`
   §6). They are listed explicitly above precisely because "server-side only" reads as done in
   review and breaks on the first live update.
@@ -362,8 +426,14 @@ files.
   - Threshold at 4h: an alert acked 5h ago is marked stale, one acked 5m ago is not.
   - Set the threshold to `0` → no amber markers **and** no `· N stale` on the Acknowledged button,
     from `classic` mode as well as from `acknowledge` mode.
-  - Acknowledged mode button's stale count equals the number of amber rows in that mode, including
-    when the acked set spans more than one page.
+  - With no filters applied, the Acknowledged mode button's stale count equals the number of amber
+    rows in that mode, including when the acked set spans more than one page.
+  - **The badge shows the same number in `classic` and in `acknowledge` mode**, read at the same
+    instant. Set it up so it would break under the old design: ack three alerts past the threshold,
+    let one of them resolve while still acked (`isResolved: true`), then switch modes. Same number
+    both times, that alert counted in neither — and its row is *not* amber in the acked list.
+  - Apply a filter in `acknowledge` mode: the badge does not move (it counts the whole acked set by
+    design, §5), even though fewer amber rows are on screen.
   - Mine shows only the current user's acks, and stays correct after a live SSE update lands
     (verify `alertMatchesFilters` was actually updated, not just the server side).
   - Save a preset with Mine on, switch it off, re-apply the preset → Mine comes back on.
