@@ -53,6 +53,26 @@ counters (`buildDashboardMetadata:628`) are computed from the *full* alert set f
 mode, not the filtered page — so dropdowns don't shrink as you filter (intentional, looks like a
 bug but isn't).
 
+### Acknowledgement ownership (Owner, Ack Age, Mine, the stale badge)
+
+An acknowledgement is persisted by the backend against the **caller's session** —
+`AddAcknowledgment(sessionID, …)` carries no impersonation override, so `acknowledgments.user_id`
+is always the *real* signed-in user. Everything that displays or filters on that ownership uses
+the same identity, `getAckOwnerUsername` (`dashboard_handlers.go:367`, deliberately
+`GetCurrentUserFromContext`, **not** `GetEffectiveUser` — unlike per-user *preferences*, which do
+follow impersonation via `getCurrentUserID`). That keeps three places in agreement while
+impersonating: the Owner cell written optimistically by `processAlertAction`, the server-side
+**Mine** filter (`ownedByMe`), and the browser's own mirror of it, whose `currentUser` comes from
+`/api/v1/auth/profile` (the real user).
+
+The **`Acknowledged · N stale`** badge is a preview of the Acknowledged view and is rendered from
+every display mode. `staleAckSource` (`dashboard_handlers.go:845`) therefore takes **no alert
+slice from the caller**: outside `acknowledge` mode it rebuilds the view's rows from
+`getAcknowledgedAlerts()` under the same user filters. Deriving it from the per-mode alert set is
+what made the badge disagree with the amber rows (in `resolved` mode that set is the resolved
+store). `isStaleAck` (`:828`) mirrors `renderAckAge` (`dashboard_utilities.templ:899`) exactly —
+same threshold, same "no ack timestamp is never stale" rule.
+
 ### Live updates (SSE) and the client-side merge
 
 `initSSE()` (`dashboard_core.templ:458`) opens `EventSource('/api/v1/dashboard/stream')`; `update`

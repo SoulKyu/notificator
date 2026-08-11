@@ -5,12 +5,31 @@ import (
 	"time"
 
 	webuimodels "notificator/internal/webui/models"
+	"notificator/internal/webui/services"
 )
+
+// installAlertCache points the package-level cache at a throwaway one holding
+// these alerts. It is never Start()ed, so nothing refreshes in the background
+// and no backend is contacted; buildDashboardMetadata needs it because the
+// stale-ack badge sources the acknowledged store directly.
+func installAlertCache(t *testing.T, alerts ...*webuimodels.DashboardAlert) {
+	t.Helper()
+
+	previous := alertCache
+	cache := services.NewAlertCache(nil, nil, 0, 0)
+	for _, alert := range alerts {
+		cached := *alert
+		cache.UpdateAlert(&cached)
+	}
+	alertCache = cache
+	t.Cleanup(func() { alertCache = previous })
+}
 
 // TestBuildDashboardMetadataStaleAcknowledged guards the stale-ack badge count
 // against drifting from the rows the client actually marks stale: it must
-// respect the threshold, the OwnedByMe filter, and the classic-mode fixup
-// that sources from allAlerts instead of filteredAlerts.
+// respect the threshold and the OwnedByMe filter, and it must count the
+// Acknowledged view's rows from *every* display mode - the badge is rendered in
+// all of them.
 func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 	const userID = "stale-ack-test-user"
 	t.Cleanup(func() {
@@ -33,6 +52,7 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 
 	t.Run("threshold 0 disables the count", func(t *testing.T) {
 		setThreshold(0)
+		installAlertCache(t, aliceStale, bobStale)
 		allAlerts := []*webuimodels.DashboardAlert{aliceStale, bobStale}
 		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
 		metadata := buildDashboardMetadata(allAlerts, allAlerts, filters, userID, "", "alice")
@@ -43,6 +63,7 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 
 	t.Run("acknowledge mode counts across users, OwnedByMe scopes to the current user", func(t *testing.T) {
 		setThreshold(4)
+		installAlertCache(t, aliceStale, bobStale, aliceFresh)
 		allAlerts := []*webuimodels.DashboardAlert{aliceStale, bobStale, aliceFresh}
 
 		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
@@ -65,6 +86,7 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 		resolvedStale := &webuimodels.DashboardAlert{Fingerprint: "resolved-stale", IsAcknowledged: true, IsResolved: true, AcknowledgedBy: "alice", AcknowledgedAt: old}
 		neverAcked := &webuimodels.DashboardAlert{Fingerprint: "never-acked"}
 		alerts := []*webuimodels.DashboardAlert{aliceStale, resolvedStale, neverAcked}
+		installAlertCache(t, alerts...)
 
 		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
 		metadata := buildDashboardMetadata(alerts, alerts, filters, userID, "", "alice")
@@ -77,6 +99,7 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 		setThreshold(4)
 		noTimestamp := &webuimodels.DashboardAlert{Fingerprint: "no-ts", IsAcknowledged: true, AcknowledgedBy: "alice"}
 		alerts := []*webuimodels.DashboardAlert{noTimestamp}
+		installAlertCache(t, alerts...)
 
 		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
 		metadata := buildDashboardMetadata(alerts, alerts, filters, userID, "", "alice")
@@ -91,6 +114,7 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 	t.Run("out-of-range threshold counts nothing instead of overflowing the cutoff", func(t *testing.T) {
 		setThreshold(9999999999)
 		alerts := []*webuimodels.DashboardAlert{aliceStale, bobStale, aliceFresh}
+		installAlertCache(t, alerts...)
 		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeAcknowledge}
 		metadata := buildDashboardMetadata(alerts, alerts, filters, userID, "", "alice")
 		if metadata.Counters.StaleAcknowledged != 0 {
@@ -98,14 +122,38 @@ func TestBuildDashboardMetadataStaleAcknowledged(t *testing.T) {
 		}
 	})
 
-	t.Run("classic mode sources from allAlerts since filteredAlerts excludes acked rows", func(t *testing.T) {
+	// The badge is a preview of the Acknowledged view, so it must read the same
+	// number from every mode the dashboard can be parked in. Each of these modes
+	// hands buildDashboardMetadata a different allAlerts slice (classic: the
+	// active store; resolved: the resolved store; hidden/full: a mix) - none of
+	// which is the acked set, which is why the count must not be derived from it.
+	t.Run("every non-acknowledge mode counts the acknowledge view's rows", func(t *testing.T) {
 		setThreshold(4)
-		allAlerts := []*webuimodels.DashboardAlert{aliceStale, bobStale}
-		filters := webuimodels.DashboardFilters{DisplayMode: webuimodels.DisplayModeClassic}
+		installAlertCache(t, aliceStale, bobStale, aliceFresh)
 
-		metadata := buildDashboardMetadata(allAlerts, nil, filters, userID, "", "alice")
-		if metadata.Counters.StaleAcknowledged != 2 {
-			t.Fatalf("classic mode: want 2 stale from allAlerts, got %d", metadata.Counters.StaleAcknowledged)
+		resolvedStore := []*webuimodels.DashboardAlert{
+			{Fingerprint: "resolved-stale", IsAcknowledged: true, IsResolved: true, AcknowledgedBy: "carol", AcknowledgedAt: old},
+		}
+		activeStore := []*webuimodels.DashboardAlert{aliceStale, bobStale, aliceFresh}
+
+		modes := []struct {
+			mode      webuimodels.DashboardDisplayMode
+			allAlerts []*webuimodels.DashboardAlert
+		}{
+			{webuimodels.DisplayModeClassic, activeStore},
+			{webuimodels.DisplayModeResolved, resolvedStore},
+			{webuimodels.DisplayModeHidden, append(append([]*webuimodels.DashboardAlert{}, activeStore...), resolvedStore...)},
+			{webuimodels.DisplayModeFull, append(append([]*webuimodels.DashboardAlert{}, activeStore...), resolvedStore...)},
+		}
+
+		for _, tc := range modes {
+			t.Run(string(tc.mode), func(t *testing.T) {
+				filters := webuimodels.DashboardFilters{DisplayMode: tc.mode}
+				metadata := buildDashboardMetadata(tc.allAlerts, nil, filters, userID, "", "alice")
+				if metadata.Counters.StaleAcknowledged != 2 {
+					t.Fatalf("%s: want the acknowledge view's 2 stale acks, got %d", tc.mode, metadata.Counters.StaleAcknowledged)
+				}
+			})
 		}
 	})
 }

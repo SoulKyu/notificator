@@ -125,7 +125,7 @@ func GetDashboardData(c *gin.Context) {
 	}
 
 	userID := getCurrentUserID(c)
-	currentUsername := getCurrentUsername(c)
+	currentUsername := getAckOwnerUsername(c)
 	sessionID := middleware.GetSessionID(c)
 
 	// Parse filters from query parameters
@@ -351,12 +351,27 @@ func getCurrentUserID(c *gin.Context) string {
 	return "default-user"
 }
 
-// getCurrentUsername returns the username to compare acknowledgment ownership
-// against. AcknowledgedBy stores a username (see processAlertAction), not a
-// user ID, so "owned by me" needs the username, not getCurrentUserID's ID.
-func getCurrentUsername(c *gin.Context) string {
-	if user := middleware.GetEffectiveUser(c); user != nil && user.Username != "" {
-		return user.Username
+// getAckOwnerUsername returns the username an acknowledgment placed by this
+// request is recorded under: the real signed-in user, never the impersonated
+// one. AddAcknowledgment carries only the session (no impersonation override),
+// so the backend writes acknowledgments.user_id = the session's user, and the
+// periodic cache refresh reads that username back into AcknowledgedBy.
+//
+// This is deliberately NOT GetEffectiveUser, unlike settings/preferences
+// (getCurrentUserID). Deriving ack ownership from the impersonated user made
+// three views disagree with the row that was actually persisted: the Owner cell
+// showed the impersonated user until the next refresh overwrote it, the Mine
+// filter selected on a user the client never matched, and /auth/profile - which
+// feeds the browser's own Mine mirror - reports the real user regardless.
+// AcknowledgedBy stores a username, not an ID, so this returns a username.
+func getAckOwnerUsername(c *gin.Context) string {
+	if user := middleware.GetCurrentUserFromContext(c); user != nil {
+		if user.Username != "" {
+			return user.Username
+		}
+		if user.ID != "" {
+			return user.ID
+		}
 	}
 	return getCurrentUserID(c)
 }
@@ -422,6 +437,9 @@ func getStandardAlerts() []*webuimodels.DashboardAlert {
 }
 
 func getAcknowledgedAlerts() []*webuimodels.DashboardAlert {
+	if alertCache == nil {
+		return nil
+	}
 	allAlerts := alertCache.GetAllAlerts()
 	var acknowledgedAlerts []*webuimodels.DashboardAlert
 
@@ -812,11 +830,19 @@ func isStaleAck(alert *webuimodels.DashboardAlert, cutoff time.Time) bool {
 }
 
 // staleAckSource returns the alerts the Acknowledged view renders for these
-// filters. In acknowledge mode that is filteredAlerts itself; in any other mode
-// acked alerts have been filtered out of it, so re-derive them from allAlerts
-// under the same user filters (search, severity, OwnedByMe, hidden rules) with
-// only the acked/display-mode exclusions lifted.
-func staleAckSource(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string, currentUsername string) []*webuimodels.DashboardAlert {
+// filters - the rows the badge is a preview of - whatever mode the request is
+// in. Outside acknowledge mode it rebuilds them from the acknowledged store
+// itself (getAcknowledgedAlerts, the same source GetDashboardData switches to
+// for DisplayModeAcknowledge) under the same user filters (search, severity,
+// OwnedByMe, hidden rules), with only the acked/display-mode exclusions lifted.
+//
+// It deliberately takes no alert slice from the caller. Feeding it the caller's
+// per-mode slice is what made the badge disagree with the view twice: in
+// resolved mode that slice is the resolved store, so the badge counted acks the
+// Acknowledged view does not list, and classic needed its own special-cased
+// GetAllAlerts() to compensate. The badge now has exactly one input and it is
+// the view's own.
+func staleAckSource(filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, sessionID string, currentUsername string) []*webuimodels.DashboardAlert {
 	if filters.DisplayMode == webuimodels.DisplayModeAcknowledge {
 		return filteredAlerts
 	}
@@ -824,7 +850,7 @@ func staleAckSource(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, fil
 	ackFilters := filters
 	ackFilters.DisplayMode = webuimodels.DisplayModeAcknowledge
 	ackFilters.Acknowledged = nil
-	return applyDashboardFilters(allAlerts, ackFilters, sessionID, currentUsername)
+	return applyDashboardFilters(getAcknowledgedAlerts(), ackFilters, sessionID, currentUsername)
 }
 
 func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAlert, filters webuimodels.DashboardFilters, userID string, sessionID string, currentUsername string) webuimodels.DashboardMetadata {
@@ -926,7 +952,7 @@ func buildDashboardMetadata(allAlerts, filteredAlerts []*webuimodels.DashboardAl
 	}
 	if threshold > 0 {
 		staleCutoff := time.Now().Add(-time.Duration(threshold) * time.Hour)
-		for _, alert := range staleAckSource(allAlerts, filteredAlerts, filters, sessionID, currentUsername) {
+		for _, alert := range staleAckSource(filteredAlerts, filters, sessionID, currentUsername) {
 			if isStaleAck(alert, staleCutoff) {
 				counters.StaleAcknowledged++
 			}
@@ -1085,7 +1111,7 @@ func processAlertAction(c *gin.Context, fingerprint, action, comment, userID str
 		// alert_cache.go applyAcknowledgments) so the Owner column shows the
 		// right value immediately instead of a numeric ID until the next poll.
 		ackAt := time.Now()
-		ackUsername := getCurrentUsername(c)
+		ackUsername := getAckOwnerUsername(c)
 		applyAck := func(a *webuimodels.DashboardAlert) {
 			a.IsAcknowledged = true
 			a.AcknowledgedBy = ackUsername
@@ -1317,7 +1343,7 @@ func getDashboardMetadata(alerts []*webuimodels.DashboardAlert, filters webuimod
 
 func PostDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
-	currentUsername := getCurrentUsername(c)
+	currentUsername := getAckOwnerUsername(c)
 	sessionID := middleware.GetSessionID(c)
 
 	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
@@ -1363,7 +1389,7 @@ func PostDashboardIncremental(c *gin.Context) {
 
 func GetDashboardIncremental(c *gin.Context) {
 	userID := getCurrentUserID(c)
-	currentUsername := getCurrentUsername(c)
+	currentUsername := getAckOwnerUsername(c)
 	sessionID := middleware.GetSessionID(c)
 
 	// Parse last update timestamp from query parameter (Unix timestamp in milliseconds)
@@ -2003,7 +2029,7 @@ func GetAlertColors(c *gin.Context) {
 	}
 
 	// Apply filters (same as dashboard data)
-	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID, getCurrentUsername(c))
+	filteredAlerts := applyDashboardFilters(allAlerts, filters, sessionID, getAckOwnerUsername(c))
 
 	// Check if color service is available
 	if colorService == nil {

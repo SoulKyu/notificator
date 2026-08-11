@@ -500,6 +500,18 @@ templ DashboardSettings() {
 							fail('Failed to save general settings');
 						}
 
+						// The dashboard is a different Alpine component with its own copy of
+						// settings, and the acknowledged view is SSE-driven - it issues no
+						// /dashboard/data request on its own. Without this, a new threshold
+						// leaves the amber markers and the badge on the old value until the
+						// next mode switch or search.
+						if (window.dashboardInstance && window.dashboardInstance.settings) {
+							window.dashboardInstance.settings.staleAckThresholdHours = this.settings.staleAckThresholdHours;
+							if (typeof window.dashboardInstance.loadDashboardData === 'function') {
+								window.dashboardInstance.loadDashboardData();
+							}
+						}
+
 						// Apply theme change immediately if changed
 						if (window.dashboardInstance && typeof window.dashboardInstance.setTheme === 'function') {
 							window.dashboardInstance.setTheme(this.settings.theme);
