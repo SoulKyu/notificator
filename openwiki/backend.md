@@ -18,8 +18,9 @@ services; reflection is gated behind `NOTIFICATOR_GRPC_REFLECTION` (off by defau
 | `AlertService` | `AlertServiceGorm` | `proto/alert.proto` |
 | `StatisticsService` | `StatisticsServiceGorm` | `proto/alert.proto` |
 
-`OAuthService` is initialized only when `config.OAuth.Enabled`. Statistics capture is offloaded
-to a `StatisticsWorkerPool` (10 workers, queue 1000; `server.go:131`). `grpc.ChainUnaryInterceptor`
+`OAuthService` is initialized only when `config.OAuth.Enabled`. `initServices`
+(`server.go:122`) wires exactly three services and nothing else — statistics capture has no
+background machinery, each capture RPC writes to the DB inline. `grpc.ChainUnaryInterceptor`
 runs `loggingUnaryInterceptor` (logs method/duration/status; its `getClientIP` is a stub that
 always returns `"unknown"`) then `authUnaryInterceptor`; `authStreamInterceptor` covers the
 streaming path.
@@ -106,14 +107,18 @@ expired are indistinguishable from a live ack and must be un-acknowledged from t
 This is the largest backend subsystem. See [domain concepts](domain.md#statistics) for the
 metric definitions (MTTR / MTTA / fix-time / on-call rules).
 
-- **Capture** (`services/statistics_capture.go`): `CaptureAlertFired` upserts an
-  `AlertStatistic` keyed idempotently on `(fingerprint, fired_at)`. `UpdateAlertResolved` sets
-  `ResolvedAt` and computes **MTTR = resolved − fired** and **FixTime = resolved − acknowledged**.
-  `UpdateAlertAcknowledged` computes **MTTA = acknowledged − fired** and now writes it to the
-  `MTTASeconds` column (it previously mis-wrote MTTA into `MTTRSeconds` — a data-correctness bug,
-  now fixed). Capture also records `silenced_at_fire`, driving the `include_silenced` query filters.
-- **Async path** (`services/statistics_worker.go`): jobs run through the worker pool and are
-  **silently dropped if the queue (1000) is full** — only a warning is logged, no metric today.
+- **Capture** (`services/statistics_grpc_service.go:346` onwards): **fully synchronous** — each
+  capture RPC writes through `s.db` before returning, so the caller's `success` flag is the real
+  persistence result and nothing is queued, retried or dropped in the background.
+  `CaptureAlertFired` upserts an `AlertStatistic` keyed idempotently on `(fingerprint, fired_at)`
+  (the WebUI re-announces every live alert whenever it rebuilds its cache, so duplicates are
+  routine and must not error). `UpdateAlertResolved` sets `ResolvedAt` and computes
+  **MTTR = resolved − fired** and **FixTime = resolved − acknowledged**. `UpdateAlertAcknowledged`
+  computes **MTTA = acknowledged − fired** and now writes it to the `MTTASeconds` column (it
+  previously mis-wrote MTTA into `MTTRSeconds` — a data-correctness bug, now fixed). Capture also
+  records `silenced_at_fire`, driving the `include_silenced` query filters. An update for an
+  unknown fingerprint returns `success: true` with "likely fired before statistics enabled" —
+  by design, not a swallowed error.
 - **Query** (`services/statistics_query.go`): `QueryStatistics` filters by time range, optional
   severity/team (multi-select OR), optional on-call time-of-day window, `include_silenced`, and an
   explicit `timezone`, grouped by `severity | team | alert_name | period | none`. Two additional
@@ -155,8 +160,10 @@ only** (no cross-replica fan-out). See [architecture](architecture.md#real-time)
   allowlist (see [auth](#auth)).
 - **Dead code:** `services/comment_service.go` and `services/acknowledgment_service.go` define
   `CommentService`/`AcknowledgmentService` whose constructors are never called — the real logic
-  is inline in `AlertServiceGorm`.
-- **Silent job drops:** statistics worker pool drops events when full, with no alerting.
+  is inline in `AlertServiceGorm`. Same shape in `services/statistics_capture.go`:
+  `StatisticsCaptureService` is constructed by `NewStatisticsServiceGorm` but none of its methods
+  are ever invoked — the live capture logic is inline in the RPC handlers. Grep for a caller
+  before assuming a `*Service` type in this package is on the request path.
 - **Single-replica constraint:** in-memory subscriptions break under horizontal scaling.
 - **Encryption key is mandatory:** the backend refuses to start (non-zero exit before the gRPC
   server accepts connections) unless `NOTIFICATOR_ENCRYPTION_KEY` is set to a valid 64-hex key —
