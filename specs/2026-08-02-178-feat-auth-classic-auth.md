@@ -4,11 +4,27 @@
 - Date: 2026-08-02
 - Status: planned
 
+## How this spec addresses code
+
+**No line numbers.** Every reference in this document is a *symbol anchor* —
+a file plus an identifier or an exact source string you can `grep -F` for.
+Line numbers were used in the first two revisions of this spec and were wrong
+on arrival (copied from the issue rather than read from the tree), which is
+the failure mode a reader has no way to detect: a wrong number still looks
+authoritative, and "insert after line N" silently points into the wrong
+function. Symbol anchors either match or they don't, and §Anchor check turns
+that into a script anyone can run before starting work.
+
+If an anchor in this document does not resolve, **stop and re-read the file**
+— the spec is stale, not the tree.
+
 ## Problem
 
-`/profile`'s "Change Password" button (`internal/webui/templates/pages/Profile.templ:210-217`,
-gated on `data.User.OAuthProvider == nil`) calls `showChangePassword()`
-(`Profile.templ:266-269`), which is a dead end:
+`/profile` renders a "Change Password" button, gated on
+`data.User.OAuthProvider == nil`, in
+`internal/webui/templates/pages/Profile.templ`. It is wired to
+`@click="showChangePassword"`, whose implementation in the page's inline
+`<script>` is a dead end:
 
 ```js
 showChangePassword() {
@@ -17,55 +33,59 @@ showChangePassword() {
 }
 ```
 
-No RPC, handler, or route exists to back it. `proto/auth.proto`'s
-`AuthService` has `password` only on `RegisterRequest` (field 2, line 45)
-and `LoginRequest` (field 2, line 57) — nothing lets an existing user rotate
-theirs. The quickstart (`openwiki/quickstart.md:35`) tells operators to log
-in with `admin:admin` "(change it)"; that instruction cannot be followed
-from the product today.
+No RPC, handler, or route exists to back it. In `proto/auth.proto`,
+`AuthService` carries a `password` field only on `RegisterRequest` and
+`LoginRequest` — nothing lets an existing user rotate theirs.
 
 ## Goals
 
 1. A classic-auth user (one with a password hash, i.e. `models.User.HasPassword()`
-   — `internal/backend/models/models.go:47-49`) can change their password
-   from `/profile` by supplying their current password and a new one.
+   in `internal/backend/models/models.go`) can change their password from
+   `/profile` by supplying their current password and a new one.
 2. Wrong current password is rejected with a specific, visible error; no
    silent success.
 3. OAuth-only accounts (no password hash) are refused server-side, not just
    hidden client-side (the button is already hidden for them).
 4. On success, the user's other active sessions are invalidated; the
    session used to make the change stays valid.
-5. The `admin:admin` bootstrap credential becomes rotatable end-to-end
-   through the UI.
 
 ## Non-goals
 
 - No email-based password reset / "forgot password" flow — this is
   in-session rotation only, requiring the current password.
-- No change to `classicAuthDisabled()` gating (`internal/backend/services/services.go:50-56`).
-  `ChangePassword` is not added to it: it only ever touches an account that
+- No change to `classicAuthDisabled()` (`internal/backend/services/services.go`).
+  `ChangePassword` does not call it: it only ever touches an account that
   already has a password hash, so it doesn't open a new classic-auth
   surface in OAuth-only deployments.
 - No new password-strength policy beyond the existing 4-character minimum
-  `Register` already enforces (`internal/backend/services/services.go:80-85`)
-  — reused as-is, not redesigned.
-- No changes to `internal/backend/auth_interceptor.go`'s `publicMethods`
-  allowlist (`auth_interceptor.go:34-42`) — `ChangePassword` must **not** be
-  added to it, since omission is exactly what makes it session/service-token
-  gated by the existing deny-by-default `authenticate()` (`auth_interceptor.go:107-137`).
+  that `AuthServiceGorm.Register` enforces (`"Password must be at least 4
+  characters long"` in `services.go`) — reused as-is, not redesigned.
+- No changes to the `publicMethods` allowlist in
+  `internal/backend/auth_interceptor.go` — `ChangePassword` must **not** be
+  added to it, since omission is what routes it through the deny-by-default
+  tail of `(*Server).authenticate`.
+- **Not fixing the `admin:admin` documentation bug.** `README.md` and
+  `openwiki/quickstart.md` both tell operators to log in with `admin:admin`
+  and change it. No such account exists: the only non-test caller of
+  `GormDB.CreateUser` is `AuthServiceGorm.Register`, there is no seeding
+  path anywhere in the repo, and a freshly-booted stack has zero rows in
+  `users`. This feature does not create one and cannot make that
+  instruction true — the docs are simply wrong and need their own issue.
+  Do not treat "rotate the bootstrap admin password" as an acceptance
+  criterion for this work; there is nothing to rotate.
 
 ## Approach
 
 ### 1. Proto: `ChangePassword` RPC
 
-`proto/auth.proto` — add to the `AuthService` block (after `rpc UpdateTimezone`,
-line 17):
+`proto/auth.proto` — add to the `service AuthService` block, next to
+`rpc UpdateTimezone`:
 
 ```protobuf
 rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
 ```
 
-And messages (after `UpdateTimezoneResponse`, lines 105-108):
+And messages, next to `message UpdateTimezoneResponse`:
 
 ```protobuf
 message ChangePasswordRequest {
@@ -83,14 +103,21 @@ message ChangePasswordResponse {
 ### 1b. Regeneration (fix the target before using it)
 
 `make proto` is a **silent no-op** at this SHA: `proto` is absent from the
-`.PHONY` list (`Makefile:1`) and a `proto/` directory exists, so make
-resolves the target against that directory and prints
+`.PHONY` list (the first line of the `Makefile`) and a `proto/` directory
+exists, so make resolves the target against that directory and prints
 `make: 'proto' is up to date.` with rc=0 — `scripts/generate_proto.sh`
 never runs, and the `@echo "Generating proto files..."` line never prints.
+Confirm the precondition before touching anything:
+
+```sh
+head -1 Makefile | grep -qw proto && echo "already fixed" || echo "no-op confirmed"
+```
+
 Regenerating is therefore part of the change, not a build note:
 
-1. Add `proto` to the `.PHONY` list at `Makefile:1`. One-word edit; the
-   recipe itself (`Makefile:46-48`) is already correct.
+1. Add `proto` to the `.PHONY` list on the Makefile's first line. One-word
+   edit; the `proto:` recipe itself is already correct. After the edit the
+   command above must print `already fixed`.
 2. Install the two protoc plugins the script shells out to — `protoc`
    alone is not enough and neither plugin is vendored:
 
@@ -99,11 +126,11 @@ Regenerating is therefore part of the change, not a build note:
    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
    ```
 
-   Do this **first**: `scripts/generate_proto.sh` runs under `set -e`
-   (`:1`) and `rm -rf internal/backend/proto/auth` (`:11-13`) *before*
-   invoking `protoc` (`:19-24` auth, `:27-32` alert), so running it
-   without the plugins deletes the generated auth package and leaves the
-   tree unbuildable. Recovery is
+   Do this **first**: `scripts/generate_proto.sh` runs under `set -e` (its
+   first line) and does `rm -rf internal/backend/proto/auth` /
+   `rm -rf internal/backend/proto/alert` *before* invoking `protoc`, so
+   running it without the plugins deletes the generated auth package and
+   leaves the tree unbuildable. Recovery is
    `git checkout -- internal/backend/proto`.
 3. Run `make proto`, then check the generated **content**, not the exit
    code:
@@ -123,7 +150,7 @@ Do not hand-edit `auth.pb.go` or `auth_grpc.pb.go`.
 
 `internal/backend/database/gorm_db.go`:
 
-- Next to `UpdateUserTimezone` (line 238-240), add:
+- Next to `func (gdb *GormDB) UpdateUserTimezone`, add:
 
   ```go
   func (gdb *GormDB) UpdateUserPasswordHash(userID, passwordHash string) error {
@@ -131,7 +158,7 @@ Do not hand-edit `auth.pb.go` or `auth_grpc.pb.go`.
   }
   ```
 
-- Next to `DeleteSession` (line 309-311), add:
+- Next to `func (gdb *GormDB) DeleteSession`, add:
 
   ```go
   // DeleteOtherSessions removes every session for userID except
@@ -142,15 +169,24 @@ Do not hand-edit `auth.pb.go` or `auth_grpc.pb.go`.
   }
   ```
 
-  `models.Session` (`internal/backend/models/models.go:65-72`) has `UserID`
+  `models.Session` (`internal/backend/models/models.go`) has `UserID`
   and `ID` columns, so this is a direct filter — no new model/migration.
+
+  The raw column strings above are deliberate: GORM's default naming would
+  turn some struct fields into surprising column names (`OAuthProvider` →
+  `o_auth_provider`, for instance). `password_hash`, `user_id` and `id` are
+  the real column names as migrated — verify with `\d users` / `\d sessions`
+  rather than reading them off the struct.
+
+`AuthServiceGorm.db` is a concrete `*database.GormDB`, not an interface, so
+adding methods to `GormDB` is sufficient — there is no interface to widen.
 
 ### 3. Backend service: `AuthServiceGorm.ChangePassword`
 
-`internal/backend/services/services.go`, added after `UpdateTimezone`
-(line 278-321), following that method's exact shape (session lookup via
-`s.db.GetUserBySession`, no RPC-level `classicAuthDisabled` check since this
-never creates a new password, only rotates an existing one):
+`internal/backend/services/services.go`, next to
+`func (s *AuthServiceGorm) UpdateTimezone`, following that method's exact
+shape (session lookup via `s.db.GetUserBySession`, no `classicAuthDisabled`
+check since this never creates a new password, only rotates an existing one):
 
 ```go
 // ChangePassword implements the ChangePassword RPC method
@@ -193,8 +229,9 @@ func (s *AuthServiceGorm) ChangePassword(ctx context.Context, req *authpb.Change
 
     if err := s.db.DeleteOtherSessions(user.ID, req.SessionId); err != nil {
         // Password is already changed; log but don't fail the request over
-        // a session-cleanup error, matching UpdateLastLogin's precedent
-        // (services.go:175-178) of not failing the primary action.
+        // a session-cleanup error, matching the precedent in Login, where a
+        // failing s.db.UpdateLastLogin is logged and swallowed rather than
+        // failing the primary action.
         log.Printf("Error invalidating other sessions for user %s: %v", user.ID, err)
     }
 
@@ -202,25 +239,34 @@ func (s *AuthServiceGorm) ChangePassword(ctx context.Context, req *authpb.Change
 }
 ```
 
-`bcrypt`, `context`, `log` are already imported in `services.go` (lines
-3-14); no new imports needed for this file.
+`bcrypt`, `context` and `log` are already in `services.go`'s import block;
+no new imports needed. `AuthServiceGorm` embeds
+`authpb.UnimplementedAuthServiceServer`, so the new method registers with
+the existing server wiring — no registration change.
 
-This RPC is reachable only through `authUnaryInterceptor` →
-`authenticate()`. Since `/notificator.auth.AuthService/ChangePassword` is
-absent from `publicMethods`, `authenticate()` requires a valid service
-token or session before the handler above ever runs (deny-by-default,
-already in place from #172) — no interceptor change needed to satisfy
-"the RPC is unreachable without a valid session."
+**What actually gates this RPC.** Two distinct checks, and it matters which
+does what:
+
+- `(*Server).authenticate` rejects the call unless it carries either a valid
+  session or the shared `NOTIFICATOR_SERVICE_TOKEN`
+  (`x-notificator-service-token` metadata). The WebUI's gRPC client presents
+  the *service token*, so the interceptor is satisfied for every WebUI-origin
+  call regardless of who is logged in. Adding `ChangePassword` to
+  `publicMethods` would remove even that — hence the non-goal above.
+- The user scoping — "this call may only change *this* user's password" —
+  comes entirely from `s.db.GetUserBySession(req.SessionId)` in the handler
+  above, plus `authMiddleware.RequireAuth()` on the HTTP route (§5). Do not
+  weaken either on the assumption that the interceptor covers it.
 
 ### 4. WebUI gRPC client wrapper
 
-`internal/webui/client/backend_client.go`, after `UpdateTimezone`
-(line 376-397). Unlike `UpdateTimezone` (which collapses success/failure
-into a single `error` the handler can't distinguish from a transport
-failure), this must preserve the business-level message so the handler can
-show "Current password is incorrect" to the user — same shape as
-`Login`'s `(*AuthResult, error)` split between transport error and
-business failure (`backend_client.go:187-222`):
+`internal/webui/client/backend_client.go`, next to
+`func (c *BackendClient) UpdateTimezone`. Unlike `UpdateTimezone` (which
+collapses success/failure into a single `error` the handler can't distinguish
+from a transport failure), this must preserve the business-level message so
+the handler can show "Current password is incorrect" to the user — same shape
+as `func (c *BackendClient) Login`'s `(*AuthResult, error)` split between
+transport error and business failure:
 
 ```go
 // ChangePassword rotates the caller's password, verifying oldPassword
@@ -250,9 +296,9 @@ func (c *BackendClient) ChangePassword(sessionID, oldPassword, newPassword strin
 
 ### 5. WebUI handler + route
 
-`internal/webui/handlers/profile_handlers.go`, after `UpdateTimezone`
-(line 101-137), same guard order (auth → bind → backend-availability →
-call):
+`internal/webui/handlers/profile_handlers.go`, next to
+`func UpdateTimezone(c *gin.Context)`, same guard order (auth → bind →
+backend-availability → call):
 
 ```go
 // ChangePassword rotates the current user's password
@@ -293,33 +339,39 @@ func ChangePassword(c *gin.Context) {
 }
 ```
 
-Route in `internal/webui/router.go`, inside the existing `authProtected`
-group (already `authMiddleware.RequireAuth()`-gated, line 200-207),
-alongside `/logout` and `/me`:
+Route in `internal/webui/router.go`, inside the existing block opened by
+`authProtected := api.Group("/auth")` (already
+`authProtected.Use(authMiddleware.RequireAuth())`-gated), alongside the
+`/logout` and `/me` registrations:
 
 ```go
 authProtected.POST("/change-password", handlers.ChangePassword)
 ```
 
-This resolves to `POST /api/v1/auth/change-password` (group prefix
-`/api/v1` at `router.go:183`, `/auth` sub-group at `router.go:201`) —
-exactly the path the issue proposes.
+That group hangs off `api := r.Group("/api/v1")`, so this resolves to
+`POST /api/v1/auth/change-password` — exactly the path the issue proposes,
+and currently a 404 on a running stack.
 
 ### 6. Frontend: modal replacing the `alert()`
 
-`internal/webui/templates/pages/Profile.templ`:
+All of this lives in `internal/webui/templates/pages/Profile.templ`, in the
+`ProfileContent(data ProfileData)` template and the `profilePage()` Alpine
+component defined in the `<script>` block at the bottom of the same file.
 
-- Replace the dead `showChangePassword()` body (lines 266-269) with state
-  toggling (`showChangePasswordModal`, form fields, `saving`, `error`) on
-  the existing `profilePage()` Alpine component (`Profile.templ:239-271`)
-  — no new mounting site needed, it's the same component already
-  initialized via `x-data="profilePage()"` on the page root (`Profile.templ:44`).
-- Add a modal block as a sibling of the existing content, following the
-  overlay/card structure of `MaintenanceModal.templ:5-17` (`fixed inset-0`
-  backdrop, centered card, `x-show`/`x-cloak`/`x-transition`) for visual
-  consistency: three password `<input type="password">` fields (current,
-  new, confirm), inline error text bound to `x-text="passwordError"`,
-  Cancel and Submit buttons.
+- Replace the body of `showChangePassword()` — the `alert('Change password
+  functionality coming soon!')` quoted in §Problem — with state toggling on
+  the *same* `profilePage()` component (`showChangePasswordModal`,
+  `oldPassword`, `newPassword`, `confirmPassword`, `savingPassword`,
+  `passwordError`, added next to the existing `idCopied` / `userId` state).
+  No new mounting site is needed: the page root already carries
+  `x-data="profilePage()"`, so the modal markup below is inside its scope.
+- Add the modal block as a sibling of the existing content, inside that same
+  `x-data` root, following the overlay/card structure of
+  `internal/webui/templates/components/MaintenanceModal.templ` (its
+  `x-show`-driven `fixed inset-0 ... backdrop-blur-sm` overlay wrapping a
+  centered card, with `x-cloak` and `x-transition`) for visual consistency:
+  three `<input type="password">` fields (current, new, confirm), inline
+  error text bound to `x-text="passwordError"`, Cancel and Submit buttons.
 - Submit handler posts JSON and surfaces the server error verbatim:
 
   ```js
@@ -354,17 +406,23 @@ exactly the path the issue proposes.
   }
   ```
 
-  This mirrors `TimezoneSelector.templ:150-158`'s `fetch(... method: 'PUT' ...)`
-  pattern for calling a profile endpoint from Alpine — same-origin
-  session-cookie auth, no CSRF token wiring needed (nothing else on this
-  page does either).
-- Do not interpolate any server-rendered Go value (username, ID, etc.)
-  into new `<script>` string literals — the existing
-  `userId: '{ data.User.ID }'` at `Profile.templ:242` is the html-entity-escaping
-  trap noted for this file (values ending up HTML-entity-escaped inside a
-  JS string); the new modal's state is 100% client-typed input plus a
-  fetch response, so this doesn't apply here, but don't add a new
-  server-value interpolation to work around it.
+  `models.SuccessResponse` / `models.ErrorResponse` serialize to
+  `{"success":true,"data":…}` / `{"success":false,"error":…}`, which is what
+  the `data.success` / `data.error` reads above expect.
+
+  This mirrors how `internal/webui/templates/components/TimezoneSelector.templ`
+  calls `fetch('/api/v1/profile/timezone', { method: 'PUT', ... })` from
+  Alpine — same-origin session-cookie auth, no CSRF token wiring (nothing
+  else on this page does either).
+- **Pass server-rendered Go values through `data-*` attributes, never into a
+  JS string literal.** This file already does it correctly: the root element
+  carries `data-user-id={ data.User.ID }` and `profilePage()` reads it in
+  `init()` via `this.userId = this.$el.dataset.userId`, with `userId: ''` as
+  the declared default. That shape exists *because* interpolating a Go value
+  directly into a `<script>` string literal gets HTML-entity-escaped by templ;
+  it was fixed in `7ec1e5a` and must not be reintroduced. The new modal needs
+  no server values at all — its state is client-typed input plus a fetch
+  response — so follow the existing pattern if that ever changes.
 - Regenerate with `make webui-templates` (never hand-edit `Profile_templ.go`).
 
 ## Risks & trade-offs
@@ -374,21 +432,25 @@ exactly the path the issue proposes.
   issue's proposed approach asks for ("keep the current one") and matches
   common practice; no opt-out is offered, since offering one would
   reintroduce the exact "leaked password, old session still valid"
-  exposure a password-rotation feature exists to close.
+  exposure a password-rotation feature exists to close. The mechanism works
+  because `authMiddleware.RequireAuth()` revalidates against the backend on
+  every request, so deleting the row logs the other browser out on its next
+  navigation — it does not wait for the cookie to expire.
 - **No rate limiting on `ChangePassword`**: an authenticated attacker with a
   stolen session can brute-force the current password via repeated calls.
   Out of scope here — no other auth RPC (`Login` included) in this codebase
   has rate limiting today, so adding it only to this one RPC would be
   inconsistent scope creep; call out as a follow-up if it needs solving
   properly, backend-wide.
-- **Mixed-auth accounts**: `HasPassword()` gates the RPC, but `Profile.templ:210`
-  gates the button on `OAuthProvider == nil`, which is computed with extra
-  session-derived logic in `profile_handlers.go:25-36`. If an account is
-  ever both password- and OAuth-linked and its display badge shows OAuth,
-  the button would stay hidden even though the RPC would accept a change.
-  Not addressed here — same display-vs-capability gap already exists today
-  independent of this feature, and mixed accounts aren't currently
-  produced by any code path in this repo.
+- **Mixed-auth accounts**: `HasPassword()` gates the RPC, but the button in
+  `Profile.templ` is gated on `data.User.OAuthProvider == nil`, and that
+  field is computed in `ProfilePage` (`profile_handlers.go`) from the
+  session's `auth_method` value, not straight off the user row. If an
+  account is ever both password- and OAuth-linked and its display badge
+  shows OAuth, the button would stay hidden even though the RPC would
+  accept a change. Not addressed here — the same display-vs-capability gap
+  already exists today independent of this feature, and mixed accounts
+  aren't currently produced by any code path in this repo.
 
 ## Validation
 
@@ -405,15 +467,17 @@ exactly the path the issue proposes.
   The `grep` is the gate; `make proto`'s exit code proves nothing on its own.
 - New Go test file `internal/backend/services/change_password_test.go`,
   modeled on `internal/backend/services/update_timezone_test.go`. That
-  file's `setupAuthServiceWithSession` helper creates users with
+  file's `setupAuthServiceWithSession` helper creates its user with
   `db.CreateUser("alice", "alice@example.com", "hash")` — a literal
   placeholder string, not a real bcrypt hash, which is fine for
   `UpdateTimezone` but means it **cannot** be reused as-is here: a real
-  test needs a user created with `bcrypt.GenerateFromPassword([]byte("initial-pw"), bcrypt.DefaultCost)`
-  as the stored hash so `bcrypt.CompareHashAndPassword` has something
-  genuine to check against. Add a small local helper (or inline the
-  bcrypt hash + `db.CreateUser`) in the new test file rather than changing
-  the shared helper's signature. Cases:
+  test needs a user whose stored hash comes from
+  `bcrypt.GenerateFromPassword([]byte("initial-pw"), bcrypt.DefaultCost)`
+  so `bcrypt.CompareHashAndPassword` has something genuine to check
+  against. Add a small local helper (or inline the bcrypt hash +
+  `db.CreateUser`) in the new test file rather than changing the shared
+  helper's signature — `setupAuthServiceWithSession` has other callers.
+  Cases:
   - missing session → `Success == false`.
   - invalid session → `Success == false`.
   - wrong `old_password` against the known hash → `Success == false`,
@@ -427,76 +491,82 @@ exactly the path the issue proposes.
     change (assert via `s.db.GetUserBySession` returning an error for it),
     while the session used for the `ChangePassword` call itself still
     resolves.
+
+  No change needed to `auth_interceptor_test.go`: its `twelveRPCs` table is
+  a fixed historical list from issue #160, not an exhaustive enumeration of
+  non-public RPCs.
 - Manual check via `make test` (docker-compose stack), covering the
-  issue's acceptance criteria directly:
-  1. Log in as a classic-auth user (or `admin`/`admin`), open `/profile`,
-     click **Change Password**, submit wrong current password → inline
-     error shown, no page reload, modal stays open.
+  issue's acceptance criteria directly. **Register a fresh user through
+  `/register` first** — a freshly-booted stack has an empty `users` table
+  and no `admin` account (see §Non-goals):
+  1. Log in as that classic-auth user, open `/profile`, click **Change
+     Password**, submit a wrong current password → inline error shown, no
+     page reload, modal stays open.
   2. Submit correct current password + valid new password → modal closes;
      log out; log in with the new password (succeeds) then the old one
      (fails).
   3. Confirm any other open session for that user (e.g. a second browser
-     logged in earlier) is now logged out, while the tab used to change
-     the password stays logged in.
+     logged in earlier) is now logged out on its next request, while the
+     tab used to change the password stays logged in.
   4. Confirm an OAuth-only test account never shows the **Change Password**
      button on `/profile`.
-  5. Rotate the bootstrap `admin`/`admin` credential end-to-end through
-     this flow and confirm the new password logs in.
 
-## Verification ledger
+## Anchor check
 
-- `Profile.templ:210-217` button gating on `OAuthProvider == nil` and
-  `:266-269` dead `alert()`: read directly, matches issue's cited lines.
-- `proto/auth.proto` password fields only on `RegisterRequest`/`LoginRequest`:
-  read full file, confirmed no `ChangePassword`-shaped RPC/message exists
-  anywhere in it.
-- `auth_interceptor.go:34-42` `publicMethods` allowlist and `:107-137`
-  `authenticate()` deny-by-default logic: read in full; confirmed
-  `ChangePassword` needs no entry to be session/service-token gated.
-- `services.go:124-191` (`Login`) and `:278-321` (`UpdateTimezone`): read in
-  full to confirm the session-lookup-then-mutate pattern and that
-  `classicAuthDisabled()` is only checked by `Register`/`Login`, not by
-  every mutating RPC.
-- `models.go:13-63` (`User` struct, `HasPassword`/`IsOAuthUser`) and `:65-72`
-  (`Session` struct): read in full; `HasPassword()` chosen over
-  `IsOAuthUser()` for the reject check since it's the precise "is there a
-  hash to compare against" condition.
-- `gorm_db.go:206-321`: read in full; confirmed no existing password-update
-  or partial-session-delete method, and that `CreateUser`/`CreateSession`/
-  `GetUserBySession`/`DeleteSession` have the exact signatures used above.
-- `backend_client.go:187-222` (`Login`) vs `:376-397` (`UpdateTimezone`):
-  read both in full; confirmed `UpdateTimezone`'s single-`error` return
-  swallows the business message, which is why `ChangePassword`'s client
-  wrapper is modeled on `Login`'s split return instead.
-- `profile_handlers.go` (full file, 155 lines): read in full; confirmed
-  `UpdateTimezone`/`GetTimezone` handler pattern and that `backendClient`/
-  `middleware.GetCurrentUserFromContext`/`middleware.GetSessionID` are the
-  established building blocks, no new plumbing required.
-- `router.go:200-215`: read to confirm the `authProtected` group already
-  sits behind `authMiddleware.RequireAuth()` and that `/api/v1` +
-  `/auth` prefixes compose to `/api/v1/auth/change-password`; confirmed
-  group prefix at `router.go:183` via targeted grep.
-- `MaintenanceModal.templ` (full file) and `TimezoneSelector.templ` (full
-  file): read in full as the modal-markup and Alpine-`fetch` style
-  references respectively; confirmed no CSRF token is wired into any
-  existing same-page fetch call, so the new modal doesn't need one either.
-- `update_timezone_test.go` (full file): read in full; confirmed
-  `setupAuthServiceWithSession`'s `"hash"` placeholder is not bcrypt-valid,
-  driving the "needs a local bcrypt-real helper" note in Validation.
-- `auth_interceptor_test.go:107-163` (`twelveRPCs` table): read in full;
-  confirmed it's a fixed historical list from issue #160, not a
-  "every non-public RPC" enumeration — no update needed there for the new
-  RPC.
-- Makefile `proto`/`webui-templates` targets (lines 41-48) and the `.PHONY`
-  list (line 1): both targets were *run*, not just read. `make
-  webui-templates` really invokes `templ generate`; `make proto` prints
-  `make: 'proto' is up to date.` and exits 0 without running the script,
-  because `proto` is missing from `.PHONY` while a `proto/` directory
-  exists — hence §1b.
-- `scripts/generate_proto.sh` (full file): read in full; confirmed `set -e`
-  (`:1`), the `rm -rf` of the generated packages at `:11-13` ahead of the
-  `protoc` calls at `:19-25`, and that the script depends on
-  `protoc-gen-go`/`protoc-gen-go-grpc` being on `PATH` (`which` finds only
-  `protoc` itself in a bare checkout environment).
-- `openwiki/quickstart.md:35`: read to confirm the exact `admin:admin`
-  wording the issue references.
+Every anchor this spec relies on, as a runnable script. Run it before
+starting work; all commands must exit 0 (the script exits non-zero and names
+the first anchor that moved). This replaces the prose "read in full /
+matches" ledger of earlier revisions, which asserted correctness the reader
+could not check — and was wrong.
+
+```sh
+#!/usr/bin/env bash
+set -u
+fail=0
+a() { # a <label> <file> <literal string>
+  grep -qF -- "$3" "$2" || { echo "MISSING ANCHOR: $1 ($2)"; fail=1; }
+}
+
+a "rpc UpdateTimezone"        proto/auth.proto                                        "rpc UpdateTimezone(UpdateTimezoneRequest)"
+a "UpdateTimezoneResponse"    proto/auth.proto                                        "message UpdateTimezoneResponse"
+a "proto recipe"              Makefile                                                "./scripts/generate_proto.sh"
+a "generate_proto set -e"     scripts/generate_proto.sh                               "set -e"
+a "generate_proto rm -rf"     scripts/generate_proto.sh                               "rm -rf internal/backend/proto/auth"
+a "UpdateUserTimezone"        internal/backend/database/gorm_db.go                    "func (gdb *GormDB) UpdateUserTimezone("
+a "DeleteSession"             internal/backend/database/gorm_db.go                    "func (gdb *GormDB) DeleteSession("
+a "CreateUser"                internal/backend/database/gorm_db.go                    "func (gdb *GormDB) CreateUser("
+a "GetUserBySession"          internal/backend/database/gorm_db.go                    "func (gdb *GormDB) GetUserBySession("
+a "HasPassword"               internal/backend/models/models.go                       "func (u *User) HasPassword()"
+a "Session struct"            internal/backend/models/models.go                       "type Session struct"
+a "classicAuthDisabled"       internal/backend/services/services.go                   "func (s *AuthServiceGorm) classicAuthDisabled()"
+a "svc Login"                 internal/backend/services/services.go                   "func (s *AuthServiceGorm) Login("
+a "svc UpdateTimezone"        internal/backend/services/services.go                   "func (s *AuthServiceGorm) UpdateTimezone("
+a "4-char minimum"            internal/backend/services/services.go                   "Password must be at least 4 characters long"
+a "UpdateLastLogin precedent" internal/backend/services/services.go                   "s.db.UpdateLastLogin(user.ID)"
+a "publicMethods"             internal/backend/auth_interceptor.go                    "var publicMethods = map[string]bool{"
+a "authenticate"              internal/backend/auth_interceptor.go                    "func (s *Server) authenticate("
+a "service token metadata"    internal/backend/auth_interceptor.go                    "serviceTokenMetadataKey"
+a "client Login"              internal/webui/client/backend_client.go                 "func (c *BackendClient) Login("
+a "client UpdateTimezone"     internal/webui/client/backend_client.go                 "func (c *BackendClient) UpdateTimezone("
+a "handler UpdateTimezone"    internal/webui/handlers/profile_handlers.go             "func UpdateTimezone(c *gin.Context)"
+a "api group"                 internal/webui/router.go                                'api := r.Group("/api/v1")'
+a "authProtected group"       internal/webui/router.go                                'authProtected := api.Group("/auth")'
+a "RequireAuth on group"      internal/webui/router.go                                "authProtected.Use(authMiddleware.RequireAuth())"
+a "profile x-data root"       internal/webui/templates/pages/Profile.templ            'x-data="profilePage()" data-user-id={ data.User.ID }'
+a "OAuth-gated button"        internal/webui/templates/pages/Profile.templ            "if data.User.OAuthProvider == nil {"
+a "profilePage component"     internal/webui/templates/pages/Profile.templ            "function profilePage() {"
+a "dead alert"                internal/webui/templates/pages/Profile.templ            "alert('Change password functionality coming soon!');"
+a "dataset.userId pattern"    internal/webui/templates/pages/Profile.templ            "this.userId = this.\$el.dataset.userId;"
+a "modal overlay reference"   internal/webui/templates/components/MaintenanceModal.templ "fixed inset-0"
+a "alpine fetch reference"    internal/webui/templates/components/TimezoneSelector.templ "await fetch('/api/v1/profile/timezone', {"
+a "non-bcrypt test helper"    internal/backend/services/update_timezone_test.go       'db.CreateUser("alice", "alice@example.com", "hash")'
+a "twelveRPCs table"          internal/backend/auth_interceptor_test.go               "func twelveRPCs("
+
+# Absence checks — these must NOT exist yet.
+! grep -rqF "ChangePassword" proto/auth.proto || { echo "UNEXPECTED: ChangePassword already in auth.proto"; fail=1; }
+! grep -rqF "change-password" internal/webui/router.go || { echo "UNEXPECTED: route already registered"; fail=1; }
+# No admin bootstrap account is seeded anywhere (see Non-goals).
+! grep -rIqE 'CreateUser\("admin"|seedAdmin|bootstrapAdmin' --include='*.go' . || { echo "UNEXPECTED: an admin seeding path exists"; fail=1; }
+
+exit $fail
+```
