@@ -53,6 +53,26 @@ counters (`buildDashboardMetadata:628`) are computed from the *full* alert set f
 mode, not the filtered page — so dropdowns don't shrink as you filter (intentional, looks like a
 bug but isn't).
 
+### Acknowledgement ownership (Owner, Ack Age, Mine, the stale badge)
+
+An acknowledgement is persisted by the backend against the **caller's session** —
+`AddAcknowledgment(sessionID, …)` carries no impersonation override, so `acknowledgments.user_id`
+is always the *real* signed-in user. Everything that displays or filters on that ownership uses
+the same identity, `getAckOwnerUsername` (`dashboard_handlers.go:367`, deliberately
+`GetCurrentUserFromContext`, **not** `GetEffectiveUser` — unlike per-user *preferences*, which do
+follow impersonation via `getCurrentUserID`). That keeps three places in agreement while
+impersonating: the Owner cell written optimistically by `processAlertAction`, the server-side
+**Mine** filter (`ownedByMe`), and the browser's own mirror of it, whose `currentUser` comes from
+`/api/v1/auth/profile` (the real user).
+
+The **`Acknowledged · N stale`** badge is a preview of the Acknowledged view and is rendered from
+every display mode. `staleAckSource` (`dashboard_handlers.go:845`) therefore takes **no alert
+slice from the caller**: outside `acknowledge` mode it rebuilds the view's rows from
+`getAcknowledgedAlerts()` under the same user filters. Deriving it from the per-mode alert set is
+what made the badge disagree with the amber rows (in `resolved` mode that set is the resolved
+store). `isStaleAck` (`:828`) mirrors `renderAckAge` (`dashboard_utilities.templ:899`) exactly —
+same threshold, same "no ack timestamp is never stale" rule.
+
 ### Live updates (SSE) and the client-side merge
 
 `initSSE()` (`dashboard_core.templ:458`) opens `EventSource('/api/v1/dashboard/stream')`; `update`
@@ -115,7 +135,9 @@ forever, a timestamp wakes the alert back up automatically (`GetUserHiddenAlerts
 upsert on `(user_id, fingerprint)` prevents duplicate rows when the same alert is re-hidden.
 See [domain](domain.md#collaboration-state-persisted-by-the-backend).
 
-**Grouping** (`viewMode = 'group'`) renders `AlertsGroupView`; the group-by field
+**Grouping** (`viewMode = 'group'`) renders `AlertsGroupView`, which draws the same
+`visibleColumns` / `renderCell` table as the list view (so Owner, Ack Age and any custom column
+show up in both); the group-by field
 (`groupByLabel`, default `alertname`) is grouped server-side by `groupAlertsByLabel`
 (`dashboard_handlers.go:559`) — supports `alertname`/`severity`/`team`/`instance` plus any
 arbitrary label key (fallback bucket `"Other"`). Each group carries a `WorstSeverity`.
@@ -124,16 +146,22 @@ arbitrary label key (fallback bucket `"Other"`). Each group carries a `WorstSeve
 
 The table (`components/dynamic_alerts_table.templ`) is fully driven by `this.columns` /
 `this.visibleColumns`. Cells are rendered by `renderCell(alert, column)`
-(`dashboard_utilities.templ:655`), dispatching on `column.formatter`
-(`checkbox|text|badge|duration|timestamp|count|actions`) to functions that emit HTML strings
+(`dashboard_utilities.templ:670`), dispatching on `column.formatter`
+(`checkbox|text|badge|duration|timestamp|count|actions|ackage`) to functions that emit HTML strings
 inserted via `x-html`. `getFieldValue` resolves dotted `field_path` (e.g. `labels.environment`).
 
-11 default columns (`getDefaultColumns:639`). The Column Config modal
+14 default columns (`getDefaultColumns:696`). The Column Config modal
 (`components/column_config_modal.templ`) supports drag-reorder, visibility, width (50–800px),
 and creating **custom columns** backed by any label/annotation. Preferences persist via
 `GET/PUT /api/v1/dashboard/column-preferences`, and column configs can also travel inside a filter
-preset. Server validates configs (unique id/order, width bounds, allowed formatter/field_type) in
-`filter_preset_handlers.go:92`.
+preset. All three save paths (column preferences, filter preset create/update) go through the
+single `webui/models.NormalizeColumnConfigs` (`filter_preset.go:131`), which rejects duplicate ids,
+out-of-range widths and unknown formatter/field_type, and *repairs* `order` by sorting and
+renumbering `0..n-1` — order is a position, not user data, so a collision is canonicalised rather
+than turned into a permanently failing save. Its formatter allowlist is
+`backend/models.ValidColumnFormatters` — a new `renderCell` formatter is added there once.
+Client-side the same rule holds: `updateVisibleColumns` (`dashboard_utilities.templ:673`)
+re-derives `col.order` from the array index after every mutation.
 
 ## Alert actions
 
