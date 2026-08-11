@@ -22,7 +22,6 @@ type StatisticsServiceGorm struct {
 	adminConfig    *config.AdminConfig
 	queryService   *StatisticsQueryService
 	captureService *StatisticsCaptureService
-	workerPool     *StatisticsWorkerPool
 }
 
 // NewStatisticsServiceGorm creates a new statistics gRPC service
@@ -32,14 +31,7 @@ func NewStatisticsServiceGorm(db *database.GormDB, adminConfig *config.AdminConf
 		adminConfig:    adminConfig,
 		queryService:   NewStatisticsQueryService(db),
 		captureService: NewStatisticsCaptureService(db),
-		workerPool:     nil, // Will be set later via SetWorkerPool
 	}
-}
-
-// SetWorkerPool sets the worker pool for async statistics capture
-func (s *StatisticsServiceGorm) SetWorkerPool(pool *StatisticsWorkerPool) {
-	s.workerPool = pool
-	log.Printf("📊 Statistics gRPC service now using worker pool for async capture")
 }
 
 // ==================== Query Statistics ====================
