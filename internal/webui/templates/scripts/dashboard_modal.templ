@@ -168,7 +168,8 @@ templ DashboardModal() {
 
 			silenceCurrentAlert() {
 				if (this.alertDetails?.alert) {
-					this.currentSilenceAlert = this.alertDetails.alert;
+					const alert = this.alertDetails.alert;
+					this.currentSilenceAlert = alert;
 					this.silenceAction = 'single';
 					this.silenceReason = '';
 					this.silenceError = '';
@@ -176,6 +177,15 @@ templ DashboardModal() {
 					this.silenceDurationType = 'preset';
 					this.customSilenceDuration = '';
 					this.customDurationError = '';
+					this.showSilenceMatchers = false;
+					this.silenceMatcherRows = Object.entries(alert.labels || {})
+						.filter(([name]) => name !== '__name__' && name !== '__tmp_')
+						.map(([name, value]) => ({ name, op: '=', value }));
+					this.silenceMatcherErrors = [];
+					this.silencePreviewCount = null;
+					this.silencePreviewError = '';
+					this.loadSilenceLabelOptions();
+					this.scheduleSilencePreview();
 					this.showSilenceModal = true;
 				}
 			},
