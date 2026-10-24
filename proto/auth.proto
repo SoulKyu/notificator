@@ -15,6 +15,7 @@ service AuthService {
   rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
   rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
   rpc UpdateTimezone(UpdateTimezoneRequest) returns (UpdateTimezoneResponse);
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
   rpc ResolveSilenceCreators(ResolveSilenceCreatorsRequest) returns (ResolveSilenceCreatorsResponse);
@@ -103,6 +104,17 @@ message UpdateTimezoneRequest {
 }
 
 message UpdateTimezoneResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ChangePasswordRequest {
+  string session_id = 1;
+  string old_password = 2;
+  string new_password = 3;
+}
+
+message ChangePasswordResponse {
   bool success = 1;
   string error = 2;
 }
