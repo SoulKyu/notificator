@@ -141,66 +141,6 @@ func (scs *StatisticsCaptureService) UpdateAlertAcknowledged(alert *webuimodels.
 	return nil
 }
 
-// UpdateAlertResolvedMinimal updates statistics with minimal data (for worker pool)
-func (scs *StatisticsCaptureService) UpdateAlertResolvedMinimal(fingerprint string, resolvedAtInterface interface{}) error {
-	stat, err := scs.db.GetAlertStatisticByFingerprint(fingerprint)
-	if err != nil {
-		log.Printf("⚠️  Alert statistic not found for fingerprint %s, skipping resolution update", fingerprint)
-		return nil
-	}
-
-	// Type assert resolved time
-	resolvedAt, ok := resolvedAtInterface.(time.Time)
-	if !ok {
-		return fmt.Errorf("invalid resolved_at type")
-	}
-
-	stat.ResolvedAt = models.TimePtr(resolvedAt)
-
-	// Calculate MTTR (Mean Time To Resolve) = resolved - fired
-	mttr := resolvedAt.Sub(stat.FiredAt)
-	stat.MTTRSeconds = models.IntPtr(int(mttr.Seconds()))
-
-	// Calculate Fix Time = resolved - acknowledged (only if acknowledged)
-	if stat.AcknowledgedAt != nil {
-		fixTime := resolvedAt.Sub(*stat.AcknowledgedAt)
-		stat.FixTimeSeconds = models.IntPtr(int(fixTime.Seconds()))
-	}
-
-	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
-		return fmt.Errorf("failed to update alert statistic: %w", err)
-	}
-
-	return nil
-}
-
-// UpdateAlertAcknowledgedMinimal updates statistics with minimal data (for worker pool)
-func (scs *StatisticsCaptureService) UpdateAlertAcknowledgedMinimal(fingerprint string, acknowledgedAtInterface interface{}) error {
-	stat, err := scs.db.GetAlertStatisticByFingerprint(fingerprint)
-	if err != nil {
-		log.Printf("⚠️  Alert statistic not found for fingerprint %s, skipping acknowledgment update", fingerprint)
-		return nil
-	}
-
-	// Type assert acknowledged time
-	acknowledgedAt, ok := acknowledgedAtInterface.(time.Time)
-	if !ok {
-		return fmt.Errorf("invalid acknowledged_at type")
-	}
-
-	stat.AcknowledgedAt = models.TimePtr(acknowledgedAt)
-
-	// Calculate MTTA (Mean Time To Acknowledge) = acknowledged - fired
-	mtta := acknowledgedAt.Sub(stat.FiredAt)
-	stat.MTTASeconds = models.IntPtr(int(mtta.Seconds()))
-
-	if err := scs.db.UpdateAlertStatistic(stat); err != nil {
-		return fmt.Errorf("failed to update alert statistic: %w", err)
-	}
-
-	return nil
-}
-
 // extractMetadata extracts all relevant metadata from an alert into a map
 // This includes labels, annotations, source, instance, etc.
 func (scs *StatisticsCaptureService) extractMetadata(alert *webuimodels.DashboardAlert) (map[string]interface{}, error) {
