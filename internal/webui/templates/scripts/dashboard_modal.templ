@@ -168,14 +168,7 @@ templ DashboardModal() {
 
 			silenceCurrentAlert() {
 				if (this.alertDetails?.alert) {
-					this.currentSilenceAlert = this.alertDetails.alert;
-					this.silenceAction = 'single';
-					this.silenceReason = '';
-					this.silenceError = '';
-					this.silenceDuration = '1h';
-					this.silenceDurationType = 'preset';
-					this.customSilenceDuration = '';
-					this.customDurationError = '';
+					this.prepareSilenceModalForAlert(this.alertDetails.alert);
 					this.showSilenceModal = true;
 				}
 			},

@@ -837,9 +837,7 @@ templ DashboardActions() {
 				return true;
 			},
 
-			silenceAlert(fingerprint) {
-				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
-				if (!alert) { return; }
+			prepareSilenceModalForAlert(alert) {
 				this.currentSilenceAlert = alert;
 				this.silenceAction = 'single';
 				this.silenceReason = '';
@@ -850,13 +848,19 @@ templ DashboardActions() {
 				this.customDurationError = '';
 				this.showSilenceMatchers = false;
 				this.silenceMatcherRows = Object.entries(alert.labels || {})
-					.filter(([name]) => name !== '__name__' && name !== '__tmp_')
+					.filter(([name]) => name !== '__name__' && !name.startsWith('__tmp_'))
 					.map(([name, value]) => ({ name, op: '=', value }));
 				this.silenceMatcherErrors = [];
 				this.silencePreviewCount = null;
 				this.silencePreviewError = '';
 				this.loadSilenceLabelOptions();
 				this.scheduleSilencePreview();
+			},
+
+			silenceAlert(fingerprint) {
+				const alert = this.alerts.find(a => a.fingerprint === fingerprint);
+				if (!alert) { return; }
+				this.prepareSilenceModalForAlert(alert);
 				this.showSilenceModal = true;
 			},
 
