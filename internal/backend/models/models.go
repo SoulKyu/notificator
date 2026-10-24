@@ -206,7 +206,7 @@ type ColumnConfig struct {
 	Label     string `json:"label"`      // Display name: "Alert Name", "Environment"
 	FieldType string `json:"field_type"` // "system", "label", "annotation"
 	FieldPath string `json:"field_path"` // "alertName", "labels.environment", "annotations.summary"
-	Formatter string `json:"formatter"`  // "text", "badge", "duration", "timestamp", "count", "checkbox", "actions"
+	Formatter string `json:"formatter"`  // see ValidColumnFormatters
 	Width     int    `json:"width"`      // Column width in pixels (50-800)
 	Sortable  bool   `json:"sortable"`   // Can be sorted
 	Visible   bool   `json:"visible"`    // Show/hide toggle
@@ -232,6 +232,16 @@ func DefaultColumnConfigs() []ColumnConfig {
 	}
 }
 
+// ValidColumnFormatters is the single source of truth for the formatters the
+// dashboard can render (renderCell() in dashboard_utilities.templ). Every save
+// path - column preferences, filter preset create/update - validates against
+// this map, so a new formatter is added here once instead of in four places.
+var ValidColumnFormatters = map[string]bool{
+	"text": true, "badge": true, "duration": true,
+	"timestamp": true, "count": true, "checkbox": true, "actions": true,
+	"ackage": true,
+}
+
 // ValidateColumnConfig validates a column configuration
 func ValidateColumnConfig(config *ColumnConfig) error {
 	// Check required fields
@@ -248,11 +258,7 @@ func ValidateColumnConfig(config *ColumnConfig) error {
 	}
 
 	// Validate formatter
-	validFormatters := map[string]bool{
-		"text": true, "badge": true, "duration": true,
-		"timestamp": true, "count": true, "checkbox": true, "actions": true,
-	}
-	if !validFormatters[config.Formatter] {
+	if !ValidColumnFormatters[config.Formatter] {
 		return fmt.Errorf("invalid formatter: %s", config.Formatter)
 	}
 

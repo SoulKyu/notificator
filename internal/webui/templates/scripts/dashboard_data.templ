@@ -16,7 +16,8 @@ templ DashboardData() {
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 					(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
-					
+					if (this.filters.ownedByMe) params.set('ownedByMe', 'true');
+
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
 					params.set('sortField', this.sortField);
@@ -106,7 +107,8 @@ templ DashboardData() {
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 					(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
-					
+					if (this.filters.ownedByMe) params.set('ownedByMe', 'true');
+
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
 					params.set('sortField', this.sortField);
@@ -194,7 +196,8 @@ templ DashboardData() {
 					if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 					if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 					(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
-					
+					if (this.filters.ownedByMe) params.set('ownedByMe', 'true');
+
 					params.set('displayMode', this.displayMode);
 					params.set('viewMode', this.viewMode);
 					params.set('sortField', this.sortField);
@@ -488,6 +491,10 @@ templ DashboardData() {
 							aVal = new Date(a.startsAt).getTime();
 							bVal = new Date(b.startsAt).getTime();
 							break;
+						case 'acknowledgedAt':
+							aVal = a.acknowledgedAt ? new Date(a.acknowledgedAt).getTime() : 0;
+							bVal = b.acknowledgedAt ? new Date(b.acknowledgedAt).getTime() : 0;
+							break;
 						case 'duration':
 						default:
 							aVal = a.duration;
@@ -568,6 +575,11 @@ templ DashboardData() {
 					if ((alert.labels || {})[label.key] !== label.value) {
 						return false;
 					}
+				}
+
+				// Check "owned by me" filter - mirrors applyDashboardFilters on the server
+				if (this.filters.ownedByMe && this.currentUser && alert.acknowledgedBy !== this.currentUser.username) {
+					return false;
 				}
 
 				// Check search query

@@ -13,6 +13,7 @@ templ DashboardUtilities() {
 				if (this.filters.teams.length > 0) params.set('teams', this.filters.teams.join(','));
 				if (this.filters.alertNames && this.filters.alertNames.length > 0) params.set('alertNames', this.filters.alertNames.join(','));
 				(this.filters.labels || []).forEach(l => params.append('label', `${l.key}=${l.value}`));
+				if (this.filters.ownedByMe) params.set('ownedByMe', 'true');
 				if (this.displayMode !== 'classic') params.set('displayMode', this.displayMode);
 				if (this.viewMode !== 'list') params.set('viewMode', this.viewMode);
 				if (this.sortField !== 'duration') params.set('sortField', this.sortField);
@@ -27,8 +28,15 @@ templ DashboardUtilities() {
 			},
 
 			loadFiltersFromURL() {
+				// An empty query string carries no state to restore - overwriting the
+				// live filters with defaults here would wipe the default preset init()
+				// has just applied
+				if (!window.location.search) {
+					return;
+				}
+
 				const params = new URLSearchParams(window.location.search);
-				
+
 				this.searchQuery = params.get('search') || '';
 				this.filters.alertmanagers = params.get('alertmanagers') ? params.get('alertmanagers').split(',') : [];
 				this.filters.severities = params.get('severities') ? params.get('severities').split(',') : [];
@@ -42,6 +50,7 @@ templ DashboardUtilities() {
 						: null)
 					.filter(Boolean);
 				this.displayMode = params.get('displayMode') || 'classic';
+				this.applyOwnedByMe(params.get('ownedByMe') === 'true');
 				this.viewMode = params.get('viewMode') || 'list';
 				this.sortField = params.get('sortField') || 'duration';
 				this.sortDirection = params.get('sortDirection') || 'asc';
@@ -98,7 +107,8 @@ templ DashboardUtilities() {
 					statuses: [],
 					teams: [],
 					alertNames: [],
-					labels: []
+					labels: [],
+					ownedByMe: false
 				};
 				this.activePresetName = null; // Clear active preset indicator
 				this.currentPage = 1;
@@ -654,17 +664,26 @@ templ DashboardUtilities() {
 				this.updateVisibleColumns();
 			},
 
+			// The position of a column in this.columns is its display order, and
+			// col.order is only the serialised form of that position. Every mutation
+			// (merge, drag, add, delete, visibility toggle) ends here, so renumbering
+			// from the array index here is what keeps the saved layout free of the
+			// duplicate orders the server used to reject - permanently, for any user
+			// whose custom column happened to share an order with a new system one.
 			updateVisibleColumns() {
-				this.visibleColumns = this.columns
-					.filter(col => col.visible)
-					.sort((a, b) => a.order - b.order);
+				this.columns.forEach((col, idx) => { col.order = idx; });
+				this.visibleColumns = this.columns.filter(col => col.visible);
 			},
 
 			// Ensure every system default column exists in a saved/loaded config.
 			// Newly added system columns (e.g. "Triggered At") are injected into older saved
 			// configs so they are always present for everyone. Custom columns are preserved.
+			// Sorting by the saved order first is what turns it back into a position;
+			// updateVisibleColumns() then renumbers.
 			mergeSystemColumns(saved) {
-				const cols = Array.isArray(saved) ? [...saved] : [];
+				const cols = (Array.isArray(saved) ? [...saved] : [])
+					.map((col, idx) => ({...col, order: Number.isFinite(col.order) ? col.order : idx}))
+					.sort((a, b) => a.order - b.order);
 				const existing = new Set(cols.map(c => c.id));
 				this.getDefaultColumns().forEach(def => {
 					if (def.field_type === "system" && !existing.has(def.id)) {
@@ -688,6 +707,8 @@ templ DashboardUtilities() {
 					{id: "col_duration", label: "Duration", field_type: "system", field_path: "duration", formatter: "duration", width: 150, sortable: true, visible: true, order: 9, resizable: true, critical: false},
 					{id: "col_starts_at", label: "Triggered At", field_type: "system", field_path: "startsAt", formatter: "timestamp", width: 190, sortable: true, visible: true, order: 10, resizable: true, critical: false},
 					{id: "col_source", label: "Alertmanager", field_type: "system", field_path: "source", formatter: "text", width: 180, sortable: true, visible: true, order: 11, resizable: true, critical: false},
+					{id: "col_owner", label: "Owner", field_type: "system", field_path: "acknowledgedBy", formatter: "text", width: 160, sortable: false, visible: false, order: 12, resizable: true, critical: false},
+					{id: "col_ack_age", label: "Ack Age", field_type: "system", field_path: "acknowledgedAt", formatter: "ackage", width: 130, sortable: true, visible: false, order: 13, resizable: true, critical: false},
 				];
 			},
 
@@ -709,6 +730,8 @@ templ DashboardUtilities() {
 						return this.renderCount(value);
 					case 'actions':
 						return this.renderActions(alert);
+					case 'ackage':
+						return this.renderAckAge(alert);
 					default:
 						return this.renderText(value, column.field_path);
 				}
@@ -868,6 +891,50 @@ templ DashboardUtilities() {
 				}
 			},
 
+			// Relative time since acknowledgement, with an amber "stale" marker once
+			// it exceeds the user's staleAckThresholdHours setting (0 = never stale).
+			// The marker rule is mirrored server-side by isStaleAck() in
+			// dashboard_handlers.go, which feeds the Acknowledged button's badge -
+			// change one and the badge stops matching the marked rows.
+			renderAckAge(alert) {
+				if (!alert.isAcknowledged || !alert.acknowledgedAt) {
+					return '<span class="text-gray-400 dark:text-gray-500">-</span>';
+				}
+
+				const ackedAt = new Date(alert.acknowledgedAt).getTime();
+				// Go marshals a missing ack time as year 1, which is truthy here; without
+				// this an ack with no timestamp would render as ~2000 years stale while
+				// isStaleAck() (IsZero) leaves it out of the badge count.
+				if (!Number.isFinite(ackedAt) || ackedAt <= 0) {
+					return '<span class="text-gray-400 dark:text-gray-500">-</span>';
+				}
+
+				const ageMs = Date.now() - ackedAt;
+				const ageMinutes = Math.floor(ageMs / 60000);
+
+				let ageText;
+				if (ageMinutes < 60) {
+					ageText = `${Math.max(ageMinutes, 0)}m`;
+				} else if (ageMinutes < 1440) {
+					ageText = `${Math.floor(ageMinutes / 60)}h`;
+				} else {
+					ageText = `${Math.floor(ageMinutes / 1440)}d`;
+				}
+
+				const thresholdHours = this.settings?.staleAckThresholdHours || 0;
+				const isStale = thresholdHours > 0 && ageMs > thresholdHours * 3600000;
+				const reason = alert.acknowledgeReason ? this.escapeHtml(alert.acknowledgeReason) : 'No reason given';
+
+				const classes = isStale
+					? 'inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400'
+					: 'text-sm font-mono text-gray-700 dark:text-gray-300 tabular-nums';
+
+				return `<span class="${classes}" title="${reason}">
+					${isStale ? '<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>' : ''}
+					${ageText}${isStale ? ' stale' : ''}
+				</span>`;
+			},
+
 			renderCount(count) {
 				if (!count || count === 0) {
 					return '<span class="text-gray-400 dark:text-gray-500">-</span>';
@@ -1000,6 +1067,7 @@ templ DashboardUtilities() {
 			showAddColumnDialog: false,
 			editingColumn: null,
 			draggingColumn: null,
+			columnSaveError: '',
 			newColumnConfig: {
 				label: '',
 				field_type: 'label',
@@ -1035,7 +1103,11 @@ templ DashboardUtilities() {
 				}
 			},
 
+			// Returns false and leaves the reason in columnSaveError so callers can
+			// keep the modal open: a rejected save silently reverts the user's layout
+			// on the next reload, which is worse than an error they can see.
 			async saveUserColumnPreferences() {
+				this.columnSaveError = '';
 				try {
 					const response = await fetch('/api/v1/dashboard/column-preferences', {
 						method: 'PUT',
@@ -1049,8 +1121,9 @@ templ DashboardUtilities() {
 					}
 
 					if (!response.ok) {
-						const errorData = await response.json();
+						const errorData = await response.json().catch(() => ({}));
 						console.error('Failed to save column preferences:', errorData);
+						this.columnSaveError = errorData.message || `Failed to save column preferences (HTTP ${response.status})`;
 						return false;
 					}
 
@@ -1058,6 +1131,7 @@ templ DashboardUtilities() {
 					return true;
 				} catch (error) {
 					console.error('Error saving column preferences:', error);
+					this.columnSaveError = error.message || 'Failed to save column preferences';
 					return false;
 				}
 			},
@@ -1128,11 +1202,6 @@ templ DashboardUtilities() {
 				const newColumns = [...this.columns];
 				const [movedColumn] = newColumns.splice(sourceIndex, 1);
 				newColumns.splice(targetIndex, 0, movedColumn);
-
-				// Update order property
-				newColumns.forEach((col, idx) => {
-					col.order = idx;
-				});
 
 				this.columns = newColumns;
 				this.updateVisibleColumns();
@@ -1222,6 +1291,7 @@ templ DashboardUtilities() {
 						width: config.width,
 						sortable: config.formatter === 'text' || config.formatter === 'badge',
 						visible: true,
+						// order is the array position; updateVisibleColumns() assigns it
 						order: this.columns.length,
 						resizable: true,
 						locked: false

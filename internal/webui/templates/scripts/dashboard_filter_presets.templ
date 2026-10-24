@@ -184,6 +184,10 @@ templ DashboardFilterPresetsMixin() {
 			if (data.view_mode) this.viewMode = data.view_mode;
 			if (data.group_by) this.groupByLabel = data.group_by;
 
+			// After the display mode, so the acknowledge-mode rule sees the mode the
+			// preset restores rather than the one the user is coming from
+			this.applyOwnedByMe(data.owned_by_me);
+
 			// Apply sorting
 			if (data.sort_by) this.sortField = data.sort_by;
 			if (data.sort_direction) this.sortDirection = data.sort_direction;
@@ -295,6 +299,7 @@ templ DashboardFilterPresetsMixin() {
 				statuses: this.filters.statuses,
 				teams: this.filters.teams,
 				alert_names: this.filters.alertNames,
+				owned_by_me: this.filters.ownedByMe,
 				display_mode: this.displayMode,
 				view_mode: this.viewMode,
 				group_by: this.groupByLabel,
